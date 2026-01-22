@@ -1,0 +1,19 @@
+FROM node:18-alpine
+
+LABEL maintainer="Komgrip <thanandorn@komgrip.com>"
+LABEL description="Nuxt 3 development environment with hot reload"
+
+RUN apk add --no-cache \
+    git
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
