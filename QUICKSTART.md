@@ -2,6 +2,11 @@
 
 Get your God-Tier application running in 3 minutes.
 
+> **📚 Need detailed instructions?**  
+> - **🇹🇭 ภาษาไทย:** [SETUP_GUIDE_TH.md](./SETUP_GUIDE_TH.md) - คู่มือละเอียดฉบับสมบูรณ์  
+> - **🇬🇧 English:** [SETUP_GUIDE_EN.md](./SETUP_GUIDE_EN.md) - Complete step-by-step guide  
+> - **📖 All Documentation:** [DOCUMENTATION_INDEX.md](./DOCUMENTATION_INDEX.md)
+
 ---
 
 ## ⚡ Quick Setup (First Time)
