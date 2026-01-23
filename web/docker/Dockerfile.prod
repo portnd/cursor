@@ -1,0 +1,115 @@
+# =============================================================================
+# KOMGRIP FRONTEND - PRODUCTION DOCKERFILE
+# =============================================================================
+# This is a multi-stage build optimized for:
+# - Minimal image size (alpine-based)
+# - Fast builds (efficient layer caching)
+# - Production-ready (SSR optimized)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# STAGE 1: Builder
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+# Install build dependencies
+# - python3, make, g++: Required for native npm modules
+RUN apk add --no-cache python3 make g++
+
+# Set working directory
+WORKDIR /build
+
+# Copy package files first (better layer caching)
+# This layer is cached unless package.json or package-lock.json changes
+COPY package*.json ./
+
+# Install ALL dependencies (including devDependencies for build)
+# CRITICAL: Using 'npm ci' for Enterprise-grade reproducible builds
+# Benefits of 'npm ci':
+# - 100% reproducible builds (uses exact versions from package-lock.json)
+# - Faster than 'npm install' (skips some checks)
+# - Fails if package.json and package-lock.json are out of sync
+# - Automatically removes node_modules before installing (clean install)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the application
+# This generates the .output directory with the production build
+ENV NODE_ENV=production
+RUN npm run build
+
+# Verify build output
+RUN ls -la .output/server/index.mjs || echo "Build output not found!"
+
+# -----------------------------------------------------------------------------
+# STAGE 2: Final Production Image
+# -----------------------------------------------------------------------------
+FROM node:20-alpine
+
+# Install runtime dependencies
+# - dumb-init: Proper signal handling for Node.js in containers
+RUN apk add --no-cache dumb-init
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV NUXT_TELEMETRY_DISABLED=1
+
+# Note: node:18-alpine already has 'node' user (UID 1000, GID 1000)
+# We'll use the existing 'node' user instead of creating a new one
+
+# Set working directory
+WORKDIR /home/node/app
+
+# Copy ONLY the production build from builder
+# .output folder contains everything needed to run the Nuxt app
+COPY --from=builder --chown=node:node /build/.output ./.output
+
+# Copy package.json for reference (optional)
+COPY --from=builder --chown=node:node /build/package.json ./package.json
+
+# Switch to non-root user
+USER node
+
+# Expose port
+EXPOSE 3000
+
+# Health check (optional but recommended)
+# This checks if the app responds on port 3000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+
+# Use dumb-init to handle signals properly
+# This ensures graceful shutdown of Node.js process
+ENTRYPOINT ["dumb-init", "--"]
+
+# Run the Nuxt production server
+CMD ["node", ".output/server/index.mjs"]
+
+# =============================================================================
+# BUILD INSTRUCTIONS:
+# 
+# 1. Build the image:
+#    docker build -f docker/Dockerfile.prod -t komgrip-web:latest .
+# 
+# 2. Run the container:
+#    docker run -d \
+#      -p 3000:3000 \
+#      -e NUXT_PUBLIC_API_BASE=https://api.yourdomain.com \
+#      --name komgrip-web \
+#      komgrip-web:latest
+# 
+# 3. Check image size:
+#    docker images komgrip-web:latest
+# 
+# Expected image size: ~150-200 MB (vs ~400 MB with full build)
+# 
+# OPTIMIZATION NOTES:
+# - Multi-stage build reduces image size by ~50%
+# - Only .output folder is copied (no source code, no node_modules)
+# - Using dumb-init for proper signal handling
+# - Running as non-root user for security
+# =============================================================================

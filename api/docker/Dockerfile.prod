@@ -1,0 +1,111 @@
+# =============================================================================
+# KOMGRIP BACKEND - PRODUCTION DOCKERFILE
+# =============================================================================
+# This is a multi-stage build optimized for:
+# - Minimal image size (alpine-based)
+# - Security (non-root user, minimal attack surface)
+# - Performance (stripped binaries)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# STAGE 1: Builder
+# -----------------------------------------------------------------------------
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+# - git: Required for go mod download with private repos
+# - ca-certificates: For HTTPS requests during build
+RUN apk add --no-cache git ca-certificates
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files first (better layer caching)
+# This layer is cached unless go.mod or go.sum changes
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+# Flags explanation:
+# - CGO_ENABLED=0: Static binary (no C dependencies)
+# - GOOS=linux: Target OS
+# - GOARCH=amd64: Target architecture
+# - -ldflags="-s -w": Strip debug info (-s) and DWARF symbol table (-w)
+# - -a: Force rebuild of all packages
+# - -installsuffix cgo: Add suffix to package installation directory
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w -X main.Version=$(git describe --tags --always --dirty) -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -a -installsuffix cgo \
+    -o /app/main \
+    ./cmd/server/main.go
+
+# Verify binary was created
+RUN ls -lh /app/main
+
+# -----------------------------------------------------------------------------
+# STAGE 2: Final Production Image
+# -----------------------------------------------------------------------------
+FROM alpine:latest
+
+# Install runtime dependencies
+# - ca-certificates: For HTTPS requests
+# - tzdata: For timezone support
+RUN apk --no-cache add ca-certificates tzdata
+
+# Set timezone (optional, change as needed)
+ENV TZ=Asia/Bangkok
+
+# Create non-root user for security
+# - Using UID/GID 1000 (standard non-root user)
+# - Home directory: /home/appuser
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+# Set working directory
+WORKDIR /home/appuser/app
+
+# Copy binary from builder stage
+COPY --from=builder /app/main .
+
+# Copy .env file if it exists (optional)
+# COPY .env .env
+
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /home/appuser/app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8080
+
+# Health check (optional but recommended)
+# This checks if the /health endpoint responds
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Run the application
+CMD ["./main"]
+
+# =============================================================================
+# BUILD INSTRUCTIONS:
+# 
+# 1. Build the image:
+#    docker build -f docker/Dockerfile.prod -t komgrip-api:latest .
+# 
+# 2. Run the container:
+#    docker run -d \
+#      -p 8080:8080 \
+#      -e APP_ENV=production \
+#      -e DB_URL=<your-db-url> \
+#      --name komgrip-api \
+#      komgrip-api:latest
+# 
+# 3. Check image size:
+#    docker images komgrip-api:latest
+# 
+# Expected image size: ~20-30 MB (vs ~800 MB with golang:1.23)
+# =============================================================================
