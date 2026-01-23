@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/komgrip/starter-kit/internal/core/config"
 	"github.com/komgrip/starter-kit/internal/core/database"
-	authDomain "github.com/komgrip/starter-kit/internal/modules/auth/domain"
 	authHttp "github.com/komgrip/starter-kit/internal/modules/auth/delivery/http"
+	authDomain "github.com/komgrip/starter-kit/internal/modules/auth/domain"
 	authRepo "github.com/komgrip/starter-kit/internal/modules/auth/repository"
 	authUsecase "github.com/komgrip/starter-kit/internal/modules/auth/usecase"
 	healthHttp "github.com/komgrip/starter-kit/internal/modules/health/delivery/http"
@@ -77,7 +77,10 @@ func main() {
 
 	// Register module routes
 	healthHttp.RegisterRoutes(router, db, mongoClient, redisClient)
-	authHttp.RegisterRoutes(router, authUsecaseInstance)
+	
+	// Auth routes need a RouterGroup (not Engine)
+	apiGroup := router.Group("")
+	authHttp.RegisterRoutes(apiGroup, authUsecaseInstance)
 
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🌐 Health endpoint: http://localhost:%s/health", cfg.AppPort)
