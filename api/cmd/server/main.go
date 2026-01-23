@@ -77,7 +77,7 @@ func main() {
 
 	// Register module routes
 	healthHttp.RegisterRoutes(router, db, mongoClient, redisClient)
-	
+
 	// Auth routes need a RouterGroup (not Engine)
 	apiGroup := router.Group("")
 	authHttp.RegisterRoutes(apiGroup, authUsecaseInstance)

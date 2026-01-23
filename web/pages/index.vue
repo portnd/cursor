@@ -257,6 +257,11 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/core/modules/auth/store/auth-store'
 
+// Protect this page - require authentication
+definePageMeta({
+  middleware: 'auth'
+})
+
 interface HealthResponse {
   status: string
   timestamp: string

@@ -53,20 +53,18 @@ export const authApi = {
    * @returns Promise with auth response (token + user)
    */
   async register(email: string, password: string, confirmPassword: string) {
-    const { data, error } = await useHttp<ApiResponse<AuthResponse>>('/auth/register', {
-      method: 'POST',
-      body: {
-        email,
-        password,
-        confirm_password: confirmPassword,
-      },
+    const http = useHttp()
+    const response = await http.post<ApiResponse<AuthResponse>>('/auth/register', {
+      email,
+      password,
+      confirm_password: confirmPassword,
     })
 
-    if (error.value) {
-      throw new Error(error.value.message || 'Registration failed')
+    if (response.error) {
+      throw new Error(response.error.message || 'Registration failed')
     }
 
-    return data.value as ApiResponse<AuthResponse>
+    return response.data
   },
 
   /**
@@ -79,19 +77,17 @@ export const authApi = {
    * @returns Promise with auth response (token + user)
    */
   async login(email: string, password: string) {
-    const { data, error } = await useHttp<ApiResponse<AuthResponse>>('/auth/login', {
-      method: 'POST',
-      body: {
-        email,
-        password,
-      },
+    const http = useHttp()
+    const response = await http.post<ApiResponse<AuthResponse>>('/auth/login', {
+      email,
+      password,
     })
 
-    if (error.value) {
-      throw new Error(error.value.message || 'Login failed')
+    if (response.error) {
+      throw new Error(response.error.message || 'Login failed')
     }
 
-    return data.value as ApiResponse<AuthResponse>
+    return response.data
   },
 
   /**
@@ -105,17 +101,17 @@ export const authApi = {
   async validateToken(token: string) {
     // TODO: Implement token validation endpoint in backend
     // This will be used to check if token is still valid on app initialization
-    const { data, error } = await useHttp<ApiResponse<User>>('/auth/validate', {
-      method: 'GET',
+    const http = useHttp()
+    const response = await http.get<ApiResponse<User>>('/auth/validate', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     })
 
-    if (error.value) {
-      throw new Error(error.value.message || 'Token validation failed')
+    if (response.error) {
+      throw new Error(response.error.message || 'Token validation failed')
     }
 
-    return data.value as ApiResponse<User>
+    return response.data
   },
 }

@@ -86,7 +86,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const response = await authApi.register(email, password, confirmPassword)
 
-        if (response.data) {
+        if (response && response.data) {
           // Store token in cookie (expires in 7 days)
           const tokenCookie = useCookie('token', {
             maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -123,7 +123,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const response = await authApi.login(email, password)
 
-        if (response.data) {
+        if (response && response.data) {
           // Store token in cookie (expires in 7 days)
           const tokenCookie = useCookie('token', {
             maxAge: 60 * 60 * 24 * 7, // 7 days
