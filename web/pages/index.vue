@@ -26,6 +26,38 @@
           <span class="text-pink-400 font-semibold"> Feature-Sliced Design</span>
         </p>
 
+        <!-- Auth Section -->
+        <div class="flex items-center justify-center gap-4 mb-12">
+          <!-- If logged in -->
+          <div v-if="authStore.isLoggedIn" class="flex items-center gap-4">
+            <div class="bg-white/10 backdrop-blur-lg rounded-full px-6 py-3 border border-white/20">
+              <span class="text-white">👋 Welcome, <span class="font-semibold text-purple-400">{{ authStore.userEmail }}</span></span>
+            </div>
+            <button
+              @click="authStore.logout()"
+              class="bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold py-3 px-8 rounded-full hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              Logout
+            </button>
+          </div>
+          
+          <!-- If not logged in -->
+          <div v-else class="flex gap-4">
+            <NuxtLink
+              to="/login"
+              class="bg-white/10 backdrop-blur-lg text-white font-semibold py-3 px-8 rounded-full hover:bg-white/20 transition-all duration-200 border border-white/20 shadow-lg hover:shadow-xl"
+            >
+              Sign In
+            </NuxtLink>
+            <NuxtLink
+              to="/register"
+              class="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold py-3 px-8 rounded-full hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              Sign Up
+            </NuxtLink>
+          </div>
+        </div>
+
         <!-- System Status -->
         <div v-if="healthData" class="max-w-4xl mx-auto mb-12">
           <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-2xl">
@@ -223,6 +255,8 @@
 </template>
 
 <script setup lang="ts">
+import { useAuthStore } from '~/core/modules/auth/store/auth-store'
+
 interface HealthResponse {
   status: string
   timestamp: string
@@ -232,6 +266,12 @@ interface HealthResponse {
     redis: string
   }
 }
+
+// Initialize auth store
+const authStore = useAuthStore()
+onMounted(() => {
+  authStore.initialize()
+})
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase

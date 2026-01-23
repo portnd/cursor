@@ -38,7 +38,7 @@
 
 | Layer | Technology | Purpose | Constraints |
 | :--- | :--- | :--- | :--- |
-| **Backend** | Go 1.21+ (Gin Framework) | REST API, Business Logic | Modular Monolith + Hexagonal Architecture |
+| **Backend** | Go 1.23 (Gin Framework) | REST API, Business Logic | Modular Monolith + Hexagonal Architecture |
 | **Frontend** | Nuxt 3 (Vue 3 + TypeScript) | SSR/SPA Web Application | Feature-Sliced Design (FSD) |
 | **Primary DB** | PostgreSQL 15 | Core Business Data (ACID) | Users, Wallets, Transactions |
 | **Secondary DB** | MongoDB 6 | Logs, Audits, Unstructured Data | System logs, audit trails |
