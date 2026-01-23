@@ -9,11 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/komgrip/starter-kit/internal/core/config"
 	"github.com/komgrip/starter-kit/internal/core/database"
+	"github.com/komgrip/starter-kit/internal/core/middleware"
 	authHttp "github.com/komgrip/starter-kit/internal/modules/auth/delivery/http"
 	authDomain "github.com/komgrip/starter-kit/internal/modules/auth/domain"
 	authRepo "github.com/komgrip/starter-kit/internal/modules/auth/repository"
 	authUsecase "github.com/komgrip/starter-kit/internal/modules/auth/usecase"
 	healthHttp "github.com/komgrip/starter-kit/internal/modules/health/delivery/http"
+	walletHttp "github.com/komgrip/starter-kit/internal/modules/wallet/delivery/http"
+	walletDomain "github.com/komgrip/starter-kit/internal/modules/wallet/domain"
+	walletRepo "github.com/komgrip/starter-kit/internal/modules/wallet/repository"
+	walletUsecase "github.com/komgrip/starter-kit/internal/modules/wallet/usecase"
 )
 
 func main() {
@@ -49,7 +54,7 @@ func main() {
 
 	// Auto-migrate database schemas
 	log.Println("🔄 Running database migrations...")
-	if err := db.AutoMigrate(&authDomain.User{}); err != nil {
+	if err := db.AutoMigrate(&authDomain.User{}, &walletDomain.Wallet{}, &walletDomain.Transaction{}); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
 	log.Println("✅ Database migrations completed")
@@ -59,6 +64,13 @@ func main() {
 	authRepository := authRepo.NewPostgresRepository(db)
 	authUsecaseInstance := authUsecase.NewAuthUsecase(authRepository)
 	log.Println("✅ Auth Module initialized")
+
+	// Initialize Wallet Module (Hexagonal Architecture Wiring)
+	log.Println("💰 Initializing Wallet Module...")
+	walletRepository := walletRepo.NewPostgresRepository(db)
+	walletUsecaseInstance := walletUsecase.NewWalletUsecase(walletRepository, db)
+	walletHandlerInstance := walletHttp.NewWalletHandler(walletUsecaseInstance)
+	log.Println("✅ Wallet Module initialized")
 
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -82,9 +94,14 @@ func main() {
 	apiGroup := router.Group("")
 	authHttp.RegisterRoutes(apiGroup, authUsecaseInstance)
 
+	// Wallet routes (protected by auth middleware)
+	authMiddleware := middleware.AuthMiddleware(cfg.JWTSecret)
+	walletHttp.RegisterRoutes(apiGroup, walletHandlerInstance, authMiddleware)
+
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🌐 Health endpoint: http://localhost:%s/health", cfg.AppPort)
 	log.Printf("🔐 Auth endpoints: http://localhost:%s/auth/register | /auth/login", cfg.AppPort)
+	log.Printf("💰 Wallet endpoints: http://localhost:%s/wallets/me | /wallets/transfer", cfg.AppPort)
 
 	if err := router.Run(fmt.Sprintf(":%s", cfg.AppPort)); err != nil {
 		log.Fatalf("❌ Failed to start server: %v", err)

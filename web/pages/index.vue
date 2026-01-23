@@ -58,6 +58,32 @@
           </div>
         </div>
 
+        <!-- Wallet Section -->
+        <div v-if="authStore.isLoggedIn" class="max-w-6xl mx-auto mb-12">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Wallet Card -->
+            <div>
+              <WalletCard
+                :wallet-i-d="walletStore.walletID"
+                :balance="walletStore.balance"
+                :currency="walletStore.currency"
+                :is-loading="walletStore.isLoading"
+                :error="walletStore.error"
+              />
+            </div>
+
+            <!-- Transfer Form -->
+            <div>
+              <TransferForm
+                :currency="walletStore.currency"
+                :is-loading="walletStore.isLoading"
+                :error="walletStore.error"
+                @transfer="handleTransfer"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- System Status -->
         <div v-if="healthData" class="max-w-4xl mx-auto mb-12">
           <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-2xl">
@@ -256,6 +282,9 @@
 
 <script setup lang="ts">
 import { useAuthStore } from '~/core/modules/auth/store/auth-store'
+import { useWalletStore } from '~/core/modules/wallet/store/wallet-store'
+import WalletCard from '~/core/modules/wallet/ui/WalletCard.vue'
+import TransferForm from '~/core/modules/wallet/ui/TransferForm.vue'
 
 // Protect this page - require authentication
 definePageMeta({
@@ -278,6 +307,12 @@ onMounted(() => {
   authStore.initialize()
 })
 
+// Initialize wallet store
+const walletStore = useWalletStore()
+onMounted(async () => {
+  await walletStore.fetchWallet()
+})
+
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
 
@@ -285,6 +320,11 @@ const { data: healthData, pending, error } = await useFetch<HealthResponse>('/he
   baseURL: apiBase as string,
   server: false
 })
+
+// Handle transfer
+const handleTransfer = async (toWalletID: number, amount: number) => {
+  await walletStore.transfer(toWalletID, amount)
+}
 
 useHead({
   title: 'Komgrip - God-Tier Starter Kit',
