@@ -24,13 +24,12 @@
 
 **Choose your language:**
 
-- **🇹🇭 ภาษาไทย:** [SETUP_GUIDE_TH.md](./SETUP_GUIDE_TH.md) - คู่มือติดตั้งฉบับภาษาไทย (แนะนำสำหรับทีมไทย)
-- **🇬🇧 English:** [SETUP_GUIDE_EN.md](./SETUP_GUIDE_EN.md) - Complete English setup guide
+- **🇹🇭 ภาษาไทย:** [SETUP_GUIDE_TH.md](./docs/SETUP_GUIDE_TH.md) - คู่มือติดตั้งฉบับภาษาไทย (แนะนำสำหรับทีมไทย)
+- **🇬🇧 English:** [SETUP_GUIDE_EN.md](./docs/SETUP_GUIDE_EN.md) - Complete English setup guide
 
 **Other documentation:**
 - [QUICKSTART.md](./QUICKSTART.md) - 3-minute quick start
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
-- [DEPLOYMENT_STATUS.md](./DEPLOYMENT_STATUS.md) - Current deployment status
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) - System architecture overview
 
 ---
 
@@ -131,14 +130,14 @@ komgrip-starter/
 
 **🆕 First time setting up?**  
 Complete step-by-step guides with troubleshooting:
-- **🇹🇭 Thai Version:** [SETUP_GUIDE_TH.md](./SETUP_GUIDE_TH.md) - คู่มือติดตั้งฉบับภาษาไทย (แนะนำ!)
-- **🇬🇧 English Version:** [SETUP_GUIDE_EN.md](./SETUP_GUIDE_EN.md) - Complete English setup guide
+- **🇹🇭 Thai Version:** [SETUP_GUIDE_TH.md](./docs/SETUP_GUIDE_TH.md) - คู่มือติดตั้งฉบับภาษาไทย (แนะนำ!)
+- **🇬🇧 English Version:** [SETUP_GUIDE_EN.md](./docs/SETUP_GUIDE_EN.md) - Complete English setup guide
 
 **⚡ Experienced developer?**  
 Quick 3-minute start: [QUICKSTART.md](./QUICKSTART.md)
 
 **📖 Looking for specific docs?**  
-Full documentation index: [DOCUMENTATION_INDEX.md](./DOCUMENTATION_INDEX.md)
+Full documentation index: [DOCUMENTATION_INDEX.md](./docs/DOCUMENTATION_INDEX.md)
 
 ---
 
