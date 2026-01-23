@@ -301,16 +301,26 @@ interface HealthResponse {
   }
 }
 
-// Initialize auth store
+// Initialize stores
 const authStore = useAuthStore()
-onMounted(() => {
-  authStore.initialize()
+const walletStore = useWalletStore()
+
+// Initialize auth and wallet on mount
+onMounted(async () => {
+  // First, initialize auth (restore user session)
+  await authStore.initialize()
+  
+  // Then, fetch wallet data only if user is logged in
+  if (authStore.isLoggedIn) {
+    await walletStore.fetchWallet()
+  }
 })
 
-// Initialize wallet store
-const walletStore = useWalletStore()
-onMounted(async () => {
-  await walletStore.fetchWallet()
+// Watch for auth state changes and refetch wallet
+watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
+  if (isLoggedIn) {
+    await walletStore.fetchWallet()
+  }
 })
 
 const config = useRuntimeConfig()

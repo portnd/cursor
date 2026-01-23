@@ -19,7 +19,7 @@ export const useHttp = () => {
       baseURL,
       ...options,
       onRequest({ options }) {
-        const token = useCookie('auth_token').value
+        const token = useCookie('token').value
         if (token) {
           options.headers = {
             ...options.headers,
@@ -29,7 +29,7 @@ export const useHttp = () => {
       },
       onResponseError({ response }) {
         if (response.status === 401) {
-          useCookie('auth_token').value = null
+          useCookie('token').value = null
           navigateTo('/login')
         }
       }
