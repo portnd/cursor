@@ -66,9 +66,19 @@ export const useAuthStore = defineStore('auth', {
 
       if (token) {
         this.token = token
-        // TODO: Add API call to validate token and fetch user data
-        // For now, we just set isAuthenticated to true
         this.isAuthenticated = true
+        
+        // Try to restore user data from localStorage
+        if (process.client) {
+          const storedUser = localStorage.getItem('user')
+          if (storedUser) {
+            try {
+              this.user = JSON.parse(storedUser)
+            } catch (error) {
+              console.error('Failed to parse stored user data:', error)
+            }
+          }
+        }
       }
     },
 
@@ -99,6 +109,11 @@ export const useAuthStore = defineStore('auth', {
           this.token = response.data.token
           this.user = response.data.user
           this.isAuthenticated = true
+
+          // Store user data in localStorage for persistence
+          if (process.client) {
+            localStorage.setItem('user', JSON.stringify(response.data.user))
+          }
 
           return { success: true }
         }
@@ -137,6 +152,11 @@ export const useAuthStore = defineStore('auth', {
           this.user = response.data.user
           this.isAuthenticated = true
 
+          // Store user data in localStorage for persistence
+          if (process.client) {
+            localStorage.setItem('user', JSON.stringify(response.data.user))
+          }
+
           return { success: true }
         }
       } catch (error: any) {
@@ -155,6 +175,11 @@ export const useAuthStore = defineStore('auth', {
       // Clear cookie
       const tokenCookie = useCookie('token')
       tokenCookie.value = null
+
+      // Clear localStorage
+      if (process.client) {
+        localStorage.removeItem('user')
+      }
 
       // Clear store state
       this.token = null
