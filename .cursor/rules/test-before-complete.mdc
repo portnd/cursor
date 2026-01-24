@@ -1,0 +1,67 @@
+---
+description: Always test fixes visually before reporting completion
+alwaysApply: true
+---
+
+# Testing Protocol Before Completion
+
+## CRITICAL RULE: Visual Verification Required
+
+**NEVER** report that a fix is complete without:
+
+1. **Browser Verification** (for web apps):
+   - Use browser automation tools to navigate and interact with the actual page
+   - Check browser console for JavaScript errors
+   - Verify network requests succeed (200 OK, not 500/422/401)
+   - Take screenshots if possible
+
+2. **API Verification**:
+   - Test endpoints with curl or API client
+   - Verify response status codes (200, not 500/422)
+   - Check response data structure and content
+   - Confirm database state if applicable
+
+3. **Log Verification**:
+   - Check application logs for errors
+   - Verify no unexpected warnings or exceptions
+   - Confirm successful operations are logged
+
+## Workflow
+
+```
+Fix Issue → Test Fix → Verify No Errors → THEN Report Complete
+         ↓
+         └─→ If errors found → Fix Again → Repeat
+```
+
+## Examples
+
+### ❌ BAD - Report without testing:
+```
+"I've fixed the table creation. The system should work now ✅"
+```
+
+### ✅ GOOD - Test then report:
+```
+"Let me test the fix first..."
+[Uses browser tools to reload page]
+[Checks console logs]
+[Verifies API responses]
+"Tested and confirmed: No errors in console, API returns 200 OK ✅"
+```
+
+## Why This Matters
+
+- **User trust**: Users need confidence that fixes actually work
+- **Time saving**: Catch issues immediately rather than back-and-forth
+- **Quality**: Ensures complete resolution, not partial fixes
+- **Professionalism**: Shows thoroughness and attention to detail
+
+## Tools Available
+
+- Browser automation (cursor-ide-browser MCP)
+- Shell commands (curl, docker logs)
+- Database queries (psql)
+- Code inspection tools
+
+**Use these tools to verify every fix before completion.**

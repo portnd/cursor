@@ -17,7 +17,6 @@ Thumbs.db
 *.sublime-workspace
 *.code-workspace
 .fleet/
-.cursor/
 
 # Environment Variables
 .env
