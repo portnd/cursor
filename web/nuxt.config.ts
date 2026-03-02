@@ -23,7 +23,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080/api/v1'
     }
   },
 
@@ -34,11 +34,11 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Komgrip - God-Tier Starter Kit',
+      title: 'The Sentinel - AI-Powered Task Management',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'Production-ready, scalable monorepo starter kit built for national-level applications' }
+        { name: 'description', content: 'AI-powered task management system with code review and intelligent time estimation' }
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }

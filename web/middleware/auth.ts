@@ -1,26 +1,18 @@
 /**
- * Authentication Middleware
- * 
- * This middleware protects routes that require authentication.
- * If user is not logged in, redirect to login page.
- * 
- * Usage:
- * In your page, add:
- * definePageMeta({
- *   middleware: 'auth'
- * })
+ * 🔐 Authentication Middleware
+ * Protects routes that require authentication
  */
 
 export default defineNuxtRouteMiddleware((to, from) => {
-  // Check if token exists in cookie
-  const token = useCookie('token')
+  const { isAuthenticated } = useAuth()
 
-  // If no token, redirect to login
-  if (!token.value) {
+  // If trying to access protected route without auth
+  if (!isAuthenticated.value && to.path !== '/login') {
     return navigateTo('/login')
   }
 
-  // TODO: Optionally validate token with API
-  // This would require a backend endpoint to validate JWT
-  // For now, we just check if token exists
+  // If authenticated and trying to access login page, redirect to dashboard
+  if (isAuthenticated.value && to.path === '/login') {
+    return navigateTo('/dashboard')
+  }
 })

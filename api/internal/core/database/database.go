@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/komgrip/starter-kit/internal/core/config"
+	"github.com/portnd/the-sentinel-core/internal/core/config"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

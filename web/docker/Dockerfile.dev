@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 LABEL maintainer="Komgrip <thanandorn@komgrip.com>"
 LABEL description="Nuxt 3 development environment with hot reload"

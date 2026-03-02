@@ -74,21 +74,22 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Get user_id from claims
-		userID, ok := claims["user_id"]
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":   "Unauthorized",
-				"message": "user_id not found in token",
-			})
-			c.Abort()
-			return
-		}
-
-		// Set user_id in context for handlers to use
-		c.Set("user_id", userID)
-		c.Set("email", claims["email"])
-
-		c.Next()
+	// Get user_id from claims
+	userID, ok := claims["user_id"]
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "user_id not found in token",
+		})
+		c.Abort()
+		return
 	}
+
+	// Set user info in context for handlers to use
+	c.Set("user_id", userID)
+	c.Set("email", claims["email"])
+	c.Set("role", claims["role"]) // 👈 Extract role from JWT
+
+	c.Next()
+}
 }

@@ -23,6 +23,7 @@ interface LoginRequest {
 interface User {
   id: number
   email: string
+  role: string // CEO, PM, DEV
   created_at: string
   updated_at: string
 }

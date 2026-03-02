@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/komgrip/starter-kit/internal/modules/auth/domain"
+	"github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -63,8 +63,8 @@ func (u *authUsecase) Register(req *domain.RegisterRequest) (*domain.AuthRespons
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Generate JWT token
-	token, err := u.generateJWT(user.ID, user.Email)
+	// Generate JWT token with role
+	token, err := u.generateJWT(user.ID, user.Email, user.Role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -93,8 +93,8 @@ func (u *authUsecase) Login(req *domain.LoginRequest) (*domain.AuthResponse, err
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	// Generate JWT token
-	token, err := u.generateJWT(user.ID, user.Email)
+	// Generate JWT token with role
+	token, err := u.generateJWT(user.ID, user.Email, user.Role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -107,13 +107,14 @@ func (u *authUsecase) Login(req *domain.LoginRequest) (*domain.AuthResponse, err
 }
 
 // generateJWT creates a JWT token with user claims
-// Token includes: user_id, email, issued_at, expires_at (24 hours)
+// Token includes: user_id, email, role, issued_at, expires_at (24 hours)
 // Algorithm: HS256 (HMAC with SHA-256)
-func (u *authUsecase) generateJWT(userID uint, email string) (string, error) {
+func (u *authUsecase) generateJWT(userID uint, email, role string) (string, error) {
 	// Define JWT claims
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"email":   email,
+		"role":    role,                                      // 👈 Added role to JWT
 		"iat":     time.Now().Unix(),                        // Issued At
 		"exp":     time.Now().Add(24 * time.Hour).Unix(),    // Expires in 24 hours
 	}
@@ -128,4 +129,68 @@ func (u *authUsecase) generateJWT(userID uint, email string) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+// GetTeamMembers retrieves all users (CEO only)
+// Business Rule: Only users with role 'CEO' can access this
+func (u *authUsecase) GetTeamMembers(requestingUserID uint) ([]domain.User, error) {
+	// Get requesting user to check their role
+	requestingUser, err := u.repo.FindByID(requestingUserID)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: user not found")
+	}
+
+	// Check if user is CEO
+	if requestingUser.Role != domain.RoleCEO {
+		return nil, fmt.Errorf("unauthorized: only CEO can view team members")
+	}
+
+	// Fetch all users
+	users, err := u.repo.GetAllUsers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch team members: %w", err)
+	}
+
+	return users, nil
+}
+
+// ChangeUserRole changes a user's role (CEO only)
+// Business Rules:
+// 1. Only users with role 'CEO' can change roles
+// 2. New role must be one of: CEO, PM, DEV
+// 3. Cannot change own role (optional safeguard)
+func (u *authUsecase) ChangeUserRole(requestingUserID uint, targetUserID uint, newRole string) error {
+	// Get requesting user to check their role
+	requestingUser, err := u.repo.FindByID(requestingUserID)
+	if err != nil {
+		return fmt.Errorf("unauthorized: user not found")
+	}
+
+	// Check if user is CEO
+	if requestingUser.Role != domain.RoleCEO {
+		return fmt.Errorf("unauthorized: only CEO can change user roles")
+	}
+
+	// Validate new role
+	if newRole != domain.RoleCEO && newRole != domain.RolePM && newRole != domain.RoleDEV {
+		return fmt.Errorf("invalid role: must be one of CEO, PM, or DEV")
+	}
+
+	// Optional: Prevent CEO from changing their own role
+	if requestingUserID == targetUserID {
+		return fmt.Errorf("cannot change your own role")
+	}
+
+	// Check if target user exists
+	targetUser, err := u.repo.FindByID(targetUserID)
+	if err != nil {
+		return fmt.Errorf("target user not found")
+	}
+
+	// Update role
+	if err := u.repo.UpdateUserRole(targetUser.ID, newRole); err != nil {
+		return fmt.Errorf("failed to update user role: %w", err)
+	}
+
+	return nil
 }

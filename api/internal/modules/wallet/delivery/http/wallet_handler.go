@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/komgrip/starter-kit/internal/modules/wallet/domain"
+	"github.com/portnd/the-sentinel-core/internal/modules/wallet/domain"
 )
 
 type WalletHandler struct {

@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	"github.com/komgrip/starter-kit/internal/modules/wallet/domain"
+	"github.com/portnd/the-sentinel-core/internal/modules/wallet/domain"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

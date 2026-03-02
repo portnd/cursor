@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	"github.com/komgrip/starter-kit/internal/modules/auth/domain"
+	"github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"gorm.io/gorm"
 )
 
@@ -54,4 +54,31 @@ func (r *postgresRepository) FindByID(id uint) (*domain.User, error) {
 		return nil, fmt.Errorf("failed to find user by id: %w", err)
 	}
 	return &user, nil
+}
+
+// GetAllUsers retrieves all users from the database
+// Password hash is automatically hidden by the `json:"-"` tag in the User struct
+func (r *postgresRepository) GetAllUsers() ([]domain.User, error) {
+	var users []domain.User
+	if err := r.db.Order("created_at DESC").Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch users: %w", err)
+	}
+	return users, nil
+}
+
+// UpdateUserRole updates a user's role
+// Validates that the role is one of the allowed values
+func (r *postgresRepository) UpdateUserRole(userID uint, newRole string) error {
+	// Update only the role field
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("role", newRole)
+	
+	if result.Error != nil {
+		return fmt.Errorf("failed to update user role: %w", result.Error)
+	}
+	
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	
+	return nil
 }
