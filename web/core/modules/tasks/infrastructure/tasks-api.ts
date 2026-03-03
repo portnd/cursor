@@ -1,0 +1,204 @@
+import { useAuth } from '~/composables/useAuth'
+import type { Task } from '../../../modules/projects/infrastructure/projects-api'
+
+export interface TaskComment {
+  id: string
+  task_id: string
+  user_id: number
+  user_email: string
+  content: string
+  created_at: string
+}
+
+export interface TimeLog {
+  id: string
+  task_id: string
+  user_id: number
+  user_email: string
+  minutes: number
+  description: string
+  logged_at: string
+}
+
+function useTasksApi() {
+  const { fetchWithAuth } = useAuth()
+
+  async function getTasksByProject(projectId: string): Promise<Task[]> {
+    const data = await fetchWithAuth<{ data: Task[] }>(`/sentinel/tasks?project_id=${projectId}`)
+    return data.data || []
+  }
+
+  async function getAllTasks(): Promise<Task[]> {
+    const data = await fetchWithAuth<{ data: Task[] }>('/sentinel/tasks')
+    return data.data || []
+  }
+
+  async function getTask(idOrCode: string): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${idOrCode}`)
+    return data.data
+  }
+
+  async function createTask(payload: {
+    title: string
+    description?: string
+    project_id?: string
+    parent_id?: string
+    priority?: string
+    story_points?: number
+    sprint_id?: string
+    milestone_id?: string
+    epic_id?: string
+    start_date?: string
+    end_date?: string
+    due_date?: string
+  }): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>('/sentinel/tasks', {
+      method: 'POST',
+      body: payload,
+    })
+    return data.data
+  }
+
+  async function updateTask(id: string, payload: Partial<{
+    title: string
+    description: string
+    priority: string
+    story_points: number
+    sprint_id: string
+    milestone_id: string
+    parent_id: string
+    epic_id: string
+    start_date: string
+    end_date: string
+    progress: number
+    status: string
+  }>): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${id}`, {
+      method: 'PATCH',
+      body: payload,
+    })
+    return data.data
+  }
+
+  async function updateTaskSlideResources(id: string, resourceUrls: Record<string, unknown>): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${id}/slide-resources`, {
+      method: 'PATCH',
+      body: { resource_urls: resourceUrls },
+    })
+    return data.data
+  }
+
+  async function deleteTask(id: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${id}`, { method: 'DELETE' })
+  }
+
+  async function assignTask(id: string, devId: number): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${id}/assign`, {
+      method: 'POST',
+      body: { dev_id: devId },
+    })
+  }
+
+  async function bulkUpdateStatus(taskIds: string[], status: string): Promise<void> {
+    await fetchWithAuth('/sentinel/tasks/bulk-status', {
+      method: 'PATCH',
+      body: { task_ids: taskIds, status },
+    })
+  }
+
+  async function getComments(taskId: string): Promise<TaskComment[]> {
+    const data = await fetchWithAuth<{ data: TaskComment[] }>(`/sentinel/tasks/${taskId}/comments`)
+    return data.data || []
+  }
+
+  async function addComment(taskId: string, content: string): Promise<TaskComment> {
+    const data = await fetchWithAuth<{ data: TaskComment }>(`/sentinel/tasks/${taskId}/comments`, {
+      method: 'POST',
+      body: { content },
+    })
+    return data.data
+  }
+
+  async function getTimeLogs(taskId: string): Promise<TimeLog[]> {
+    const data = await fetchWithAuth<{ data: TimeLog[] }>(`/sentinel/tasks/${taskId}/time-logs`)
+    return data.data || []
+  }
+
+  async function logTime(taskId: string, minutes: number, description: string): Promise<TimeLog> {
+    const data = await fetchWithAuth<{ data: TimeLog }>(`/sentinel/tasks/${taskId}/time-logs`, {
+      method: 'POST',
+      body: { minutes, description },
+    })
+    return data.data
+  }
+
+  async function getGanttData(projectId?: string): Promise<{ tasks: Task[]; dependencies: any[] }> {
+    const url = projectId
+      ? `/sentinel/tasks/gantt?project_id=${projectId}`
+      : '/sentinel/tasks/gantt'
+    const data = await fetchWithAuth<{ data: { tasks: Task[]; dependencies: any[] } }>(url)
+    return data.data || { tasks: [], dependencies: [] }
+  }
+
+  async function previewGoogleSlides(payload: {
+    presentation_url: string
+    api_key?: string
+  }): Promise<{
+    presentation_title: string
+    slides: { index: number; title: string; hidden?: boolean }[]
+    import_mode: string
+    api_key_status: string
+    api_key_error?: string
+  }> {
+    const data = await fetchWithAuth<{
+      data: {
+        presentation_title: string
+        presentation_id?: string
+        slides: { index: number; title: string; hidden?: boolean }[]
+        already_imported_slide_indices?: number[]
+        import_mode: string
+        api_key_status: string
+        api_key_error?: string
+      }
+    }>('/sentinel/import/google-slides/preview', { method: 'POST', body: payload, timeoutMs: 60 * 1000 })
+    return data.data
+  }
+
+  async function importGoogleSlides(payload: {
+    presentation_url: string
+    project_id: string
+    sprint_id?: string
+    epic_id?: string
+    api_key?: string
+    priority?: string
+    story_points?: number
+    slide_indices?: number[]
+  }): Promise<{ created_count: number; slide_count: number; presentation_title: string; tasks: Task[] }> {
+    const data = await fetchWithAuth<{ data: { created_count: number; slide_count: number; presentation_title: string; tasks: Task[] } }>(
+      '/sentinel/import/google-slides',
+      { method: 'POST', body: payload, timeoutMs: 5 * 60 * 1000 }, // 5 min: download PPTX + slide images + create tasks
+    )
+    return data.data
+  }
+
+  return {
+    getTasksByProject,
+    getAllTasks,
+    getTask,
+    createTask,
+    updateTask,
+    updateTaskSlideResources,
+    deleteTask,
+    assignTask,
+    bulkUpdateStatus,
+    getComments,
+    addComment,
+    getTimeLogs,
+    logTime,
+    getGanttData,
+    previewGoogleSlides,
+    importGoogleSlides,
+  }
+}
+
+export { useTasksApi }

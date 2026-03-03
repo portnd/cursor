@@ -1,6 +1,9 @@
 package http
 
 import (
+	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -8,21 +11,38 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
+	"gorm.io/datatypes"
 )
 
 type SentinelHandler struct {
-	usecase domain.SentinelUsecase
+	usecase      domain.SentinelUsecase
+	googleAPIKey string
 }
 
-func NewSentinelHandler(usecase domain.SentinelUsecase) *SentinelHandler {
-	return &SentinelHandler{usecase: usecase}
+func NewSentinelHandler(usecase domain.SentinelUsecase, googleAPIKey string) *SentinelHandler {
+	return &SentinelHandler{usecase: usecase, googleAPIKey: googleAPIKey}
 }
 
 // Request DTOs
+type createProjectReq struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
+	Status      string `json:"status"` // Optional: ACTIVE, COMPLETED, ON_HOLD (default ACTIVE)
+}
+
 type createTaskReq struct {
 	Title       string  `json:"title" binding:"required"`
 	Description string  `json:"description"`
-	DueDate     *string `json:"due_date"` // Optional: ISO8601/RFC3339 format (e.g., "2026-01-30T15:00:00Z")
+	DueDate     *string `json:"due_date"`
+	ProjectID   *string `json:"project_id"`
+	ParentID    *string `json:"parent_id"`
+	EpicID      *string `json:"epic_id"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+	Priority    string  `json:"priority"`
+	StoryPoints int     `json:"story_points"`
+	SprintID    *string `json:"sprint_id"`
+	MilestoneID *string `json:"milestone_id"`
 }
 
 type assignTaskReq struct {
@@ -49,8 +69,88 @@ type negotiateTimeReq struct {
 }
 
 type updateTaskReq struct {
-	Title       string `json:"title"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	ParentID    *string `json:"parent_id"`
+	EpicID      *string `json:"epic_id"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+	Progress    *int    `json:"progress"`
+	Priority    string  `json:"priority"`
+	StoryPoints *int    `json:"story_points"`
+	SprintID    *string `json:"sprint_id"`
+	MilestoneID *string `json:"milestone_id"`
+}
+
+type createEpicReq struct {
+	ProjectID   string  `json:"project_id" binding:"required"`
+	Title       string  `json:"title" binding:"required"`
+	Description string  `json:"description"`
+	Color       string  `json:"color"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+}
+
+type updateEpicReq struct {
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Status      string  `json:"status"`
+	Color       string  `json:"color"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+}
+
+type createSprintReq struct {
+	ProjectID string  `json:"project_id" binding:"required"`
+	Name      string  `json:"name" binding:"required"`
+	Goal      string  `json:"goal"`
+	StartDate *string `json:"start_date"`
+	EndDate   *string `json:"end_date"`
+}
+
+type updateSprintReq struct {
+	Name      string  `json:"name"`
+	Goal      string  `json:"goal"`
+	StartDate *string `json:"start_date"`
+	EndDate   *string `json:"end_date"`
+}
+
+type addTasksToSprintReq struct {
+	TaskIDs []string `json:"task_ids" binding:"required"`
+}
+
+type createMilestoneReq struct {
+	ProjectID   string  `json:"project_id" binding:"required"`
+	Title       string  `json:"title" binding:"required"`
+	Description string  `json:"description"`
+	DueDate     *string `json:"due_date"`
+}
+
+type updateMilestoneReq struct {
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Status      string  `json:"status"`
+	DueDate     *string `json:"due_date"`
+}
+
+type addCommentReq struct {
+	Content string `json:"content" binding:"required"`
+}
+
+type logTimeReq struct {
+	Minutes     int    `json:"minutes" binding:"required,gt=0"`
 	Description string `json:"description"`
+}
+
+type bulkStatusReq struct {
+	TaskIDs []string `json:"task_ids" binding:"required"`
+	Status  string   `json:"status" binding:"required"`
+}
+
+type createDependencyReq struct {
+	PredecessorID string `json:"predecessor_id" binding:"required"` // Task that must happen first
+	SuccessorID   string `json:"successor_id" binding:"required"`   // Task that waits
+	Type          string `json:"type"`                              // FS, SS, FF, SF (default FS)
 }
 
 type updateConfigReq struct {
@@ -60,6 +160,132 @@ type updateConfigReq struct {
 }
 
 // --- Handlers ---
+
+// CreateProject handles POST /sentinel/projects
+func (h *SentinelHandler) CreateProject(c *gin.Context) {
+	var req createProjectReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+	status := req.Status
+	if status == "" {
+		status = "ACTIVE"
+	}
+	project, err := h.usecase.CreateProject(req.Name, req.Description, status)
+	if err != nil {
+		if err.Error() == "project name is required" || err.Error() == "project name must be in English only (letters, numbers, spaces, hyphens)" || contains(err.Error(), "invalid project status") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Bad Request",
+				"message": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create project",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Project created successfully",
+		"data":    project,
+	})
+}
+
+// GetProjects handles GET /sentinel/projects
+func (h *SentinelHandler) GetProjects(c *gin.Context) {
+	projects, err := h.usecase.GetProjects()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve projects",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Projects retrieved successfully",
+		"data":    projects,
+	})
+}
+
+// GetProjectByID handles GET /sentinel/projects/:id (id may be UUID or project code e.g. mims-hdmap-main)
+func (h *SentinelHandler) GetProjectByID(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": "Project id or code is required",
+		})
+		return
+	}
+	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	if err != nil {
+		if err.Error() == "project not found" || contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "Not Found",
+				"message": "Project not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve project",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Project retrieved successfully",
+		"data":    project,
+	})
+}
+
+// DeleteProject handles DELETE /sentinel/projects/:id (id may be UUID or project code)
+func (h *SentinelHandler) DeleteProject(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": "Project id or code is required",
+		})
+		return
+	}
+	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	if err != nil {
+		if err.Error() == "project not found" || contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "Not Found",
+				"message": "Project not found",
+			})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+	if err := h.usecase.DeleteProject(project.ID); err != nil {
+		if err.Error() == "project not found" || contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "Not Found",
+				"message": "Project not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete project",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Project deleted successfully",
+	})
+}
 
 // CreateTask handles POST /api/v1/tasks
 // Creates a new task (CEO/PM only)
@@ -96,8 +322,87 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 		dueDate = &parsedTime
 	}
 
-	task, err := h.usecase.CreateTask(req.Title, req.Description, userID, dueDate)
+	// Parse optional project_id (task belongs to project)
+	var projectID *uuid.UUID
+	if req.ProjectID != nil && *req.ProjectID != "" {
+		pid, err := uuid.Parse(*req.ProjectID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid request",
+				"message": "project_id must be a valid UUID",
+			})
+			return
+		}
+		projectID = &pid
+	}
+	// Parse Gantt/WBS optional fields
+	var parentID *uuid.UUID
+	if req.ParentID != nil && *req.ParentID != "" {
+		pid, err := uuid.Parse(*req.ParentID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid request",
+				"message": "parent_id must be a valid UUID",
+			})
+			return
+		}
+		parentID = &pid
+	}
+	var startDate, endDate *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid date format",
+				"message": "start_date must be ISO8601/RFC3339",
+			})
+			return
+		}
+		startDate = &t
+	}
+	if req.EndDate != nil && *req.EndDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid date format",
+				"message": "end_date must be ISO8601/RFC3339",
+			})
+			return
+		}
+		endDate = &t
+	}
+
+	var sprintID *uuid.UUID
+	if req.SprintID != nil && *req.SprintID != "" {
+		sid, err := uuid.Parse(*req.SprintID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "sprint_id must be a valid UUID"})
+			return
+		}
+		sprintID = &sid
+	}
+	var milestoneID *uuid.UUID
+	if req.MilestoneID != nil && *req.MilestoneID != "" {
+		mid, err := uuid.Parse(*req.MilestoneID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "milestone_id must be a valid UUID"})
+			return
+		}
+		milestoneID = &mid
+	}
+	var epicID *uuid.UUID
+	if req.EpicID != nil && *req.EpicID != "" {
+		eid, err := uuid.Parse(*req.EpicID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "epic_id must be a valid UUID"})
+			return
+		}
+		epicID = &eid
+	}
+
+	task, err := h.usecase.CreateTask(req.Title, req.Description, userID, dueDate, projectID, parentID, startDate, endDate, req.Priority, req.StoryPoints, sprintID, milestoneID, epicID)
 	if err != nil {
+		log.Printf("[CreateTask] usecase error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to create task",
 			"message": err.Error(),
@@ -112,15 +417,11 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 }
 
 // AssignTask handles POST /api/v1/tasks/:id/assign
-// Assigns a task to a developer (PM only)
+// :id can be UUID or task code
 func (h *SentinelHandler) AssignTask(c *gin.Context) {
-	idStr := c.Param("id")
-	taskID, err := uuid.Parse(idStr)
+	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
 		return
 	}
 
@@ -133,7 +434,7 @@ func (h *SentinelHandler) AssignTask(c *gin.Context) {
 		return
 	}
 
-	if err := h.usecase.AssignTask(taskID, req.DevID); err != nil {
+	if err := h.usecase.AssignTask(task.ID, req.DevID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to assign task",
 			"message": err.Error(),
@@ -147,15 +448,11 @@ func (h *SentinelHandler) AssignTask(c *gin.Context) {
 }
 
 // SubmitWork handles POST /api/v1/tasks/:id/submit
-// Submits code for a task (Developer only)
+// :id can be UUID or task code
 func (h *SentinelHandler) SubmitWork(c *gin.Context) {
-	idStr := c.Param("id")
-	taskID, err := uuid.Parse(idStr)
+	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
 		return
 	}
 
@@ -177,7 +474,7 @@ func (h *SentinelHandler) SubmitWork(c *gin.Context) {
 		return
 	}
 
-	sub, err := h.usecase.SubmitWork(taskID, userID, req.CommitHash, req.Diff)
+	sub, err := h.usecase.SubmitWork(task.ID, userID, req.CommitHash, req.Diff)
 	if err != nil {
 		// Check for duplicate commit hash error (PostgreSQL unique constraint violation)
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") || 
@@ -203,36 +500,34 @@ func (h *SentinelHandler) SubmitWork(c *gin.Context) {
 }
 
 // GetTaskByID handles GET /api/v1/sentinel/tasks/:id
-// Retrieves a single task with full submission history
+// :id can be UUID or task code (e.g. mims-hdmap-main-001)
 func (h *SentinelHandler) GetTaskByID(c *gin.Context) {
-	idStr := c.Param("id")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
+			"error":   "Bad Request",
+			"message": "task id or code is required",
 		})
 		return
 	}
-
-	task, err := h.usecase.GetTaskByID(taskID)
+	task, err := h.usecase.GetTaskByIDOrCode(idStr)
 	if err != nil {
-		// Check if it's a "not found" error
-		if err.Error() == "task not found" || err.Error() == "record not found" {
+		errMsg := err.Error()
+		if errMsg == "task id or code is required" ||
+			strings.Contains(errMsg, "task not found") ||
+			strings.Contains(errMsg, "record not found") {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error":   "Not Found",
 				"message": "Task not found",
 			})
 			return
 		}
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve task",
-			"message": err.Error(),
+			"message": errMsg,
 		})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Task retrieved successfully",
 		"data":    task,
@@ -285,20 +580,143 @@ func (h *SentinelHandler) GetUnassignedTasks(c *gin.Context) {
 }
 
 // GetAllTasks handles GET /api/v1/sentinel/tasks
-// Retrieves ALL tasks in the system (for ADMIN/PM overview)
+// Optional query: ?project_id=UUID to get only that project's tasks (for project Board/Backlog).
+// Without project_id: returns ALL tasks (ADMIN/PM overview).
 func (h *SentinelHandler) GetAllTasks(c *gin.Context) {
-	tasks, err := h.usecase.GetAllTasks()
+	var tasks interface{}
+	var err error
+	var message string
+	if idStr := c.Query("project_id"); idStr != "" {
+		projectID, parseErr := uuid.Parse(idStr)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+			return
+		}
+		var list []domain.Task
+		list, err = h.usecase.GetTasksByProjectID(projectID)
+		tasks = list
+		message = "Project tasks retrieved successfully"
+	} else {
+		var list []domain.Task
+		list, err = h.usecase.GetAllTasks()
+		tasks = list
+		message = "All tasks retrieved successfully"
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve all tasks",
+			"error":   "Failed to retrieve tasks",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": message, "data": tasks})
+}
+
+// GetGantt handles GET /api/v1/sentinel/tasks/gantt
+// Returns tasks and dependencies for Gantt chart. Optional query: ?project_id=xxx to filter by project.
+func (h *SentinelHandler) GetGantt(c *gin.Context) {
+	var projectID *uuid.UUID
+	if idStr := c.Query("project_id"); idStr != "" {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid request",
+				"message": "project_id must be a valid UUID",
+			})
+			return
+		}
+		projectID = &id
+	}
+	data, err := h.usecase.GetGanttData(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve Gantt data",
 			"message": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "All tasks retrieved successfully",
-		"data":    tasks,
+		"message": "Gantt data retrieved successfully",
+		"data":    data,
+	})
+}
+
+// CreateDependency handles POST /api/v1/sentinel/tasks/dependencies
+// Creates a link between tasks (e.g. successor cannot start until predecessor finishes)
+func (h *SentinelHandler) CreateDependency(c *gin.Context) {
+	var req createDependencyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+	predID, err := uuid.Parse(req.PredecessorID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": "predecessor_id must be a valid UUID",
+		})
+		return
+	}
+	succID, err := uuid.Parse(req.SuccessorID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": "successor_id must be a valid UUID",
+		})
+		return
+	}
+	dep, err := h.usecase.AddDependency(predID, succID, req.Type)
+	if err != nil {
+		if contains(err.Error(), "self-linking") || contains(err.Error(), "predecessor and successor") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Bad Request",
+				"message": err.Error(),
+			})
+			return
+		}
+		if contains(err.Error(), "invalid dependency type") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Bad Request",
+				"message": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create dependency",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Dependency created successfully",
+		"data":    dep,
+	})
+}
+
+// DeleteDependency handles DELETE /api/v1/sentinel/tasks/dependencies/:id
+func (h *SentinelHandler) DeleteDependency(c *gin.Context) {
+	idStr := c.Param("id")
+	depID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": "Invalid dependency UUID",
+		})
+		return
+	}
+	if err := h.usecase.RemoveDependency(depID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete dependency",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Dependency deleted successfully",
 	})
 }
 
@@ -483,15 +901,11 @@ func (h *SentinelHandler) ResolveAppeal(c *gin.Context) {
 }
 
 // NegotiateTime handles POST /api/v1/sentinel/tasks/:id/negotiate
-// Allows a developer to dispute/negotiate the AI-estimated time
+// :id can be UUID or task code
 func (h *SentinelHandler) NegotiateTime(c *gin.Context) {
-	taskIDStr := c.Param("id")
-	taskID, err := uuid.Parse(taskIDStr)
+	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
 		return
 	}
 
@@ -513,7 +927,7 @@ func (h *SentinelHandler) NegotiateTime(c *gin.Context) {
 		return
 	}
 
-	if err := h.usecase.NegotiateTime(taskID, userID, req.Minutes, req.Reason); err != nil {
+	if err := h.usecase.NegotiateTime(task.ID, userID, req.Minutes, req.Reason); err != nil {
 		// Check for specific error types
 		if err.Error() == "unauthorized: only the assigned developer can negotiate time" ||
 			err.Error() == "unauthorized: only the task creator can negotiate time for unassigned tasks" {
@@ -525,7 +939,7 @@ func (h *SentinelHandler) NegotiateTime(c *gin.Context) {
 		}
 
 		if err.Error() == "time negotiation already pending review" ||
-			err.Error() == "proposed time must be greater than AI estimate (why negotiate if you need less time?)" ||
+			strings.Contains(err.Error(), "proposed time must be greater") ||
 			err.Error() == "negotiation reason must be at least 20 characters" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "Bad Request",
@@ -547,21 +961,15 @@ func (h *SentinelHandler) NegotiateTime(c *gin.Context) {
 }
 
 // UpdateTask handles PATCH /api/v1/sentinel/tasks/:id
-// Updates task title/description with access control and AI re-estimation
-// Only Creator or CEO can update
+// :id can be UUID or task code
 func (h *SentinelHandler) UpdateTask(c *gin.Context) {
-	// 1. Parse Task ID
-	taskIDStr := c.Param("id")
-	taskID, err := uuid.Parse(taskIDStr)
+	taskResolved, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
 		return
 	}
 
-	// 2. Get requesting user info from context
+	// Get requesting user info from context
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -591,16 +999,93 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	}
 
 	// 4. Validate: At least one field must be provided
-	if req.Title == "" && req.Description == "" {
+	hasTitle := req.Title != ""
+	hasDesc := req.Description != ""
+	hasParent := req.ParentID != nil && *req.ParentID != ""
+	hasEpicKey := req.EpicID != nil
+	hasStart := req.StartDate != nil && *req.StartDate != ""
+	hasEnd := req.EndDate != nil && *req.EndDate != ""
+	hasProgress := req.Progress != nil
+	hasPriority := req.Priority != ""
+	hasSP := req.StoryPoints != nil
+	hasSprint := req.SprintID != nil && *req.SprintID != ""
+	hasMilestone := req.MilestoneID != nil && *req.MilestoneID != ""
+	if !hasTitle && !hasDesc && !hasParent && !hasEpicKey && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Bad Request",
-			"message": "At least one field (title or description) must be provided",
+			"message": "At least one field must be provided",
 		})
 		return
 	}
 
-	// 5. Call usecase
-	task, err := h.usecase.UpdateTask(taskID, userID, userRole, req.Title, req.Description)
+	var parentID *uuid.UUID
+	if hasParent {
+		pid, err := uuid.Parse(*req.ParentID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "parent_id must be a valid UUID"})
+			return
+		}
+		parentID = &pid
+	}
+	var epicIDUpd *uuid.UUID
+	if hasEpicKey {
+		if *req.EpicID == "" {
+			epicIDUpd = nil
+		} else {
+			eid, err := uuid.Parse(*req.EpicID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "epic_id must be a valid UUID"})
+				return
+			}
+			epicIDUpd = &eid
+		}
+	}
+	var startDate, endDate *time.Time
+	if hasStart {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "start_date must be ISO8601/RFC3339"})
+			return
+		}
+		startDate = &t
+	}
+	if hasEnd {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "end_date must be ISO8601/RFC3339"})
+			return
+		}
+		endDate = &t
+	}
+	var progress *int
+	if hasProgress {
+		p := *req.Progress
+		if p < 0 || p > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "progress must be between 0 and 100"})
+			return
+		}
+		progress = &p
+	}
+	var sprintIDUpd *uuid.UUID
+	if hasSprint {
+		sid, err := uuid.Parse(*req.SprintID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "sprint_id must be a valid UUID"})
+			return
+		}
+		sprintIDUpd = &sid
+	}
+	var milestoneIDUpd *uuid.UUID
+	if hasMilestone {
+		mid, err := uuid.Parse(*req.MilestoneID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "milestone_id must be a valid UUID"})
+			return
+		}
+		milestoneIDUpd = &mid
+	}
+
+	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey)
 	if err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {
@@ -634,22 +1119,51 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	})
 }
 
-// DeleteTask handles DELETE /api/v1/sentinel/tasks/:id
-// Deletes a task with access control
-// Only Creator or CEO can delete
-func (h *SentinelHandler) DeleteTask(c *gin.Context) {
-	// 1. Parse Task ID
-	taskIDStr := c.Param("id")
-	taskID, err := uuid.Parse(taskIDStr)
+// UpdateTaskSlideResources handles PATCH /api/v1/sentinel/tasks/:id/slide-resources (resource_urls for slide images/annotations)
+func (h *SentinelHandler) UpdateTaskSlideResources(c *gin.Context) {
+	taskResolved, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	var req struct {
+		ResourceURLs json.RawMessage `json:"resource_urls" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	task, err := h.usecase.UpdateTaskResourceURLs(taskResolved.ID, userID, userRole, datatypes.JSON(req.ResourceURLs))
+	if err != nil {
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Slide resources updated", "data": task})
+}
+
+// DeleteTask handles DELETE /api/v1/sentinel/tasks/:id
+// :id can be UUID or task code
+func (h *SentinelHandler) DeleteTask(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
 		return
 	}
 
-	// 2. Get requesting user info from context
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -668,8 +1182,7 @@ func (h *SentinelHandler) DeleteTask(c *gin.Context) {
 		return
 	}
 
-	// 3. Call usecase
-	if err := h.usecase.DeleteTask(taskID, userID, userRole); err != nil {
+	if err := h.usecase.DeleteTask(task.ID, userID, userRole); err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {
 			c.JSON(http.StatusForbidden, gin.H{
@@ -702,20 +1215,14 @@ func (h *SentinelHandler) DeleteTask(c *gin.Context) {
 }
 
 // ApproveTask marks a task as COMPLETED after human verification (PM/CEO only)
-// POST /api/v1/sentinel/tasks/:id/approve
+// POST /api/v1/sentinel/tasks/:id/approve ; :id can be UUID or task code
 func (h *SentinelHandler) ApproveTask(c *gin.Context) {
-	// 1. Parse Task ID
-	taskIDStr := c.Param("id")
-	taskID, err := uuid.Parse(taskIDStr)
+	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request",
-			"message": "Invalid task UUID",
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
 		return
 	}
 
-	// 2. Get approver info from context
 	approverID := getUserIDFromContext(c)
 	if approverID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -734,8 +1241,7 @@ func (h *SentinelHandler) ApproveTask(c *gin.Context) {
 		return
 	}
 
-	// 3. Call usecase to approve task
-	if err := h.usecase.ApproveTask(taskID, approverID, approverRole); err != nil {
+	if err := h.usecase.ApproveTask(task.ID, approverID, approverRole); err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "access denied") || contains(err.Error(), "unauthorized") {
 			c.JSON(http.StatusForbidden, gin.H{
@@ -774,6 +1280,15 @@ func (h *SentinelHandler) ApproveTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Task approved and marked as COMPLETED",
 	})
+}
+
+// resolveTaskIDOrCode resolves route param "id" (UUID or task code e.g. mims-hdmap-main-001) to a task.
+func (h *SentinelHandler) resolveTaskIDOrCode(c *gin.Context) (*domain.Task, error) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		return nil, fmt.Errorf("task id or code is required")
+	}
+	return h.usecase.GetTaskByIDOrCode(idStr)
 }
 
 // Helper to extract UserID safely from context
@@ -905,12 +1420,619 @@ func (h *SentinelHandler) UpdateSystemConfig(c *gin.Context) {
 }
 
 // GetAvailableModels handles GET /admin/models
-// Returns list of available Gemini models
 func (h *SentinelHandler) GetAvailableModels(c *gin.Context) {
 	models := h.usecase.GetAvailableModels()
+	c.JSON(http.StatusOK, gin.H{"message": "Available Gemini models", "data": models})
+}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Available Gemini models",
-		"data":    models,
+// --- Sprint Handlers ---
+
+func (h *SentinelHandler) CreateSprint(c *gin.Context) {
+	var req createSprintReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	projectID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+		return
+	}
+	var startDate, endDate *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date", "message": "start_date must be ISO8601"})
+			return
+		}
+		startDate = &t
+	}
+	if req.EndDate != nil && *req.EndDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date", "message": "end_date must be ISO8601"})
+			return
+		}
+		endDate = &t
+	}
+	sprint, err := h.usecase.CreateSprint(projectID, req.Name, req.Goal, startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Sprint created", "data": sprint})
+}
+
+func (h *SentinelHandler) GetSprintsByProject(c *gin.Context) {
+	idStr := c.Query("project_id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project_id query param required"})
+		return
+	}
+	projectID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+		return
+	}
+	sprints, err := h.usecase.GetSprintsByProject(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get sprints", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprints retrieved", "data": sprints})
+}
+
+func (h *SentinelHandler) StartSprint(c *gin.Context) {
+	sprintID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid sprint UUID"})
+		return
+	}
+	sprint, err := h.usecase.StartSprint(sprintID)
+	if err != nil {
+		if contains(err.Error(), "already") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Conflict", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprint started", "data": sprint})
+}
+
+func (h *SentinelHandler) CompleteSprint(c *gin.Context) {
+	sprintID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid sprint UUID"})
+		return
+	}
+	sprint, err := h.usecase.CompleteSprint(sprintID)
+	if err != nil {
+		if contains(err.Error(), "only ACTIVE") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprint completed", "data": sprint})
+}
+
+func (h *SentinelHandler) ReopenSprint(c *gin.Context) {
+	sprintID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid sprint UUID"})
+		return
+	}
+	sprint, err := h.usecase.ReopenSprint(sprintID)
+	if err != nil {
+		if contains(err.Error(), "only COMPLETED") || contains(err.Error(), "already has an active sprint") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reopen sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprint reopened", "data": sprint})
+}
+
+func (h *SentinelHandler) AddTasksToSprint(c *gin.Context) {
+	sprintID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid sprint UUID"})
+		return
+	}
+	var req addTasksToSprintReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	var taskIDs []uuid.UUID
+	for _, idStr := range req.TaskIDs {
+		tid, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "task_ids must all be valid UUIDs"})
+			return
+		}
+		taskIDs = append(taskIDs, tid)
+	}
+	if err := h.usecase.AddTasksToSprint(sprintID, taskIDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add tasks to sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Tasks added to sprint"})
+}
+
+func (h *SentinelHandler) UpdateSprint(c *gin.Context) {
+	sprintID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid sprint UUID"})
+		return
+	}
+	var req updateSprintReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	var startDate, endDate *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date", "message": "start_date must be ISO8601"})
+			return
+		}
+		startDate = &t
+	}
+	if req.EndDate != nil && *req.EndDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date", "message": "end_date must be ISO8601"})
+			return
+		}
+		endDate = &t
+	}
+	sprint, err := h.usecase.UpdateSprint(sprintID, req.Name, req.Goal, startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprint updated", "data": sprint})
+}
+
+func (h *SentinelHandler) DeleteSprint(c *gin.Context) {
+	sprintID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid sprint UUID"})
+		return
+	}
+	if err := h.usecase.DeleteSprint(sprintID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete sprint", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprint deleted"})
+}
+
+// --- Milestone Handlers ---
+
+func (h *SentinelHandler) CreateMilestone(c *gin.Context) {
+	var req createMilestoneReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	projectID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+		return
+	}
+	var dueDate *time.Time
+	if req.DueDate != nil && *req.DueDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.DueDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date", "message": "due_date must be ISO8601"})
+			return
+		}
+		dueDate = &t
+	}
+	milestone, err := h.usecase.CreateMilestone(projectID, req.Title, req.Description, dueDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create milestone", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Milestone created", "data": milestone})
+}
+
+func (h *SentinelHandler) GetMilestonesByProject(c *gin.Context) {
+	idStr := c.Query("project_id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project_id query param required"})
+		return
+	}
+	projectID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+		return
+	}
+	milestones, err := h.usecase.GetMilestonesByProject(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get milestones", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Milestones retrieved", "data": milestones})
+}
+
+func (h *SentinelHandler) UpdateMilestone(c *gin.Context) {
+	milestoneID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid milestone UUID"})
+		return
+	}
+	var req updateMilestoneReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	var dueDate *time.Time
+	if req.DueDate != nil && *req.DueDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.DueDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date", "message": "due_date must be ISO8601"})
+			return
+		}
+		dueDate = &t
+	}
+	milestone, err := h.usecase.UpdateMilestone(milestoneID, req.Title, req.Description, req.Status, dueDate)
+	if err != nil {
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update milestone", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Milestone updated", "data": milestone})
+}
+
+func (h *SentinelHandler) DeleteMilestone(c *gin.Context) {
+	milestoneID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Invalid milestone UUID"})
+		return
+	}
+	if err := h.usecase.DeleteMilestone(milestoneID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete milestone", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Milestone deleted"})
+}
+
+// --- Comment Handlers ---
+
+func (h *SentinelHandler) AddComment(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	var req addCommentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	comment, err := h.usecase.AddComment(task.ID, userID, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add comment", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Comment added", "data": comment})
+}
+
+func (h *SentinelHandler) GetComments(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	comments, err := h.usecase.GetComments(task.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comments", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Comments retrieved", "data": comments})
+}
+
+// --- Time Log Handlers ---
+
+func (h *SentinelHandler) LogTime(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	var req logTimeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	log, err := h.usecase.LogTime(task.ID, userID, req.Minutes, req.Description)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log time", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Time logged", "data": log})
+}
+
+func (h *SentinelHandler) GetTimeLogs(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	logs, err := h.usecase.GetTimeLogs(task.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get time logs", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Time logs retrieved", "data": logs})
+}
+
+// --- Analytics Handler ---
+
+func (h *SentinelHandler) GetProjectAnalytics(c *gin.Context) {
+	idStr := c.Param("id")
+	var projectID uuid.UUID
+	var err error
+	if projectID, err = uuid.Parse(idStr); err != nil {
+		project, err := h.usecase.GetProjectByIDOrCode(idStr)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
+			return
+		}
+		projectID = project.ID
+	}
+	analytics, err := h.usecase.GetProjectAnalytics(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get analytics", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Analytics retrieved", "data": analytics})
+}
+
+// --- Bulk Status Handler ---
+
+func (h *SentinelHandler) BulkUpdateTaskStatus(c *gin.Context) {
+	var req bulkStatusReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	var taskIDs []uuid.UUID
+	for _, idStr := range req.TaskIDs {
+		tid, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "task_ids must all be valid UUIDs"})
+			return
+		}
+		taskIDs = append(taskIDs, tid)
+	}
+	if err := h.usecase.BulkUpdateTaskStatus(taskIDs, req.Status); err != nil {
+		if contains(err.Error(), "invalid status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to bulk update status", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Updated %d tasks to %s", len(taskIDs), req.Status)})
+}
+
+// --- Google Slides Import ---
+
+func (h *SentinelHandler) PreviewGoogleSlides(c *gin.Context) {
+	var req domain.PreviewGoogleSlidesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	result, err := h.usecase.PreviewGoogleSlides(&req, h.googleAPIKey)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if contains(err.Error(), "invalid") || contains(err.Error(), "required") {
+			statusCode = http.StatusBadRequest
+		}
+		if contains(err.Error(), "API error 403") || contains(err.Error(), "API error 401") {
+			statusCode = http.StatusForbidden
+		}
+		c.JSON(statusCode, gin.H{"error": "Preview failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func (h *SentinelHandler) ImportGoogleSlides(c *gin.Context) {
+	creatorID := getUserIDFromContext(c)
+	if creatorID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req domain.ImportGoogleSlidesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+
+	result, err := h.usecase.ImportFromGoogleSlides(&req, h.googleAPIKey, creatorID)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if contains(err.Error(), "invalid") || contains(err.Error(), "required") {
+			statusCode = http.StatusBadRequest
+		}
+		if contains(err.Error(), "API error 403") || contains(err.Error(), "API error 401") {
+			statusCode = http.StatusForbidden
+		}
+		c.JSON(statusCode, gin.H{"error": "Import failed", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": fmt.Sprintf("Imported %d tasks from \"%s\"", result.CreatedCount, result.PresentationTitle),
+		"data":    result,
 	})
+}
+
+// --- Epic Handlers (Hierarchy Dimension 1) ---
+
+// CreateEpic handles POST /sentinel/epics
+func (h *SentinelHandler) CreateEpic(c *gin.Context) {
+	var req createEpicReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	projectID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+		return
+	}
+	var startDate, endDate *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "start_date must be ISO8601/RFC3339"})
+			return
+		}
+		startDate = &t
+	}
+	if req.EndDate != nil && *req.EndDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "end_date must be ISO8601/RFC3339"})
+			return
+		}
+		endDate = &t
+	}
+	epic, err := h.usecase.CreateEpic(projectID, req.Title, req.Description, req.Color, startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create epic", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Epic created successfully", "data": epic})
+}
+
+// GetEpicsByProject handles GET /sentinel/epics?project_id=UUID
+func (h *SentinelHandler) GetEpicsByProject(c *gin.Context) {
+	projectIDStr := c.Query("project_id")
+	if projectIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project_id query param is required"})
+		return
+	}
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
+		return
+	}
+	epics, err := h.usecase.GetEpicsByProject(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve epics", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Epics retrieved successfully", "data": epics})
+}
+
+// UpdateEpic handles PATCH /sentinel/epics/:id
+func (h *SentinelHandler) UpdateEpic(c *gin.Context) {
+	epicID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "epic id must be a valid UUID"})
+		return
+	}
+	var req updateEpicReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	var startDate, endDate *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "start_date must be ISO8601/RFC3339"})
+			return
+		}
+		startDate = &t
+	}
+	if req.EndDate != nil && *req.EndDate != "" {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "end_date must be ISO8601/RFC3339"})
+			return
+		}
+		endDate = &t
+	}
+	epic, err := h.usecase.UpdateEpic(epicID, req.Title, req.Description, req.Status, req.Color, startDate, endDate)
+	if err != nil {
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update epic", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Epic updated successfully", "data": epic})
+}
+
+// DeleteEpic handles DELETE /sentinel/epics/:id
+func (h *SentinelHandler) DeleteEpic(c *gin.Context) {
+	epicID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "epic id must be a valid UUID"})
+		return
+	}
+	if err := h.usecase.DeleteEpic(epicID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete epic", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Epic deleted successfully"})
+}
+
+// --- Timeline View Handlers (Matrix Dimension) ---
+
+// GetEpicTimeline handles GET /sentinel/projects/:id/timeline/epic-view
+func (h *SentinelHandler) GetEpicTimeline(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id must be a valid UUID"})
+		return
+	}
+	data, err := h.usecase.GetEpicTimelineData(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve epic timeline", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Epic timeline retrieved successfully", "data": data})
+}
+
+// GetSprintTimeline handles GET /sentinel/projects/:id/timeline/sprint-view
+func (h *SentinelHandler) GetSprintTimeline(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id must be a valid UUID"})
+		return
+	}
+	data, err := h.usecase.GetSprintTimelineData(projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve sprint timeline", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sprint timeline retrieved successfully", "data": data})
 }

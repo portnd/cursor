@@ -25,9 +25,9 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="text-center py-20">
-      <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-amber-500 border-t-transparent"></div>
-      <p class="text-gray-400 mt-4">Loading your inbox...</p>
+    <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-[60vh]">
+      <div class="animate-spin text-6xl mb-4">⚙️</div>
+      <p class="text-sm text-gray-500">กำลังโหลด inbox...</p>
     </div>
 
     <!-- Error State -->
@@ -70,7 +70,7 @@
             v-for="task in timeNegotiations"
             :key="task.id"
             class="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded p-4 transition-all cursor-pointer"
-            @click="goToTask(task.id)"
+            @click="goToTask(task)"
           >
             <div class="flex items-start justify-between gap-4 mb-3">
               <div class="flex-1">
@@ -149,21 +149,21 @@
             <!-- Action Buttons -->
             <div class="flex items-center gap-3">
               <button
-                @click.stop="approveNegotiation(task.id, task.proposed_minutes || 0)"
+                @click.stop="approveNegotiation(task.code || task.id, task.proposed_minutes || 0)"
                 class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
               >
                 <span>✅</span>
                 <span>Approve Time</span>
               </button>
               <button
-                @click.stop="rejectNegotiation(task.id)"
+                @click.stop="rejectNegotiation(task.code || task.id)"
                 class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
               >
                 <span>❌</span>
                 <span>Reject</span>
               </button>
               <NuxtLink 
-                :to="`/task/${task.id}`"
+                :to="`/task/${task.code || task.id}`"
                 @click.stop
                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-all"
               >
@@ -197,7 +197,7 @@
             v-for="task in appealTasks"
             :key="task.id"
             class="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded p-4 transition-all cursor-pointer"
-            @click="goToTask(task.id)"
+            @click="goToTask(task)"
           >
             <div class="flex items-start justify-between gap-4 mb-3">
               <div class="flex-1">
@@ -292,7 +292,7 @@
                 <span>Reject Appeal</span>
               </button>
               <NuxtLink 
-                :to="`/task/${task.id}`"
+                :to="`/task/${task.code || task.id}`"
                 @click.stop
                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-all"
               >
@@ -326,7 +326,7 @@
               'bg-gray-900 border rounded p-4 transition-all relative cursor-pointer hover:bg-gray-800',
               getDeadlineBorderClass(task)
             ]"
-            @click="goToTask(task.id)"
+            @click="goToTask(task)"
           >
             <!-- Urgency Badge -->
             <div 
@@ -394,7 +394,7 @@
 
             <!-- Action Button -->
             <NuxtLink 
-              :to="`/task/${task.id}`"
+              :to="`/task/${task.code || task.id}`"
               @click.stop
               class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded transition-colors"
             >
@@ -430,6 +430,7 @@ definePageMeta({
 // Types
 interface Task {
   id: string
+  code?: string
   title: string
   description: string
   ai_estimated_minutes: number
@@ -669,8 +670,8 @@ const getDeadlineCountdown = (dateStr: string): string => {
 }
 
 // Navigation helper
-const goToTask = (taskId: string) => {
-  navigateTo(`/task/${taskId}`)
+const goToTask = (task: { id: string; code?: string }) => {
+  navigateTo(`/task/${task?.code || task?.id}`)
 }
 
 // Lifecycle

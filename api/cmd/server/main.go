@@ -5,8 +5,6 @@ import (
 	"log"
 	"time"
 
-	"os"
-
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/portnd/the-sentinel-core/internal/core/config"
@@ -26,8 +24,6 @@ import (
 	walletRepo "github.com/portnd/the-sentinel-core/internal/modules/wallet/repository"
 	walletUsecase "github.com/portnd/the-sentinel-core/internal/modules/wallet/usecase"
 )
-
-// 👈 อย่าลืมเพิ่ม os
 
 func main() {
 	log.Println("🛡️  KOMGRIP API - Starting...")
@@ -63,10 +59,20 @@ func main() {
 	// Auto-migrate database schemas
 	log.Println("🔄 Running database migrations...")
 	if err := db.AutoMigrate(
-		&authDomain.User{}, 
-		&walletDomain.Wallet{}, 
+		&authDomain.User{},
+		&walletDomain.Wallet{},
 		&walletDomain.Transaction{},
-		&sentinelDomain.SystemConfig{}, // Dynamic AI Configuration
+		&sentinelDomain.SystemConfig{},
+		&sentinelDomain.Project{},
+		&sentinelDomain.Sprint{},
+		&sentinelDomain.Milestone{},
+		&sentinelDomain.Epic{},
+		&sentinelDomain.Task{},
+		&sentinelDomain.Submission{},
+		&sentinelDomain.Appeal{},
+		&sentinelDomain.TaskDependency{},
+		&sentinelDomain.TaskComment{},
+		&sentinelDomain.TimeLog{},
 	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
@@ -88,24 +94,11 @@ func main() {
 	// Initialize Sentinel Module (Hexagonal Architecture Wiring)
 	log.Println("🛡️  Initializing Sentinel Module...")
 
-	// Init Repository first (needed by AI service for dynamic config)
 	sentinelRepository := sentinelRepo.NewPostgresRepository(db)
-
-	// Init Gemini AI Service with dynamic config support
-	geminiKey := os.Getenv("GEMINI_API_KEY")
-	if geminiKey == "" {
-		log.Fatal("❌ FATAL: GEMINI_API_KEY is required. Please set it in .env file.")
-	}
-
-	aiService, err := sentinelRepo.NewGeminiService(geminiKey, sentinelRepository)
-	if err != nil {
-		log.Fatalf("❌ FATAL: Failed to initialize Gemini AI: %v", err)
-	}
-
-	// Init Usecase (Inject AI + Auth Repo for role validation)
+	aiService := sentinelRepo.NewNoopAIService() // AI logic removed; no-op only for interface compatibility
 	sentinelUsecaseInstance := sentinelUsecase.NewSentinelUsecase(sentinelRepository, aiService, authRepository)
 
-	log.Println("✅ Sentinel Module initialized with Dynamic AI Configuration + Role Validation")
+	log.Println("✅ Sentinel Module initialized")
 
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -114,7 +107,7 @@ func main() {
 	router := gin.Default()
 
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -127,7 +120,6 @@ func main() {
 
 	// API v1 Group - Uniform Interface for all endpoints
 	apiGroup := router.Group("/api/v1")
-	
 	// Auth middleware (used by protected routes)
 	authMiddleware := middleware.AuthMiddleware(cfg.JWTSecret)
 	
@@ -140,9 +132,10 @@ func main() {
 	// Sentinel routes (protected by auth middleware)
 	sentinelGroup := apiGroup.Group("")
 	sentinelGroup.Use(authMiddleware)
-	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance)
+	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, cfg.GoogleAPIKey)
 
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
+	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)
 	log.Printf("🌐 Health endpoint: http://localhost:%s/health", cfg.AppPort)
 	log.Printf("🔐 Auth endpoints: http://localhost:%s/api/v1/auth/register | /api/v1/auth/login", cfg.AppPort)
 	log.Printf("👥 User Management (CEO): GET /api/v1/auth/users | PATCH /api/v1/auth/users/:id/role")

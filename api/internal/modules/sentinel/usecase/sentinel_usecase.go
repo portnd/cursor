@@ -1,14 +1,27 @@
 package usecase
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
+	"io"
+	"log"
+	"net/http"
+	"path"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
+	"gorm.io/datatypes"
 )
 
 type sentinelUsecase struct {
@@ -28,35 +41,150 @@ func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIServi
 	}
 }
 
-func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate *time.Time) (*domain.Task, error) {
-	// 1. Ask AI for Estimation 🧠
-	minutes, reasoning, err := u.aiService.EstimateEffort(title, desc)
+// --- Project Operations ---
+
+// projectNameEnglishOnly matches letters, digits, spaces, hyphens, underscores (English only)
+var projectNameEnglishOnly = regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
+
+func (u *sentinelUsecase) CreateProject(name, description, status string) (*domain.Project, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.New("project name is required")
+	}
+	if !projectNameEnglishOnly.MatchString(name) {
+		return nil, errors.New("project name must be in English only (letters, numbers, spaces, hyphens)")
+	}
+	if status == "" {
+		status = "ACTIVE"
+	}
+	if status != "ACTIVE" && status != "COMPLETED" && status != "ON_HOLD" {
+		return nil, fmt.Errorf("invalid project status: %s (allowed: ACTIVE, COMPLETED, ON_HOLD)", status)
+	}
+	code := slugify(name)
+	p := &domain.Project{
+		Code:        code,
+		Name:        name,
+		Description: description,
+		Status:      status,
+	}
+	if err := u.repo.CreateProject(p); err != nil {
+		return nil, fmt.Errorf("failed to create project: %w", err)
+	}
+	return p, nil
+}
+
+func (u *sentinelUsecase) GetProjects() ([]domain.Project, error) {
+	return u.repo.GetAllProjects()
+}
+
+func (u *sentinelUsecase) GetProjectDetails(id uuid.UUID) (*domain.Project, error) {
+	p, err := u.repo.GetProjectByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("AI estimation failed: %w", err)
+		return nil, fmt.Errorf("failed to get project: %w", err)
+	}
+	if p == nil {
+		return nil, errors.New("project not found")
+	}
+	return p, nil
+}
+
+// GetProjectByIDOrCode retrieves a project by UUID or by code (e.g. mims-hdmap-main).
+func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string) (*domain.Project, error) {
+	idOrCode = strings.TrimSpace(idOrCode)
+	if idOrCode == "" {
+		return nil, errors.New("project id or code is required")
+	}
+	if id, err := uuid.Parse(idOrCode); err == nil {
+		return u.GetProjectDetails(id)
+	}
+	p, err := u.repo.GetProjectByCode(idOrCode)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %w", err)
+	}
+	if p == nil {
+		return nil, errors.New("project not found")
+	}
+	return p, nil
+}
+
+func (u *sentinelUsecase) DeleteProject(id uuid.UUID) error {
+	return u.repo.DeleteProject(id)
+}
+
+// slugify converts project name to code prefix, e.g. "MIMS HDMap Main" -> "mims-hdmap-main"
+func slugify(name string) string {
+	s := strings.ToLower(strings.TrimSpace(name))
+	s = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	if s == "" {
+		return "task"
+	}
+	return s
+}
+
+var validPriorities = map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}
+
+func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID) (*domain.Task, error) {
+	const defaultEstimatedMinutes = 0
+
+	if priority == "" {
+		priority = "MEDIUM"
+	}
+	if !validPriorities[priority] {
+		return nil, fmt.Errorf("invalid priority: %s (allowed: CRITICAL, HIGH, MEDIUM, LOW)", priority)
+	}
+	if storyPoints < 0 {
+		return nil, errors.New("story_points cannot be negative")
 	}
 
-	// Log AI reasoning for debugging
-	fmt.Printf("📊 AI Reasoning: %s\n", reasoning)
+	// Sub-tasks (have a parent_id) inherit dates from their parent — clear any provided dates
+	if parentID != nil {
+		parent, err := u.repo.GetTaskByID(*parentID)
+		if err == nil && parent != nil {
+			startDate = parent.StartDate
+			endDate = parent.EndDate
+		} else {
+			startDate = nil
+			endDate = nil
+		}
+	}
 
-	// 2. Prepare the entity
+	slug := "task"
+	if projectID != nil {
+		proj, err := u.repo.GetProjectByID(*projectID)
+		if err == nil && proj != nil {
+			slug = slugify(proj.Name)
+		}
+	}
+	maxSuffix, err := u.repo.GetMaxTaskCodeSuffix(slug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next task code: %w", err)
+	}
+	code := fmt.Sprintf("%s-%03d", slug, maxSuffix+1)
+
 	task := &domain.Task{
 		ID:                 uuid.New(),
+		Code:               code,
 		Title:              title,
 		Description:        desc,
 		CreatedBy:          &creatorID,
 		Status:             "PENDING",
-		AIEstimatedMinutes: minutes, // 👈 ใช้ค่าจาก AI
-		DueAt:              dueDate, // 👈 Deadline set by PM/CEO
-		// เราอาจจะเก็บ reasoning ไว้ใน Description หรือ Field ใหม่ก็ได้ (ในอนาคต)
-		// ตอนนี้แปะไว้ท้าย Description ก่อนเพื่อให้เห็นว่า AI คิดยังไง
-		// Description: desc + "\n\n[AI Reasoning]: " + reasoning,
+		AIEstimatedMinutes: defaultEstimatedMinutes,
+		DueAt:              dueDate,
+		ProjectID:          projectID,
+		ParentID:           parentID,
+		EpicID:             epicID,
+		StartDate:          startDate,
+		EndDate:            endDate,
+		Priority:           priority,
+		StoryPoints:        storyPoints,
+		SprintID:           sprintID,
+		MilestoneID:        milestoneID,
 	}
 
-	// 3. Persist to DB
 	if err := u.repo.CreateTask(task); err != nil {
 		return nil, err
 	}
-
 	return task, nil
 }
 
@@ -90,92 +218,81 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint) error {
 
 // SubmitWork handles code submission with AI Code Review
 func (u *sentinelUsecase) SubmitWork(taskID uuid.UUID, devID uint, commitHash, diff string) (*domain.Submission, error) {
-	// Initialize submission
+	// No AI code review: submission is always PASS, human approval still required
 	sub := &domain.Submission{
 		ID:         uuid.New(),
 		TaskID:     taskID,
 		DevID:      devID,
 		CommitHash: commitHash,
-		Diff:       diff,       // Store diff for appeal analysis
-		AIVerdict:  "PENDING", // Default
+		Diff:       diff,
+		AIVerdict:  "PASS",
+		AIScore:    100,
+		AIFeedback: []byte(`{"feedback": ""}`),
 	}
 
-	// If diff is provided, run AI Code Review
-	if diff != "" {
-		verdict, score, feedback, err := u.aiService.ReviewCode(diff)
-		if err != nil {
-			// If AI fails, mark as PENDING but don't block submission
-			fmt.Printf("⚠️  AI Code Review failed: %v. Marking as PENDING.\n", err)
-			sub.AIVerdict = "PENDING"
-			sub.AIScore = 0
-			
-			// Properly encode error message as JSON to avoid PostgreSQL syntax errors
-			errorMap := map[string]string{"error": err.Error()}
-			errorJSON, marshalErr := json.Marshal(errorMap)
-			if marshalErr != nil {
-				// Fallback to safe JSON
-				sub.AIFeedback = []byte(`{"error": "AI review service unavailable"}`)
-			} else {
-				sub.AIFeedback = errorJSON
-			}
-		} else {
-			// AI Review successful
-			sub.AIVerdict = verdict
-			sub.AIScore = score
-			
-			// Store feedback as JSON (properly encode to avoid escaping issues)
-			feedbackMap := map[string]string{"feedback": feedback}
-			feedbackJSON, err := json.Marshal(feedbackMap)
-			if err != nil {
-				// Fallback to simple JSON
-				sub.AIFeedback = []byte(`{"feedback": "Failed to encode feedback"}`)
-			} else {
-				sub.AIFeedback = feedbackJSON
-			}
-			
-			fmt.Printf("🤖 AI Review Complete: %s (%d/100)\n", verdict, score)
-		}
-	} else {
-		// No diff provided, skip review
-		fmt.Printf("⚠️  No diff provided. Skipping AI Code Review.\n")
-	}
-
-	// Persist submission to DB
 	if err := u.repo.CreateSubmission(sub); err != nil {
 		return nil, err
 	}
 
-	// 🚦 Human Quality Gate: If AI PASS, move to REVIEW_PENDING (not COMPLETED)
-	if sub.AIVerdict == "PASS" {
-		task, err := u.repo.GetTaskByID(taskID)
-		if err != nil {
-			fmt.Printf("⚠️  Failed to get task for review queue: %v\n", err)
+	// Move to REVIEW_PENDING for PM/CEO approval (human quality gate)
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		fmt.Printf("⚠️  Failed to get task for review queue: %v\n", err)
+	} else {
+		task.Status = "REVIEW_PENDING"
+		if err := u.repo.UpdateTask(task); err != nil {
+			fmt.Printf("⚠️  Failed to update task status to REVIEW_PENDING: %v\n", err)
 		} else {
-			task.Status = "REVIEW_PENDING" // 🔒 Requires PM/CEO approval
-			// Do NOT set CompletedAt yet - human approval required
-			
-			if err := u.repo.UpdateTask(task); err != nil {
-				fmt.Printf("⚠️  Failed to update task status to REVIEW_PENDING: %v\n", err)
-			} else {
-				fmt.Printf("🚦 Task %s moved to REVIEW_PENDING - awaiting PM/CEO approval\n", task.ID)
-				fmt.Printf("📋 AI Review: PASS (%d/100) - Ready for human verification\n", sub.AIScore)
-			}
+			fmt.Printf("🚦 Task %s moved to REVIEW_PENDING - awaiting PM/CEO approval\n", task.ID)
 		}
 	}
 
 	return sub, nil
 }
 
-// GetTaskByID retrieves a single task with full submission history
+// GetTaskByID retrieves a single task with full submission history.
+// Enriches task with created_by_role and created_by_email from auth.
 func (u *sentinelUsecase) GetTaskByID(taskID uuid.UUID) (*domain.Task, error) {
-	task, err := u.repo.GetTaskByID(taskID)
+	return u.getTaskByIDAndEnrich(taskID, nil)
+}
+
+// GetTaskByIDOrCode retrieves a task by UUID or by code (e.g. mims-hdmap-main-001).
+func (u *sentinelUsecase) GetTaskByIDOrCode(idOrCode string) (*domain.Task, error) {
+	idOrCode = strings.TrimSpace(idOrCode)
+	if idOrCode == "" {
+		return nil, errors.New("task id or code is required")
+	}
+	if id, err := uuid.Parse(idOrCode); err == nil {
+		return u.getTaskByIDAndEnrich(id, nil)
+	}
+	task, err := u.repo.GetTaskByCode(idOrCode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task: %w", err)
+		return nil, fmt.Errorf("task not found: %w", err)
 	}
 	if task == nil {
 		return nil, errors.New("task not found")
 	}
+	return u.getTaskByIDAndEnrich(task.ID, task)
+}
 
+func (u *sentinelUsecase) getTaskByIDAndEnrich(taskID uuid.UUID, task *domain.Task) (*domain.Task, error) {
+	if task == nil {
+		var err error
+		task, err = u.repo.GetTaskByID(taskID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get task: %w", err)
+		}
+		if task == nil {
+			return nil, errors.New("task not found")
+		}
+	}
+	if task.CreatedBy != nil {
+		creator, err := u.authRepo.FindByID(*task.CreatedBy)
+		if err == nil && creator != nil {
+			task.CreatedByRole = creator.Role
+			task.CreatedByEmail = creator.Email
+		}
+	}
 	return task, nil
 }
 
@@ -205,8 +322,77 @@ func (u *sentinelUsecase) GetAllTasks() ([]domain.Task, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return tasks, nil
+}
+
+// GetTasksByProjectID returns tasks for a single project (for project Board/Backlog/Overview).
+func (u *sentinelUsecase) GetTasksByProjectID(projectID uuid.UUID) ([]domain.Task, error) {
+	return u.repo.GetTasksByProjectID(projectID)
+}
+
+// GetGanttData returns tasks and dependencies for Gantt chart rendering.
+// If projectID is set, only tasks (and dependencies between them) for that project are returned.
+func (u *sentinelUsecase) GetGanttData(projectID *uuid.UUID) (*domain.GanttData, error) {
+	var tasks []domain.Task
+	var err error
+	if projectID != nil {
+		tasks, err = u.repo.GetTasksByProjectID(*projectID)
+	} else {
+		tasks, err = u.repo.GetAllTasks()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tasks: %w", err)
+	}
+	deps, err := u.repo.GetAllTaskDependencies()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dependencies: %w", err)
+	}
+	// If filtering by project, keep only dependencies where both tasks are in the task set
+	if projectID != nil {
+		taskIDSet := make(map[uuid.UUID]bool)
+		for _, t := range tasks {
+			taskIDSet[t.ID] = true
+		}
+		var filtered []domain.TaskDependency
+		for _, d := range deps {
+			if taskIDSet[d.PredecessorID] && taskIDSet[d.SuccessorID] {
+				filtered = append(filtered, d)
+			}
+		}
+		deps = filtered
+	}
+	return &domain.GanttData{Tasks: tasks, Dependencies: deps}, nil
+}
+
+// Valid dependency types (MS Project–style)
+var validDependencyTypes = map[string]bool{"FS": true, "SS": true, "FF": true, "SF": true}
+
+// AddDependency creates a link from predecessor to successor (e.g. Task B waits for Task A)
+func (u *sentinelUsecase) AddDependency(predecessorID, successorID uuid.UUID, depType string) (*domain.TaskDependency, error) {
+	if predecessorID == successorID {
+		return nil, errors.New("predecessor and successor must be different tasks (no self-linking)")
+	}
+	if depType == "" {
+		depType = "FS"
+	}
+	if !validDependencyTypes[depType] {
+		return nil, fmt.Errorf("invalid dependency type %q (allowed: FS, SS, FF, SF)", depType)
+	}
+	dep := &domain.TaskDependency{
+		ID:            uuid.New(),
+		PredecessorID: predecessorID,
+		SuccessorID:   successorID,
+		Type:          depType,
+	}
+	if err := u.repo.CreateTaskDependency(dep); err != nil {
+		return nil, fmt.Errorf("failed to create dependency: %w", err)
+	}
+	return dep, nil
+}
+
+// RemoveDependency deletes a task dependency by ID
+func (u *sentinelUsecase) RemoveDependency(id uuid.UUID) error {
+	return u.repo.DeleteTaskDependency(id)
 }
 
 // GetPendingApprovals returns tasks requiring PM/CEO attention
@@ -254,59 +440,23 @@ func (u *sentinelUsecase) SubmitAppeal(submissionID uuid.UUID, devID uint, reaso
 		return nil, errors.New("can only appeal FAIL verdicts")
 	}
 
-	// 5. 🤖 AI ADVISORY: Analyze the appeal validity
-	// Extract original feedback from AIFeedback JSON
-	originalFeedback := ""
-	if len(submission.AIFeedback) > 0 {
-		var feedbackMap map[string]interface{}
-		if err := json.Unmarshal(submission.AIFeedback, &feedbackMap); err == nil {
-			if feedback, ok := feedbackMap["feedback"].(string); ok {
-				originalFeedback = feedback
-			}
-		}
-		// Fallback: use raw JSON string
-		if originalFeedback == "" {
-			originalFeedback = string(submission.AIFeedback)
-		}
-	}
-
-	// Call AI to analyze the appeal
-	recommendation, confidence, reasoning, err := u.aiService.AnalyzeAppeal(
-		submission.Diff,      // Code diff
-		originalFeedback,     // Original AI failure reason
-		reason,               // Developer's appeal reason
-	)
-	
-	// If AI analysis fails, continue with default values (don't block appeal)
-	if err != nil {
-		fmt.Printf("⚠️  AI Appeal Analysis failed: %v. Proceeding with default values.\n", err)
-		recommendation = "UPHOLD" // Conservative default
-		confidence = 0
-		reasoning = "⚠️ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้ - กรุณาตรวจสอบด้วยตนเองอย่างละเอียด"
-	}
-
-	// 6. Create appeal with AI advisory
+	// No AI: appeal is human-only; CEO/PM decide without AI advisory
 	appeal := &domain.Appeal{
-		ID:           uuid.New(),
-		SubmissionID: submissionID,
-		DeveloperID:  devID,
-		Reason:       reason,
-		Status:       "PENDING",
-		
-		// AI Advisory System
-		AIRecommendation: recommendation, // OVERTURN or UPHOLD
-		AIConfidence:     confidence,     // 0-100
-		AIReasoning:      reasoning,      // Advice for CEO/PM
+		ID:                uuid.New(),
+		SubmissionID:      submissionID,
+		DeveloperID:       devID,
+		Reason:            reason,
+		Status:            "PENDING",
+		AIRecommendation:  "",
+		AIConfidence:      0,
+		AIReasoning:       "",
 	}
 
 	if err := u.repo.CreateAppeal(appeal); err != nil {
 		return nil, fmt.Errorf("failed to create appeal: %w", err)
 	}
 
-	fmt.Printf("⚖️  Appeal created with AI Advisory:\n")
-	fmt.Printf("   • Recommendation: %s\n", appeal.AIRecommendation)
-	fmt.Printf("   • Confidence: %d%%\n", appeal.AIConfidence)
-	fmt.Printf("   • Reasoning: %s\n", appeal.AIReasoning)
+	fmt.Printf("⚖️  Appeal created (human review only)\n")
 
 	return appeal, nil
 }
@@ -425,9 +575,8 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 	if minutes <= 0 {
 		return errors.New("proposed minutes must be greater than 0")
 	}
-
-	if minutes <= task.AIEstimatedMinutes {
-		return errors.New("proposed time must be greater than AI estimate (why negotiate if you need less time?)")
+	if task.AIEstimatedMinutes > 0 && minutes <= task.AIEstimatedMinutes {
+		return errors.New("proposed time must be greater than current estimated minutes")
 	}
 
 	// 4. Validate reason
@@ -440,120 +589,108 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 		return errors.New("time negotiation already pending review")
 	}
 
-	// 🤖 AI Analysis: Analyze time negotiation request
-	recommendation, confidence, reasoning, aiErr := u.aiService.AnalyzeTimeNegotiation(
-		task.Title,
-		task.Description,
-		task.AIEstimatedMinutes,
-		minutes,
-		reason,
-	)
-
-	// If AI analysis fails, proceed with defaults but log the error
-	if aiErr != nil {
-		fmt.Printf("⚠️  AI Time Negotiation Analysis Failed: %v\n", aiErr)
-		recommendation = "REJECT"
-		confidence = 0
-		reasoning = "ระบบ AI ขัดข้อง - กรุณาใช้ดุลยพินิจในการตัดสิน"
-	}
-
-	fmt.Printf("⏱️  AI Recommendation: %s (%d%% confidence)\n", recommendation, confidence)
-	fmt.Printf("   Reasoning: %s\n", reasoning)
-
-	// 6. Update task with negotiation data + AI advisory
+	// No AI: store negotiation for PM/CEO to approve manually
 	task.NegotiationStatus = "PENDING"
 	task.ProposedMinutes = minutes
 	task.NegotiationReason = reason
-	task.NegotiationAIRecommendation = recommendation
-	task.NegotiationAIConfidence = confidence
-	task.NegotiationAIReasoning = reasoning
+	task.NegotiationAIRecommendation = ""
+	task.NegotiationAIConfidence = 0
+	task.NegotiationAIReasoning = ""
 
 	if err := u.repo.UpdateTask(task); err != nil {
 		return fmt.Errorf("failed to submit time negotiation: %w", err)
 	}
 
-	fmt.Printf("⏰ Time Negotiation Submitted: Task %s | AI: %d min → Proposed: %d min\n",
-		task.ID, task.AIEstimatedMinutes, minutes)
+	fmt.Printf("⏰ Time Negotiation Submitted: Task %s | Proposed: %d min\n", task.ID, minutes)
 
 	return nil
 }
 
-// UpdateTask updates a task with access control and AI re-estimation
-// Only the Creator OR CEO can update a task
-// If title/description changes, AI will re-estimate automatically
-func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string) (*domain.Task, error) {
-	// 1️⃣ Fetch the existing task
+// UpdateTask updates a task with access control (no AI).
+// Creator, CEO, or PM can update. Gantt fields applied when provided.
+func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// 2️⃣ ACCESS CONTROL: Only Creator or CEO can update
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
+	isPM := requestingUserRole == "PM"
 
-	if !isCreator && !isCEO {
-		return nil, fmt.Errorf("unauthorized: only the task creator or CEO can update this task")
+	if !isCreator && !isCEO && !isPM {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or PM can update this task")
 	}
 
-	// 3️⃣ Check if title or description changed
-	titleChanged := title != "" && title != task.Title
-	descriptionChanged := description != "" && description != task.Description
-
-	needsAIReEstimation := titleChanged || descriptionChanged
-
-	// 4️⃣ If content changed, trigger AI re-estimation
-	if needsAIReEstimation {
-		newTitle := title
-		if newTitle == "" {
-			newTitle = task.Title
-		}
-
-		newDescription := description
-		if newDescription == "" {
-			newDescription = task.Description
-		}
-
-		fmt.Printf("🔄 Task content changed. Triggering AI re-estimation...\n")
-		fmt.Printf("   Old: [%s] %s\n", task.Title, task.Description)
-		fmt.Printf("   New: [%s] %s\n", newTitle, newDescription)
-
-		// Call Gemini AI for new estimation
-		estimatedMinutes, reasoning, err := u.aiService.EstimateEffort(newTitle, newDescription)
-		if err != nil {
-			// Log warning but don't block the update
-			fmt.Printf("⚠️  AI Re-estimation failed: %v (continuing with manual update)\n", err)
-		} else {
-			// Update AI estimation
-			task.AIEstimatedMinutes = estimatedMinutes
-			fmt.Printf("✅ AI Re-estimation Complete: %d minutes (%.1f hours)\n", estimatedMinutes, float64(estimatedMinutes)/60)
-			fmt.Printf("   AI Reasoning: %s\n", reasoning)
-
-			// 🔄 RESET NEGOTIATION STATUS (since AI has new estimate)
-			if task.NegotiationStatus == "PENDING" || task.NegotiationStatus == "APPROVED" {
-				fmt.Printf("🔄 Resetting negotiation status (AI has new estimate)\n")
-				task.NegotiationStatus = "NONE"
-				task.ProposedMinutes = 0
-				task.NegotiationReason = ""
-			}
-		}
-	}
-
-	// 5️⃣ Apply updates
 	if title != "" {
 		task.Title = title
 	}
 	if description != "" {
 		task.Description = description
 	}
+	if parentID != nil {
+		task.ParentID = parentID
+	}
+	if startDate != nil {
+		task.StartDate = startDate
+	}
+	if endDate != nil {
+		task.EndDate = endDate
+		task.DueAt = endDate
+	}
+	if progress != nil {
+		if *progress < 0 || *progress > 100 {
+			return nil, fmt.Errorf("progress must be between 0 and 100")
+		}
+		task.Progress = *progress
+	}
+	if priority != "" {
+		if !validPriorities[priority] {
+			return nil, fmt.Errorf("invalid priority: %s", priority)
+		}
+		task.Priority = priority
+	}
+	if storyPoints != nil {
+		if *storyPoints < 0 {
+			return nil, errors.New("story_points cannot be negative")
+		}
+		task.StoryPoints = *storyPoints
+	}
+	if sprintID != nil {
+		task.SprintID = sprintID
+	}
+	if milestoneID != nil {
+		task.MilestoneID = milestoneID
+	}
+	if applyEpic {
+		task.EpicID = epicID
+	}
 
-	// 6️⃣ Save to database
 	if err := u.repo.UpdateTask(task); err != nil {
 		return nil, fmt.Errorf("failed to update task: %w", err)
 	}
 
 	fmt.Printf("✅ Task Updated: %s by %s (User ID: %d)\n", taskID, requestingUserRole, requestingUserID)
 
+	return task, nil
+}
+
+// UpdateTaskResourceURLs updates only task.resource_urls (e.g. slide images/annotations). Same permission as UpdateTask.
+func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, resourceURLs datatypes.JSON) (*domain.Task, error) {
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
+	isCEO := requestingUserRole == "CEO"
+	isPM := requestingUserRole == "PM"
+	if !isCreator && !isCEO && !isPM {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or PM can update this task")
+	}
+	task.ResourceURLs = resourceURLs
+	if err := u.repo.UpdateTask(task); err != nil {
+		return nil, fmt.Errorf("failed to update task resource_urls: %w", err)
+	}
 	return task, nil
 }
 
@@ -566,12 +703,13 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 		return fmt.Errorf("task not found: %w", err)
 	}
 
-	// 2️⃣ ACCESS CONTROL: Only Creator or CEO can delete
+	// 2️⃣ ACCESS CONTROL: Creator, CEO, or PM can delete
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
+	isPM := requestingUserRole == "PM"
 
-	if !isCreator && !isCEO {
-		return fmt.Errorf("unauthorized: only the task creator or CEO can delete this task")
+	if !isCreator && !isCEO && !isPM {
+		return fmt.Errorf("unauthorized: only the task creator, CEO, or PM can delete this task")
 	}
 
 	// 3️⃣ Delete from database
@@ -697,8 +835,1445 @@ func (u *sentinelUsecase) GetAvailableModels() []string {
 		"gemini-2.0-flash-exp",
 		"gemini-2.5-flash-lite",
 		"gemini-exp-1206",
-		"gemini-flash-lite-latest", // 🆕 Latest lite version
-		"gemini-pro-latest",        // 🆕 Latest pro version
-		"gemini-flash-latest",      // 🆕 Latest flash version
+		"gemini-flash-lite-latest",
+		"gemini-pro-latest",
+		"gemini-flash-latest",
 	}
+}
+
+// --- Sprint Operations ---
+
+func (u *sentinelUsecase) CreateSprint(projectID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*domain.Sprint, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.New("sprint name is required")
+	}
+	sprint := &domain.Sprint{
+		ID:        uuid.New(),
+		ProjectID: projectID,
+		Name:      name,
+		Goal:      goal,
+		StartDate: startDate,
+		EndDate:   endDate,
+		Status:    "PLANNING",
+	}
+	if err := u.repo.CreateSprint(sprint); err != nil {
+		return nil, fmt.Errorf("failed to create sprint: %w", err)
+	}
+	return sprint, nil
+}
+
+func (u *sentinelUsecase) GetSprintsByProject(projectID uuid.UUID) ([]domain.Sprint, error) {
+	return u.repo.GetSprintsByProjectID(projectID)
+}
+
+func (u *sentinelUsecase) StartSprint(sprintID uuid.UUID) (*domain.Sprint, error) {
+	sprint, err := u.repo.GetSprintByID(sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+	if sprint.Status != "PLANNING" {
+		return nil, fmt.Errorf("sprint is already %s", sprint.Status)
+	}
+	active, err := u.repo.GetActiveSprintByProjectID(sprint.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if active != nil {
+		return nil, fmt.Errorf("project already has an active sprint: %s", active.Name)
+	}
+	sprint.Status = "ACTIVE"
+	now := time.Now()
+	if sprint.StartDate == nil {
+		sprint.StartDate = &now
+	}
+	if err := u.repo.UpdateSprint(sprint); err != nil {
+		return nil, fmt.Errorf("failed to start sprint: %w", err)
+	}
+	return sprint, nil
+}
+
+func (u *sentinelUsecase) CompleteSprint(sprintID uuid.UUID) (*domain.Sprint, error) {
+	sprint, err := u.repo.GetSprintByID(sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+	if sprint.Status != "ACTIVE" {
+		return nil, fmt.Errorf("only ACTIVE sprints can be completed (current: %s)", sprint.Status)
+	}
+	sprint.Status = "COMPLETED"
+	now := time.Now()
+	if sprint.EndDate == nil {
+		sprint.EndDate = &now
+	}
+	if err := u.repo.UpdateSprint(sprint); err != nil {
+		return nil, fmt.Errorf("failed to complete sprint: %w", err)
+	}
+	return sprint, nil
+}
+
+func (u *sentinelUsecase) ReopenSprint(sprintID uuid.UUID) (*domain.Sprint, error) {
+	sprint, err := u.repo.GetSprintByID(sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+	if sprint.Status != "COMPLETED" {
+		return nil, fmt.Errorf("only COMPLETED sprints can be reopened (current: %s)", sprint.Status)
+	}
+	active, err := u.repo.GetActiveSprintByProjectID(sprint.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if active != nil {
+		return nil, fmt.Errorf("project already has an active sprint: %s (complete or reopen it first)", active.Name)
+	}
+	sprint.Status = "ACTIVE"
+	if err := u.repo.UpdateSprint(sprint); err != nil {
+		return nil, fmt.Errorf("failed to reopen sprint: %w", err)
+	}
+	return sprint, nil
+}
+
+func (u *sentinelUsecase) AddTasksToSprint(sprintID uuid.UUID, taskIDs []uuid.UUID) error {
+	if len(taskIDs) == 0 {
+		return errors.New("no tasks provided")
+	}
+	sprint, err := u.repo.GetSprintByID(sprintID)
+	if err != nil {
+		return fmt.Errorf("sprint not found: %w", err)
+	}
+	for _, tid := range taskIDs {
+		task, err := u.repo.GetTaskByID(tid)
+		if err != nil {
+			continue
+		}
+		task.SprintID = &sprint.ID
+		u.repo.UpdateTask(task)
+	}
+	return nil
+}
+
+func (u *sentinelUsecase) UpdateSprint(sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*domain.Sprint, error) {
+	sprint, err := u.repo.GetSprintByID(sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+	if name != "" {
+		sprint.Name = strings.TrimSpace(name)
+	}
+	if goal != "" {
+		sprint.Goal = goal
+	}
+	if startDate != nil {
+		sprint.StartDate = startDate
+	}
+	if endDate != nil {
+		sprint.EndDate = endDate
+	}
+	if err := u.repo.UpdateSprint(sprint); err != nil {
+		return nil, fmt.Errorf("failed to update sprint: %w", err)
+	}
+	return sprint, nil
+}
+
+func (u *sentinelUsecase) DeleteSprint(sprintID uuid.UUID) error {
+	return u.repo.DeleteSprint(sprintID)
+}
+
+// --- Milestone Operations ---
+
+func (u *sentinelUsecase) CreateMilestone(projectID uuid.UUID, title, description string, dueDate *time.Time) (*domain.Milestone, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, errors.New("milestone title is required")
+	}
+	m := &domain.Milestone{
+		ID:          uuid.New(),
+		ProjectID:   projectID,
+		Title:       title,
+		Description: description,
+		DueDate:     dueDate,
+		Status:      "PENDING",
+	}
+	if err := u.repo.CreateMilestone(m); err != nil {
+		return nil, fmt.Errorf("failed to create milestone: %w", err)
+	}
+	return m, nil
+}
+
+func (u *sentinelUsecase) GetMilestonesByProject(projectID uuid.UUID) ([]domain.Milestone, error) {
+	return u.repo.GetMilestonesByProjectID(projectID)
+}
+
+func (u *sentinelUsecase) UpdateMilestone(id uuid.UUID, title, description, status string, dueDate *time.Time) (*domain.Milestone, error) {
+	m, err := u.repo.GetMilestoneByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("milestone not found: %w", err)
+	}
+	if title != "" {
+		m.Title = strings.TrimSpace(title)
+	}
+	if description != "" {
+		m.Description = description
+	}
+	if status != "" {
+		if status != "PENDING" && status != "REACHED" && status != "MISSED" {
+			return nil, fmt.Errorf("invalid milestone status: %s", status)
+		}
+		m.Status = status
+	}
+	if dueDate != nil {
+		m.DueDate = dueDate
+	}
+	if err := u.repo.UpdateMilestone(m); err != nil {
+		return nil, fmt.Errorf("failed to update milestone: %w", err)
+	}
+	return m, nil
+}
+
+func (u *sentinelUsecase) DeleteMilestone(id uuid.UUID) error {
+	return u.repo.DeleteMilestone(id)
+}
+
+// --- Comment Operations ---
+
+func (u *sentinelUsecase) AddComment(taskID uuid.UUID, userID uint, content string) (*domain.TaskComment, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil, errors.New("comment content cannot be empty")
+	}
+	c := &domain.TaskComment{
+		ID:      uuid.New(),
+		TaskID:  taskID,
+		UserID:  userID,
+		Content: content,
+	}
+	if err := u.repo.CreateTaskComment(c); err != nil {
+		return nil, fmt.Errorf("failed to add comment: %w", err)
+	}
+	user, err := u.authRepo.FindByID(userID)
+	if err == nil && user != nil {
+		c.UserEmail = user.Email
+	}
+	return c, nil
+}
+
+func (u *sentinelUsecase) GetComments(taskID uuid.UUID) ([]domain.TaskComment, error) {
+	comments, err := u.repo.GetCommentsByTaskID(taskID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range comments {
+		user, err := u.authRepo.FindByID(comments[i].UserID)
+		if err == nil && user != nil {
+			comments[i].UserEmail = user.Email
+		}
+	}
+	return comments, nil
+}
+
+// --- Time Log Operations ---
+
+func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, description string) (*domain.TimeLog, error) {
+	if minutes <= 0 {
+		return nil, errors.New("minutes must be greater than 0")
+	}
+	if _, err := u.repo.GetTaskByID(taskID); err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+	t := &domain.TimeLog{
+		ID:          uuid.New(),
+		TaskID:      taskID,
+		UserID:      userID,
+		Minutes:     minutes,
+		Description: strings.TrimSpace(description),
+	}
+	if err := u.repo.CreateTimeLog(t); err != nil {
+		return nil, fmt.Errorf("failed to log time: %w", err)
+	}
+	user, err := u.authRepo.FindByID(userID)
+	if err == nil && user != nil {
+		t.UserEmail = user.Email
+	}
+	return t, nil
+}
+
+func (u *sentinelUsecase) GetTimeLogs(taskID uuid.UUID) ([]domain.TimeLog, error) {
+	logs, err := u.repo.GetTimeLogsByTaskID(taskID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range logs {
+		user, err := u.authRepo.FindByID(logs[i].UserID)
+		if err == nil && user != nil {
+			logs[i].UserEmail = user.Email
+		}
+	}
+	return logs, nil
+}
+
+// --- Analytics ---
+
+func (u *sentinelUsecase) GetProjectAnalytics(projectID uuid.UUID) (*domain.ProjectAnalytics, error) {
+	return u.repo.GetProjectAnalytics(projectID)
+}
+
+// --- Bulk Operations ---
+
+func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string) error {
+	validStatuses := map[string]bool{
+		"PENDING": true, "IN_PROGRESS": true, "REVIEW_PENDING": true, "COMPLETED": true, "BLOCKED": true,
+	}
+	if !validStatuses[status] {
+		return fmt.Errorf("invalid status: %s", status)
+	}
+	if len(taskIDs) == 0 {
+		return errors.New("no tasks provided")
+	}
+	return u.repo.BulkUpdateTaskStatus(taskIDs, status)
+}
+
+// --- Google Slides Import ---
+
+// slideInfo is the unified internal representation of a parsed slide
+type slideInfo struct {
+	Index        int
+	Title        string
+	Body         string
+	Notes        string
+	ThumbnailURL string   // URL (from Slides API) or empty
+	Images       []string // base64 data URLs (from PPTX media, no API key needed)
+	SlideObjID   string   // populated when using Slides API
+}
+
+// ---- PPTX parsing (no API key required for public presentations) ----
+
+type pptxPresentation struct {
+	Title    string
+	Slides   []pptxSlideData
+	SlideIDs []string // object IDs from presentation.xml, same order as Slides (for export?format=jpeg&slide=id.XXX)
+}
+
+type pptxSlideData struct {
+	Index  int
+	Title  string
+	Body   string
+	Notes  string
+	Images []string // base64 data URLs, largest-first
+	Hidden bool     // true when slide has show="0" in presentation.xml (hidden/skipped in show)
+}
+
+type pptxImageEntry struct {
+	DataURL string
+	Size    int
+}
+
+var (
+	presentationIDRegex = regexp.MustCompile(`/presentation/d/([a-zA-Z0-9_-]+)`)
+	pptxSlideNumRegex   = regexp.MustCompile(`slide(\d+)\.xml$`)
+	pptxTitlePhRe       = regexp.MustCompile(`<p:ph[^>]*type="(?:title|ctrTitle)"`)
+	pptxSystemPhRe      = regexp.MustCompile(`<p:ph[^>]*type="(?:dt|ftr|sldNum|hdr)"`)
+	pptxNotesBodyPhRe   = regexp.MustCompile(`<p:ph(?:[^>]*idx="1"|[^>]*type="body")`)
+	pptxATextRe         = regexp.MustCompile(`<a:t(?:\s[^>]*)?>([^<]*)</a:t>`)
+	pptxNotesRelRe      = regexp.MustCompile(`Type="[^"]*notesSlide"[^>]*Target="([^"]+)"`)
+	pptxImageRelRe       = regexp.MustCompile(`Type="[^"]*image"[^>]*Target="([^"]+)"`)
+	pptxSlideLayoutRelRe = regexp.MustCompile(`Type="[^"]*slideLayout"[^>]*Target="([^"]+)"`)
+	pptxDocTitleRe    = regexp.MustCompile(`<dc:title>([^<]*)</dc:title>`)
+	pptxSldIdRe       = regexp.MustCompile(`<p:sldId[^>]*id="(\d+)"`)
+	pptxSldShowAttrRe = regexp.MustCompile(`<p:sld\s*([^>]+)>`) // opening tag of slide: check for show="0" or show="false" (hidden)
+)
+
+const (
+	pptxMaxImageBytes     = 2 * 1024 * 1024 // 2MB max per image — เก็บรูปใหญ่ให้ครบเหมือนต้นฉบับ
+	pptxMinImageBytes     = 256              // skip tiny icons/bullets
+	pptxMaxImagesPerSlide = 30               // เก็บได้หลายรูปต่อหน้า (รูปฝัง + รูป export)
+)
+
+func pptxMimeType(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "" // EMF, WMF, SVG etc. — skip
+	}
+}
+
+// extractImagesFromRels reads a _rels file and extracts all image targets from relDir.
+// relDir is the directory containing the .rels file (e.g. ppt/slides for slide1.xml.rels).
+func extractImagesFromRels(zr *zip.Reader, relDir string, relsData []byte) []pptxImageEntry {
+	matches := pptxImageRelRe.FindAllStringSubmatch(string(relsData), -1)
+	seen := make(map[string]bool)
+	var entries []pptxImageEntry
+
+	for _, m := range matches {
+		target := m[1]
+		mediaPath := path.Clean(relDir + "/" + target)
+		if seen[mediaPath] {
+			continue
+		}
+		seen[mediaPath] = true
+
+		ext := path.Ext(mediaPath)
+		mime := pptxMimeType(ext)
+		if mime == "" {
+			continue
+		}
+
+		imgData := readZipEntry(zr, mediaPath)
+		if len(imgData) < pptxMinImageBytes || len(imgData) > pptxMaxImageBytes {
+			continue
+		}
+
+		b64 := base64.StdEncoding.EncodeToString(imgData)
+		dataURL := fmt.Sprintf("data:%s;base64,%s", mime, b64)
+		entries = append(entries, pptxImageEntry{DataURL: dataURL, Size: len(imgData)})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Size > entries[j].Size
+	})
+	return entries
+}
+
+// extractSlideImages extracts embedded images from a PPTX slide via its _rels file.
+// If the slide has no images, tries the slide layout's _rels (background/placeholders).
+// Returns base64 data URLs sorted by image size (largest first).
+func extractSlideImages(zr *zip.Reader, slideFile string) []string {
+	dir := path.Dir(slideFile)
+	base := path.Base(slideFile)
+	relsPath := dir + "/_rels/" + base + ".rels"
+
+	relsData := readZipEntry(zr, relsPath)
+	if relsData == nil {
+		return nil
+	}
+
+	entries := extractImagesFromRels(zr, dir, relsData)
+
+	// Fallback: if slide has no images, try the slide layout (title slides often have only layout art)
+	if len(entries) == 0 {
+		if layoutMatches := pptxSlideLayoutRelRe.FindStringSubmatch(string(relsData)); len(layoutMatches) > 1 {
+			layoutTarget := layoutMatches[1]
+			layoutPath := path.Clean(dir + "/" + layoutTarget)
+			layoutDir := path.Dir(layoutPath)
+			layoutBase := path.Base(layoutPath)
+			layoutRelsPath := layoutDir + "/_rels/" + layoutBase + ".rels"
+			if layoutRelsData := readZipEntry(zr, layoutRelsPath); layoutRelsData != nil {
+				entries = extractImagesFromRels(zr, layoutDir, layoutRelsData)
+			}
+		}
+	}
+
+	result := make([]string, 0, len(entries))
+	for i, e := range entries {
+		if i >= pptxMaxImagesPerSlide {
+			break
+		}
+		result = append(result, e.DataURL)
+	}
+	return result
+}
+
+// fetchSlideExportImage gets the full-slide image from Google's export (no API key).
+// slideID is the object ID from presentation.xml (e.g. "256"). Returns base64 data URL or empty.
+func fetchSlideExportImage(presentationID, slideID string) string {
+	if presentationID == "" || slideID == "" {
+		return ""
+	}
+	// Google: /export?format=jpeg&slide=id.[id] — try both "id.256" and "256"
+	for _, slideParam := range []string{"id." + slideID, slideID} {
+		exportURL := fmt.Sprintf(
+			"https://docs.google.com/presentation/d/%s/export?format=jpeg&slide=%s",
+			presentationID, slideParam,
+		)
+		client := &http.Client{
+			Timeout: 8 * time.Second,
+			CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+				if strings.Contains(req.URL.Host, "accounts.google.com") {
+					return fmt.Errorf("auth required")
+				}
+				return nil
+			},
+		}
+		resp, err := client.Get(exportURL) //nolint:noctx
+		if err != nil {
+			continue
+		}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			continue
+		}
+		// Must look like image (JPEG magic bytes or reasonable size)
+		if len(data) < 500 {
+			continue
+		}
+		b64 := base64.StdEncoding.EncodeToString(data)
+		return fmt.Sprintf("data:image/jpeg;base64,%s", b64)
+	}
+	return ""
+}
+
+func extractPresentationID(rawURL string) (string, error) {
+	m := presentationIDRegex.FindStringSubmatch(rawURL)
+	if len(m) < 2 {
+		return "", errors.New("invalid Google Slides URL: could not extract presentation ID")
+	}
+	return m[1], nil
+}
+
+var xmlEntities = strings.NewReplacer(
+	"&amp;", "&", "&lt;", "<", "&gt;", ">", "&apos;", "'", "&quot;", `"`,
+)
+
+func pptxUnescapeXML(s string) string { return xmlEntities.Replace(s) }
+
+func readZipEntry(r *zip.Reader, name string) []byte {
+	for _, f := range r.File {
+		if f.Name == name {
+			rc, err := f.Open()
+			if err != nil {
+				return nil
+			}
+			defer rc.Close()
+			data, _ := io.ReadAll(rc)
+			return data
+		}
+	}
+	return nil
+}
+
+func pptxSlideFiles(r *zip.Reader) []string {
+	var names []string
+	for _, f := range r.File {
+		if strings.HasPrefix(f.Name, "ppt/slides/slide") && strings.HasSuffix(f.Name, ".xml") &&
+			!strings.Contains(f.Name[len("ppt/slides/"):], "/") {
+			names = append(names, f.Name)
+		}
+	}
+	sort.Slice(names, func(i, j int) bool {
+		ni, nj := 0, 0
+		if m := pptxSlideNumRegex.FindStringSubmatch(names[i]); len(m) > 1 {
+			ni, _ = strconv.Atoi(m[1])
+		}
+		if m := pptxSlideNumRegex.FindStringSubmatch(names[j]); len(m) > 1 {
+			nj, _ = strconv.Atoi(m[1])
+		}
+		return ni < nj
+	})
+	return names
+}
+
+// pptxSlideIsHidden returns true if the slide XML has show="0" or show="false" on the root <p:sld> (OOXML: hidden/skip in show).
+func pptxSlideIsHidden(slideXML []byte) bool {
+	m := pptxSldShowAttrRe.FindSubmatch(slideXML)
+	if len(m) < 2 {
+		return false
+	}
+	attr := string(m[1])
+	return strings.Contains(attr, `show="0"`) || strings.Contains(attr, `show='0'`) ||
+		strings.Contains(attr, `show="false"`) || strings.Contains(attr, `show='false'`)
+}
+
+// splitPPTXShapes extracts individual <p:sp>...</p:sp> blocks from slide XML.
+func splitPPTXShapes(content string) []string {
+	var shapes []string
+	rest := content
+	for {
+		start := strings.Index(rest, "<p:sp")
+		if start == -1 {
+			break
+		}
+		// Verify it's really a <p:sp> tag (not <p:spTree> etc.)
+		if len(rest) > start+5 {
+			c := rest[start+5]
+			if c != ' ' && c != '>' && c != '\t' && c != '\n' && c != '\r' {
+				rest = rest[start+5:]
+				continue
+			}
+		}
+		end := strings.Index(rest[start:], "</p:sp>")
+		if end == -1 {
+			break
+		}
+		shapes = append(shapes, rest[start:start+end+7])
+		rest = rest[start+end+7:]
+	}
+	return shapes
+}
+
+// parsePPTXSlideText extracts title and body text from a PPTX slide XML.
+func parsePPTXSlideText(data []byte) (title, body string) {
+	content := string(data)
+	shapes := splitPPTXShapes(content)
+
+	var bodyParts []string
+	for _, shape := range shapes {
+		// Skip system placeholders (date, footer, slide number)
+		if pptxSystemPhRe.MatchString(shape) {
+			continue
+		}
+		matches := pptxATextRe.FindAllStringSubmatch(shape, -1)
+		var texts []string
+		for _, m := range matches {
+			t := strings.TrimSpace(pptxUnescapeXML(m[1]))
+			if t != "" {
+				texts = append(texts, t)
+			}
+		}
+		if len(texts) == 0 {
+			continue
+		}
+		shapeText := strings.Join(texts, "")
+		if pptxTitlePhRe.MatchString(shape) && title == "" {
+			title = strings.TrimSpace(shapeText)
+		} else {
+			bodyParts = append(bodyParts, strings.TrimSpace(shapeText))
+		}
+	}
+	body = strings.Join(bodyParts, "\n")
+	return
+}
+
+// parsePPTXNotesText extracts speaker notes from a notesSlide XML.
+func parsePPTXNotesText(data []byte) string {
+	content := string(data)
+	shapes := splitPPTXShapes(content)
+	for _, shape := range shapes {
+		if pptxSystemPhRe.MatchString(shape) {
+			continue
+		}
+		// Notes body is typically idx="1" or type="body"
+		if !pptxNotesBodyPhRe.MatchString(shape) {
+			continue
+		}
+		matches := pptxATextRe.FindAllStringSubmatch(shape, -1)
+		var texts []string
+		for _, m := range matches {
+			t := strings.TrimSpace(pptxUnescapeXML(m[1]))
+			if t != "" {
+				texts = append(texts, t)
+			}
+		}
+		if len(texts) > 0 {
+			return strings.TrimSpace(strings.Join(texts, "\n"))
+		}
+	}
+	return ""
+}
+
+// findNotesFileInZip resolves the notes slide file for a given slide via its _rels file.
+func findNotesFileInZip(r *zip.Reader, slideFile string) string {
+	// e.g. slideFile = "ppt/slides/slide1.xml"
+	// rels  = "ppt/slides/_rels/slide1.xml.rels"
+	dir := path.Dir(slideFile)
+	base := path.Base(slideFile)
+	relsPath := dir + "/_rels/" + base + ".rels"
+
+	relsData := readZipEntry(r, relsPath)
+	if relsData == nil {
+		return ""
+	}
+	m := pptxNotesRelRe.FindStringSubmatch(string(relsData))
+	if len(m) < 2 {
+		return ""
+	}
+	// Target is relative to the slide directory, e.g. "../notesSlides/notesSlide1.xml"
+	notesPath := path.Clean(dir + "/" + m[1])
+	return notesPath
+}
+
+func downloadAndParsePPTX(presentationID string) (*pptxPresentation, error) {
+	exportURL := fmt.Sprintf(
+		"https://docs.google.com/presentation/d/%s/export/pptx",
+		presentationID,
+	)
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			if strings.Contains(req.URL.Host, "accounts.google.com") {
+				return fmt.Errorf("presentation requires authentication — make sure it is shared as 'Anyone with the link can view'")
+			}
+			return nil
+		},
+	}
+	resp, err := client.Get(exportURL) //nolint:noctx
+	if err != nil {
+		return nil, fmt.Errorf("failed to download presentation: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("access denied (HTTP %d) — share the presentation as 'Anyone with the link can view'", resp.StatusCode)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download failed (HTTP %d)", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read PPTX data: %w", err)
+	}
+
+	return parsePPTX(data)
+}
+
+func parsePPTX(data []byte) (*pptxPresentation, error) {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, fmt.Errorf("invalid PPTX file: %w", err)
+	}
+
+	// Get presentation title from docProps/core.xml
+	title := "Imported Presentation"
+	if coreXML := readZipEntry(zr, "docProps/core.xml"); coreXML != nil {
+		if m := pptxDocTitleRe.FindSubmatch(coreXML); len(m) > 1 {
+			if t := strings.TrimSpace(pptxUnescapeXML(string(m[1]))); t != "" {
+				title = t
+			}
+		}
+	}
+
+	// Slide object IDs from ppt/presentation.xml (same order as slide files)
+	var slideIDs []string
+	if presXML := readZipEntry(zr, "ppt/presentation.xml"); presXML != nil {
+		for _, m := range pptxSldIdRe.FindAllStringSubmatch(string(presXML), -1) {
+			if len(m) > 1 {
+				slideIDs = append(slideIDs, m[1])
+			}
+		}
+	}
+
+	slideFiles := pptxSlideFiles(zr)
+	var slides []pptxSlideData
+	for i, sf := range slideFiles {
+		slideXML := readZipEntry(zr, sf)
+		if slideXML == nil {
+			continue
+		}
+		// Hidden: OOXML stores show="0" or show="false" on <p:sld> in each slide XML (not in presentation.xml)
+		hidden := pptxSlideIsHidden(slideXML)
+
+		slideTitle, slideBody := parsePPTXSlideText(slideXML)
+
+		var notes string
+		notesFile := findNotesFileInZip(zr, sf)
+		if notesFile != "" {
+			if notesXML := readZipEntry(zr, notesFile); notesXML != nil {
+				notes = parsePPTXNotesText(notesXML)
+			}
+		}
+
+		images := extractSlideImages(zr, sf)
+
+		slides = append(slides, pptxSlideData{
+			Index:  i + 1,
+			Title:  slideTitle,
+			Body:   slideBody,
+			Notes:  notes,
+			Images: images,
+			Hidden: hidden,
+		})
+	}
+
+	return &pptxPresentation{Title: title, Slides: slides, SlideIDs: slideIDs}, nil
+}
+
+// ---- Google Slides REST API (optional — used when API key provided for thumbnails & comments) ----
+
+type gSlidePresentation struct {
+	PresentationID string   `json:"presentationId"`
+	Title          string   `json:"title"`
+	Slides         []gSlide `json:"slides"`
+}
+
+type gSlide struct {
+	ObjectID        string           `json:"objectId"`
+	PageElements    []gPageElement   `json:"pageElements"`
+	SlideProperties gSlideProperties `json:"slideProperties"`
+}
+
+type gSlideProperties struct {
+	NotesPage gNotesPage `json:"notesPage"`
+}
+
+type gNotesPage struct {
+	PageElements []gPageElement `json:"pageElements"`
+}
+
+type gPageElement struct {
+	ObjectID string  `json:"objectId"`
+	Shape    *gShape `json:"shape"`
+}
+
+type gShape struct {
+	ShapeType   string        `json:"shapeType"`
+	Placeholder *gPlaceholder `json:"placeholder"`
+	Text        *gTextContent `json:"text"`
+}
+
+type gPlaceholder struct {
+	Type  string `json:"type"`
+	Index int    `json:"index"`
+}
+
+type gTextContent struct {
+	TextElements []gTextElement `json:"textElements"`
+}
+
+type gTextElement struct {
+	TextRun *gTextRun `json:"textRun"`
+}
+
+type gTextRun struct {
+	Content string `json:"content"`
+}
+
+type gThumbnail struct {
+	ContentURL string `json:"contentUrl"`
+}
+
+type gDriveCommentsResponse struct {
+	Comments []gDriveComment `json:"comments"`
+}
+
+type gDriveComment struct {
+	ID       string        `json:"id"`
+	Content  string        `json:"content"`
+	Author   gDriveAuthor  `json:"author"`
+	Resolved bool          `json:"resolved"`
+	Replies  []gDriveReply `json:"replies"`
+}
+
+type gDriveAuthor struct {
+	DisplayName string `json:"displayName"`
+}
+
+type gDriveReply struct {
+	Content string       `json:"content"`
+	Author  gDriveAuthor `json:"author"`
+}
+
+// googleAPIError is the JSON shape of Google API error responses.
+type googleAPIError struct {
+	Error struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Status  string `json:"status"`
+	} `json:"error"`
+}
+
+func fetchGoogleSlidesAPI(presentationID, apiKey string) (*gSlidePresentation, error) {
+	apiURL := fmt.Sprintf("https://slides.googleapis.com/v1/presentations/%s?key=%s", presentationID, apiKey)
+	resp, err := http.Get(apiURL) //nolint:noctx
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		var apiErr googleAPIError
+		if jsonErr := json.Unmarshal(body, &apiErr); jsonErr == nil && apiErr.Error.Message != "" {
+			msg := apiErr.Error.Message
+			// Google Slides API does not accept API keys; only OAuth2. Return a clear message.
+			if strings.Contains(msg, "API keys are not supported") || strings.Contains(msg, "Expected OAuth2") {
+				msg = "Google Slides API ไม่รองรับ API Key — ต้องใช้ OAuth2 (ล็อกอินด้วย Google). ตอนนี้ใช้โหมด PPTX ได้โดยไม่ต้องใส่ Key (ได้ text, notes, รูปฝังใน slide)."
+			}
+			return nil, fmt.Errorf("%s", msg)
+		}
+		return nil, fmt.Errorf("Google Slides API error %d: %s", resp.StatusCode, string(body))
+	}
+	var p gSlidePresentation
+	if err := json.Unmarshal(body, &p); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return &p, nil
+}
+
+func fetchSlideThumbnail(presentationID, pageObjectID, apiKey string) (string, error) {
+	apiURL := fmt.Sprintf(
+		"https://slides.googleapis.com/v1/presentations/%s/pages/%s/thumbnail?key=%s&thumbnailProperties.mimeType=PNG&thumbnailProperties.thumbnailSize=LARGE",
+		presentationID, pageObjectID, apiKey,
+	)
+	resp, err := http.Get(apiURL) //nolint:noctx
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("thumbnail API error %d", resp.StatusCode)
+	}
+	var t gThumbnail
+	if err := json.Unmarshal(body, &t); err != nil {
+		return "", err
+	}
+	return t.ContentURL, nil
+}
+
+// downloadThumbnailAsDataURL fetches the thumbnail image from Google's contentUrl and returns a data URL
+// so it can be stored in the task and displayed without expiry (contentUrl lifetime is ~30 min).
+// The thumbnail includes the full rendered slide (shapes, lines, drawings).
+// apiKey is optional; when set, it is appended to the URL so Google may allow the server-side download.
+func downloadThumbnailAsDataURL(contentURL, apiKey string) (string, error) {
+	if contentURL == "" {
+		return "", fmt.Errorf("empty content URL")
+	}
+	downloadURL := contentURL
+	if apiKey != "" {
+		if strings.Contains(contentURL, "?") {
+			downloadURL = contentURL + "&key=" + apiKey
+		} else {
+			downloadURL = contentURL + "?key=" + apiKey
+		}
+	}
+	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Sentinel-Slides-Import/1.0 (https://github.com/portnd/the-sentinel-core)")
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[Slides Import] thumbnail download request failed: %v", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		snippet := string(body)
+		if len(snippet) > 300 {
+			snippet = snippet[:300] + "..."
+		}
+		log.Printf("[Slides Import] thumbnail download failed: status=%d body=%q", resp.StatusCode, snippet)
+		return "", fmt.Errorf("thumbnail download returned %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[Slides Import] thumbnail response read failed: %v", err)
+		return "", err
+	}
+	b64 := base64.StdEncoding.EncodeToString(body)
+	return "data:image/png;base64," + b64, nil
+}
+
+func fetchDriveComments(fileID, apiKey string) ([]gDriveComment, error) {
+	apiURL := fmt.Sprintf(
+		"https://www.googleapis.com/drive/v3/files/%s/comments?key=%s&fields=comments(id,content,anchor,author,resolved,replies)&pageSize=100",
+		fileID, apiKey,
+	)
+	resp, err := http.Get(apiURL) //nolint:noctx
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Drive API error %d: %s", resp.StatusCode, string(body))
+	}
+	var result gDriveCommentsResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+	return result.Comments, nil
+}
+
+func extractAPISlideTitle(slide gSlide) string {
+	for _, el := range slide.PageElements {
+		if el.Shape == nil || el.Shape.Text == nil {
+			continue
+		}
+		if el.Shape.Placeholder != nil {
+			pt := el.Shape.Placeholder.Type
+			if pt == "CENTERED_TITLE" || pt == "TITLE" {
+				var sb strings.Builder
+				for _, te := range el.Shape.Text.TextElements {
+					if te.TextRun != nil {
+						sb.WriteString(te.TextRun.Content)
+					}
+				}
+				if t := strings.TrimSpace(strings.ReplaceAll(sb.String(), "\n", " ")); t != "" {
+					return t
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func extractAPISlideBody(slide gSlide) string {
+	var parts []string
+	for _, el := range slide.PageElements {
+		if el.Shape == nil || el.Shape.Text == nil {
+			continue
+		}
+		var sb strings.Builder
+		for _, te := range el.Shape.Text.TextElements {
+			if te.TextRun != nil {
+				sb.WriteString(te.TextRun.Content)
+			}
+		}
+		if t := strings.TrimSpace(sb.String()); t != "" {
+			parts = append(parts, t)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func extractAPISpeakerNotes(slide gSlide) string {
+	for _, el := range slide.SlideProperties.NotesPage.PageElements {
+		if el.Shape == nil || el.Shape.Text == nil {
+			continue
+		}
+		if el.Shape.Placeholder != nil && el.Shape.Placeholder.Type == "BODY" {
+			var sb strings.Builder
+			for _, te := range el.Shape.Text.TextElements {
+				if te.TextRun != nil {
+					sb.WriteString(te.TextRun.Content)
+				}
+			}
+			if t := strings.TrimSpace(sb.String()); t != "" {
+				return t
+			}
+		}
+	}
+	return ""
+}
+
+// ---- Preview: get slide list only (no thumbnails, no task creation) ----
+
+func (u *sentinelUsecase) PreviewGoogleSlides(req *domain.PreviewGoogleSlidesRequest, serverAPIKey string) (*domain.PreviewGoogleSlidesResult, error) {
+	presentationID, err := extractPresentationID(req.PresentationURL)
+	if err != nil {
+		return nil, err
+	}
+	apiKey := strings.TrimSpace(req.APIKey)
+	if apiKey == "" {
+		apiKey = serverAPIKey
+	}
+
+	title, items, importMode, apiKeyStatus, apiKeyErrMsg, err := getSlidesListOnly(presentationID, apiKey)
+	if err != nil {
+		return nil, err
+	}
+	alreadyImported, _ := u.repo.GetImportedSlideIndicesByPresentationID(presentationID)
+	return &domain.PreviewGoogleSlidesResult{
+		PresentationTitle:           title,
+		PresentationID:               presentationID,
+		Slides:                       items,
+		AlreadyImportedSlideIndices:  alreadyImported,
+		ImportMode:                   importMode,
+		APIKeyStatus:                 apiKeyStatus,
+		APIKeyError:                  apiKeyErrMsg,
+	}, nil
+}
+
+// getSlidesListOnly returns presentation title, slide list, import mode, API key status, and optional error message. No thumbnails.
+func getSlidesListOnly(presentationID, apiKey string) (title string, slides []domain.PreviewSlideItem, importMode, apiKeyStatus, apiKeyError string, err error) {
+	var presentationTitle string
+	apiKeyProvided := apiKey != ""
+
+	pptxData, pptxErr := downloadAndParsePPTX(presentationID)
+	if pptxErr != nil && !apiKeyProvided {
+		return "", nil, "", "", "", fmt.Errorf("failed to download presentation: %w\nTip: ensure the presentation is shared as 'Anyone with the link can view'", pptxErr)
+	}
+	if pptxErr == nil {
+		presentationTitle = pptxData.Title
+		for _, s := range pptxData.Slides {
+			t := s.Title
+			if t == "" {
+				t = fmt.Sprintf("Slide %d", s.Index)
+			}
+			slides = append(slides, domain.PreviewSlideItem{Index: s.Index, Title: t, Hidden: s.Hidden})
+		}
+	}
+	if apiKeyProvided {
+		apiPresentation, apiErr := fetchGoogleSlidesAPI(presentationID, apiKey)
+		if apiErr == nil {
+			apiKeyStatus = "valid"
+			if pptxErr != nil {
+				importMode = "api_only"
+				presentationTitle = apiPresentation.Title
+				slides = nil
+				for i, slide := range apiPresentation.Slides {
+					t := extractAPISlideTitle(slide)
+					if t == "" {
+						t = fmt.Sprintf("Slide %d", i+1)
+					}
+					slides = append(slides, domain.PreviewSlideItem{Index: i + 1, Title: t, Hidden: false})
+				}
+			} else {
+				importMode = "pptx_with_api"
+			}
+		} else {
+			apiKeyStatus = "invalid"
+			apiKeyError = apiErr.Error()
+			if pptxErr != nil {
+				return "", nil, "", "", "", fmt.Errorf("failed to download PPTX (%v) and Slides API failed: %w", pptxErr, apiErr)
+			}
+			importMode = "pptx_only"
+		}
+	} else {
+		apiKeyStatus = "not_provided"
+		importMode = "pptx_only"
+	}
+	if len(slides) == 0 {
+		return "", nil, "", "", "", errors.New("no slides found in the presentation")
+	}
+	return presentationTitle, slides, importMode, apiKeyStatus, apiKeyError, nil
+}
+
+// ---- Main ImportFromGoogleSlides usecase ----
+
+func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesRequest, serverAPIKey string, creatorID uint) (*domain.ImportGoogleSlidesResult, error) {
+	presentationID, err := extractPresentationID(req.PresentationURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var sprintUUID *uuid.UUID
+	if req.SprintID != "" {
+		parsed, err := uuid.Parse(req.SprintID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid sprint_id: %w", err)
+		}
+		sprintUUID = &parsed
+	}
+	var epicUUID *uuid.UUID
+	if req.EpicID != "" {
+		parsed, err := uuid.Parse(req.EpicID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid epic_id: %w", err)
+		}
+		epicUUID = &parsed
+	}
+	projectUUID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid project_id: %w", err)
+	}
+
+	apiKey := strings.TrimSpace(req.APIKey)
+	if apiKey == "" {
+		apiKey = serverAPIKey
+	}
+
+	// Step 1: Get slide content.
+	// Primary: PPTX export — works for any public "anyone with link" presentation, no API key needed.
+	// If API key provided: also fetch thumbnails and Drive comments.
+	var slides []slideInfo
+	var presentationTitle string
+
+	pptxData, pptxErr := downloadAndParsePPTX(presentationID)
+	if pptxErr != nil && apiKey == "" {
+		return nil, fmt.Errorf("failed to download presentation: %w\nTip: ensure the presentation is shared as 'Anyone with the link can view'", pptxErr)
+	}
+
+	if pptxErr == nil {
+		// Successfully parsed PPTX
+		presentationTitle = pptxData.Title
+		for _, s := range pptxData.Slides {
+			title := s.Title
+			if title == "" {
+				title = fmt.Sprintf("Slide %d", s.Index)
+			}
+			// ใช้เฉพาะรูปที่ฝังใน slide นั้น (จาก PPTX media) — ไม่เรียก export ต่อ slide เพราะมักได้รูป slide แรกซ้ำทุกหน้า
+			slides = append(slides, slideInfo{
+				Index:  s.Index,
+				Title:  title,
+				Body:   s.Body,
+				Notes:  s.Notes,
+				Images: s.Images,
+			})
+		}
+	}
+
+		// Step 2: If API key available, enhance with thumbnails (via Slides API) and comments (via Drive API).
+	var allComments []domain.SlideComment
+	if apiKey != "" {
+		log.Printf("[Slides Import] API key present, calling Slides API for thumbnails/comments")
+		apiPresentation, apiErr := fetchGoogleSlidesAPI(presentationID, apiKey)
+		if apiErr == nil {
+			log.Printf("[Slides Import] Slides API OK, slides=%d", len(apiPresentation.Slides))
+			// If PPTX also failed, use the API data as the content source
+			if pptxErr != nil {
+				presentationTitle = apiPresentation.Title
+				slides = nil
+				for i, slide := range apiPresentation.Slides {
+					title := extractAPISlideTitle(slide)
+					if title == "" {
+						title = fmt.Sprintf("Slide %d", i+1)
+					}
+					slides = append(slides, slideInfo{
+						Index:      i + 1,
+						Title:      title,
+						Body:       extractAPISlideBody(slide),
+						Notes:      extractAPISpeakerNotes(slide),
+						SlideObjID: slide.ObjectID,
+					})
+				}
+			} else {
+				// Merge: fill in slideObjID from API data (same order)
+				for i := range slides {
+					if i < len(apiPresentation.Slides) {
+						slides[i].SlideObjID = apiPresentation.Slides[i].ObjectID
+					}
+				}
+			}
+
+			// Fetch per-slide thumbnails and download as base64 so drawings/lines are persisted (contentUrl expires in ~30 min)
+			withObjID := 0
+			for i := range slides {
+				if slides[i].SlideObjID != "" {
+					withObjID++
+				}
+			}
+			log.Printf("[Slides Import] fetching thumbnails: %d slides with SlideObjID", withObjID)
+			for i := range slides {
+				if slides[i].SlideObjID == "" {
+					log.Printf("[Slides Import] slide %d: skip (no SlideObjID)", i+1)
+					continue
+				}
+				url, err := fetchSlideThumbnail(presentationID, slides[i].SlideObjID, apiKey)
+				if err != nil {
+					log.Printf("[Slides Import] slide %d: thumbnail URL failed: %v", i+1, err)
+					continue
+				}
+				slides[i].ThumbnailURL = url
+				dataURL, dlErr := downloadThumbnailAsDataURL(url, apiKey)
+				if dlErr != nil && apiKey != "" {
+					dataURL, dlErr = downloadThumbnailAsDataURL(url, "") // fallback: CDN may not accept key param
+				}
+				if dlErr == nil {
+					// Prepend so the first image shown is the full slide with shapes/lines (กรอบแดง, เส้นวาด)
+					slides[i].Images = append([]string{dataURL}, slides[i].Images...)
+					log.Printf("[Slides Import] slide %d: thumbnail OK (base64 prepended)", i+1)
+				} else {
+					log.Printf("[Slides Import] slide %d: thumbnail download failed (กรอบ/เส้น will be missing): %v", i+1, dlErr)
+				}
+			}
+
+			// Fetch Drive comments (non-fatal)
+			driveComments, _ := fetchDriveComments(presentationID, apiKey)
+			for _, c := range driveComments {
+				comment := domain.SlideComment{
+					Content:  c.Content,
+					Author:   c.Author.DisplayName,
+					Resolved: c.Resolved,
+				}
+				for _, r := range c.Replies {
+					comment.Content += fmt.Sprintf("\n  ↳ [%s]: %s", r.Author.DisplayName, r.Content)
+				}
+				allComments = append(allComments, comment)
+			}
+		} else if pptxErr != nil {
+			// Both PPTX and API failed
+			return nil, fmt.Errorf("failed to download PPTX (%v) and Slides API also failed: %w", pptxErr, apiErr)
+		} else {
+			log.Printf("[Slides Import] Slides API failed (thumbnails/comments skipped): %v", apiErr)
+		}
+		// If API key provided but API call failed, we still continue with PPTX data (no thumbnails/comments)
+	} else {
+		log.Printf("[Slides Import] no API key: thumbnails (กรอบ/เส้น) and Drive comments will not be fetched")
+	}
+
+	if len(slides) == 0 {
+		return nil, errors.New("no slides found in the presentation")
+	}
+
+	// Step 3: Validate priority and story points
+	priority := strings.ToUpper(strings.TrimSpace(req.Priority))
+	if !map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}[priority] {
+		priority = "MEDIUM"
+	}
+	storyPoints := req.StoryPoints
+	if storyPoints < 0 {
+		storyPoints = 0
+	}
+
+	slug := "task"
+	proj, err := u.repo.GetProjectByID(projectUUID)
+	if err == nil && proj != nil {
+		slug = slugify(proj.Name)
+	}
+
+	// Filter by selected slide indices if provided (1-based)
+	if len(req.SlideIndices) > 0 {
+		allowed := make(map[int]bool)
+		for _, idx := range req.SlideIndices {
+			allowed[idx] = true
+		}
+		filtered := slides[:0]
+		for _, s := range slides {
+			if allowed[s.Index] {
+				filtered = append(filtered, s)
+			}
+		}
+		slides = filtered
+	}
+	if len(slides) == 0 {
+		return nil, errors.New("no slides selected to import")
+	}
+
+	// Next code numbers: use global max suffix so codes are unique across all projects (idx_tasks_code is global).
+	maxSuffix, _ := u.repo.GetMaxTaskCodeSuffix(slug)
+
+	// Step 4: Create one task per (filtered) slide
+	var createdTasks []*domain.Task
+	for i, slide := range slides {
+		// Build description as HTML so images appear in Description (single place); no separate Slide Images section.
+		var htmlParts []string
+		if slide.Body != "" {
+			htmlParts = append(htmlParts, "<p>"+html.EscapeString(slide.Body)+"</p>")
+		}
+		for _, imgSrc := range slide.Images {
+			// imgSrc is either data URL (base64) or https URL; safe to use in src
+			htmlParts = append(htmlParts, "<p><img src=\""+html.EscapeString(imgSrc)+"\" alt=\"Slide\" /></p>")
+		}
+		if slide.Notes != "" {
+			htmlParts = append(htmlParts, "<p><em>Speaker Notes:</em> "+html.EscapeString(slide.Notes)+"</p>")
+		}
+		description := strings.Join(htmlParts, "\n")
+		if description == "" {
+			description = "<p></p>"
+		}
+
+		var slideURL string
+		if slide.SlideObjID != "" {
+			// Prefer object ID so link stays correct if slides are reordered
+			slideURL = fmt.Sprintf("https://docs.google.com/presentation/d/%s/edit#slide=id.%s", presentationID, slide.SlideObjID)
+		} else {
+			// Fallback: use 1-based slide index; Google rewrites to internal ID and navigates to that position
+			slideURL = fmt.Sprintf("https://docs.google.com/presentation/d/%s/edit#slide=%d", presentationID, slide.Index)
+		}
+
+		// resource_urls: keep only metadata for "Open in Slides"; images are now in description
+		resourceURLs := domain.SlideResourceURLs{
+			ThumbnailURL:   "",   // no longer used; images in description
+			Images:         nil,  // no duplicate; images in description
+			SlideURL:       slideURL,
+			Source:         "google_slides",
+			SlideIndex:     slide.Index,
+			PresentationID: presentationID,
+			Comments:       allComments,
+		}
+		resourceURLsJSON, err := json.Marshal(resourceURLs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal resource URLs for slide %d: %w", slide.Index, err)
+		}
+
+		code := fmt.Sprintf("%s-%03d", slug, maxSuffix+1+i)
+
+		projectIDCopy := projectUUID
+		taskTitle := fmt.Sprintf("Slide %d: %s", slide.Index, slide.Title)
+		task := &domain.Task{
+			ID:           uuid.New(),
+			Code:         code,
+			Title:        taskTitle,
+			Description:  description,
+			CreatedBy:    &creatorID,
+			Status:       "PENDING",
+			Priority:     priority,
+			StoryPoints:  storyPoints,
+			SprintID:     sprintUUID, // nil when importing to backlog
+			EpicID:       epicUUID,  // set when importing to a specific epic
+			ProjectID:    &projectIDCopy,
+			ResourceURLs: datatypes.JSON(resourceURLsJSON),
+		}
+
+		if err := u.repo.CreateTask(task); err != nil {
+			return nil, fmt.Errorf("failed to create task for slide %d: %w", slide.Index, err)
+		}
+		createdTasks = append(createdTasks, task)
+	}
+
+	return &domain.ImportGoogleSlidesResult{
+		CreatedCount:      len(createdTasks),
+		SlideCount:        len(slides),
+		PresentationTitle: presentationTitle,
+		Tasks:             createdTasks,
+	}, nil
+}
+
+// --- Epic Operations (Hierarchy Dimension 1) ---
+
+func (u *sentinelUsecase) CreateEpic(projectID uuid.UUID, title, description, color string, startDate, endDate *time.Time) (*domain.Epic, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, errors.New("epic title is required")
+	}
+	if color == "" {
+		color = "#6366f1"
+	}
+	epic := &domain.Epic{
+		ProjectID:   projectID,
+		Title:       title,
+		Description: description,
+		Status:      "PLANNING",
+		Color:       color,
+		StartDate:   startDate,
+		EndDate:     endDate,
+	}
+	if err := u.repo.CreateEpic(epic); err != nil {
+		return nil, fmt.Errorf("failed to create epic: %w", err)
+	}
+	return epic, nil
+}
+
+func (u *sentinelUsecase) GetEpicsByProject(projectID uuid.UUID) ([]domain.Epic, error) {
+	return u.repo.GetEpicsByProjectID(projectID)
+}
+
+func (u *sentinelUsecase) UpdateEpic(epicID uuid.UUID, title, description, status, color string, startDate, endDate *time.Time) (*domain.Epic, error) {
+	epic, err := u.repo.GetEpicByID(epicID)
+	if err != nil {
+		return nil, fmt.Errorf("epic not found: %w", err)
+	}
+	if title != "" {
+		epic.Title = title
+	}
+	if description != "" {
+		epic.Description = description
+	}
+	if status != "" {
+		epic.Status = status
+	}
+	if color != "" {
+		epic.Color = color
+	}
+	if startDate != nil {
+		epic.StartDate = startDate
+	}
+	if endDate != nil {
+		epic.EndDate = endDate
+	}
+	if err := u.repo.UpdateEpic(epic); err != nil {
+		return nil, fmt.Errorf("failed to update epic: %w", err)
+	}
+	return epic, nil
+}
+
+func (u *sentinelUsecase) DeleteEpic(epicID uuid.UUID) error {
+	return u.repo.DeleteEpic(epicID)
+}
+
+func (u *sentinelUsecase) GetEpicTimelineData(projectID uuid.UUID) (*domain.EpicTimelineData, error) {
+	return u.repo.GetEpicTimelineData(projectID)
+}
+
+func (u *sentinelUsecase) GetSprintTimelineData(projectID uuid.UUID) (*domain.SprintTimelineData, error) {
+	return u.repo.GetSprintTimelineData(projectID)
 }

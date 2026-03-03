@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900">
+  <div class="min-h-screen bg-gray-900 text-gray-100" style="background-color: #111827;">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
@@ -10,7 +10,10 @@
 useHead({
   htmlAttrs: {
     lang: 'en',
-    class: 'antialiased'
+    class: 'antialiased bg-gray-900'
+  },
+  bodyAttrs: {
+    class: 'bg-gray-900 text-gray-100'
   }
 })
 </script>

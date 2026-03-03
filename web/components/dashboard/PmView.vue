@@ -72,7 +72,7 @@
                 </td>
                 <td class="p-3 text-center">
                   <button
-                    @click="goToTask(task.id)"
+                    @click="goToTask(task)"
                     class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded transition-colors flex items-center gap-2 mx-auto"
                   >
                     <span>🔍</span>
@@ -104,7 +104,7 @@
             v-for="task in unassignedTasks"
             :key="task.id"
             class="bg-gray-800 border border-orange-500/30 hover:border-orange-500/60 rounded p-3 transition-colors cursor-pointer hover:scale-[1.01]"
-            @click="goToTask(task.id)"
+            @click="goToTask(task)"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="flex-1 min-w-0">
@@ -172,7 +172,7 @@
                 v-for="task in devTasks"
                 :key="task.id"
                 class="bg-gray-900/50 rounded p-2 flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-800/70 transition-colors"
-                @click="goToTask(task.id)"
+                @click="goToTask(task)"
               >
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
@@ -409,9 +409,9 @@ const formatTimeAgo = (dateString: string) => {
   return `${diffDays}d ago`
 }
 
-// Navigation helper
-const goToTask = (taskId: string) => {
-  navigateTo(`/task/${taskId}`)
+// Navigation helper (use task.code for pretty URL when available)
+const goToTask = (task: { id: string; code?: string }) => {
+  navigateTo(`/task/${task?.code || task?.id}`)
 }
 
 onMounted(() => {

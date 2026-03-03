@@ -1,15 +1,15 @@
 -- Migration: Add AI Advisory System to Appeals
 -- This adds AI recommendation fields to help CEO/PM make decisions
 
--- Add AI Advisory fields to appeals table
+-- Add AI Advisory fields to appeals table (IF NOT EXISTS for idempotency)
 ALTER TABLE appeals
-ADD COLUMN ai_recommendation TEXT,
-ADD COLUMN ai_confidence INTEGER DEFAULT 0,
-ADD COLUMN ai_reasoning TEXT;
+ADD COLUMN IF NOT EXISTS ai_recommendation TEXT,
+ADD COLUMN IF NOT EXISTS ai_confidence INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS ai_reasoning TEXT;
 
--- Add diff storage to submissions for appeal analysis
+-- Add diff storage to submissions for appeal analysis (IF NOT EXISTS for idempotency)
 ALTER TABLE submissions
-ADD COLUMN diff TEXT;
+ADD COLUMN IF NOT EXISTS diff TEXT;
 
 -- Add comments for documentation
 COMMENT ON COLUMN appeals.ai_recommendation IS 'AI recommendation: OVERTURN (approve) or UPHOLD (reject)';

@@ -120,7 +120,7 @@
                   </td>
                   <td class="p-3 text-center">
                     <button
-                      @click="goToTask(task.id)"
+                      @click="goToTask(task)"
                       class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded transition-colors flex items-center gap-2 mx-auto"
                     >
                       <span>🔍</span>
@@ -156,7 +156,7 @@
                 v-for="task in bottleneckTasks" 
                 :key="task.id"
                 class="border-t border-red-500/20 hover:bg-red-900/10 cursor-pointer"
-                @click="goToTask(task.id)"
+                @click="goToTask(task)"
               >
                 <td class="p-3 font-medium">{{ task.title }}</td>
                 <td class="p-3">Dev #{{ task.assigned_to }}</td>
@@ -191,7 +191,7 @@
                 v-for="task in tasks" 
                 :key="task.id"
                 class="border-t border-gray-700 hover:bg-gray-700/50 cursor-pointer"
-                @click="goToTask(task.id)"
+                @click="goToTask(task)"
               >
                 <td class="p-3">
                   <span 
@@ -368,9 +368,9 @@ const scrollToApprovals = () => {
   }
 }
 
-// Navigation helper
-const goToTask = (taskId: string) => {
-  navigateTo(`/task/${taskId}`)
+// Navigation helper (use task.code for pretty URL when available)
+const goToTask = (task: { id: string; code?: string }) => {
+  navigateTo(`/task/${task?.code || task?.id}`)
 }
 
 onMounted(() => {

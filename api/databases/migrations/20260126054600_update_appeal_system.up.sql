@@ -1,4 +1,6 @@
 -- Update Appeal System to use submission_id instead of task_id
+-- Ensure UUID extension exists (this migration may run before init_sentinel_schema)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Drop existing appeals table
 DROP TABLE IF EXISTS appeals;

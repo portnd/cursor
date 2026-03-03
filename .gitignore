@@ -18,8 +18,7 @@ Thumbs.db
 *.code-workspace
 .fleet/
 
-# Environment Variables
-.env
+# Environment Variables (api/.env is tracked for shared defaults)
 .env.local
 .env.*.local
 .env.production

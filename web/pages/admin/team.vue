@@ -42,11 +42,9 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="isLoading" class="flex items-center justify-center py-20">
-        <div class="text-center">
-          <div class="animate-spin text-6xl mb-4">⚙️</div>
-          <p class="text-gray-400">Loading team roster...</p>
-        </div>
+      <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-[60vh]">
+        <div class="animate-spin text-6xl mb-4">⚙️</div>
+        <p class="text-sm text-gray-500">กำลังโหลดทีม...</p>
       </div>
 
       <!-- Error State -->

@@ -1,0 +1,10 @@
+---
+description: App runs via Docker on port 3000; use localhost:3000 for testing and URLs
+alwaysApply: true
+---
+
+# Docker & Port 3000
+
+- The Sentinel **web app runs via Docker** and is served on **port 3000**.
+- When testing in the browser, building URLs, or referring to the running app, always use **http://localhost:3000**.
+- Do **not** assume port 3001 or any other port unless the user explicitly specifies one.

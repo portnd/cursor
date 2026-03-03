@@ -195,11 +195,19 @@ CREATE TABLE IF NOT EXISTS appeals (
     CONSTRAINT check_reason_length CHECK (LENGTH(reason) >= 10)
 );
 
--- Indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_appeals_task_id ON appeals(task_id);
-CREATE INDEX IF NOT EXISTS idx_appeals_dev_id ON appeals(dev_id);
+-- Indexes for common queries (appeals may already exist with submission_id/developer_id from later migrations)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='appeals' AND column_name='task_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_appeals_task_id ON appeals(task_id);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='appeals' AND column_name='dev_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_appeals_dev_id ON appeals(dev_id);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='appeals' AND column_name='reviewed_by') THEN
+    CREATE INDEX IF NOT EXISTS idx_appeals_reviewed_by ON appeals(reviewed_by);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
-CREATE INDEX IF NOT EXISTS idx_appeals_reviewed_by ON appeals(reviewed_by);
 CREATE INDEX IF NOT EXISTS idx_appeals_created_at ON appeals(created_at DESC);
 
 -- Composite index for pending appeals dashboard (CEO/PM view)

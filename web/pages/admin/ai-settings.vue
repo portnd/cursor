@@ -7,8 +7,9 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="text-center py-20">
-      <div class="text-gray-400">Loading configuration...</div>
+    <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-[60vh]">
+      <div class="animate-spin text-6xl mb-4">⚙️</div>
+      <p class="text-sm text-gray-500">กำลังโหลดการตั้งค่า...</p>
     </div>
 
     <!-- Error State -->

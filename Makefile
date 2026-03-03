@@ -1,6 +1,9 @@
-.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build
+.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker
 
 PROJECT_NAME ?= komgrip
+
+# Docker Desktop on this host returns 500 for default API (v1.51); force 1.44 so down/up work.
+export DOCKER_API_VERSION ?= 1.44
 
 ensure-go-sum:
 	@if [ ! -f api/go.sum ]; then \
@@ -14,9 +17,11 @@ help:
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make up              - Start all services (detached)"
+	@echo "  make run             - Start all services in terminal (see logs, Ctrl+C to stop)"
 	@echo "  make down            - Stop all services"
 	@echo "  make restart         - Restart all services"
 	@echo "  make logs            - Show logs (all services)"
+	@echo "  make logs-api        - Show API service logs only"
 	@echo "  make clean           - Stop services and remove volumes (DESTRUCTIVE)"
 	@echo "  make init            - Initialize project (rename, setup .env)"
 	@echo "  make ps              - List running containers"
@@ -35,26 +40,44 @@ help:
 	@echo "  make test-api        - Run API tests"
 	@echo "  make test-web        - Run Web tests"
 
-build: ensure-go-sum
+# Wait for Docker daemon (use before build/up if Docker Desktop just started)
+wait-docker:
+	@echo "⏳ Waiting for Docker daemon..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do \
+		if docker info >/dev/null 2>&1; then echo "✅ Docker is ready."; exit 0; fi; \
+		echo "   attempt $$i/20..."; sleep 6; \
+	done; \
+	echo "❌ Docker did not respond. Start Docker Desktop and run make again."; exit 1
+
+build: ensure-go-sum wait-docker
 	@echo "🔨 Building Docker images..."
 	docker-compose build
 	@echo "✅ Build complete."
 
-up: ensure-go-sum
+up: ensure-go-sum wait-docker
 	@echo "🚀 Starting $(PROJECT_NAME) services..."
 	docker-compose up -d
 	@echo "✅ Services started. Use 'make logs' to view logs."
 
+# Run all services in foreground (logs in terminal). Ctrl+C to stop.
+run: ensure-go-sum wait-docker
+	@echo "🚀 Starting all services (logs in terminal, Ctrl+C to stop)..."
+	docker-compose up
+
 down:
 	@echo "🛑 Stopping $(PROJECT_NAME) services..."
-	docker-compose down
+	@docker-compose down || (echo "⚠️  Docker not available or already stopped."; exit 0)
 	@echo "✅ Services stopped."
 
-restart: down up
+restart: wait-docker down up
 
 logs:
 	@echo "📋 Showing logs for all services (Ctrl+C to exit)..."
 	docker-compose logs -f
+
+logs-api:
+	@echo "📋 API service logs (Ctrl+C to exit)..."
+	docker-compose logs -f api
 
 clean:
 	@echo "⚠️  WARNING: This will DELETE all volumes and data!"

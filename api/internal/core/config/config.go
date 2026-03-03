@@ -31,6 +31,8 @@ type Config struct {
 	RedisAddr     string
 
 	JWTSecret string
+
+	GoogleAPIKey string
 }
 
 func Load() (*Config, error) {
@@ -57,6 +59,8 @@ func Load() (*Config, error) {
 		RedisPassword: getEnv("REDIS_PASSWORD", "komgrip_secret"),
 
 		JWTSecret: getEnv("JWT_SECRET", "default_jwt_secret_change_in_production"),
+
+		GoogleAPIKey: getEnv("GOOGLE_API_KEY", ""),
 	}
 
 	cfg.PostgresDSN = fmt.Sprintf(

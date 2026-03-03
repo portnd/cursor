@@ -5,7 +5,7 @@
       <h1 class="text-4xl font-bold text-white mb-2">
         Create New Mission 🚀
       </h1>
-      <p class="text-gray-400">Define your task and let AI estimate the effort required</p>
+      <p class="text-gray-400">Define your task and create the mission</p>
     </div>
 
     <!-- Creation Form Card -->
@@ -21,7 +21,7 @@
           </svg>
           <div>
             <p class="font-semibold">Task Created Successfully!</p>
-            <p class="text-sm text-green-300">AI estimation complete. Redirecting to dashboard...</p>
+            <p class="text-sm text-green-300">Redirecting to dashboard...</p>
           </div>
         </div>
 
@@ -71,7 +71,7 @@
               :disabled="isSubmitting"
             ></textarea>
             <p class="mt-2 text-sm text-gray-500">
-              💡 Tip: More details = better AI estimation
+              💡 Tip: Add clear requirements and acceptance criteria
             </p>
           </div>
 
@@ -94,22 +94,6 @@
               </svg>
               Set a deadline to enforce urgency and track performance
             </p>
-          </div>
-
-          <!-- AI Estimation Info Box -->
-          <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-              <svg class="w-6 h-6 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p class="text-sm text-blue-400 font-medium">AI-Powered Time Estimation</p>
-                <p class="text-xs text-blue-300 mt-1">
-                  Our AI will analyze your task and provide an intelligent time estimate based on complexity, 
-                  tech stack, and AI-assisted development speed.
-                </p>
-              </div>
-            </div>
           </div>
 
           <!-- Action Buttons -->
@@ -241,11 +225,6 @@ const handleSubmit = async () => {
 
     // Show success message
     showSuccess.value = true
-
-    // Log AI estimation for debugging
-    if (response.data?.ai_estimated_minutes) {
-      console.log('✅ AI Estimation:', response.data.ai_estimated_minutes, 'minutes')
-    }
 
     // Wait a moment for user to see success message
     setTimeout(() => {

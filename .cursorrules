@@ -23,3 +23,11 @@ Your goal is to build a high-performance AI-driven Development OS.
 ## 4. CRITICAL INSTRUCTION
 - When generating code, scan `ARCHITECTURE.md` to ensure correct file placement.
 - If I ask for a feature, implement the FULL vertical slice (DB -> Repo -> Usecase -> Handler -> Route).
+
+## 5. DOCUMENTATION
+- Do NOT create guides, README, or any new documentation files unless the user explicitly asks for them or they are strictly necessary for the task.
+
+## 6. DOCKER & PORTS
+- **App runs via Docker.** The web app is served on **port 3000** (not 3001 or other dev ports).
+- When testing in browser, using URLs, or referring to the app: use **http://localhost:3000**.
+- Do not assume a different port unless the user specifies one.

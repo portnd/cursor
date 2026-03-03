@@ -90,12 +90,15 @@
 </template>
 
 <script setup lang="ts">
+import { useAuthStore } from '~/core/modules/auth/store/auth-store'
+
 definePageMeta({
   layout: false // Use custom layout for login page
 })
 
 const { login } = useAuth()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
@@ -110,6 +113,17 @@ const handleLogin = async () => {
     const result = await login(email.value, password.value)
     
     if (result.success) {
+      // Sync token + user into auth store so role-based UI (Edit button, etc.) works
+      const tokenCookie = useCookie('token')
+      if (result.token) authStore.token = result.token
+      else if (tokenCookie.value) authStore.token = tokenCookie.value
+      if (result.user) {
+        authStore.user = result.user
+        authStore.isAuthenticated = true
+        if (import.meta.client) {
+          localStorage.setItem('user', JSON.stringify(result.user))
+        }
+      }
       await router.push('/dashboard')
     } else {
       errorMessage.value = result.error || 'Login failed. Please check your credentials.'

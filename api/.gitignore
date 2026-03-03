@@ -23,8 +23,7 @@ go.work.sum
 .air.toml.local
 build-errors.log
 
-# Environment
-.env
+# Environment (.env is tracked for shared defaults)
 .env.local
 .env.*.local
 

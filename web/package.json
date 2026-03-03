@@ -16,10 +16,24 @@
     "type-check": "nuxt typecheck"
   },
   "dependencies": {
+    "@infectoone/vue-ganttastic": "^2.3.2",
     "@pinia/nuxt": "^0.5.1",
+    "@tiptap/extension-color": "^3.20.0",
+    "@tiptap/extension-image": "^3.20.0",
+    "@tiptap/extension-link": "^3.20.0",
+    "@tiptap/extension-placeholder": "^3.20.0",
+    "@tiptap/extension-text-align": "^3.20.0",
+    "@tiptap/extension-text-style": "^3.20.0",
+    "@tiptap/extension-underline": "^3.20.0",
+    "@tiptap/pm": "^3.20.0",
+    "@tiptap/starter-kit": "^3.20.0",
+    "@tiptap/vue-3": "^3.20.0",
+    "chart.js": "^4.5.1",
+    "dayjs": "^1.11.19",
     "nuxt": "^3.11.2",
     "oh-vue-icons": "^1.0.0-rc3",
-    "pinia": "^2.1.7"
+    "pinia": "^2.1.7",
+    "vue-chartjs": "^5.3.3"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

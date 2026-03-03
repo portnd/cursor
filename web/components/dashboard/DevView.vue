@@ -30,7 +30,7 @@
               'bg-blue-900/20 border-2 rounded-lg p-6 relative cursor-pointer hover:scale-[1.01] transition-all',
               getDeadlineBorderClass(task)
             ]"
-            @click="goToTask(task.id)"
+            @click="goToTask(task)"
           >
             <!-- Urgency Badge (Top Right) -->
             <div 
@@ -98,7 +98,7 @@
                 Submit Work
               </button>
               <NuxtLink 
-                :to="`/task/${task.id}`"
+                :to="`/task/${task.code || task.id}`"
                 @click.stop
                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium rounded transition-colors"
               >
@@ -135,7 +135,7 @@
                   getDeadlineUrgency(task) === 'overdue' ? 'bg-red-900/20' :
                   getDeadlineUrgency(task) === 'urgent' ? 'bg-yellow-900/20' : ''
                 ]"
-                @click="goToTask(task.id)"
+                @click="goToTask(task)"
               >
                 <td class="p-3 font-medium">
                   {{ task.title }}
@@ -169,7 +169,7 @@
                 </td>
                 <td class="p-3 text-right">
                   <button 
-                    @click.stop="goToTask(task.id)"
+                    @click.stop="goToTask(task)"
                     class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
                   >
                     Start
@@ -208,7 +208,7 @@
                   getDeadlineUrgency(task) === 'overdue' ? 'bg-red-900/20' :
                   getDeadlineUrgency(task) === 'urgent' ? 'bg-yellow-900/20' : ''
                 ]"
-                @click="goToTask(task.id)"
+                @click="goToTask(task)"
               >
                 <td class="p-3 font-medium">
                   {{ task.title }}
@@ -731,11 +731,11 @@ const submitWork = async () => {
 const closeResultModal = async () => {
   // If NOT PASS (FAIL or PENDING), navigate to task detail page for appeal/review
   if (submissionResult.value?.ai_verdict !== 'PASS' && selectedTask.value?.id) {
-    const taskId = selectedTask.value.id // Save taskId before clearing
+    const task = selectedTask.value
     showResultModal.value = false
     submissionResult.value = null
     selectedTask.value = null
-    await navigateTo(`/task/${taskId}`)
+    await navigateTo(`/task/${task?.code || task?.id}`)
     return // Don't fetch tasks if navigating away
   }
   
@@ -802,9 +802,9 @@ Your work is saved and won't be lost.`
   }
 }
 
-// Navigation helper
-const goToTask = (taskId: string) => {
-  navigateTo(`/task/${taskId}`)
+// Navigation helper (use task.code for pretty URL when available)
+const goToTask = (task: { id: string; code?: string }) => {
+  navigateTo(`/task/${task?.code || task?.id}`)
 }
 
 onMounted(() => {

@@ -27,17 +27,6 @@ const roleViewMap: Record<string, any> = {
 // Determine current view based on user role
 const currentView = computed(() => {
   const userRole = currentUser.value?.role?.toUpperCase() || 'DEV'
-  
-  // Log for debugging
-  console.log('🔍 User Role:', userRole)
-  console.log('📊 Current User:', currentUser.value)
-  
-  // Return appropriate component (default to DevView)
   return roleViewMap[userRole] || DevView
 })
-
-// Watch for role changes (useful for debugging)
-watch(currentUser, (newUser) => {
-  console.log('👤 User changed:', newUser)
-}, { immediate: true })
 </script>
