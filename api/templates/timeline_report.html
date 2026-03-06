@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>แผนงาน</title>
+  <!-- Preload font so PDF export (chromedp) renders with Sarabun before capture -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=block" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 14pt;
+      color: #0f172a;
+      background: #fff;
+      line-height: 1.55;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    @page {
+      size: A4;
+      margin: 14mm 16mm 12mm 16mm;
+      @bottom-center {
+        content: "— " counter(page) " —";
+        font-family: 'Sarabun', sans-serif;
+        font-size: 9pt;
+        color: #94a3b8;
+        margin-bottom: 0;
+      }
+    }
+
+    /* 1 งวดต่อ 1 หน้า */
+    .ms-card {
+      break-before: page;
+      break-inside: avoid;
+      min-height: 0;
+    }
+    .ms-card:first-child {
+      break-before: auto;
+    }
+
+    /* Header ขยาย + งวดที่ X ใหญ่ */
+    .page-header {
+      margin-bottom: 10mm;
+      padding: 5mm 0 5mm;
+      border-bottom: 1pt solid #e2e8f0;
+    }
+    .page-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8mm;
+      flex-wrap: wrap;
+    }
+    .page-header .doc-label {
+      font-size: 9pt;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 0.5mm;
+    }
+    .page-header .doc-title {
+      font-size: 13pt;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.02em;
+    }
+    .page-header .milestone-badge {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.03em;
+    }
+    .page-header-meta {
+      margin-top: 3mm;
+      font-size: 11pt;
+      color: #64748b;
+    }
+    .page-header-meta .milestone-name {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .page-header-meta .due-value {
+      font-weight: 500;
+      color: #475569;
+    }
+
+    .ms-card-body { padding: 0; }
+
+    .epic-block {
+      margin-bottom: 5mm;
+    }
+    /* Repeat epic header when table breaks to next page (task ตกหน้า → epic ไปอยู่อีกหน้าด้วย) */
+    .task-table thead {
+      display: table-header-group;
+      font-family: 'Sarabun', sans-serif;
+    }
+    .task-table thead td {
+      font-family: inherit;
+    }
+
+    .task-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13pt;
+    }
+    .task-table tr {
+      border-bottom: 0.5pt solid #e2e8f0;
+    }
+    .task-table tr:last-child { border-bottom: none; }
+    .task-table td {
+      padding: 4.5pt 10pt 5pt;
+      color: #1e293b;
+      vertical-align: middle;
+      line-height: 1.5;
+    }
+    .task-table .td-idx {
+      width: 14mm;
+      color: #64748b;
+      font-size: 12pt;
+      font-weight: 500;
+      text-align: right;
+      padding-right: 8pt;
+      border-right: none;
+    }
+    .task-table .td-title {
+      font-size: 13pt;
+      font-weight: 400;
+    }
+    .task-table .td-date {
+      width: 32mm;
+      text-align: right;
+      color: #475569;
+      font-size: 12pt;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .task-table .td-date-start {
+      width: 32mm;
+      padding-left: 12pt;
+    }
+    /* Epic = แถวหัวข้อ ไม่ใช้พื้นดำ ใช้ตัวหนา + พื้นอ่อน */
+    .task-table tr.epic-row td {
+      background: #f8fafc;
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 13pt;
+      border-top: 0.5pt solid #e2e8f0;
+      border-bottom: 0.5pt solid #cbd5e1;
+      padding: 5pt 10pt 5.5pt;
+    }
+    .task-table tr.epic-row .td-idx {
+      color: #475569;
+      font-weight: 600;
+    }
+    .task-table tr.epic-row .td-date {
+      color: #64748b;
+      font-size: 11pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .task-table tbody tr:nth-child(even):not(.epic-row) td {
+      background: #fafbfc;
+    }
+
+    .empty-note {
+      font-size: 14pt;
+      color: #64748b;
+      font-style: italic;
+      padding: 8mm 0;
+      line-height: 1.6;
+    }
+
+    .unassigned-section .sec-title {
+      font-size: 13pt;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #0f172a;
+      border-bottom: 1pt solid #e2e8f0;
+      padding-bottom: 2mm;
+      margin: 0 0 5mm;
+    }
+
+    /* Gantt chart แบบ timeframe เดือน */
+    .gantt-month-page {
+      break-before: page;
+    }
+    .gantt-month-page .page-header .milestone-badge {
+      font-size: 12pt;
+    }
+    .gantt-month-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 11pt;
+      margin-top: 4mm;
+    }
+    .gantt-month-table th,
+    .gantt-month-table td {
+      border: 0.5pt solid #e2e8f0;
+      padding: 2.5pt 4pt;
+      vertical-align: middle;
+    }
+    .gantt-month-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+      text-align: center;
+      font-size: 9pt;
+    }
+    .gantt-month-table .gantt-month-label {
+      width: 25%;
+      min-width: 50mm;
+      text-align: left;
+      font-weight: 500;
+      color: #1e293b;
+    }
+    .gantt-month-table .gantt-month-cell {
+      width: 0;
+      min-width: 8mm;
+      text-align: center;
+      padding: 2pt;
+    }
+    /* Chart strip: bar width = real duration (% of full timeline) */
+    .gantt-month-chart-cell {
+      position: relative;
+      height: 22px;
+      min-width: 80mm;
+    }
+    .gantt-month-header-strip {
+      display: flex;
+      align-items: center;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 9pt;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .gantt-month-header-strip span {
+      flex: 1;
+      text-align: center;
+    }
+    .gantt-month-chart-strip {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 4px;
+      bottom: 4px;
+      background: #f1f5f9;
+      border-radius: 2pt;
+    }
+    .gantt-month-bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: #3b82f6;
+      border-radius: 1pt;
+      min-width: 2px;
+    }
+    .gantt-month-table tbody tr:nth-child(even) td.gantt-month-label {
+      background: #fafbfc;
+    }
+
+    @media print {
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+{{if .MilestoneGroups}}
+{{range $mi, $m := .MilestoneGroups}}
+<div class="ms-card">
+  <header class="page-header">
+    <div class="page-header-row">
+      <div>
+        <div class="doc-label">Project Plan</div>
+        <div class="doc-title">{{$.ProjectName}}</div>
+      </div>
+      <div class="milestone-badge">งวดที่ {{$m.Number}}</div>
+    </div>
+    <div class="page-header-meta">
+      <span class="milestone-name">{{$m.Title}}</span>
+      <span> · กำหนดส่ง <span class="due-value">{{$m.DueDate}}</span> · {{$m.Count}} รายการ</span>
+    </div>
+  </header>
+  <div class="ms-card-body">
+    {{range $ei, $epic := $m.Epics}}
+    <div class="epic-block">
+      <table class="task-table">
+        <thead>
+          <tr class="epic-row">
+            <td class="td-idx">{{add $ei 1}}.</td>
+            <td class="td-title">{{$epic.Title}}</td>
+            <td class="td-date td-date-start">Start date</td>
+            <td class="td-date">End date</td>
+          </tr>
+        </thead>
+        <tbody>
+        {{if $epic.Tasks}}
+        {{range $ti, $task := $epic.Tasks}}
+        <tr>
+          <td class="td-idx">{{add $ti 1}}</td>
+          <td class="td-title">{{$task.Title}}</td>
+          <td class="td-date td-date-start">{{$task.StartDate}}</td>
+          <td class="td-date">{{$task.EndDate}}</td>
+        </tr>
+        {{end}}
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{else}}
+<p class="empty-note">ยังไม่มีงวดส่งมอบ (Milestone) — กรุณาสร้าง Milestone แล้วกำหนดวันส่งมอบก่อน</p>
+{{end}}
+
+{{if .HasUnassigned}}
+<div class="ms-card">
+  <header class="page-header">
+    <div class="page-header-row">
+      <div>
+        <div class="doc-label">Project Plan</div>
+        <div class="doc-title">{{.ProjectName}}</div>
+      </div>
+      <div class="milestone-badge">งานที่ยังไม่กำหนดงวด</div>
+    </div>
+  </header>
+  <div class="ms-card-body">
+{{range $ei, $epic := .UnassignedEpics}}
+    <div class="epic-block">
+      <table class="task-table">
+        <thead>
+          <tr class="epic-row">
+            <td class="td-idx">{{add $ei 1}}.</td>
+            <td class="td-title">{{$epic.Title}}</td>
+            <td class="td-date td-date-start">Start date</td>
+            <td class="td-date">End date</td>
+          </tr>
+        </thead>
+        <tbody>
+        {{if $epic.Tasks}}
+        {{range $ti, $task := $epic.Tasks}}
+        <tr>
+          <td class="td-idx">{{add $ti 1}}</td>
+          <td class="td-title">{{$task.Title}}</td>
+          <td class="td-date td-date-start">{{$task.StartDate}}</td>
+          <td class="td-date">{{$task.EndDate}}</td>
+        </tr>
+        {{end}}
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+{{end}}
+  </div>
+</div>
+{{end}}
+
+{{if .HasGanttMonth}}
+<div class="ms-card gantt-month-page">
+  <header class="page-header">
+    <div class="page-header-row">
+      <div>
+        <div class="doc-label">Project Plan</div>
+        <div class="doc-title">{{.ProjectName}}</div>
+      </div>
+    </div>
+  </header>
+  <div class="ms-card-body">
+    <table class="gantt-month-table">
+      <thead>
+        <tr>
+          <th class="gantt-month-label">ชื่องาน</th>
+          <th class="gantt-month-chart-cell">
+            <div class="gantt-month-header-strip">
+              {{range .GanttMonthLabels}}
+              <span>{{.}}</span>
+              {{end}}
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $row := .GanttMonthRows}}
+        <tr>
+          <td class="gantt-month-label">{{$row.Label}}</td>
+          <td class="gantt-month-chart-cell">
+            <div class="gantt-month-chart-strip">
+              <div class="gantt-month-bar" style="left: {{printf "%.2f" $row.BarLeftPct}}%; width: {{printf "%.2f" $row.BarWidthPct}}%;"></div>
+            </div>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+
+<div id="success-pagejs" style="display:none"></div>
+<script>
+(function() {
+  function showReady() {
+    var el = document.getElementById('success-pagejs');
+    if (el) el.style.display = 'block';
+  }
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(showReady).catch(showReady);
+    setTimeout(showReady, 4000);
+  } else {
+    showReady();
+  }
+})();
+</script>
+</body>
+</html>

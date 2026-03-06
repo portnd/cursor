@@ -3,11 +3,13 @@ package usecase
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -18,26 +20,34 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/chromedp"
 	"github.com/google/uuid"
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
+	chromepdf "github.com/portnd/the-sentinel-core/internal/core/pdf"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 	"gorm.io/datatypes"
 )
 
 type sentinelUsecase struct {
-	repo       domain.SentinelRepository
-	aiService  domain.AIService
-	authRepo   authDomain.Repository // 👈 Add auth repo for role validation
-	timeout    time.Duration
+	repo        domain.SentinelRepository
+	aiService   domain.AIService
+	authRepo    authDomain.Repository
+	usageTracker domain.UsageTracker
+	aiLimitRPM  int
+	aiLimitRPD  int
+	timeout     time.Duration
 }
 
-// Update Constructor
-func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIService, authRepo authDomain.Repository) domain.SentinelUsecase {
+// NewSentinelUsecase creates the usecase. usageTracker may be nil (GetAIUsage will return zeros). aiLimitRPM/aiLimitRPD 0 = use tracker defaults.
+func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIService, authRepo authDomain.Repository, usageTracker domain.UsageTracker, aiLimitRPM, aiLimitRPD int) domain.SentinelUsecase {
 	return &sentinelUsecase{
-		repo:      repo,
-		aiService: aiService,
-		authRepo:  authRepo, // 👈 Inject auth repo
-		timeout:   time.Second * 10,
+		repo:         repo,
+		aiService:    aiService,
+		authRepo:     authRepo,
+		usageTracker: usageTracker,
+		aiLimitRPM:   aiLimitRPM,
+		aiLimitRPD:   aiLimitRPD,
+		timeout:      time.Second * 10,
 	}
 }
 
@@ -103,6 +113,52 @@ func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string) (*domain.Project
 	}
 	if p == nil {
 		return nil, errors.New("project not found")
+	}
+	return p, nil
+}
+
+// UpdateProject updates project name, description, and status. If updateCode is true, also sets project.Code to slugify(name) and updates all task codes in the project to use the new prefix (so they match the new name).
+func (u *sentinelUsecase) UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*domain.Project, error) {
+	p, err := u.repo.GetProjectByID(projectID)
+	if err != nil || p == nil {
+		return nil, errors.New("project not found")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.New("project name is required")
+	}
+	if !projectNameEnglishOnly.MatchString(name) {
+		return nil, errors.New("project name must be in English only (letters, numbers, spaces, hyphens)")
+	}
+	p.Name = name
+	p.Description = strings.TrimSpace(description)
+	if status != "" {
+		if status != "ACTIVE" && status != "COMPLETED" && status != "ON_HOLD" {
+			return nil, fmt.Errorf("invalid project status: %s", status)
+		}
+		p.Status = status
+	}
+	if updateCode {
+		newCode := slugify(name)
+		if newCode != "" {
+			p.Code = newCode
+			// Update all task codes in this project to use the new prefix (globally unique suffixes).
+			tasks, err := u.repo.GetTasksByProjectID(projectID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get project tasks: %w", err)
+			}
+			maxSuffix, _ := u.repo.GetMaxTaskCodeSuffix(newCode)
+			for i := range tasks {
+				maxSuffix++
+				tasks[i].Code = fmt.Sprintf("%s-%03d", newCode, maxSuffix)
+				if err := u.repo.UpdateTask(&tasks[i]); err != nil {
+					return nil, fmt.Errorf("failed to update task code: %w", err)
+				}
+			}
+		}
+	}
+	if err := u.repo.UpdateProject(p); err != nil {
+		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 	return p, nil
 }
@@ -188,8 +244,8 @@ func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate
 	return task, nil
 }
 
-// AssignTask assigns a developer to a task
-func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint) error {
+// AssignTask assigns a developer to a task. assignerID is the PM/CEO who performs the assign (for PM-scoped leaderboard).
+func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID uint) error {
 	// 1. Validate if task exists
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -199,11 +255,12 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint) error {
 		return errors.New("task not found")
 	}
 
-	// 2. Update assignment (In a real app, we might check if Dev is overloaded here)
+	// 2. Update assignment
 	task.AssignedTo = &devID
+	task.AssignedByID = &assignerID // PM/CEO who assigned (drives PM Team Leaderboard scope)
 	task.Status = "IN_PROGRESS"
 
-	// 3. ⏰ Start Time Tracking: Set StartedAt = NOW() (Assuming assignment starts work)
+	// 3. ⏰ Start Time Tracking: Set StartedAt = NOW()
 	now := time.Now()
 	task.StartedAt = &now
 	fmt.Printf("⏰ Time Tracking: Task %s started at %s\n", task.ID, now.Format(time.RFC3339))
@@ -608,7 +665,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 
 // UpdateTask updates a task with access control (no AI).
 // Creator, CEO, or PM can update. Gantt fields applied when provided.
-func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool) (*domain.Task, error) {
+func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -665,6 +722,9 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 	if applyEpic {
 		task.EpicID = epicID
 	}
+	if sortOrder != nil {
+		task.SortOrder = *sortOrder
+	}
 
 	if err := u.repo.UpdateTask(task); err != nil {
 		return nil, fmt.Errorf("failed to update task: %w", err)
@@ -692,6 +752,213 @@ func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUse
 		return nil, fmt.Errorf("failed to update task resource_urls: %w", err)
 	}
 	return task, nil
+}
+
+// EstimateTask uses AI to estimate task effort (title + description) and updates task.ai_estimated_minutes.
+// Only task creator, CEO, or PM can run estimate.
+func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*domain.Task, error) {
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
+	isCEO := requestingUserRole == "CEO"
+	isPM := requestingUserRole == "PM"
+	if !isCreator && !isCEO && !isPM {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or PM can run AI estimate")
+	}
+	minutes, _, err := u.aiService.EstimateEffort(task.Title, task.Description)
+	if err != nil {
+		return nil, fmt.Errorf("AI estimate failed: %w", err)
+	}
+	task.AIEstimatedMinutes = minutes
+	if err := u.repo.UpdateTask(task); err != nil {
+		return nil, fmt.Errorf("failed to update task estimate: %w", err)
+	}
+	fmt.Printf("✅ AI Estimate: Task %s → %d minutes by %s (User ID: %d)\n", taskID, minutes, requestingUserRole, requestingUserID)
+	return task, nil
+}
+
+// GenerateProjectPlan uses AI to generate a full work plan (epics, milestones, sprints, tasks) and creates them in the project.
+// Only CEO or PM can run this.
+func (u *sentinelUsecase) GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*domain.AIGeneratedPlan, error) {
+	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
+		return nil, fmt.Errorf("unauthorized: only CEO or PM can generate AI work plan")
+	}
+	proj, err := u.repo.GetProjectByID(projectID)
+	if err != nil || proj == nil {
+		return nil, fmt.Errorf("project not found: %w", err)
+	}
+	plan, err := u.aiService.GenerateWorkPlan(proj.Name, proj.Description)
+	if err != nil {
+		return nil, fmt.Errorf("AI plan failed: %w", err)
+	}
+	if plan == nil {
+		return nil, fmt.Errorf("AI plan failed: empty plan returned")
+	}
+	parseDate := func(s string) *time.Time {
+		if s == "" {
+			return nil
+		}
+		t, e := time.Parse("2006-01-02", strings.TrimSpace(s))
+		if e != nil {
+			return nil
+		}
+		return &t
+	}
+	epicIDs := make([]uuid.UUID, 0, len(plan.Epics))
+	for _, e := range plan.Epics {
+		color := e.Color
+		if color == "" {
+			color = "#6366f1"
+		}
+		epic, err := u.CreateEpic(projectID, e.Title, e.Description, color, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("create epic %q: %w", e.Title, err)
+		}
+		epicIDs = append(epicIDs, epic.ID)
+	}
+	milestoneIDs := make([]uuid.UUID, 0, len(plan.Milestones))
+	for _, m := range plan.Milestones {
+		due := parseDate(m.DueDate)
+		milestone, err := u.CreateMilestone(projectID, m.Title, m.Description, due)
+		if err != nil {
+			return nil, fmt.Errorf("create milestone %q: %w", m.Title, err)
+		}
+		milestoneIDs = append(milestoneIDs, milestone.ID)
+	}
+	sprintIDs := make([]uuid.UUID, 0, len(plan.Sprints))
+	for _, s := range plan.Sprints {
+		start := parseDate(s.StartDate)
+		end := parseDate(s.EndDate)
+		sprint, err := u.CreateSprint(projectID, s.Name, s.Goal, start, end)
+		if err != nil {
+			return nil, fmt.Errorf("create sprint %q: %w", s.Name, err)
+		}
+		sprintIDs = append(sprintIDs, sprint.ID)
+	}
+	for _, t := range plan.Tasks {
+		priority := t.Priority
+		if priority == "" {
+			priority = "MEDIUM"
+		}
+		if priority != "CRITICAL" && priority != "HIGH" && priority != "MEDIUM" && priority != "LOW" {
+			priority = "MEDIUM"
+		}
+		if t.StoryPoints < 0 {
+			t.StoryPoints = 0
+		}
+		var epicID, sprintID, milestoneID *uuid.UUID
+		if t.EpicIndex != nil && *t.EpicIndex >= 0 && *t.EpicIndex < len(epicIDs) {
+			id := epicIDs[*t.EpicIndex]
+			epicID = &id
+		}
+		if t.SprintIndex != nil && *t.SprintIndex >= 0 && *t.SprintIndex < len(sprintIDs) {
+			id := sprintIDs[*t.SprintIndex]
+			sprintID = &id
+		}
+		if t.MilestoneIndex != nil && *t.MilestoneIndex >= 0 && *t.MilestoneIndex < len(milestoneIDs) {
+			id := milestoneIDs[*t.MilestoneIndex]
+			milestoneID = &id
+		}
+		startDate := parseDate(t.StartDate)
+		endDate := parseDate(t.EndDate)
+		var dueDate *time.Time
+		if endDate != nil {
+			dueDate = endDate
+		}
+		_, err := u.CreateTask(t.Title, t.Description, requestingUserID, dueDate, &projectID, nil, startDate, endDate, priority, t.StoryPoints, sprintID, milestoneID, epicID)
+		if err != nil {
+			return nil, fmt.Errorf("create task %q: %w", t.Title, err)
+		}
+	}
+	fmt.Printf("✅ AI Plan created: %d epics, %d milestones, %d sprints, %d tasks (project %s)\n",
+		len(epicIDs), len(milestoneIDs), len(sprintIDs), len(plan.Tasks), projectID)
+	return plan, nil
+}
+
+// ClearProjectPlan removes all tasks, sprints, milestones, and epics for the project. Only CEO or PM.
+func (u *sentinelUsecase) ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error {
+	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
+		return fmt.Errorf("unauthorized: only CEO or PM can clear project plan")
+	}
+	if _, err := u.repo.GetProjectByID(projectID); err != nil {
+		return fmt.Errorf("project not found: %w", err)
+	}
+	if err := u.repo.DeleteProjectPlan(projectID); err != nil {
+		return fmt.Errorf("failed to clear plan: %w", err)
+	}
+	fmt.Printf("🗑️  Project plan cleared: %s (by %s)\n", projectID, requestingUserRole)
+	return nil
+}
+
+// ScheduleProjectWithAI ประเมินเวลาและจัดเรียง timeline ของ task ที่มีอยู่แล้ว (ไม่สร้าง task ใหม่). เฉพาะ CEO/PM.
+func (u *sentinelUsecase) ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (int, error) {
+	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
+		return 0, fmt.Errorf("unauthorized: only CEO or PM can run AI schedule")
+	}
+	if _, err := u.repo.GetProjectByID(projectID); err != nil {
+		return 0, fmt.Errorf("project not found: %w", err)
+	}
+	tasks, err := u.repo.GetTasksByProjectID(projectID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tasks: %w", err)
+	}
+	if len(tasks) == 0 {
+		return 0, fmt.Errorf("no tasks to schedule: create tasks first")
+	}
+	inputs := make([]domain.TaskEstimateInput, 0, len(tasks))
+	for i, t := range tasks {
+		inputs = append(inputs, domain.TaskEstimateInput{
+			Index:       i,
+			Title:       t.Title,
+			Description: t.Description,
+			Priority:    t.Priority,
+			StoryPoints: t.StoryPoints,
+		})
+	}
+	results, err := u.aiService.EstimateAndScheduleTasks(inputs)
+	if err != nil {
+		return 0, fmt.Errorf("AI estimate failed: %w", err)
+	}
+	// Build map task_index -> result (use first occurrence per task_index if duplicate)
+	byIndex := make(map[int]domain.TaskEstimateAndOrder)
+	for _, r := range results {
+		if r.TaskIndex >= 0 && r.TaskIndex < len(tasks) {
+			byIndex[r.TaskIndex] = r
+		}
+	}
+	// Sort by Order (1, 2, 3...) to assign timeline
+	ordered := make([]struct{ taskIdx int; res domain.TaskEstimateAndOrder }, 0, len(byIndex))
+	for idx, res := range byIndex {
+		ordered = append(ordered, struct{ taskIdx int; res domain.TaskEstimateAndOrder }{idx, res})
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].res.Order < ordered[j].res.Order })
+	// Start from start of today (UTC) or next midnight local; use simple "today" for cursor
+	now := time.Now()
+	cursor := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, now.Location())
+	if cursor.Before(now) {
+		cursor = now
+	}
+	updated := 0
+	for _, o := range ordered {
+		task := &tasks[o.taskIdx]
+		minutes := o.res.Minutes
+		if minutes <= 0 {
+			minutes = 60
+		}
+		end := cursor.Add(time.Duration(minutes) * time.Minute)
+		task.AIEstimatedMinutes = minutes
+		task.StartDate = &cursor
+		task.EndDate = &end
+		if err := u.repo.UpdateTask(task); err != nil {
+			return updated, fmt.Errorf("update task %s: %w", task.ID, err)
+		}
+		updated++
+		cursor = end
+	}
+	fmt.Printf("✅ AI Schedule: %d tasks updated (project %s)\n", updated, projectID)
+	return updated, nil
 }
 
 // DeleteTask deletes a task with access control
@@ -827,18 +1094,33 @@ func (u *sentinelUsecase) UpdateSystemConfig(activeModel string, temperature flo
 	return config, nil
 }
 
-// GetAvailableModels returns list of supported Gemini models
+var fallbackModels = []string{
+	"gemini-1.5-flash",
+	"gemini-1.5-pro",
+	"gemini-2.0-flash-exp",
+	"gemini-2.5-flash-lite",
+	"gemini-exp-1206",
+	"gemini-flash-lite-latest",
+	"gemini-pro-latest",
+	"gemini-flash-latest",
+}
+
+// GetAvailableModels returns list of Gemini models from List Models API, or fallback if API key missing/fails.
 func (u *sentinelUsecase) GetAvailableModels() []string {
-	return []string{
-		"gemini-1.5-flash",
-		"gemini-1.5-pro",
-		"gemini-2.0-flash-exp",
-		"gemini-2.5-flash-lite",
-		"gemini-exp-1206",
-		"gemini-flash-lite-latest",
-		"gemini-pro-latest",
-		"gemini-flash-latest",
+	list, err := u.aiService.ListModels()
+	if err != nil || len(list) == 0 {
+		return fallbackModels
 	}
+	sort.Strings(list)
+	return list
+}
+
+// GetAIUsage returns approximate Gemini API usage (requests last minute, today) and remaining quota. Uses in-memory tracker; limits from config or default.
+func (u *sentinelUsecase) GetAIUsage() domain.AIUsage {
+	if u.usageTracker == nil {
+		return domain.AIUsage{}
+	}
+	return u.usageTracker.GetUsage(u.aiLimitRPM, u.aiLimitRPD)
 }
 
 // --- Sprint Operations ---
@@ -848,6 +1130,13 @@ func (u *sentinelUsecase) CreateSprint(projectID uuid.UUID, name, goal string, s
 	if name == "" {
 		return nil, errors.New("sprint name is required")
 	}
+	existing, _ := u.repo.GetSprintsByProjectID(projectID)
+	sortOrder := 0
+	for _, s := range existing {
+		if s.SortOrder >= sortOrder {
+			sortOrder = s.SortOrder + 1
+		}
+	}
 	sprint := &domain.Sprint{
 		ID:        uuid.New(),
 		ProjectID: projectID,
@@ -856,6 +1145,7 @@ func (u *sentinelUsecase) CreateSprint(projectID uuid.UUID, name, goal string, s
 		StartDate: startDate,
 		EndDate:   endDate,
 		Status:    "PLANNING",
+		SortOrder: sortOrder,
 	}
 	if err := u.repo.CreateSprint(sprint); err != nil {
 		return nil, fmt.Errorf("failed to create sprint: %w", err)
@@ -953,7 +1243,7 @@ func (u *sentinelUsecase) AddTasksToSprint(sprintID uuid.UUID, taskIDs []uuid.UU
 	return nil
 }
 
-func (u *sentinelUsecase) UpdateSprint(sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*domain.Sprint, error) {
+func (u *sentinelUsecase) UpdateSprint(sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time, sortOrder *int) (*domain.Sprint, error) {
 	sprint, err := u.repo.GetSprintByID(sprintID)
 	if err != nil {
 		return nil, fmt.Errorf("sprint not found: %w", err)
@@ -969,6 +1259,9 @@ func (u *sentinelUsecase) UpdateSprint(sprintID uuid.UUID, name, goal string, st
 	}
 	if endDate != nil {
 		sprint.EndDate = endDate
+	}
+	if sortOrder != nil {
+		sprint.SortOrder = *sortOrder
 	}
 	if err := u.repo.UpdateSprint(sprint); err != nil {
 		return nil, fmt.Errorf("failed to update sprint: %w", err)
@@ -2237,7 +2530,7 @@ func (u *sentinelUsecase) GetEpicsByProject(projectID uuid.UUID) ([]domain.Epic,
 	return u.repo.GetEpicsByProjectID(projectID)
 }
 
-func (u *sentinelUsecase) UpdateEpic(epicID uuid.UUID, title, description, status, color string, startDate, endDate *time.Time) (*domain.Epic, error) {
+func (u *sentinelUsecase) UpdateEpic(epicID uuid.UUID, title, description, status, color string, sortOrder *int, startDate, endDate *time.Time) (*domain.Epic, error) {
 	epic, err := u.repo.GetEpicByID(epicID)
 	if err != nil {
 		return nil, fmt.Errorf("epic not found: %w", err)
@@ -2253,6 +2546,9 @@ func (u *sentinelUsecase) UpdateEpic(epicID uuid.UUID, title, description, statu
 	}
 	if color != "" {
 		epic.Color = color
+	}
+	if sortOrder != nil {
+		epic.SortOrder = *sortOrder
 	}
 	if startDate != nil {
 		epic.StartDate = startDate
@@ -2276,4 +2572,494 @@ func (u *sentinelUsecase) GetEpicTimelineData(projectID uuid.UUID) (*domain.Epic
 
 func (u *sentinelUsecase) GetSprintTimelineData(projectID uuid.UUID) (*domain.SprintTimelineData, error) {
 	return u.repo.GetSprintTimelineData(projectID)
+}
+
+// ─── 2-Page Client Report:
+//   Page 1 (Portrait): งวด/Milestone → Epic → Task list with dates
+//   Page 2 (Landscape): Gantt chart (Sprint mode, exact system colours)
+// ──────────────────────────────────────────────────────────────────────────────
+
+// p1Task is one deliverable row under an epic.
+type p1Task struct {
+	Title     string
+	StartDate string
+	EndDate   string
+}
+
+// p1Epic is an epic block (header + tasks) inside a milestone group.
+type p1Epic struct {
+	Title string
+	Tasks []p1Task
+}
+
+// p1Milestone is one งวด/delivery group.
+type p1Milestone struct {
+	Number  int
+	Title   string
+	DueDate string
+	Epics   []p1Epic
+	Count   int // total tasks in this milestone
+}
+
+// p2GanttCol is a month header column with percentage-based positioning.
+type p2GanttCol struct {
+	Label    string
+	LeftPct  float64
+	WidthPct float64
+}
+
+// p2GanttRow is one row (sprint header or task) in the Gantt chart.
+type p2GanttRow struct {
+	IsSprint  bool
+	Label     string
+	BarLeft   float64 // % from left edge of chart area
+	BarWidth  float64 // % width
+	BarLabel  string
+	HasBar    bool
+}
+
+// ganttMonthRow is one task row for the month-timeframe Gantt chart.
+// Bar position uses actual dates so bar width reflects real duration (e.g. 2 weeks ≠ full 2 months).
+type ganttMonthRow struct {
+	Label      string
+	EpicTitle  string
+	StartMonth int     // 0-based index (kept for sort/display)
+	EndMonth   int
+	StartDate  string
+	EndDate    string
+	BarLeftPct float64 // 0–100: position of bar start as % of chart timeline
+	BarWidthPct float64 // 0–100: bar width as % of chart timeline (real duration)
+}
+
+// clientReportData is the full payload injected into the HTML template.
+type clientReportData struct {
+	ProjectName string
+	GeneratedAt string
+	// Page 1
+	MilestoneGroups []p1Milestone
+	HasUnassigned   bool
+	UnassignedEpics []p1Epic
+	// Page 2: day-scale Gantt (sprint)
+	GanttCols    []p2GanttCol
+	GanttRows    []p2GanttRow
+	HasGanttData bool
+	// Gantt by month (timeframe เดือน)
+	GanttMonthLabels []string
+	GanttMonthRows   []ganttMonthRow
+	HasGanttMonth    bool
+}
+
+func fmtDate(t *time.Time) string {
+	if t == nil {
+		return "—"
+	}
+	return t.Format("02 Jan 2006")
+}
+
+func fmtDateStr(s string) string {
+	if s == "" {
+		return "—"
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return s
+	}
+	return t.Format("02 Jan 2006")
+}
+
+// daysBetween returns the number of days between two times (can be negative).
+func daysBetween(a, b time.Time) float64 {
+	return b.Sub(a).Hours() / 24
+}
+
+// truncToMonth returns the first day of the month containing t.
+func truncToMonth(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
+// ExportTimelinePDF generates the 2-page client report via chromedp (same pattern as mims).
+func (u *sentinelUsecase) ExportTimelinePDF(projectID uuid.UUID, _ string, templateDir string) ([]byte, string, error) {
+	project, err := u.repo.GetProjectByID(projectID)
+	if err != nil {
+		return nil, "", fmt.Errorf("project not found: %w", err)
+	}
+
+	// ── Fetch data ──────────────────────────────────────────────────────────────
+	epicData, err := u.repo.GetEpicTimelineData(projectID)
+	if err != nil {
+		return nil, "", fmt.Errorf("get epic timeline: %w", err)
+	}
+	sprintData, err := u.repo.GetSprintTimelineData(projectID)
+	if err != nil {
+		return nil, "", fmt.Errorf("get sprint timeline: %w", err)
+	}
+	milestones, _ := u.repo.GetMilestonesByProjectID(projectID) // optional
+
+	// ── Page 1: group tasks by Milestone → Epic ─────────────────────────────────
+	// Sort milestones by DueDate ascending
+	sort.Slice(milestones, func(i, j int) bool {
+		if milestones[i].DueDate == nil {
+			return false
+		}
+		if milestones[j].DueDate == nil {
+			return true
+		}
+		return milestones[i].DueDate.Before(*milestones[j].DueDate)
+	})
+
+	// milestoneMap: milestoneID → index in milestones slice (-1 = unassigned)
+	milestoneIndexByID := map[string]int{}
+	for i, m := range milestones {
+		milestoneIndexByID[m.ID.String()] = i
+	}
+
+	// Collect all tasks from epics, annotated with their epic title.
+	type taskWithEpic struct {
+		epicTitle string
+		task      domain.Task
+	}
+	var allTasksWithEpic []taskWithEpic
+	for _, e := range epicData.Epics {
+		for _, t := range e.Tasks {
+			allTasksWithEpic = append(allTasksWithEpic, taskWithEpic{epicTitle: e.Title, task: t})
+		}
+	}
+
+	// For each milestone, maintain ordered epic groups.
+	type epicGroupBuilder struct {
+		order  []string         // epic title order
+		tasks  map[string][]p1Task
+	}
+	milestoneBuilders := make([]epicGroupBuilder, len(milestones))
+	for i := range milestoneBuilders {
+		milestoneBuilders[i].tasks = map[string][]p1Task{}
+	}
+	var unassignedBuilder epicGroupBuilder
+	unassignedBuilder.tasks = map[string][]p1Task{}
+
+	assignTask := func(idx int, epicTitle string, t domain.Task) {
+		taskEnd := coalesce(t.EndDate, t.DueAt)
+		row := p1Task{Title: t.Title, StartDate: fmtDate(t.StartDate), EndDate: fmtDate(taskEnd)}
+		if idx < 0 {
+			if _, seen := unassignedBuilder.tasks[epicTitle]; !seen {
+				unassignedBuilder.order = append(unassignedBuilder.order, epicTitle)
+			}
+			unassignedBuilder.tasks[epicTitle] = append(unassignedBuilder.tasks[epicTitle], row)
+			return
+		}
+		b := &milestoneBuilders[idx]
+		if _, seen := b.tasks[epicTitle]; !seen {
+			b.order = append(b.order, epicTitle)
+		}
+		b.tasks[epicTitle] = append(b.tasks[epicTitle], row)
+	}
+
+	for _, tw := range allTasksWithEpic {
+		t := tw.task
+		// 1) Direct milestone_id link
+		if t.MilestoneID != nil {
+			if idx, ok := milestoneIndexByID[t.MilestoneID.String()]; ok {
+				assignTask(idx, tw.epicTitle, t)
+				continue
+			}
+		}
+		// 2) Date-based: earliest milestone whose DueDate >= task end date
+		taskEnd := coalesce(t.EndDate, t.DueAt)
+		assigned := false
+		if taskEnd != nil {
+			for idx, m := range milestones {
+				if m.DueDate != nil && !m.DueDate.Before(*taskEnd) {
+					assignTask(idx, tw.epicTitle, t)
+					assigned = true
+					break
+				}
+			}
+		}
+		if !assigned {
+			assignTask(-1, tw.epicTitle, t)
+		}
+	}
+
+	// Convert builders → []p1Milestone
+	var mGroups []p1Milestone
+	for i, m := range milestones {
+		b := milestoneBuilders[i]
+		var epics []p1Epic
+		count := 0
+		for _, et := range b.order {
+			tasks := b.tasks[et]
+			epics = append(epics, p1Epic{Title: et, Tasks: tasks})
+			count += len(tasks)
+		}
+		mGroups = append(mGroups, p1Milestone{
+			Number:  i + 1,
+			Title:   m.Title,
+			DueDate: fmtDate(m.DueDate),
+			Epics:   epics,
+			Count:   count,
+		})
+	}
+	var unassignedEpics []p1Epic
+	for _, et := range unassignedBuilder.order {
+		unassignedEpics = append(unassignedEpics, p1Epic{Title: et, Tasks: unassignedBuilder.tasks[et]})
+	}
+
+	// ── Gantt by month (timeframe เดือน) ───────────────────────────────────────────
+	var ganttMonthLabels []string
+	var ganttMonthRows []ganttMonthRow
+	hasGanttMonth := false
+	var minMonth, maxMonth time.Time
+	for _, e := range epicData.Epics {
+		for _, t := range e.Tasks {
+			start := t.StartDate
+			end := coalesce(t.EndDate, t.DueAt)
+			if start == nil || end == nil {
+				continue
+			}
+			sM, eM := truncToMonth(*start), truncToMonth(*end)
+			if !hasGanttMonth {
+				minMonth, maxMonth = sM, eM
+				hasGanttMonth = true
+			} else {
+				if sM.Before(minMonth) {
+					minMonth = sM
+				}
+				if eM.After(maxMonth) {
+					maxMonth = eM
+				}
+			}
+		}
+	}
+	if hasGanttMonth {
+		var monthList []time.Time
+		for m := minMonth; !m.After(maxMonth); m = m.AddDate(0, 1, 0) {
+			monthList = append(monthList, m)
+		}
+		monthIndex := make(map[string]int)
+		for i, m := range monthList {
+			monthIndex[m.Format("2006-01")] = i
+		}
+		for _, lab := range monthList {
+			ganttMonthLabels = append(ganttMonthLabels, lab.Format("Jan 06"))
+		}
+		// Chart range for proportional bar: first day of first month → first day of month after last
+		chartStart := minMonth
+		chartEnd := maxMonth.AddDate(0, 1, 0)
+		chartDurationDays := daysBetween(chartStart, chartEnd)
+		if chartDurationDays <= 0 {
+			chartDurationDays = 1
+		}
+		for _, e := range epicData.Epics {
+			for _, t := range e.Tasks {
+				start := t.StartDate
+				end := coalesce(t.EndDate, t.DueAt)
+				if start == nil || end == nil {
+					continue
+				}
+				sM, eM := truncToMonth(*start), truncToMonth(*end)
+				si, okS := monthIndex[sM.Format("2006-01")]
+				ei, okE := monthIndex[eM.Format("2006-01")]
+				if !okS || !okE {
+					continue
+				}
+				if ei < si {
+					ei = si
+				}
+				// Bar position by actual dates so width = real duration (e.g. 2 weeks, not full 2 months)
+				leftPct := daysBetween(chartStart, *start) / chartDurationDays * 100
+				widthPct := daysBetween(*start, *end) / chartDurationDays * 100
+				if widthPct <= 0 {
+					widthPct = 2 // min visible bar
+				}
+				if leftPct < 0 {
+					leftPct = 0
+				}
+				if leftPct+widthPct > 100 {
+					widthPct = 100 - leftPct
+				}
+				ganttMonthRows = append(ganttMonthRows, ganttMonthRow{
+					Label:       t.Title,
+					EpicTitle:   e.Title,
+					StartMonth:  si,
+					EndMonth:    ei,
+					StartDate:   fmtDate(start),
+					EndDate:     fmtDate(end),
+					BarLeftPct:  leftPct,
+					BarWidthPct: widthPct,
+				})
+			}
+		}
+		// Sort by start month then by epic/title
+		sort.Slice(ganttMonthRows, func(i, j int) bool {
+			if ganttMonthRows[i].StartMonth != ganttMonthRows[j].StartMonth {
+				return ganttMonthRows[i].StartMonth < ganttMonthRows[j].StartMonth
+			}
+			if ganttMonthRows[i].EpicTitle != ganttMonthRows[j].EpicTitle {
+				return ganttMonthRows[i].EpicTitle < ganttMonthRows[j].EpicTitle
+			}
+			return ganttMonthRows[i].Label < ganttMonthRows[j].Label
+		})
+	}
+
+	// ── Page 2: Sprint Gantt ─────────────────────────────────────────────────────
+	var chartStart, chartEnd time.Time
+	hasGanttData := false
+
+	// Find overall date range
+	for _, sp := range sprintData.Sprints {
+		for _, d := range []*time.Time{sp.StartDate, sp.EndDate} {
+			if d == nil {
+				continue
+			}
+			if !hasGanttData || d.Before(chartStart) {
+				chartStart = *d
+			}
+			if !hasGanttData || d.After(chartEnd) {
+				chartEnd = *d
+			}
+			hasGanttData = true
+		}
+		for _, t := range sp.Tasks {
+			for _, d := range []*time.Time{t.StartDate, t.EndDate, t.DueAt} {
+				if d == nil {
+					continue
+				}
+				if d.Before(chartStart) {
+					chartStart = *d
+				}
+				if d.After(chartEnd) {
+					chartEnd = *d
+				}
+			}
+		}
+	}
+
+	var ganttCols []p2GanttCol
+	var ganttRows []p2GanttRow
+
+	if hasGanttData {
+		// Padding: 2 days on each side for visual breathing room
+		chartStart = chartStart.AddDate(0, 0, -2)
+		chartEnd = chartEnd.AddDate(0, 0, 2)
+		totalDays := daysBetween(chartStart, chartEnd)
+
+		pct := func(d time.Time) float64 {
+			return daysBetween(chartStart, d) / totalDays * 100
+		}
+
+		// Month header columns
+		for m := truncToMonth(chartStart); !m.After(chartEnd); m = m.AddDate(0, 1, 0) {
+			mEnd := m.AddDate(0, 1, 0)
+			colStart := m
+			if colStart.Before(chartStart) {
+				colStart = chartStart
+			}
+			colEnd := mEnd
+			if colEnd.After(chartEnd) {
+				colEnd = chartEnd
+			}
+			leftPct := pct(colStart)
+			widthPct := pct(colEnd) - leftPct
+			if widthPct < 0.1 {
+				continue
+			}
+			ganttCols = append(ganttCols, p2GanttCol{
+				Label:    m.Format("Jan 2006"),
+				LeftPct:  leftPct,
+				WidthPct: widthPct,
+			})
+		}
+
+		// Gantt rows: sprint header + tasks
+		for _, sp := range sprintData.Sprints {
+			// Sprint row
+			spRow := p2GanttRow{IsSprint: true, Label: sp.Name}
+			if sp.StartDate != nil && sp.EndDate != nil {
+				l := pct(*sp.StartDate)
+				w := pct(*sp.EndDate) - l
+				if w < 0.3 {
+					w = 0.3
+				}
+				spRow.BarLeft, spRow.BarWidth, spRow.BarLabel, spRow.HasBar = l, w, sp.Name, true
+			}
+			ganttRows = append(ganttRows, spRow)
+
+			// Task rows
+			for _, t := range sp.Tasks {
+				taskEnd := coalesce(t.EndDate, t.DueAt)
+				tRow := p2GanttRow{IsSprint: false, Label: t.Title}
+				if t.StartDate != nil && taskEnd != nil {
+					l := pct(*t.StartDate)
+					w := pct(*taskEnd) - l
+					if w < 0.3 {
+						w = 0.3
+					}
+					tRow.BarLeft, tRow.BarWidth, tRow.BarLabel, tRow.HasBar = l, w, t.Title, true
+				}
+				ganttRows = append(ganttRows, tRow)
+			}
+		}
+	}
+
+	data := clientReportData{
+		ProjectName:       project.Name,
+		GeneratedAt:       time.Now().Format("2 January 2006"),
+		MilestoneGroups:   mGroups,
+		HasUnassigned:     len(unassignedEpics) > 0,
+		UnassignedEpics:   unassignedEpics,
+		GanttCols:         ganttCols,
+		GanttRows:         ganttRows,
+		HasGanttData:      hasGanttData,
+		GanttMonthLabels:  ganttMonthLabels,
+		GanttMonthRows:    ganttMonthRows,
+		HasGanttMonth:     hasGanttMonth,
+	}
+
+	// ── Render HTML template (same as mims InitDataToHtml) ─────────────────────
+	tmplPath := templateDir + "timeline_report.html"
+	funcMap := template.FuncMap{
+		"add":     func(a, b int) int { return a + b },
+		"mod":     func(a, b int) int { return a % b },
+		"ge":      func(a, b int) bool { return a >= b },
+		"le":      func(a, b int) bool { return a <= b },
+		"printf2": func(f float64) string { return fmt.Sprintf("%.4f", f) },
+	}
+	tmpl, err := template.New("timeline_report.html").Funcs(funcMap).ParseFiles(tmplPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("parse template: %w", err)
+	}
+	var htmlBuf bytes.Buffer
+	if err := tmpl.Execute(&htmlBuf, data); err != nil {
+		return nil, "", fmt.Errorf("execute template: %w", err)
+	}
+
+	// ── Generate PDF via chromedp (same as mims PrintToPDF) ─────────────────────
+	ctx, cancel := chromepdf.NewChromedpContext(context.Background())
+	defer cancel()
+
+	var pdfBuf []byte
+	if err := chromedp.Run(ctx, chromepdf.PrintToPDF(htmlBuf.String(), &pdfBuf, true)); err != nil {
+		return nil, "", fmt.Errorf("chromedp print to pdf: %w", err)
+	}
+
+	filename := fmt.Sprintf("project-plan-%s-%s.pdf",
+		slugify(project.Name),
+		time.Now().Format("20060102"),
+	)
+	return pdfBuf, filename, nil
+}
+
+func truncate(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "…"
+}
+
+func coalesce(a, b *time.Time) *time.Time {
+	if a != nil {
+		return a
+	}
+	return b
 }
