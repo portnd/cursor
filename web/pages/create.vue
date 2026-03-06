@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen p-8">
+  <div class="min-h-screen bg-gray-900 p-8">
     <!-- Header -->
     <div class="mb-8">
       <h1 class="text-4xl font-bold text-white mb-2">
@@ -194,10 +194,15 @@ const isSubmitting = ref(false)
 const errorMessage = ref('')
 const showSuccess = ref(false)
 
-// Minimum deadline is now
+// Minimum deadline is now (local time for datetime-local input)
 const minDeadline = computed(() => {
   const now = new Date()
-  return now.toISOString().slice(0, 16) // Format: YYYY-MM-DDTHH:MM
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const h = String(now.getHours()).padStart(2, '0')
+  const min = String(now.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${h}:${min}`
 })
 
 // Handle form submission

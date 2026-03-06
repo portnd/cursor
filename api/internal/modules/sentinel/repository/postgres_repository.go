@@ -49,10 +49,33 @@ func (r *postgresRepository) GetProjectByCode(code string) (*domain.Project, err
 	return &project, nil
 }
 
+func (r *postgresRepository) UpdateProject(p *domain.Project) error {
+	return r.db.Save(p).Error
+}
+
 func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.Where("project_id = ?", projectID).Order("created_at desc").Find(&tasks).Error
 	return tasks, err
+}
+
+// DeleteProjectPlan removes all tasks, sprints, milestones, and epics for a project (for "clear plan" / reset before AI plan).
+func (r *postgresRepository) DeleteProjectPlan(projectID uuid.UUID) error {
+	// Remove task dependencies that reference any task in this project
+	r.db.Exec("DELETE FROM task_dependencies WHERE predecessor_id IN (SELECT id FROM tasks WHERE project_id = ?) OR successor_id IN (SELECT id FROM tasks WHERE project_id = ?)", projectID, projectID)
+	if err := r.db.Where("project_id = ?", projectID).Delete(&domain.Task{}).Error; err != nil {
+		return err
+	}
+	if err := r.db.Where("project_id = ?", projectID).Delete(&domain.Sprint{}).Error; err != nil {
+		return err
+	}
+	if err := r.db.Where("project_id = ?", projectID).Delete(&domain.Milestone{}).Error; err != nil {
+		return err
+	}
+	if err := r.db.Where("project_id = ?", projectID).Delete(&domain.Epic{}).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *postgresRepository) DeleteProject(id uuid.UUID) error {
@@ -352,7 +375,7 @@ func (r *postgresRepository) GetSprintByID(id uuid.UUID) (*domain.Sprint, error)
 
 func (r *postgresRepository) GetSprintsByProjectID(projectID uuid.UUID) ([]domain.Sprint, error) {
 	var sprints []domain.Sprint
-	err := r.db.Where("project_id = ?", projectID).Order("created_at desc").Find(&sprints).Error
+	err := r.db.Where("project_id = ?", projectID).Order("sort_order asc, created_at asc").Find(&sprints).Error
 	return sprints, err
 }
 
@@ -628,13 +651,13 @@ func (r *postgresRepository) DeleteEpic(id uuid.UUID) error {
 	return r.db.Delete(&domain.Epic{}, "id = ?", id).Error
 }
 
-// GetEpicTimelineData returns all epics for a project with their tasks preloaded, ordered by start_date.
+// GetEpicTimelineData returns all epics for a project with their tasks preloaded (including sub_tasks for epic bar span), ordered by start_date.
 func (r *postgresRepository) GetEpicTimelineData(projectID uuid.UUID) (*domain.EpicTimelineData, error) {
 	var epics []domain.Epic
 	err := r.db.Where("project_id = ?", projectID).
 		Order("sort_order asc, start_date asc NULLS LAST, created_at asc").
 		Preload("Tasks", func(db *gorm.DB) *gorm.DB {
-			return db.Where("parent_id IS NULL").Order("start_date asc NULLS LAST, created_at asc")
+			return db.Where("parent_id IS NULL").Order("start_date asc NULLS LAST, created_at asc").Preload("SubTasks")
 		}).
 		Find(&epics).Error
 	if err != nil {

@@ -149,6 +149,14 @@ export const useAuth = () => {
       return result
     } catch (e: any) {
       clearTimeout(timeoutId)
+      const status = e?.statusCode ?? e?.response?.status
+      if (status === 401 && typeof token.value !== 'undefined') {
+        token.value = null
+        if (import.meta.client) {
+          navigateTo('/login?session=expired')
+        }
+        throw new Error('Session expired or invalid. Please log in again.')
+      }
       const msg = e?.message || String(e)
       if (e?.name === 'AbortError' || (msg && (msg.includes('abort') || msg.includes('timeout') || msg.includes('timed out')))) {
         throw new Error('API did not respond in time. Start the API server (e.g. docker compose up -d api or go run ./cmd/server in the api folder).')

@@ -1,0 +1,28 @@
+FROM node:18.20.6-alpine as build
+
+# Install tzdata
+RUN apk add --no-cache tzdata
+
+# Set environment variables
+ENV TZ=Asia/Bangkok
+
+WORKDIR /app
+
+# install dependencies
+COPY package*.json ./
+
+RUN yarn install
+
+# copy source files
+COPY . .
+
+# Update the APP_VERSION in .env
+RUN sed -i "s/APP_VERSION=.*/&_$(date +%y%m%d.%H%M)/" .env.production
+
+# build app
+RUN npx nuxi build . --dotenv=.env.production
+
+# Start server
+CMD ["node", ".output/server/index.mjs"]
+
+EXPOSE 3000

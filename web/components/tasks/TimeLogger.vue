@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-4 p-3 bg-gray-800/60 rounded-xl border border-gray-700/50">
       <div class="flex items-center gap-6">
         <div class="text-center">
-          <div class="text-lg font-bold text-indigo-400">{{ totalLoggedHours }}h</div>
+          <div class="text-lg font-bold text-purple-400">{{ totalLoggedHours }}h</div>
           <div class="text-xs text-gray-500">Logged</div>
         </div>
         <div class="text-center">
@@ -25,7 +25,7 @@
         <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
           <div
             class="h-full rounded-full transition-all"
-            :class="progressPct > 100 ? 'bg-red-500' : progressPct > 80 ? 'bg-yellow-500' : 'bg-indigo-500'"
+            :class="progressPct > 100 ? 'bg-red-500' : progressPct > 80 ? 'bg-yellow-500' : 'bg-purple-500'"
             :style="{ width: Math.min(progressPct, 100) + '%' }"
           ></div>
         </div>
@@ -92,7 +92,7 @@
         class="flex items-center justify-between py-2 px-3 bg-gray-800/40 rounded-lg border border-gray-700/30 hover:border-gray-700 transition-colors"
       >
         <div class="flex items-center gap-3">
-          <div class="w-6 h-6 rounded-full bg-indigo-700 flex items-center justify-center text-white text-[10px] font-bold">
+          <div class="w-6 h-6 rounded-full bg-purple-700 flex items-center justify-center text-white text-[10px] font-bold">
             {{ (log.user_email || String(log.user_id)).charAt(0).toUpperCase() }}
           </div>
           <div>
@@ -173,9 +173,9 @@ function submitLog() {
 
 <style scoped>
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500 transition-colors;
+  @apply bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-purple-500 transition-colors;
 }
 .btn-primary {
-  @apply bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors;
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-colors;
 }
 </style>

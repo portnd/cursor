@@ -22,6 +22,11 @@
       <div class="bg-gray-800/50 backdrop-blur-xl border border-gray-700 rounded-2xl shadow-2xl p-8">
         <h2 class="text-2xl font-bold text-white mb-6">Welcome Back</h2>
 
+        <!-- Session expired notice (shown after redirect from 401) -->
+        <div v-if="sessionExpired" class="mb-4 p-4 bg-amber-500/10 border border-amber-500/50 rounded-lg text-amber-400 text-sm">
+          Session expired or invalid. Please sign in again.
+        </div>
+
         <!-- Error Message -->
         <div v-if="errorMessage" class="mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
           {{ errorMessage }}
@@ -74,10 +79,10 @@
         </form>
 
         <!-- Quick Login Hint -->
-        <div class="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-          <p class="text-xs text-blue-400 font-medium">🔑 Test Credentials:</p>
-          <p class="text-xs text-gray-400 mt-1">Email: <code class="text-blue-300">ceo@sentinel.com</code></p>
-          <p class="text-xs text-gray-400">Password: <code class="text-blue-300">password123</code></p>
+        <div class="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+          <p class="text-xs text-purple-400 font-medium">🔑 Test Credentials:</p>
+          <p class="text-xs text-gray-400 mt-1">Email: <code class="text-purple-300">ceo@sentinel.com</code></p>
+          <p class="text-xs text-gray-400">Password: <code class="text-purple-300">password123</code></p>
         </div>
       </div>
 
@@ -98,12 +103,21 @@ definePageMeta({
 
 const { login } = useAuth()
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+
+const sessionExpired = ref(false)
+onMounted(() => {
+  if (route.query.session === 'expired') {
+    sessionExpired.value = true
+    if (import.meta.client) router.replace({ path: '/login', query: {} })
+  }
+})
 
 const handleLogin = async () => {
   isLoading.value = true

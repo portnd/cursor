@@ -1,4 +1,4 @@
-.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker
+.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker backup-db restore-db
 
 PROJECT_NAME ?= komgrip
 
@@ -23,6 +23,8 @@ help:
 	@echo "  make logs            - Show logs (all services)"
 	@echo "  make logs-api        - Show API service logs only"
 	@echo "  make clean           - Stop services and remove volumes (DESTRUCTIVE)"
+	@echo "  make backup-db       - Dump PostgreSQL to backups/ (run before make clean!)"
+	@echo "  make restore-db      - Restore from backup (use: make restore-db FILE=backups/xxx.sql)"
 	@echo "  make init            - Initialize project (rename, setup .env)"
 	@echo "  make ps              - List running containers"
 	@echo ""
@@ -81,6 +83,7 @@ logs-api:
 
 clean:
 	@echo "⚠️  WARNING: This will DELETE all volumes and data!"
+	@echo "   Tip: run 'make backup-db' first if you need to keep DB data."
 	@read -p "Are you sure? [y/N]: " confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
 		echo "🗑️  Cleaning up..."; \
@@ -89,6 +92,24 @@ clean:
 	else \
 		echo "❌ Aborted."; \
 	fi
+
+# Backup PostgreSQL (run while services are up). Saves to backups/komgrip_db_YYYYMMDD_HHMMSS.sql
+backup-db:
+	@mkdir -p backups && \
+	dest="backups/komgrip_db_$$(date +%Y%m%d_%H%M%S).sql" && \
+	echo "📦 Dumping DB to $$dest..." && \
+	docker-compose exec -T postgres pg_dump -U $${POSTGRES_USER:-komgrip} $${POSTGRES_DB:-komgrip_db} > "$$dest" && \
+	echo "✅ Backup saved: $$dest"
+
+# Restore PostgreSQL from backup. Usage: make restore-db FILE=backups/komgrip_db_20260305_120000.sql
+restore-db:
+	@if [ -z "$(FILE)" ]; then \
+		echo "❌ Usage: make restore-db FILE=backups/komgrip_db_YYYYMMDD_HHMMSS.sql"; \
+		echo "   Available backups:"; ls -la backups/*.sql 2>/dev/null || echo "   (none)"; exit 1; fi; \
+	if [ ! -f "$(FILE)" ]; then echo "❌ File not found: $(FILE)"; exit 1; fi; \
+	echo "📥 Restoring from $(FILE)..."; \
+	cat "$(FILE)" | docker-compose exec -T postgres psql -U $${POSTGRES_USER:-komgrip} -d $${POSTGRES_DB:-komgrip_db} > /dev/null && \
+	echo "✅ Restore complete."
 
 init:
 	@echo "🔧 Initializing project..."

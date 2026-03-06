@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,11 +16,12 @@ import (
 type geminiService struct {
 	apiKey     string
 	httpClient *http.Client
-	repo       domain.SentinelRepository // Inject repo to fetch dynamic config
+	repo       domain.SentinelRepository
+	tracker    domain.UsageTracker // optional: record API calls for quota display
 }
 
-// NewGeminiService สร้าง Instance ใหม่ (ใช้ REST API แทน SDK)
-func NewGeminiService(apiKey string, repo domain.SentinelRepository) (domain.AIService, error) {
+// NewGeminiService สร้าง Instance ใหม่ (ใช้ REST API แทน SDK). tracker may be nil.
+func NewGeminiService(apiKey string, repo domain.SentinelRepository, tracker domain.UsageTracker) (domain.AIService, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY is required")
 	}
@@ -29,8 +31,60 @@ func NewGeminiService(apiKey string, repo domain.SentinelRepository) (domain.AIS
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		repo: repo,
+		repo:    repo,
+		tracker: tracker,
 	}, nil
+}
+
+// listModelsResponse matches Gemini API GET /v1beta/models response
+type listModelsResponse struct {
+	Models []struct {
+		Name string `json:"name"`
+	} `json:"models"`
+	NextPageToken string `json:"nextPageToken"`
+}
+
+func (s *geminiService) recordRequest() {
+	if s.tracker != nil {
+		s.tracker.RecordRequest()
+	}
+}
+
+// ListModels calls Gemini List Models API and returns model IDs (e.g. gemini-2.5-flash-lite).
+func (s *geminiService) ListModels() ([]string, error) {
+	var all []string
+	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s&pageSize=100", s.apiKey)
+	for {
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("list models: %w", err)
+		}
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("list models API %d: %s", resp.StatusCode, string(bodyBytes))
+		}
+		s.recordRequest()
+		var data listModelsResponse
+		if err := json.Unmarshal(bodyBytes, &data); err != nil {
+			return nil, fmt.Errorf("parse list models: %w", err)
+		}
+		for _, m := range data.Models {
+			name := strings.TrimPrefix(m.Name, "models/")
+			if name != "" {
+				all = append(all, name)
+			}
+		}
+		if data.NextPageToken == "" {
+			break
+		}
+		apiURL = fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s&pageSize=100&pageToken=%s", s.apiKey, url.QueryEscape(data.NextPageToken))
+	}
+	return all, nil
 }
 
 // Gemini REST API Request/Response structures
@@ -168,10 +222,11 @@ Output JSON ONLY (no markdown, no explanation):
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		fmt.Printf("❌ Gemini API error %d: %s\n", resp.StatusCode, string(bodyBytes))
 		return 0, "", fmt.Errorf("gemini API returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
-	
+	s.recordRequest()
 	fmt.Printf("✅ Gemini API responded: Status %d\n", resp.StatusCode)
 
 	// Parse response
@@ -206,6 +261,79 @@ Output JSON ONLY (no markdown, no explanation):
 
 	fmt.Printf("✅ AI Estimated: %d minutes (Reasoning: %s)\n", result.Minutes, result.Reasoning)
 	return result.Minutes, result.Reasoning, nil
+}
+
+// EstimateAndScheduleTasks ประเมินเวลาและลำดับการทำของแต่ละ task จากข้อมูลที่มี
+func (s *geminiService) EstimateAndScheduleTasks(inputs []domain.TaskEstimateInput) ([]domain.TaskEstimateAndOrder, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+	fmt.Printf("🤖 AI Estimate & Schedule: %d tasks\n", len(inputs))
+
+	config, err := s.repo.GetSystemConfig()
+	if err != nil || config == nil {
+		config = &domain.SystemConfig{
+			ActiveModel: "gemini-2.5-flash-lite",
+			Temperature: 0.4,
+			CursorAssistance: 80,
+		}
+	}
+	tasksJSON, _ := json.Marshal(inputs)
+	prompt := fmt.Sprintf(`You are a Senior Technical PM. Given the following tasks of a project, do TWO things:
+1) Estimate the implementation time in MINUTES for each task (Senior Dev, stack: Go, Nuxt 3, PostgreSQL). AI assistance level: %d%%.
+2) Suggest the EXECUTION ORDER (1 = do first, 2 = second, ...) based on dependencies and priority. Higher priority and blocking work should have lower order number.
+
+Tasks (JSON array):
+%s
+
+Output ONLY a JSON array. Each element: { "task_index": <0-based index>, "minutes": <int>, "order": <1-based execution order> }.
+Use integers only. Example: [{"task_index":0,"minutes":120,"order":1},{"task_index":1,"minutes":60,"order":2}]
+`, config.CursorAssistance, string(tasksJSON))
+
+	reqBody := geminiRequest{
+		Contents:         []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
+		GenerationConfig: &generationConfig{Temperature: float64(config.Temperature), TopK: 1, TopP: 0.95},
+	}
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", config.ActiveModel, s.apiKey)
+	client := &http.Client{Timeout: 90 * time.Second}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("gemini API: %w", err)
+	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("gemini API %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	s.recordRequest()
+	var geminiResp geminiResponse
+	if err := json.Unmarshal(bodyBytes, &geminiResp); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("empty gemini response")
+	}
+	rawText := geminiResp.Candidates[0].Content.Parts[0].Text
+	cleaned := strings.TrimSpace(rawText)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+	var results []domain.TaskEstimateAndOrder
+	if err := json.Unmarshal([]byte(cleaned), &results); err != nil {
+		return nil, fmt.Errorf("parse plan JSON: %w (text: %s)", err, cleaned)
+	}
+	fmt.Printf("✅ AI Estimate & Order: %d results\n", len(results))
+	return results, nil
 }
 
 // ReviewCode ใช้ AI วิเคราะห์ code diff แบบ Senior Code Reviewer
@@ -364,7 +492,7 @@ Output JSON ONLY (no markdown, no extra text):
 		fmt.Printf("❌ Gemini Code Review API error %d: %s\n", resp.StatusCode, string(bodyBytes))
 		return "FAIL", 0, "", fmt.Errorf("gemini API returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
-
+	s.recordRequest()
 	fmt.Printf("✅ Gemini Code Review API responded: Status %d\n", resp.StatusCode)
 
 	// Parse response
@@ -571,7 +699,7 @@ func (s *geminiService) AnalyzeAppeal(diff string, originalFeedback string, appe
 		fmt.Printf("❌ Gemini API Error (Status: %d): %s\n", resp.StatusCode, string(body))
 		return "UPHOLD", 0, "API returned error", fmt.Errorf("gemini API status %d: %s", resp.StatusCode, string(body))
 	}
-
+	s.recordRequest()
 	// Parse Gemini response
 	var geminiResp geminiResponse
 	if err := json.Unmarshal(body, &geminiResp); err != nil {
@@ -803,7 +931,7 @@ func (s *geminiService) AnalyzeTimeNegotiation(
 	if resp.StatusCode != http.StatusOK {
 		return "REJECT", 0, "ระบบ AI ขัดข้อง", fmt.Errorf("AI API error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
-
+	s.recordRequest()
 	var geminiResp geminiResponse
 	if err := json.Unmarshal(bodyBytes, &geminiResp); err != nil {
 		return "REJECT", 0, "ระบบ AI ขัดข้อง", fmt.Errorf("failed to parse AI response: %w", err)
@@ -862,4 +990,146 @@ func (s *geminiService) AnalyzeTimeNegotiation(
 	fmt.Printf("   • Reasoning: %s\n", result.Reasoning)
 
 	return result.Recommendation, result.Confidence, result.Reasoning, nil
+}
+
+// GenerateWorkPlan asks AI to generate a full work plan (epics, milestones, sprints, tasks) from project name and description.
+func (s *geminiService) GenerateWorkPlan(projectName, projectDescription string) (*domain.AIGeneratedPlan, error) {
+	fmt.Printf("🤖 AI Generate Work Plan: %s\n", projectName)
+
+	config, err := s.repo.GetSystemConfig()
+	if err != nil || config == nil {
+		config = &domain.SystemConfig{
+			ActiveModel: "gemini-2.5-flash-lite",
+			Temperature: 0.5,
+		}
+	}
+
+	today := time.Now().Format("2006-01-02")
+	prompt := fmt.Sprintf(`You are a Senior Technical Project Manager. Generate a complete work plan for this project.
+
+**Project Name:** %s
+**Project Description:** %s
+
+**Tech stack context:** Go (Fiber/Gin), Nuxt 3, PostgreSQL, Hexagonal Architecture.
+
+**CRITICAL - Date rule:** Today is %s. ALL dates you generate MUST be on or after today. Do NOT use any date in the past (no 2024 or earlier, and no dates before %s). Start the first sprint from today or the next Monday. Use only the current year and future.
+
+Output a single JSON object with exactly these keys: epics, milestones, sprints, tasks.
+
+**Rules:**
+1. epics: array of { "title", "description", "color" }. Use hex colors like #6366f1. Create 2-5 epics that group major features.
+2. milestones: array of { "title", "description", "due_date" }. due_date in YYYY-MM-DD, must be >= %s. Create 3-6 key milestones.
+3. sprints: array of { "name", "goal", "start_date", "end_date" }. Dates in YYYY-MM-DD. First sprint start_date must be >= %s. Create 3-6 two-week sprints (14 days apart).
+4. tasks: array of { "title", "description", "priority", "story_points", "epic_index", "sprint_index", "milestone_index", "start_date", "end_date" }.
+   - priority: one of CRITICAL, HIGH, MEDIUM, LOW.
+   - story_points: 1-5.
+   - epic_index, sprint_index, milestone_index: integers only, 0-based index (use null if not linked). Do not use decimals.
+   - start_date, end_date: YYYY-MM-DD, must be >= %s.
+   Create 8-20 tasks spread across epics and sprints. Make titles and descriptions concrete and technical.
+
+Output ONLY valid JSON, no markdown or explanation. Use integers for all numeric fields (e.g. 0 not 0.0). All dates must be today or future, never past.
+`, projectName, projectDescription, today, today, today, today, today)
+
+	reqBody := geminiRequest{
+		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
+		GenerationConfig: &generationConfig{Temperature: float64(config.Temperature), TopK: 1, TopP: 0.95},
+	}
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", config.ActiveModel, s.apiKey)
+	client := &http.Client{Timeout: 90 * time.Second}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("gemini API: %w", err)
+	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("gemini API %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	s.recordRequest()
+	var geminiResp geminiResponse
+	if err := json.Unmarshal(bodyBytes, &geminiResp); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	if len(geminiResp.Candidates) == 0 {
+		return nil, fmt.Errorf("empty gemini response (no candidates)")
+	}
+	parts := geminiResp.Candidates[0].Content.Parts
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("empty gemini response (no content parts)")
+	}
+	rawText := parts[0].Text
+	cleaned := strings.TrimSpace(rawText)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+
+	// Use flexible struct so JSON numbers can be int or float (Gemini sometimes returns 0.0)
+	type flexTask struct {
+		Title           string   `json:"title"`
+		Description     string   `json:"description"`
+		Priority        string   `json:"priority"`
+		StoryPoints     float64  `json:"story_points"`
+		EpicIndex       *float64 `json:"epic_index"`
+		SprintIndex     *float64 `json:"sprint_index"`
+		MilestoneIndex  *float64 `json:"milestone_index"`
+		StartDate       string   `json:"start_date"`
+		EndDate         string   `json:"end_date"`
+	}
+	type flexPlan struct {
+		Epics      []domain.AIPlanEpic      `json:"epics"`
+		Milestones []domain.AIPlanMilestone `json:"milestones"`
+		Sprints    []domain.AIPlanSprint    `json:"sprints"`
+		Tasks      []flexTask               `json:"tasks"`
+	}
+	var flex flexPlan
+	if err := json.Unmarshal([]byte(cleaned), &flex); err != nil {
+		return nil, fmt.Errorf("parse plan JSON: %w (text: %s)", err, cleaned)
+	}
+	plan := &domain.AIGeneratedPlan{
+		Epics:      flex.Epics,
+		Milestones: flex.Milestones,
+		Sprints:    flex.Sprints,
+		Tasks:      make([]domain.AIPlanTask, 0, len(flex.Tasks)),
+	}
+	for _, t := range flex.Tasks {
+		sp := int(t.StoryPoints)
+		if sp < 0 {
+			sp = 0
+		}
+		pt := domain.AIPlanTask{
+			Title:       t.Title,
+			Description: t.Description,
+			Priority:    t.Priority,
+			StoryPoints: sp,
+			StartDate:   t.StartDate,
+			EndDate:     t.EndDate,
+		}
+		if t.EpicIndex != nil {
+			i := int(*t.EpicIndex)
+			pt.EpicIndex = &i
+		}
+		if t.SprintIndex != nil {
+			i := int(*t.SprintIndex)
+			pt.SprintIndex = &i
+		}
+		if t.MilestoneIndex != nil {
+			i := int(*t.MilestoneIndex)
+			pt.MilestoneIndex = &i
+		}
+		plan.Tasks = append(plan.Tasks, pt)
+	}
+	fmt.Printf("✅ AI Plan: %d epics, %d milestones, %d sprints, %d tasks\n",
+		len(plan.Epics), len(plan.Milestones), len(plan.Sprints), len(plan.Tasks))
+	return plan, nil
 }

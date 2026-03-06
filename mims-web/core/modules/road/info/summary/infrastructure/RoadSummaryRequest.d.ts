@@ -1,0 +1,22 @@
+export interface IRequestRoadSummary {
+	id: number[]
+	km_end: number[]
+	km_start: number[]
+	lane_surface: number[][]
+	material_base: number[]
+	material_subbase: number[]
+	material_subgrade: number[]
+	ref_surface_shoulder_id_left: number[]
+	ref_surface_shoulder_id_right: number[]
+	road_id: number
+	road_surface_id: number[]
+	surface_crosssection_code: number[]
+	thickness_base: number[]
+	thickness_concrete_slab: number[]
+	thickness_subbase: number[]
+	thickness_subgrade: number[]
+	thickness_surface: number[]
+	width_shoulder_left: number[]
+	width_shoulder_right: number[]
+	width_surface: number[]
+}

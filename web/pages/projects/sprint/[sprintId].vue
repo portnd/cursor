@@ -9,7 +9,7 @@
       <div class="bg-red-900/20 border border-red-500 rounded-xl p-6 text-red-400">
         <h2 class="font-bold text-lg mb-1">Failed to load sprint</h2>
         <p class="text-sm">{{ error }}</p>
-        <NuxtLink v-if="projectId" :to="`/projects/${projectId}`" class="mt-4 inline-block text-sm text-gray-400 hover:text-white">← Back to Project</NuxtLink>
+        <NuxtLink v-if="projectId" :to="`/projects/${projectId}?tab=sprints`" class="mt-4 inline-block text-sm text-gray-400 hover:text-white">← Back to Project</NuxtLink>
         <NuxtLink v-else to="/projects" class="mt-4 inline-block text-sm text-gray-400 hover:text-white">← Back to Projects</NuxtLink>
       </div>
     </div>
@@ -31,7 +31,7 @@
             <div class="flex items-center gap-3 mt-2">
               <span
                 class="px-2 py-0.5 text-xs font-semibold rounded-full"
-                :class="sprint.status === 'ACTIVE' ? 'bg-indigo-500/20 text-indigo-400' : sprint.status === 'COMPLETED' ? 'bg-gray-600 text-gray-400' : 'bg-yellow-500/20 text-yellow-400'"
+                :class="sprint.status === 'ACTIVE' ? 'bg-purple-500/20 text-purple-400' : sprint.status === 'COMPLETED' ? 'bg-gray-600 text-gray-400' : 'bg-yellow-500/20 text-yellow-400'"
               >
                 {{ sprint.status }}
               </span>
@@ -41,12 +41,26 @@
             </div>
           </div>
           <div class="flex items-center gap-2">
+            <NuxtLink
+              v-if="prevSprint"
+              :to="`/projects/sprint/${prevSprint.id}?project=${projectId}`"
+              class="btn-ghost-sm inline-flex items-center gap-1"
+            >
+              ← ก่อนหน้า
+            </NuxtLink>
+            <NuxtLink
+              v-if="nextSprint"
+              :to="`/projects/sprint/${nextSprint.id}?project=${projectId}`"
+              class="btn-ghost-sm inline-flex items-center gap-1"
+            >
+              ถัดไป →
+            </NuxtLink>
             <button @click="openCreateTaskModal()" class="btn-primary-sm">+ Add Task</button>
             <button @click="openImportModal()" class="btn-import-sm">
               <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
               Import Slides
             </button>
-            <NuxtLink :to="`/projects/${projectId}`" class="btn-ghost-sm">← Project</NuxtLink>
+            <NuxtLink :to="`/projects/${projectId}?tab=sprints`" class="btn-ghost-sm inline-flex">← Back</NuxtLink>
           </div>
         </div>
       </div>
@@ -62,7 +76,7 @@
           <div class="metric-label">Done</div>
         </div>
         <div class="metric-card">
-          <div class="text-2xl font-bold text-indigo-400">{{ totalSp }}</div>
+          <div class="text-2xl font-bold text-purple-400">{{ totalSp }}</div>
           <div class="metric-label">Story points</div>
         </div>
         <div class="metric-card">
@@ -81,7 +95,7 @@
                 ref="checkAllInputRef"
                 type="checkbox"
                 :checked="isCheckAllChecked"
-                class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+                class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
                 @change="toggleCheckAll"
               />
               <span>Check all</span>
@@ -108,7 +122,7 @@
               <input
                 type="checkbox"
                 :checked="selectedTaskIds.includes(t.id)"
-                class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+                class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
                 @change="toggleTaskSelection(t.id)"
               />
             </label>
@@ -117,7 +131,7 @@
               @click="navigateToTask(t.id)"
             >
               <div class="flex items-center gap-3 min-w-0">
-                <span class="text-xs font-mono text-gray-500 shrink-0">{{ t.code }}</span>
+                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(t.code) }}</span>
                 <span class="text-sm text-gray-200 truncate">{{ t.title }}</span>
                 <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
               </div>
@@ -142,8 +156,8 @@
         <!-- Header -->
         <div class="flex items-center justify-between mb-5">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
-              <svg class="w-4 h-4 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+            <div class="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
+              <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
             </div>
             <div>
               <h2 class="text-lg font-bold text-white">Import from Google Slides</h2>
@@ -169,7 +183,7 @@
               :key="task.id"
               class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
             >
-              <span class="text-xs font-mono text-gray-500 shrink-0">{{ task.code }}</span>
+              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
               <span class="text-gray-200 truncate">{{ task.title }}</span>
             </div>
           </div>
@@ -191,7 +205,7 @@
             <button
               type="button"
               @click="importSelectOnlyNew"
-              class="btn-ghost-sm text-indigo-400"
+              class="btn-ghost-sm text-purple-400"
             >
               เลือกเฉพาะที่ยังไม่เคยนำเข้า
             </button>
@@ -207,7 +221,7 @@
                 v-model="importSelectedIndices"
                 type="checkbox"
                 :value="s.index"
-                class="rounded border-gray-500 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+                class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
               />
               <span class="text-xs text-gray-400 w-8 shrink-0">#{{ s.index }}</span>
               <span class="text-sm text-gray-200 truncate flex-1">{{ s.title || '(ไม่มีชื่อ)' }}</span>
@@ -421,9 +435,30 @@ onMounted(() => {
 
 const project = ref<Project | null>(null)
 const sprint = ref<Sprint | null>(null)
+const sprints = ref<Sprint[]>([])
 const allTasks = ref<Task[]>([])
 const isLoading = ref(true)
 const error = ref('')
+
+const sprintsOrdered = computed(() =>
+  [...sprints.value].sort(
+    (a, b) =>
+      (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )
+)
+const currentSprintIndex = computed(() => {
+  if (!sprint.value) return -1
+  return sprintsOrdered.value.findIndex((s) => s.id === sprint.value!.id)
+})
+const prevSprint = computed(() => {
+  const i = currentSprintIndex.value
+  return i > 0 ? sprintsOrdered.value[i - 1] ?? null : null
+})
+const nextSprint = computed(() => {
+  const i = currentSprintIndex.value
+  return i >= 0 && i < sprintsOrdered.value.length - 1 ? sprintsOrdered.value[i + 1] ?? null : null
+})
 
 const sprintTasks = computed(() => allTasks.value.filter((t) => t.sprint_id === sprintId.value))
 const doneCount = computed(() => sprintTasks.value.filter((t) => t.status === 'COMPLETED').length)
@@ -443,6 +478,12 @@ function priorityBadge(p: string) {
   if (p === 'HIGH') return 'bg-orange-500/20 text-orange-400'
   if (p === 'MEDIUM') return 'bg-yellow-500/20 text-yellow-400'
   return 'bg-green-500/20 text-green-400'
+}
+
+function taskCodeSuffix(code: string | undefined): string {
+  if (!code) return '–'
+  const suffix = code.split('-').pop()
+  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(3, '0') : code
 }
 
 function taskStatusBadge(status: string) {
@@ -524,11 +565,12 @@ async function loadAll() {
   try {
     const p = await projectsApi.getProject(projectId.value)
     project.value = p
-    const [sprints, tasks] = await Promise.all([
+    const [sprintsList, tasks] = await Promise.all([
       projectsApi.getSprints(p.id),
       tasksApi.getTasksByProject(p.id),
     ])
-    const s = sprints.find((x) => x.id === sprintId.value)
+    sprints.value = sprintsList
+    const s = sprintsList.find((x) => x.id === sprintId.value)
     if (!s) {
       error.value = 'Sprint not found'
       return
@@ -722,18 +764,18 @@ onMounted(loadAll)
   @apply block text-xs text-gray-400 mb-1.5 font-medium;
 }
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors;
+  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
 }
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;
 }
 .btn-ghost-sm {
   @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;
 }
 .btn-import-sm {
-  @apply px-3 py-1.5 text-xs bg-indigo-900/50 hover:bg-indigo-800/60 border border-indigo-700/50 text-indigo-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
+  @apply px-3 py-1.5 text-xs bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
 }
 .btn-primary {
-  @apply bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
 }
 </style>

@@ -1,0 +1,11 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO public.ref_asset VALUES (1, 'ป้ายจราจร', 1, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (2, 'ราวกันอันตราย', 2, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (3, 'เครื่องหมายจราจร', 3, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (4, 'อุปกรณ์ความปลอดภัย', 4, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (6, 'ระบบไฟฟ้า', 6, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (8, 'ด่านเก็บเงินค่าธรรมเนียมผ่านทาง', 7, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (5, 'Expansion Joint', 5, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (13, 'บันทึก', 12, 1, FALSE);
+INSERT INTO public.ref_asset VALUES (7, 'อื่น ๆ', 14, 1, FALSE);
+SELECT setval('ref_asset_id_seq', 13, true);

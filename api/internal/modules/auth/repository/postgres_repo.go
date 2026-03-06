@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 
+	"github.com/lib/pq"
 	"github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"gorm.io/gorm"
 )
@@ -66,6 +67,28 @@ func (r *postgresRepository) GetAllUsers() ([]domain.User, error) {
 	return users, nil
 }
 
+// UpdateProfile updates display name and/or tech stack for the given user
+func (r *postgresRepository) UpdateProfile(userID uint, displayName *string, techStack []string) error {
+	updates := make(map[string]interface{})
+	if displayName != nil {
+		updates["display_name"] = *displayName
+	}
+	if techStack != nil {
+		updates["tech_stack"] = pq.Array(techStack)
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update profile: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // UpdateUserRole updates a user's role
 // Validates that the role is one of the allowed values
 func (r *postgresRepository) UpdateUserRole(userID uint, newRole string) error {
@@ -79,6 +102,30 @@ func (r *postgresRepository) UpdateUserRole(userID uint, newRole string) error {
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("user not found")
 	}
-	
+
+	return nil
+}
+
+// DeleteUser removes a user by ID (hard delete)
+func (r *postgresRepository) DeleteUser(userID uint) error {
+	result := r.db.Delete(&domain.User{}, userID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete user: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// UpdatePassword updates a user's password hash
+func (r *postgresRepository) UpdatePassword(userID uint, hashedPassword string) error {
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("password", hashedPassword)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update password: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
 	return nil
 }

@@ -1,0 +1,49 @@
+// อนุมัติ
+.badge-status-A {
+	color: var(--kt-success);
+	background-color: var(--kt-success-light);
+}
+// ฉบับร่าง
+.badge-status-T {
+	color: var(--kt-dark);
+	background-color: var(--kt-dark-light);
+}
+// ส่งกลับแก้ไข
+.badge-status-R {
+	color: var(--kt-warning);
+	background-color: var(--kt-warning-light);
+}
+// ลบ
+.badge-status-D {
+	color: var(--kt-danger);
+	background-color: var(--kt-danger-light);
+}
+// รออนุมัติ
+.badge-status-W {
+	color: #f5821c;
+	background-color: #fef8f2;
+}
+// ครั้งที่ n
+.badge-status-I {
+	color: var(--kt-primary);
+	background-color: var(--kt-primary-light);
+}
+
+tr td {
+	// เพิ่ม
+	&:has(div.bg-item-A) {
+		background-color: var(--kt-success-light) !important;
+	}
+	// แก้ไข
+	&:has(div.bg-item-M) {
+		background-color: var(--kt-warning-light) !important;
+	}
+	// ลบ
+	&:has(div.bg-item-D) {
+		background-color: var(--kt-danger-light) !important;
+	}
+	// active
+	&:has(div.bg-item-active) {
+		background-color: #e7e6e6 !important;
+	}
+}

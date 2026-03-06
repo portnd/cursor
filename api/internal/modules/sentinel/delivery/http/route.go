@@ -20,7 +20,11 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, goo
 		sentinelGroup.POST("/projects", handler.CreateProject)
 		sentinelGroup.GET("/projects", handler.GetProjects)
 		sentinelGroup.GET("/projects/:id", handler.GetProjectByID)
+		sentinelGroup.PATCH("/projects/:id", handler.UpdateProject)
 		sentinelGroup.DELETE("/projects/:id", handler.DeleteProject)
+		sentinelGroup.POST("/projects/:id/ai-schedule", handler.ScheduleProjectWithAI) // AI Agent: estimate + schedule existing tasks (CEO/PM)
+		sentinelGroup.POST("/projects/:id/ai-plan", handler.GenerateProjectPlan)         // (Optional) generate new epics/sprints/milestones/tasks from scratch
+		sentinelGroup.POST("/projects/:id/clear-plan", handler.ClearProjectPlan)        // Clear plan: remove all tasks, sprints, milestones, epics (CEO/PM)
 
 		// Task Management
 		sentinelGroup.POST("/tasks", handler.CreateTask)                   // Create new task (CEO/PM)
@@ -32,6 +36,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, goo
 		sentinelGroup.GET("/tasks/:id", handler.GetTaskByID)                // Get single task with submission history
 		sentinelGroup.PATCH("/tasks/:id", handler.UpdateTask)                      // Update task (Creator or CEO only, triggers AI re-estimation)
 		sentinelGroup.PATCH("/tasks/:id/slide-resources", handler.UpdateTaskSlideResources) // Update task resource_urls (slide images/annotations)
+		sentinelGroup.POST("/tasks/:id/estimate", handler.EstimateTask)                // AI estimate time (Creator/CEO/PM)
 		sentinelGroup.DELETE("/tasks/:id", handler.DeleteTask)                     // Delete task (Creator or CEO only)
 		sentinelGroup.POST("/tasks/:id/assign", handler.AssignTask)        // Assign task to developer (PM)
 		sentinelGroup.POST("/tasks/:id/submit", handler.SubmitWork)        // Submit code for task (DEV)
@@ -89,6 +94,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, goo
 		// Timeline Views (Matrix Dimension)
 		sentinelGroup.GET("/projects/:id/timeline/epic-view", handler.GetEpicTimeline)
 		sentinelGroup.GET("/projects/:id/timeline/sprint-view", handler.GetSprintTimeline)
+		sentinelGroup.GET("/projects/:id/timeline/export-pdf", handler.ExportTimelinePDF)
 	}
 
 	// Admin/CEO Configuration Management
@@ -97,5 +103,6 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, goo
 		adminGroup.GET("/config", handler.GetSystemConfig)        // Get current AI config
 		adminGroup.PUT("/config", handler.UpdateSystemConfig)     // Update AI config (CEO only)
 		adminGroup.GET("/models", handler.GetAvailableModels)     // Get available Gemini models
+		adminGroup.GET("/ai-usage", handler.GetAIUsage)           // Approximate Gemini quota usage
 	}
 }

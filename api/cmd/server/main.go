@@ -14,7 +14,14 @@ import (
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	authRepo "github.com/portnd/the-sentinel-core/internal/modules/auth/repository"
 	authUsecase "github.com/portnd/the-sentinel-core/internal/modules/auth/usecase"
+	financeDomain "github.com/portnd/the-sentinel-core/internal/modules/finance/domain"
+	financeHttp "github.com/portnd/the-sentinel-core/internal/modules/finance/delivery/http"
+	financeRepo "github.com/portnd/the-sentinel-core/internal/modules/finance/repository"
+	financeUsecase "github.com/portnd/the-sentinel-core/internal/modules/finance/usecase"
 	healthHttp "github.com/portnd/the-sentinel-core/internal/modules/health/delivery/http"
+	perfHttp "github.com/portnd/the-sentinel-core/internal/modules/performance/delivery/http"
+	perfRepo "github.com/portnd/the-sentinel-core/internal/modules/performance/repository"
+	perfUsecase "github.com/portnd/the-sentinel-core/internal/modules/performance/usecase"
 	sentinelHttp "github.com/portnd/the-sentinel-core/internal/modules/sentinel/delivery/http"
 	sentinelDomain "github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 	sentinelRepo "github.com/portnd/the-sentinel-core/internal/modules/sentinel/repository"
@@ -73,6 +80,7 @@ func main() {
 		&sentinelDomain.TaskDependency{},
 		&sentinelDomain.TaskComment{},
 		&sentinelDomain.TimeLog{},
+		&financeDomain.MonthlyEntry{},
 	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
@@ -95,10 +103,46 @@ func main() {
 	log.Println("🛡️  Initializing Sentinel Module...")
 
 	sentinelRepository := sentinelRepo.NewPostgresRepository(db)
-	aiService := sentinelRepo.NewNoopAIService() // AI logic removed; no-op only for interface compatibility
-	sentinelUsecaseInstance := sentinelUsecase.NewSentinelUsecase(sentinelRepository, aiService, authRepository)
+	aiUsageTracker := sentinelRepo.NewMemoryUsageTracker()
+	var aiService sentinelDomain.AIService
+	switch {
+	case cfg.GroqAPIKey != "":
+		var errAI error
+		aiService, errAI = sentinelRepo.NewGroqService(cfg.GroqAPIKey, sentinelRepository, aiUsageTracker)
+		if errAI != nil {
+			log.Printf("⚠️  Groq AI init failed, using no-op: %v", errAI)
+			aiService = sentinelRepo.NewNoopAIService()
+		} else {
+			log.Println("✅ Groq AI service enabled (estimate & code review)")
+		}
+	case cfg.GeminiAPIKey != "":
+		var errAI error
+		aiService, errAI = sentinelRepo.NewGeminiService(cfg.GeminiAPIKey, sentinelRepository, aiUsageTracker)
+		if errAI != nil {
+			log.Printf("⚠️  Gemini AI init failed, using no-op: %v", errAI)
+			aiService = sentinelRepo.NewNoopAIService()
+		} else {
+			log.Println("✅ Gemini AI service enabled (estimate & code review)")
+		}
+	default:
+		aiService = sentinelRepo.NewNoopAIService()
+		log.Println("⚠️  GROQ_API_KEY / GEMINI_API_KEY not set; AI estimate/code review disabled")
+	}
+	sentinelUsecaseInstance := sentinelUsecase.NewSentinelUsecase(sentinelRepository, aiService, authRepository, aiUsageTracker, cfg.AILimitRPM, cfg.AILimitRPD)
 
 	log.Println("✅ Sentinel Module initialized")
+
+	// Initialize Performance Module
+	log.Println("📊 Initializing Performance Module...")
+	perfRepository := perfRepo.NewPostgresRepository(db)
+	perfUsecaseInstance := perfUsecase.NewPerformanceUsecase(perfRepository, authRepository)
+	log.Println("✅ Performance Module initialized")
+
+	// Initialize Finance Module (accounting entries + CEO summary)
+	log.Println("📒 Initializing Finance Module...")
+	financeRepository := financeRepo.NewPostgresRepository(db)
+	financeUsecaseInstance := financeUsecase.NewFinanceUsecase(financeRepository)
+	log.Println("✅ Finance Module initialized")
 
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -134,11 +178,21 @@ func main() {
 	sentinelGroup.Use(authMiddleware)
 	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, cfg.GoogleAPIKey)
 
+	// Performance routes (protected by auth middleware)
+	perfGroup := apiGroup.Group("")
+	perfGroup.Use(authMiddleware)
+	perfHttp.RegisterRoutes(perfGroup, perfUsecaseInstance)
+
+	// Finance routes (CEO: accounting entries + summary)
+	finGroup := apiGroup.Group("")
+	finGroup.Use(authMiddleware)
+	financeHttp.RegisterRoutes(finGroup, financeUsecaseInstance)
+
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)
 	log.Printf("🌐 Health endpoint: http://localhost:%s/health", cfg.AppPort)
 	log.Printf("🔐 Auth endpoints: http://localhost:%s/api/v1/auth/register | /api/v1/auth/login", cfg.AppPort)
-	log.Printf("👥 User Management (CEO): GET /api/v1/auth/users | PATCH /api/v1/auth/users/:id/role")
+	log.Printf("👥 User Management (CEO): GET /api/v1/auth/users | POST /api/v1/auth/users | POST /api/v1/auth/users/import | PATCH /api/v1/auth/users/:id/role")
 	log.Printf("💰 Wallet endpoints: http://localhost:%s/api/v1/wallets/me | /api/v1/wallets/transfer", cfg.AppPort)
 	log.Printf("🛡️  Sentinel endpoints: http://localhost:%s/api/v1/sentinel/tasks | /api/v1/sentinel/tasks/my", cfg.AppPort)
 	log.Printf("⚙️  AI Config endpoints (CEO): GET/PUT /api/v1/admin/config | GET /api/v1/admin/models")

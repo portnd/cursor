@@ -1,21 +1,21 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 p-4">
-    <!-- Background Pattern -->
-    <div class="absolute inset-0 overflow-hidden">
-      <div class="absolute -top-1/2 -left-1/2 w-full h-full bg-purple-500/10 rounded-full blur-3xl"></div>
-      <div class="absolute -bottom-1/2 -right-1/2 w-full h-full bg-indigo-500/10 rounded-full blur-3xl"></div>
+  <div class="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/30 to-gray-900 flex items-center justify-center p-4">
+    <!-- Background Decorations -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+      <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
     </div>
 
     <!-- Register Form Container -->
-    <div class="relative z-10 w-full">
+    <div class="relative z-10 w-full max-w-md">
       <!-- Logo/Branding -->
       <div class="text-center mb-8">
-        <h1 class="text-5xl font-bold text-white mb-2">
-          🛡️ KOMGRIP
+        <h1 class="text-5xl font-bold mb-2">
+          <span class="bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 bg-clip-text text-transparent">
+            🛡️ The Sentinel
+          </span>
         </h1>
-        <p class="text-white/80 text-lg">
-          God-Tier Starter Kit
-        </p>
+        <p class="text-gray-400">Create your account — AI-Powered Task Management</p>
       </div>
 
       <!-- Register Form Component -->
@@ -38,17 +38,16 @@ onMounted(() => {
   }
 })
 
-// Meta tags
 definePageMeta({
-  layout: false, // No layout for auth pages
+  layout: false,
 })
 
 useHead({
-  title: 'Register - Komgrip Starter Kit',
+  title: 'Register - The Sentinel',
   meta: [
     {
       name: 'description',
-      content: 'Create your Komgrip account',
+      content: 'Create your Sentinel account',
     },
   ],
 })

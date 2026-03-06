@@ -65,7 +65,7 @@
           <div class="min-w-0">
             <h1 class="text-xl sm:text-2xl font-semibold text-white tracking-tight">{{ task.title }}</h1>
             <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              <code class="font-mono text-gray-400">{{ task.code || task.id }}</code>
+              <code class="font-mono text-gray-400">{{ taskCodeDisplay(task) }}</code>
               <span>Created {{ formatDate(task.created_at) }}</span>
               <span v-if="creatorLabel" class="text-gray-500">by {{ creatorLabel }}</span>
             </div>
@@ -109,7 +109,7 @@
                   :href="slideOpenInSlidesURL"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  class="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
                 >
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
@@ -232,9 +232,23 @@
 
         <!-- Time Tracking -->
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h2 class="text-sm font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
-            <span>⏱️</span> Time Tracking
-          </h2>
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 class="text-sm font-bold text-gray-400 uppercase flex items-center gap-2">
+              <span>⏱️</span> Time Tracking
+            </h2>
+            <button
+              v-if="canEditOrDelete"
+              type="button"
+              :disabled="isEstimating"
+              class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-600 hover:to-pink-600 text-white border border-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="runAutoEstimate"
+            >
+              <span v-if="isEstimating" class="inline-block w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+              <span v-else>✨</span>
+              {{ isEstimating ? 'Estimating...' : 'Auto Estimate' }}
+            </button>
+          </div>
+          <p v-if="estimateError" class="text-sm text-red-400 mb-3">{{ estimateError }}</p>
           <TimeLogger
             :time-logs="timeLogs"
             :estimated-minutes="task.ai_estimated_minutes || 0"
@@ -567,6 +581,7 @@ const route = useRoute()
 const { fetchWithAuth, currentUser: authCurrentUser } = useAuth()
 const authStore = useAuthStore()
 const projectsApi = useProjectsApi()
+const { showSuccess, showError } = useNotification()
 
 // State
 const task = ref<Task | null>(null)
@@ -608,6 +623,10 @@ const comments = ref<TaskComment[]>([])
 const timeLogs = ref<TimeLog[]>([])
 const commentsLoading = ref(false)
 const timeLogsLoading = ref(false)
+
+// AI Auto Estimate State
+const isEstimating = ref(false)
+const estimateError = ref('')
 
 // Parsed slide resource URLs (for Google Slides imported tasks; images are now in description, only metadata for "Open in Slides")
 const slideResourceURLs = computed(() => {
@@ -708,13 +727,30 @@ const fetchTask = async () => {
   }
 }
 
+const runAutoEstimate = async () => {
+  if (!task.value) return
+  const taskIdOrCode = (route.params.id as string)?.trim?.() || task.value.id || task.value.code || ''
+  if (!taskIdOrCode) return
+  try {
+    isEstimating.value = true
+    estimateError.value = ''
+    const updated = await projectsApi.estimateTask(taskIdOrCode)
+    task.value = { ...task.value, ...updated }
+  } catch (err: any) {
+    const apiMsg = err?.data?.message ?? err?.data?.error ?? err?.message
+    estimateError.value = apiMsg || 'AI estimate failed.'
+  } finally {
+    isEstimating.value = false
+  }
+}
+
 const getStatusClass = (status: string) => {
   const classes: Record<string, string> = {
     'COMPLETED': 'bg-green-700 text-green-100 border border-green-500',
     'IN_PROGRESS': 'bg-blue-700 text-blue-100 border border-blue-500',
     'PENDING': 'bg-yellow-700 text-yellow-100 border border-yellow-500',
     'BLOCKED': 'bg-red-700 text-red-100 border border-red-500',
-    'REVIEW_PENDING': 'bg-indigo-900 text-indigo-200 border border-indigo-600' // 🚦 Quality Gate
+    'REVIEW_PENDING': 'bg-purple-900 text-purple-200 border border-purple-600' // 🚦 Quality Gate
   }
   return classes[status] || 'bg-gray-700 text-gray-100 border border-gray-500'
 }
@@ -729,6 +765,17 @@ const getStatusLabel = (status: string) => {
     'ASSIGNED': '📌 ASSIGNED'
   }
   return labels[status] || status
+}
+
+/** Display task id as 001, 002, … (suffix from code) or short id fallback */
+function taskCodeDisplay(t: Task | null): string {
+  if (!t) return '–'
+  if (t.code) {
+    const suffix = t.code.split('-').pop()
+    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(3, '0')
+    return t.code
+  }
+  return t.id.substring(0, 8) + '…'
 }
 
 const formatDate = (dateString: string) => {
@@ -804,10 +851,17 @@ const calculateDuration = (startAt: string, completedAt: string) => {
   return `${minutes}m`
 }
 
+/** Convert ISO (UTC) to "YYYY-MM-DDTHH:mm" in local time for datetime-local input */
 const toDatetimeLocal = (iso: string | null | undefined) => {
   if (!iso) return ''
   const d = new Date(iso)
-  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${h}:${min}`
 }
 
 // Edit Task Methods
@@ -911,14 +965,12 @@ const submitEdit = async () => {
       body
     })
     
-    // Success
-    const hasContentChange = body.title !== undefined || body.description !== undefined
-    alert(hasContentChange ? 'Task updated.' : 'Task updated.')
-    
+    showSuccess('Task updated.', 'Done')
     closeEditModal()
     await fetchTask()
   } catch (err: any) {
     console.error('Failed to update task:', err)
+    showError(err.data?.message || err.message || 'Failed to update task')
     editError.value = err.data?.message || err.message || 'Failed to update task'
   } finally {
     isUpdatingTask.value = false
@@ -950,11 +1002,11 @@ const confirmDelete = async () => {
       method: 'DELETE'
     })
     
-    // Success! Show notification and redirect to back target (e.g. project backlog)
-    alert('Task deleted.')
+    showSuccess('Task deleted.', 'Done')
     goToDashboard()
   } catch (err: any) {
     console.error('Failed to delete task:', err)
+    showError(err.data?.message || err.message || 'Failed to delete task')
     deleteError.value = err.data?.message || err.message || 'Failed to delete task'
   } finally {
     isDeletingTask.value = false

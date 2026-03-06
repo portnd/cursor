@@ -89,6 +89,7 @@ mongodata/
 redisdata/
 
 # Backups
+backups/
 *.bak
 *.backup
 *.old

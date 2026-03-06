@@ -1,0 +1,45 @@
+ {{range $index22, $year := $item.Years}}
+                <!-- lane1 -->
+                {{if (eq $item.Year $year) }}   <!-- เช็คปี -->
+                    {{if (eq $item.LaneNo 1) }}   <!-- เช็คช่องจราจร -->
+                        {{if (eq $item.IsWrite 1) }}  
+                            <td  rowspan="{{$item.Span}}"> {{if (ne $item.Data.KmStart 0) }}    {{$item.Data.KmStart}} - {{$item.Data.KmEnd}}  {{end}}</td>
+                        {{else}}
+                            <td></td>
+                        {{end}}
+                    {{else}}
+                    <td></td>
+                    {{end}}
+
+                     <!-- lane2 -->
+                    {{if (eq $item.LaneNo 2) }}  
+                        {{if (eq $item.IsWrite 1) }}  
+                            <td  rowspan="{{$item.Span}}"> {{if (ne $item.Data.KmStart 0) }}    {{$item.Data.KmStart}} - {{$item.Data.KmEnd}}  {{end}}</td>
+                        {{else}}
+                            <td></td>
+                        {{end}}
+                    {{else}}
+                    <td></td>
+                    {{end}}
+      
+
+
+                    <!-- lane3 -->
+                    {{if (eq $item.LaneNo 3) }}  
+                        {{if (eq $item.IsWrite 1) }}  
+                            <td  rowspan="{{$item.Span}}"> {{if (ne $item.Data.KmStart 0) }}    {{$item.Data.KmStart}} - {{$item.Data.KmEnd}}  {{end}}</td>
+                        {{else}}
+                            <td></td>
+                        {{end}}
+                    {{else}}
+                    <td></td>
+                    {{end}}
+                {{else}}
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                {{end}}
+
+
+                
+            {{end}}

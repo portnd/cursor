@@ -26,6 +26,14 @@
           <span class="text-gray-700 hidden sm:inline">/</span>
           <div class="flex-1 min-w-0 flex items-center gap-2 sm:gap-3">
             <h1 class="text-base sm:text-lg font-bold text-white truncate">{{ project.name }}</h1>
+            <button
+              type="button"
+              @click="openEditProjectModal"
+              class="shrink-0 p-1.5 rounded-lg text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 transition-colors"
+              title="แก้ไขชื่อโครงการ"
+            >
+              <span class="text-sm">✏️</span>
+            </button>
             <span
               class="px-2 py-0.5 text-xs font-semibold rounded-full border shrink-0"
               :class="statusClass(project.status)"
@@ -34,6 +42,18 @@
             </span>
             <code class="text-xs text-gray-500 font-mono hidden md:inline shrink-0">{{ project.code }}</code>
           </div>
+          <button
+            v-if="activeTab === 'timeline'"
+            type="button"
+            class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white disabled:opacity-60 shrink-0"
+            :disabled="timelineRefreshing"
+            title="โหลดข้อมูลใหม่ / Refresh"
+            @click="refreshTimeline"
+          >
+            <span v-if="timelineRefreshing" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" aria-hidden="true" />
+            <span v-else aria-hidden="true">↻</span>
+            Refresh
+          </button>
         </div>
 
         <!-- Tabs (horizontal scroll on small screens) -->
@@ -44,7 +64,7 @@
             @click="activeTab = tab.id"
             class="px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-lg transition-colors font-medium whitespace-nowrap shrink-0"
             :class="activeTab === tab.id
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
               : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'"
           >
             {{ tab.icon }} {{ tab.label }}
@@ -59,7 +79,7 @@
           <!-- Key Metrics -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="metric-card">
-              <div class="text-2xl font-bold" :class="activeSprint ? 'text-indigo-400' : 'text-gray-500'">
+              <div class="text-2xl font-bold" :class="activeSprint ? 'text-purple-400' : 'text-gray-500'">
                 {{ activeSprint ? activeSprint.name : 'No sprint' }}
               </div>
               <div class="metric-label">Active Sprint</div>
@@ -114,7 +134,7 @@
                     <div class="text-[10px] text-gray-500">Done</div>
                   </div>
                   <div class="p-2 bg-gray-700/50 rounded-lg">
-                    <div class="text-sm font-bold text-indigo-400">{{ sprintTaskCount('sp') }}</div>
+                    <div class="text-sm font-bold text-purple-400">{{ sprintTaskCount('sp') }}</div>
                     <div class="text-[10px] text-gray-500">Story Pts</div>
                   </div>
                 </div>
@@ -125,7 +145,7 @@
                   </div>
                   <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
                     <div
-                      class="h-full bg-indigo-500 rounded-full"
+                      class="h-full bg-purple-500 rounded-full"
                       :style="{ width: Math.round(sprintTaskCount('done') / sprintTaskCount('total') * 100) + '%' }"
                     ></div>
                   </div>
@@ -134,24 +154,29 @@
               <div v-else class="text-center py-8 text-gray-500 text-sm">
                 No active sprint. Plan and start a sprint to begin tracking.
               </div>
-              <!-- List of all sprints (so user sees where created sprints are) -->
+              <!-- List of all sprints (so user sees where created sprints are); drag to reorder -->
               <div v-if="sprints.length > 0" class="mt-4 pt-4 border-t border-gray-700">
                 <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">All sprints</h4>
                 <ul class="space-y-2 max-h-40 overflow-y-auto">
                   <li
-                    v-for="s in sprintsWithActiveFirst"
+                    v-for="(s, sIdx) in sprintsOrdered"
                     :key="s.id"
                     class="flex items-center justify-between py-1.5 px-2 rounded-lg group"
-                    :class="s.status === 'ACTIVE' ? 'bg-indigo-500/10' : 'hover:bg-gray-700/40'"
+                    :class="[s.status === 'ACTIVE' ? 'bg-purple-500/10' : 'hover:bg-gray-700/40', sprintDragId === s.id && 'opacity-60']"
+                    draggable="true"
+                    @dragstart="onSprintDragStart($event, s.id)"
+                    @dragover="onSprintDragOver"
+                    @drop.stop="onSprintDrop($event, sIdx)"
                   >
+                    <span class="text-gray-500 text-xs w-4 shrink-0 cursor-grab select-none" title="ลากเพื่อเรียงลำดับ">⋮⋮</span>
                     <NuxtLink
                       :to="`/projects/sprint/${s.id}?project=${route.params.id}`"
-                      class="text-sm text-gray-200 hover:text-indigo-300 transition-colors truncate flex-1 min-w-0 mr-2"
+                      class="text-sm text-gray-200 hover:text-purple-300 transition-colors truncate flex-1 min-w-0 mr-2"
                     >
                       {{ s.name }}
                     </NuxtLink>
                     <span class="flex items-center gap-2">
-                      <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" :class="s.status === 'ACTIVE' ? 'bg-indigo-500/20 text-indigo-400' : s.status === 'COMPLETED' ? 'bg-gray-600 text-gray-400' : 'bg-yellow-500/20 text-yellow-400'">
+                      <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" :class="s.status === 'ACTIVE' ? 'bg-purple-500/20 text-purple-400' : s.status === 'COMPLETED' ? 'bg-gray-600 text-gray-400' : 'bg-yellow-500/20 text-yellow-400'">
                         {{ s.status }}
                       </span>
                       <button
@@ -160,7 +185,7 @@
                         :disabled="!!activeSprint"
                         @click.stop="!activeSprint && handleStartSprint(s.id)"
                         class="text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        :class="activeSprint ? 'text-gray-500' : 'text-indigo-400 hover:text-indigo-300'"
+                        :class="activeSprint ? 'text-gray-500' : 'text-purple-400 hover:text-purple-300'"
                         :title="activeSprint ? `มี sprint ที่ Active อยู่แล้ว (${activeSprint.name}) — ปิดหรือ Reopen ก่อน` : 'Start sprint'"
                       >
                         Start
@@ -246,6 +271,7 @@
           <KanbanBoard
             :tasks="allTasks"
             :sprints="sprints"
+            :task-display-code-map="taskDisplayCodeMap"
             @task-click="(t) => navigateToTask(t.id)"
             @status-change="handleStatusChange"
           />
@@ -275,17 +301,36 @@
                 <div class="flex items-center gap-2">
                   <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">View</span>
                   <div class="flex rounded-lg bg-slate-900/80 p-0.5">
-                    <button v-for="v in ['Day', 'Week', 'Month']" :key="v" @click="ganttView = v.toLowerCase()" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="ganttView === v.toLowerCase() ? (timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm') : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
-                      {{ v }}
+                    <button v-for="v in ['Day', 'Week', 'Month']" :key="v" type="button" @click="ganttView = v.toLowerCase()" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="ganttView === v.toLowerCase() ? (timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm') : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'" :title="v === 'Week' ? '1 column = 7 days (Mon–Sun)' : v === 'Day' ? '1 column = 1 day' : '1 column = 1 month'">
+                      {{ v === 'Week' ? 'Week (7d)' : v }}
                     </button>
                   </div>
                 </div>
               </div>
-              <button type="button" class="flex items-center gap-2 rounded-lg border border-indigo-500/50 bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-600/40 hover:text-indigo-200" @click="scrollTimelineToToday">
-                <span aria-hidden="true">◉</span> Today
-              </button>
+              <div class="flex items-center gap-2">
+                <div v-if="matrixGanttRows.length > 0" class="flex items-center rounded-lg border border-slate-600/60 bg-slate-800/50 overflow-hidden">
+                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
+                    Expand all
+                  </button>
+                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
+                    Collapse all
+                  </button>
+                </div>
+                <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" @click="timelineFullscreen = true" title="ขยายเต็มจอ / Fullscreen">
+                  <span aria-hidden="true">⛶</span> Fullscreen
+                </button>
+                <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
+                  <span aria-hidden="true">📄</span> Export PDF
+                </button>
+                <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
+                  <span aria-hidden="true">◉</span> Today
+                </button>
+              </div>
             </div>
           </div>
+
+          <!-- Dynamic epic bar colors (so each epic uses its chosen color on Gantt) -->
+          <component :is="'style'" v-if="epicBarStyles">{{ epicBarStyles }}</component>
 
           <!-- Matrix Gantt: Epic Roadmap or Sprint Execution (Y = Epics/Sprints, X = timeline) -->
           <div v-if="matrixTimelineLoading" class="flex flex-col items-center justify-center py-20 text-slate-500">
@@ -306,23 +351,77 @@
           </div>
 
           <ClientOnly v-else-if="matrixGanttRows.length > 0">
-            <div ref="timelineScrollWrapperRef" class="timeline-scroll-wrapper rounded-xl border border-slate-600/60 bg-slate-800/60 shadow-xl shadow-black/25 overflow-x-auto overflow-y-hidden">
+            <div ref="timelineScrollWrapperRef" class="timeline-scroll-wrapper cursor-grab rounded-xl border border-slate-600/60 bg-slate-800/60 shadow-xl shadow-black/25 overflow-x-auto overflow-y-hidden active:cursor-grabbing" :class="{ 'timeline-fullscreen': timelineFullscreen, 'fixed inset-0 z-50 m-0 rounded-none flex flex-col overflow-hidden': timelineFullscreen }" @mousedown="onTimelinePanStart" @touchstart.passive="onTimelinePanStartTouch">
+              <!-- Exit fullscreen bar (only when expanded) -->
+              <div v-if="timelineFullscreen" class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-600/60 bg-slate-800/95 px-4 py-2 shadow-md">
+                <span class="text-sm font-medium text-slate-300">Timeline — Fullscreen</span>
+                <div class="flex flex-wrap items-center gap-4">
+                  <!-- Mode: Epic Roadmap | Sprint Execution -->
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mode</span>
+                    <div class="flex rounded-lg bg-slate-900/80 p-0.5">
+                      <button type="button" @click="timelineMode = 'epic'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
+                        Epic Roadmap
+                      </button>
+                      <button type="button" @click="timelineMode = 'sprint'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="timelineMode === 'sprint' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
+                        Sprint Execution
+                      </button>
+                    </div>
+                  </div>
+                  <div class="h-4 w-px bg-slate-600" />
+                  <!-- View: Day | Week (7 days) | Month -->
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">View</span>
+                    <div class="flex rounded-lg bg-slate-900/80 p-0.5">
+                      <button v-for="v in ['Day', 'Week', 'Month']" :key="v" type="button" @click="ganttView = v.toLowerCase()" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="ganttView === v.toLowerCase() ? (timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm') : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'" :title="v === 'Week' ? '1 column = 7 days (Mon–Sun)' : v === 'Day' ? '1 column = 1 day' : '1 column = 1 month'">
+                        {{ v === 'Week' ? 'Week (7d)' : v }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="flex items-center rounded-lg border border-slate-600/60 bg-slate-800/50 overflow-hidden">
+                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
+                      Expand all
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
+                      Collapse all
+                    </button>
+                  </div>
+                  <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
+                    <span aria-hidden="true">◉</span> Today
+                  </button>
+                  <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
+                    <span aria-hidden="true">📄</span> Export PDF
+                  </button>
+                  <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-500 bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-600 hover:text-white" @click="timelineFullscreen = false" title="ย่อกลับ / Exit fullscreen">
+                    ✕ ย่อกลับ
+                  </button>
+                </div>
+              </div>
+              <!-- พื้นที่เลื่อนแนวตั้ง+แนวนอน เมื่อ fullscreen (min-h-0 ให้ flex ลูก scroll ได้) -->
+              <div :class="timelineFullscreen ? 'timeline-fullscreen-scroll min-h-0 flex-1 overflow-auto' : ''">
               <div class="timeline-inner relative flex flex-col" :style="matrixChartWidth > 0 ? { width: (220 + matrixChartWidth) + 'px', minWidth: (220 + matrixChartWidth) + 'px' } : { minWidth: '100%' }">
-                <GanttMilestoneRow v-if="matrixDateRangeStart && matrixDateRangeEnd && matrixChartWidth > 0" :milestones="milestones" :date-range-start="matrixDateRangeStart" :date-range-end="matrixDateRangeEnd" :grid-width="matrixChartWidth" :grid-offset="220" @milestone-click="openEditMilestoneModal" />
-                <g-gantt-chart :chart-start="matrixChartStart" :chart-end="matrixChartEnd" :precision="matrixGanttPrecision" bar-start="barStart" bar-end="barEnd" date-format="YYYY-MM-DD" :width="matrixChartWidth + 'px'" :row-height="40" :grid="true" :current-time="true" current-time-label="Now" color-scheme="dark" :label-column-title="timelineMode === 'epic' ? 'Epic / Task' : 'Sprint / Task'" label-column-width="220px" class="gantt-chart-vue gantt-enterprise" @click-bar="onMatrixGanttClickBar" @dragend-bar="onGanttDragEnd">
-                  <template #label-column-row="{ label }">
-                    <span class="cursor-pointer w-full block min-w-0 truncate" @click.stop="onMatrixLabelClickByLabel(label)">{{ label }}</span>
+                <GanttMilestoneRow v-if="matrixDateRangeStart && matrixDateRangeEnd && matrixChartWidth > 0" :milestones="milestones" :date-range-start="matrixDateRangeStart" :date-range-end="matrixDateRangeEnd" :grid-width="matrixChartWidth" :grid-offset="220" @milestone-click="openEditMilestoneModal" @milestone-drag-move="onMilestoneDragMove" @milestone-drag-end="onMilestoneDragEnd" />
+                <g-gantt-chart :chart-start="matrixChartStart" :chart-end="matrixChartEnd" :precision="matrixGanttPrecision" bar-start="barStart" bar-end="barEnd" date-format="YYYY-MM-DD" :width="matrixChartWidth + 'px'" :row-height="52" :grid="true" :current-time="true" current-time-label="Now" color-scheme="dark" :label-column-title="timelineMode === 'epic' ? 'Epic / Task' : 'Sprint / Task'" label-column-width="220px" class="gantt-chart-vue gantt-enterprise" @click-bar="onMatrixGanttClickBar" @dragstart-bar="onMatrixGanttDragStart" @dragend-bar="onGanttDragEnd">
+                  <template #timeunit="{ label, date }">
+                    <span v-if="ganttView === 'week' && date" class="whitespace-nowrap">{{ weekRangeLabel(date) }}</span>
+                    <span v-else>{{ label }}</span>
                   </template>
-                  <g-gantt-row v-for="row in matrixGanttRows" :key="row.taskId" :label="row.label" :bars="row.bars" />
+                  <template #label-column-row="{ label }">
+                    <span class="cursor-pointer w-full block min-w-0 whitespace-normal break-words text-[13px] leading-tight py-0.5" @click.stop="onMatrixLabelClickByLabel(label)">{{ label }}</span>
+                  </template>
+                  <g-gantt-row v-for="row in matrixGanttRows" :key="row.taskId" :label="row.label" :bars="row.bars" :class="row.taskId.startsWith('epic-') ? 'gantt-row-epic' : row.taskId.startsWith('sprint-') ? 'gantt-row-sprint' : 'gantt-row-task'" />
                 </g-gantt-chart>
                 <div v-if="matrixMilestoneLinePositions.length > 0" class="pointer-events-none absolute inset-0 z-[5]" aria-hidden="true">
-                  <div v-for="{ id, left } in matrixMilestoneLinePositions" :key="id" class="absolute top-0 bottom-0 w-px bg-indigo-500/50" :style="{ left: left + 'px' }" />
+                  <div v-for="{ id, left } in matrixMilestoneLinePositions" :key="id" class="absolute top-0 bottom-0 w-px bg-purple-500/50" :style="{ left: left + 'px' }" />
                 </div>
+              </div>
               </div>
             </div>
             <template #fallback>
               <div class="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-slate-600/50 bg-slate-800/50">
-                <div class="h-8 w-8 animate-spin rounded-full border-2 border-slate-500 border-t-indigo-400" />
+                <div class="h-8 w-8 animate-spin rounded-full border-2 border-slate-500 border-t-purple-400" />
                 <p class="mt-3 text-xs font-medium text-slate-400">Loading timeline…</p>
               </div>
             </template>
@@ -333,7 +432,7 @@
             <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Milestones</p>
             <div class="flex flex-wrap gap-x-6 gap-y-2">
               <div v-for="m in milestones" :key="m.id" class="flex items-center gap-2">
-                <span class="milestone-legend-diamond rotate-45 border-2 border-indigo-400/80 bg-slate-800" />
+                <span class="milestone-legend-diamond rotate-45 border-2 border-purple-400/80 bg-slate-800" />
                 <span class="text-xs text-slate-300">{{ m.title }}</span>
                 <span class="text-xs text-slate-500">{{ m.due_date ? formatDate(m.due_date) : '' }}</span>
               </div>
@@ -354,16 +453,22 @@
             </div>
             <div v-if="epics.length" class="flex flex-wrap gap-2">
               <div
-                v-for="ep in epics"
+                v-for="(ep, epIdx) in epics"
                 :key="ep.id"
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-600/50 bg-gray-700/40 group"
+                draggable="true"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-600/50 bg-gray-700/40 group cursor-grab active:cursor-grabbing"
+                :class="{ 'opacity-60': backlogDrag?.type === 'epic' && backlogDrag?.id === ep.id }"
+                @dragstart="onEpicDragStart($event, ep.id)"
+                @dragover="onEpicDragOver"
+                @drop="onEpicDrop($event, epIdx)"
               >
+                <span class="text-gray-500 cursor-grab shrink-0 select-none" title="ลากเพื่อเรียงลำดับ">⋮⋮</span>
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: ep.color }"></span>
                 <span class="text-xs text-gray-200">{{ ep.title }}</span>
                 <span v-if="ep.status !== 'PLANNING'" class="text-xs px-1 rounded" :class="ep.status === 'DONE' ? 'text-green-400' : 'text-blue-400'">{{ ep.status }}</span>
                 <div class="hidden group-hover:flex items-center gap-1 ml-1">
-                  <button @click="openEditEpicModal(ep)" class="text-gray-500 hover:text-indigo-400 text-xs">✎</button>
-                  <button @click="deleteEpic(ep)" class="text-gray-500 hover:text-red-400 text-xs">✕</button>
+                  <button type="button" @click.stop="openEditEpicModal(ep)" class="text-gray-500 hover:text-purple-400 text-xs">✎</button>
+                  <button type="button" @click.stop="deleteEpic(ep)" class="text-gray-500 hover:text-red-400 text-xs">✕</button>
                 </div>
               </div>
             </div>
@@ -371,12 +476,37 @@
           </div>
 
           <!-- Backlog Table Header + Add Task + Import Slides -->
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
               <h3 class="text-base font-semibold text-gray-200">Product Backlog</h3>
               <span class="text-xs text-gray-500">{{ allTasks.filter(t => !t.parent_id).length }} tasks</span>
             </div>
             <div class="flex items-center gap-2">
+              <!-- Expand / Collapse all (enterprise toolbar) -->
+              <div class="flex items-center rounded-lg border border-gray-600/60 bg-gray-800/50 overflow-hidden">
+                <button
+                  type="button"
+                  @click="expandAllBacklog"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700/60 transition-colors border-r border-gray-600/60"
+                  title="กางทั้งหมด"
+                >
+                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                  <span class="hidden sm:inline">Expand all</span>
+                </button>
+                <button
+                  type="button"
+                  @click="collapseAllBacklog"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700/60 transition-colors"
+                  title="ย่อทั้งหมด"
+                >
+                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                  <span class="hidden sm:inline">Collapse all</span>
+                </button>
+              </div>
               <button @click="openBacklogImportModal()" class="btn-import-sm">
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
                 Import Slides
@@ -389,188 +519,254 @@
           <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-x-auto overflow-y-hidden min-w-0">
             <div class="min-w-[640px]">
               <!-- Epic Groups: header = Task, SP, Priority, Sprint, Status (no Epic) -->
-              <template v-for="ep in epics" :key="ep.id">
-                <!-- Epic Group Header -->
+              <template v-for="(ep, epIdx) in epics" :key="ep.id">
+                <!-- Epic Group Header (draggable to reorder) -->
                 <div
                   class="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-gray-700/60 bg-gray-900/40 cursor-pointer hover:bg-gray-900/60 group"
+                  :class="{ 'opacity-60': backlogDrag?.type === 'epic' && backlogDrag?.id === ep.id }"
+                  draggable="true"
                   @click="toggleEpicGroup(ep.id)"
+                  @dragstart="onEpicDragStart($event, ep.id)"
+                  @dragover="onEpicDragOver"
+                  @drop.stop="onEpicDrop($event, epIdx)"
                 >
+                  <span class="text-gray-500 text-xs w-4 shrink-0 cursor-grab select-none" title="ลากเพื่อเรียงลำดับ">⋮⋮</span>
                   <span class="text-gray-500 text-xs w-4">{{ expandedEpicGroups[ep.id] ? '▼' : '▶' }}</span>
                   <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: ep.color }"></span>
                   <span class="text-sm font-semibold text-gray-200">{{ ep.title }}</span>
                   <span class="text-xs text-gray-500">({{ getTasksForEpic(ep.id).length }} tasks)</span>
                   <div class="ml-auto hidden group-hover:flex items-center gap-2">
-                    <button @click.stop="openCreateTaskModal(undefined, ep.id)" class="text-xs text-indigo-400 hover:text-indigo-300">+ Task</button>
+                    <button type="button" @click.stop="openCreateTaskModal(undefined, ep.id)" class="text-xs text-purple-400 hover:text-purple-300">+ Task</button>
                   </div>
                 </div>
 
-                <!-- Section header: Epic = Task | SP | Priority | Sprint | Status -->
+                <!-- Section header + rows in one grid so columns align (subgrid) -->
                 <template v-if="expandedEpicGroups[ep.id]">
-                  <div class="grid grid-cols-12 gap-2 px-3 sm:px-4 py-2 border-b border-gray-700 text-xs text-gray-500 uppercase tracking-wide">
-                    <div class="col-span-1"></div>
-                    <div class="col-span-4">Task</div>
-                    <div class="col-span-1 text-center">SP</div>
-                    <div class="col-span-2">Priority</div>
-                    <div class="col-span-2">Sprint</div>
-                    <div class="col-span-1">Status</div>
-                    <div class="col-span-1"></div>
-                  </div>
-                  <div v-for="task in getTasksForEpic(ep.id)" :key="task.id">
-                    <!-- Task Row (Epic: Sprint only, no Epic dropdown) -->
-                    <div class="grid grid-cols-12 gap-2 px-3 sm:px-4 py-3 border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group">
-                      <div class="col-span-1 flex items-center pl-2">
-                        <button @click="toggleEpic(task.id)" class="text-gray-500 hover:text-gray-300 text-xs">
+                  <div class="backlog-table-grid">
+                    <div class="backlog-table-header backlog-subgrid">
+                      <div class="flex items-center justify-center shrink-0"></div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">ID</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Task</div>
+                      <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">SP</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Priority</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Epic</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Sprint</div>
+                      <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">Status</div>
+                      <div class="flex items-center justify-center w-min shrink-0"></div>
+                    </div>
+                    <template v-for="(task, taskIdx) in getTasksForEpic(ep.id)" :key="task.id">
+                      <div
+                        class="backlog-row backlog-subgrid group"
+                        :class="{ 'opacity-60': backlogDrag?.type === 'task' && backlogDrag?.id === task.id }"
+                        @dragover="onTaskDragOver"
+                        @drop.stop="onTaskDrop($event, ep.id, taskIdx)"
+                      >
+                      <div class="flex items-center gap-3 shrink-0">
+                        <span
+                          class="text-gray-500 cursor-grab select-none text-xs"
+                          title="ลากเพื่อเรียงลำดับ"
+                          draggable="true"
+                          @dragstart="onTaskDragStartSetData($event, task.id, ep.id)"
+                        >⋮⋮</span>
+                        <button type="button" @click="toggleEpic(task.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0">
                           {{ expandedEpics[task.id] ? '▼' : '▶' }}
                         </button>
                       </div>
-                      <div class="col-span-4 flex items-center gap-2 min-w-0">
-                        <span class="text-xs font-mono text-gray-600 shrink-0">{{ task.code }}</span>
-                        <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-indigo-300 truncate" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                      <div class="flex items-center min-w-0">
+                        <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(task)">{{ taskDisplayCode(task) }}</span>
                       </div>
-                      <div class="col-span-1 flex items-center justify-center">
+                      <div class="flex items-center gap-1 min-w-0">
+                        <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                        <button type="button" @click.stop="openEditTaskTitle(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="แก้ไขชื่อ task">✎</button>
+                        <button type="button" @click.stop="duplicateTask(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="Duplicate task">⎘</button>
+                      </div>
+                      <div class="flex items-center justify-center shrink-0">
                         <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
                       </div>
-                      <div class="col-span-2 flex items-center">
-                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer" :class="priorityTextClass(task.priority)">
+                      <div class="flex items-center min-w-0">
+                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(task.priority)">
                           <option value="CRITICAL">🔴 CRITICAL</option>
                           <option value="HIGH">🟠 HIGH</option>
                           <option value="MEDIUM">🟡 MEDIUM</option>
                           <option value="LOW">🟢 LOW</option>
                         </select>
                       </div>
-                      <div class="col-span-2 flex items-center min-w-0">
+                      <div class="flex items-center min-w-0">
+                        <select :value="task.epic_id || ''" @change="updateTaskField(task.id, 'epic_id', ($event.target as HTMLSelectElement).value || '')" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full" title="ย้ายไป Epic อื่น">
+                          <option value="">No Epic</option>
+                          <option v-for="e in epics" :key="e.id" :value="e.id">{{ e.title }}</option>
+                        </select>
+                      </div>
+                      <div class="flex items-center min-w-0">
                         <select :value="task.sprint_id || ''" @change="updateTaskField(task.id, 'sprint_id', ($event.target as HTMLSelectElement).value || null)" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full">
                           <option value="">Backlog</option>
                           <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
                         </select>
                       </div>
-                      <div class="col-span-1 flex items-center">
-                        <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ').substring(0,6) }}</span>
+                      <div class="flex items-center shrink-0">
+                        <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ').substring(0,6) }}</span>
                       </div>
-                      <div class="col-span-1 flex items-center justify-end opacity-0 group-hover:opacity-100">
-                        <button @click="openCreateTaskModal(task.id)" class="text-xs text-indigo-400 hover:text-indigo-300 px-2">+ Sub</button>
+                      <div class="flex items-center justify-end w-min shrink-0 opacity-0 group-hover:opacity-100">
+                        <button @click="openCreateTaskModal(task.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                       </div>
                     </div>
-                    <!-- Sub-tasks (Epic: inherit Sprint from parent) -->
+                    <!-- Sub-tasks (inherit Epic from parent; ย้าย parent = ย้ายทั้งกลุ่ม) -->
                     <template v-if="expandedEpics[task.id]">
-                      <div v-for="sub in getSubTasks(task.id)" :key="sub.id" class="grid grid-cols-12 gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-700/30 bg-gray-900/30 hover:bg-gray-700/20 transition-colors">
-                        <div class="col-span-1"></div>
-                        <div class="col-span-4 flex items-center gap-2 pl-6">
-                          <span class="text-gray-600">↳</span>
-                          <span class="text-xs font-mono text-gray-600">{{ sub.code }}</span>
-                          <span class="text-sm text-gray-300 cursor-pointer hover:text-indigo-300" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                      <div v-for="sub in getSubTasks(task.id)" :key="sub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/30 bg-gray-900/30 hover:bg-gray-700/20 transition-colors">
+                        <div class="flex items-center"></div>
+                        <div class="flex items-center min-w-0 pl-6">
+                          <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
                         </div>
-                        <div class="col-span-1 flex items-center justify-center">
+                        <div class="flex items-center gap-1 min-w-0">
+                          <span class="text-gray-600 shrink-0">↳</span>
+                          <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                        </div>
+                        <div class="flex items-center justify-center shrink-0">
                           <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
                         </div>
-                        <div class="col-span-2 flex items-center">
-                          <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer" :class="priorityTextClass(sub.priority)">
+                        <div class="flex items-center min-w-0">
+                          <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(sub.priority)">
                             <option value="CRITICAL">🔴 CRITICAL</option>
                             <option value="HIGH">🟠 HIGH</option>
                             <option value="MEDIUM">🟡 MEDIUM</option>
                             <option value="LOW">🟢 LOW</option>
                           </select>
                         </div>
-                        <div class="col-span-2 flex items-center">
-                          <span class="text-xs text-gray-500 italic">Inherits from parent</span>
+                        <div class="flex items-center">
+                          <span class="text-xs text-gray-500 italic">Inherits</span>
                         </div>
-                        <div class="col-span-1 flex items-center">
-                          <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ').substring(0,6) }}</span>
+                        <div class="flex items-center">
+                          <span class="text-xs text-gray-500 italic">Inherits</span>
                         </div>
-                        <div class="col-span-1"></div>
+                        <div class="flex items-center shrink-0">
+                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ').substring(0,6) }}</span>
+                        </div>
+                        <div class="flex items-center w-min shrink-0"></div>
                       </div>
+                    </template>
                     </template>
                   </div>
                   <div v-if="!getTasksForEpic(ep.id).length" class="px-8 py-3 text-xs text-gray-500 italic border-b border-gray-700/30 bg-gray-900/20">
                     No tasks in this epic yet.
-                    <button @click="openCreateTaskModal(undefined, ep.id)" class="ml-2 text-indigo-400 hover:text-indigo-300">+ Add Task</button>
+                    <button @click="openCreateTaskModal(undefined, ep.id)" class="ml-2 text-purple-400 hover:text-purple-300">+ Add Task</button>
                   </div>
                 </template>
               </template>
 
               <!-- Unassigned: header = Task, SP, Priority, Epic, Status (no Sprint) -->
               <template v-if="getUnassignedTasks().length">
-                <div
-                  class="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-gray-700/60 bg-gray-900/40 cursor-pointer hover:bg-gray-900/60 group"
-                  @click="toggleEpicGroup('__unassigned__')"
+                <button
+                  type="button"
+                  class="relative z-10 flex w-full items-center gap-2 px-3 sm:px-4 py-2 border-b border-gray-700/60 bg-gray-900/40 cursor-pointer hover:bg-gray-900/60 group text-left"
+                  @click.stop="toggleEpicGroup('__unassigned__')"
                 >
                   <span class="text-gray-500 text-xs w-4">{{ expandedEpicGroups['__unassigned__'] !== false ? '▼' : '▶' }}</span>
                   <span class="w-3 h-3 rounded-full shrink-0 bg-gray-600"></span>
                   <span class="text-sm font-semibold text-gray-200">Unassigned</span>
                   <span class="text-xs text-gray-500">({{ getUnassignedTasks().length }} tasks)</span>
-                </div>
+                </button>
                 <template v-if="expandedEpicGroups['__unassigned__'] !== false">
-                  <div class="grid grid-cols-12 gap-2 px-3 sm:px-4 py-2 border-b border-gray-700 text-xs text-gray-500 uppercase tracking-wide">
-                    <div class="col-span-1"></div>
-                    <div class="col-span-4">Task</div>
-                    <div class="col-span-1 text-center">SP</div>
-                    <div class="col-span-2">Priority</div>
-                    <div class="col-span-2">Epic</div>
-                    <div class="col-span-1">Status</div>
-                    <div class="col-span-1"></div>
-                  </div>
-                  <div v-for="task in getUnassignedTasks()" :key="task.id">
-                    <div class="grid grid-cols-12 gap-2 px-3 sm:px-4 py-3 border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors group">
-                      <div class="col-span-1 flex items-center">
-                        <button @click="toggleEpic(task.id)" class="text-gray-500 hover:text-gray-300 text-xs">
-                          {{ expandedEpics[task.id] ? '▼' : '▶' }}
-                        </button>
-                      </div>
-                      <div class="col-span-4 flex items-center gap-2 min-w-0">
-                        <span class="text-xs font-mono text-gray-600 shrink-0">{{ task.code }}</span>
-                        <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-indigo-300 truncate" @click="navigateToTask(task.id)">{{ task.title }}</span>
-                      </div>
-                      <div class="col-span-1 flex items-center justify-center">
-                        <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
-                      </div>
-                      <div class="col-span-2 flex items-center">
-                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer" :class="priorityTextClass(task.priority)">
-                          <option value="CRITICAL">🔴 CRITICAL</option>
-                          <option value="HIGH">🟠 HIGH</option>
-                          <option value="MEDIUM">🟡 MEDIUM</option>
-                          <option value="LOW">🟢 LOW</option>
-                        </select>
-                      </div>
-                      <div class="col-span-2 flex items-center min-w-0">
-                        <select :value="task.epic_id || ''" @change="updateTaskField(task.id, 'epic_id', ($event.target as HTMLSelectElement).value || '')" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full">
-                          <option value="">No Epic</option>
-                          <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
-                        </select>
-                      </div>
-                      <div class="col-span-1 flex items-center">
-                        <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ').substring(0,6) }}</span>
-                      </div>
-                      <div class="col-span-1 flex items-center justify-end opacity-0 group-hover:opacity-100">
-                        <button @click="openCreateTaskModal(task.id)" class="text-xs text-indigo-400 hover:text-indigo-300 px-2">+ Sub</button>
-                      </div>
+                  <div class="backlog-table-grid">
+                    <div class="backlog-table-header backlog-subgrid">
+                      <div class="flex items-center justify-center shrink-0"></div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">ID</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Task</div>
+                      <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">SP</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Priority</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Epic</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Sprint</div>
+                      <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">Status</div>
+                      <div class="flex items-center justify-center w-min shrink-0"></div>
                     </div>
-                    <template v-if="expandedEpics[task.id]">
-                      <div v-for="sub in getSubTasks(task.id)" :key="sub.id" class="grid grid-cols-12 gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-700/30 bg-gray-900/30 hover:bg-gray-700/20 transition-colors">
-                        <div class="col-span-1"></div>
-                        <div class="col-span-4 flex items-center gap-2 pl-6">
-                          <span class="text-gray-600">↳</span>
-                          <span class="text-xs font-mono text-gray-600">{{ sub.code }}</span>
-                          <span class="text-sm text-gray-300 cursor-pointer hover:text-indigo-300" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                    <template v-for="(task, taskIdx) in getUnassignedTasks()" :key="task.id">
+                      <div
+                        class="backlog-row backlog-subgrid group"
+                        :class="{ 'opacity-60': backlogDrag?.type === 'task' && backlogDrag?.id === task.id }"
+                        @dragover="onTaskDragOver"
+                        @drop.stop="onTaskDrop($event, null, taskIdx)"
+                      >
+                        <div class="flex items-center gap-3 shrink-0">
+                          <span
+                            class="text-gray-500 cursor-grab select-none text-xs"
+                            title="ลากเพื่อเรียงลำดับ"
+                            draggable="true"
+                            @dragstart="onTaskDragStartSetData($event, task.id, null)"
+                          >⋮⋮</span>
+                          <button type="button" @click="toggleEpic(task.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0">
+                            {{ expandedEpics[task.id] ? '▼' : '▶' }}
+                          </button>
                         </div>
-                        <div class="col-span-1 flex items-center justify-center">
-                          <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
+                        <div class="flex items-center min-w-0">
+                          <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(task)">{{ taskDisplayCode(task) }}</span>
                         </div>
-                        <div class="col-span-2 flex items-center">
-                          <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer" :class="priorityTextClass(sub.priority)">
+                        <div class="flex items-center gap-1 min-w-0">
+                          <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                          <button type="button" @click.stop="openEditTaskTitle(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="แก้ไขชื่อ task">✎</button>
+                          <button type="button" @click.stop="duplicateTask(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="Duplicate task">⎘</button>
+                        </div>
+                        <div class="flex items-center justify-center shrink-0">
+                          <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
+                        </div>
+                        <div class="flex items-center min-w-0">
+                          <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(task.priority)">
                             <option value="CRITICAL">🔴 CRITICAL</option>
                             <option value="HIGH">🟠 HIGH</option>
                             <option value="MEDIUM">🟡 MEDIUM</option>
                             <option value="LOW">🟢 LOW</option>
                           </select>
                         </div>
-                        <div class="col-span-2 flex items-center">
-                          <span class="text-xs text-gray-500 italic">Inherits from parent</span>
+                        <div class="flex items-center min-w-0">
+                          <select :value="task.epic_id || ''" @change="updateTaskField(task.id, 'epic_id', ($event.target as HTMLSelectElement).value || '')" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full">
+                            <option value="">No Epic</option>
+                            <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
+                          </select>
                         </div>
-                        <div class="col-span-1 flex items-center">
-                          <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ').substring(0,6) }}</span>
+                        <div class="flex items-center min-w-0">
+                          <select :value="task.sprint_id || ''" @change="updateTaskField(task.id, 'sprint_id', ($event.target as HTMLSelectElement).value || null)" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full">
+                            <option value="">Backlog</option>
+                            <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
+                          </select>
                         </div>
-                        <div class="col-span-1"></div>
+                        <div class="flex items-center shrink-0">
+                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ').substring(0,6) }}</span>
+                        </div>
+                        <div class="flex items-center justify-end w-min shrink-0 opacity-0 group-hover:opacity-100">
+                          <button @click="openCreateTaskModal(task.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
+                        </div>
                       </div>
+                      <template v-if="expandedEpics[task.id]">
+                        <div v-for="sub in getSubTasks(task.id)" :key="sub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/30 bg-gray-900/30 hover:bg-gray-700/20 transition-colors">
+                          <div class="flex items-center"></div>
+                          <div class="flex items-center min-w-0 pl-6">
+                            <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
+                          </div>
+                          <div class="flex items-center gap-1 min-w-0">
+                            <span class="text-gray-600 shrink-0">↳</span>
+                            <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                          </div>
+                          <div class="flex items-center justify-center shrink-0">
+                            <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
+                          </div>
+                          <div class="flex items-center min-w-0">
+                            <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(sub.priority)">
+                              <option value="CRITICAL">🔴 CRITICAL</option>
+                              <option value="HIGH">🟠 HIGH</option>
+                              <option value="MEDIUM">🟡 MEDIUM</option>
+                              <option value="LOW">🟢 LOW</option>
+                            </select>
+                          </div>
+                          <div class="flex items-center">
+                            <span class="text-xs text-gray-500 italic">Inherits</span>
+                          </div>
+                          <div class="flex items-center">
+                            <span class="text-xs text-gray-500 italic">Inherits</span>
+                          </div>
+                          <div class="flex items-center shrink-0">
+                            <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ').substring(0,6) }}</span>
+                          </div>
+                          <div class="flex items-center w-min shrink-0"></div>
+                        </div>
+                      </template>
                     </template>
                   </div>
                 </template>
@@ -585,7 +781,147 @@
           </div>
         </div>
 
-        <!-- TAB 5: Analytics -->
+        <!-- TAB: Sprints (Sprint Management) -->
+        <div v-if="activeTab === 'sprints'" class="space-y-6">
+          <!-- Header + CTA -->
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white tracking-tight">Sprint Management</h2>
+              <p class="text-sm text-gray-400 mt-0.5">Plan iterations, start sprints, and track progress in one place.</p>
+            </div>
+            <button @click="openSprintModal()" class="btn-primary-sm inline-flex items-center gap-2 shrink-0">
+              <span>+</span> Create Sprint
+            </button>
+          </div>
+
+          <!-- Active Sprint Hero (if any) -->
+          <div v-if="activeSprint" class="rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-900/30 to-gray-800/80 p-5 sm:p-6 shadow-xl">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-500/30 text-purple-300">Active</span>
+                  <h3 class="text-lg font-bold text-white truncate">{{ activeSprint.name }}</h3>
+                </div>
+                <p v-if="activeSprint.goal" class="text-sm text-gray-400 mt-1 line-clamp-2">{{ activeSprint.goal }}</p>
+                <div class="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
+                  <span v-if="activeSprint.start_date">Start: {{ formatDate(activeSprint.start_date) }}</span>
+                  <span v-if="activeSprint.end_date">End: {{ formatDate(activeSprint.end_date) }}</span>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <NuxtLink :to="`/projects/sprint/${activeSprint.id}?project=${route.params.id}`" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">
+                  Open Sprint →
+                </NuxtLink>
+                <button type="button" @click="openAddTasksToSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-medium transition-colors">
+                  + Add Tasks
+                </button>
+                <button type="button" @click="openCompleteSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-600 text-amber-100 text-sm font-medium transition-colors">
+                  Complete Sprint
+                </button>
+                <button type="button" @click="openEditSprintModal(activeSprint)" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors" title="Edit sprint">
+                  ✎
+                </button>
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-3 gap-4">
+              <div class="bg-gray-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-white">{{ sprintTaskCount('total') }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-0.5">Tasks</div>
+              </div>
+              <div class="bg-gray-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-green-400">{{ sprintTaskCount('done') }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-0.5">Done</div>
+              </div>
+              <div class="bg-gray-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-purple-400">{{ sprintTaskCount('sp') }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-0.5">Story Pts</div>
+              </div>
+            </div>
+            <div v-if="sprintTaskCount('total') > 0" class="mt-4">
+              <div class="flex justify-between text-xs text-gray-500 mb-1.5">
+                <span>Progress</span>
+                <span>{{ Math.round((sprintTaskCount('done') / sprintTaskCount('total')) * 100) }}%</span>
+              </div>
+              <div class="h-2.5 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500" :style="{ width: Math.round((sprintTaskCount('done') / sprintTaskCount('total')) * 100) + '%' }" />
+              </div>
+            </div>
+          </div>
+
+          <!-- All Sprints -->
+          <div class="rounded-2xl border border-gray-700 bg-gray-800/50 overflow-hidden">
+            <div class="px-4 sm:px-5 py-4 border-b border-gray-700">
+              <h3 class="text-base font-semibold text-gray-200">All Sprints</h3>
+              <p class="text-xs text-gray-500 mt-0.5">Start, add tasks, edit, or reopen from here.</p>
+            </div>
+            <div v-if="sprints.length === 0" class="py-16 text-center">
+              <div class="text-5xl mb-3 opacity-60">🏃</div>
+              <p class="text-gray-400 font-medium">No sprints yet</p>
+              <p class="text-sm text-gray-500 mt-1 max-w-sm mx-auto">Create a sprint to plan your iterations and move tasks from the backlog.</p>
+              <button @click="openSprintModal()" class="mt-4 btn-primary px-5 py-2.5 rounded-xl">Create first sprint</button>
+            </div>
+            <ul v-else class="divide-y divide-gray-700/80">
+              <li
+                v-for="(s, sIdx) in sprintsOrdered"
+                :key="s.id"
+                class="flex flex-col sm:flex-row sm:items-center gap-4 px-4 sm:px-5 py-4 hover:bg-gray-700/30 transition-colors"
+                :class="{ 'bg-purple-500/5': s.status === 'ACTIVE', 'opacity-60': sprintDragId === s.id }"
+                draggable="true"
+                @dragstart="onSprintDragStart($event, s.id)"
+                @dragover="onSprintDragOver"
+                @drop.stop="onSprintDrop($event, sIdx)"
+              >
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                  <span class="text-gray-500 cursor-grab shrink-0 select-none text-sm" title="ลากเพื่อเรียงลำดับ">⋮⋮</span>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <NuxtLink :to="`/projects/sprint/${s.id}?project=${route.params.id}`" class="font-semibold text-white hover:text-purple-300 truncate transition-colors">
+                      {{ s.name }}
+                    </NuxtLink>
+                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" :class="s.status === 'ACTIVE' ? 'bg-purple-500/25 text-purple-300' : s.status === 'COMPLETED' ? 'bg-gray-600 text-gray-400' : 'bg-amber-500/20 text-amber-400'">
+                      {{ s.status }}
+                    </span>
+                  </div>
+                  <p v-if="s.goal" class="text-sm text-gray-500 truncate mt-0.5">{{ s.goal }}</p>
+                  <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    <span v-if="s.start_date">{{ formatDate(s.start_date) }}</span>
+                    <span v-if="s.end_date">– {{ formatDate(s.end_date) }}</span>
+                    <span class="text-gray-600">·</span>
+                    <span>{{ getSprintStats(s.id).done }}/{{ getSprintStats(s.id).total }} tasks</span>
+                    <span v-if="getSprintStats(s.id).total > 0" class="text-purple-400">{{ getSprintStats(s.id).sp }} SP</span>
+                  </div>
+                </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                  <template v-if="s.status === 'PLANNING'">
+                    <button type="button" :disabled="!!activeSprint" @click="!activeSprint && handleStartSprint(s.id)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors" :title="activeSprint ? 'Complete or reopen the active sprint first' : 'Start this sprint'">
+                      Start
+                    </button>
+                  </template>
+                  <template v-if="s.status === 'COMPLETED'">
+                    <button type="button" @click="openReopenSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition-colors" title="Reopen sprint">
+                      Reopen
+                    </button>
+                  </template>
+                  <button type="button" @click="openAddTasksToSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors" title="Add tasks to sprint">
+                    + Tasks
+                  </button>
+                  <button type="button" @click="openEditSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-gray-600/50 transition-colors" title="Edit sprint">
+                    Edit
+                  </button>
+                  <button type="button" @click="openDeleteSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors" title="Delete sprint">
+                    Delete
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <p class="px-4 sm:px-5 py-3 text-[10px] text-gray-500 border-t border-gray-700/80 bg-gray-900/40">
+              One project can have only one active sprint. Complete or reopen the current sprint before starting another.
+            </p>
+          </div>
+        </div>
+
+        <!-- TAB 6: Analytics -->
         <div v-if="activeTab === 'analytics'">
           <div v-if="analyticsLoading" class="flex flex-col items-center justify-center py-20">
             <div class="animate-spin text-6xl mb-4">⚙️</div>
@@ -602,8 +938,8 @@
       <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-xl w-full shadow-2xl">
         <div class="flex items-center justify-between mb-5">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
-              <svg class="w-4 h-4 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+            <div class="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
+              <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
             </div>
             <div>
               <h2 class="text-lg font-bold text-white">Import from Google Slides</h2>
@@ -629,7 +965,7 @@
               :key="task.id"
               class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
             >
-              <span class="text-xs font-mono text-gray-500 shrink-0">{{ task.code }}</span>
+              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
               <span class="text-gray-200 truncate">{{ task.title }}</span>
             </div>
           </div>
@@ -648,7 +984,7 @@
           <div class="flex items-center gap-2 flex-wrap">
             <button type="button" @click="backlogImportSelectAll" class="btn-ghost-sm">เลือกทั้งหมด</button>
             <button type="button" @click="backlogImportDeselectAll" class="btn-ghost-sm">ยกเลิกทั้งหมด</button>
-            <button type="button" @click="backlogImportSelectOnlyNew" class="btn-ghost-sm text-indigo-400">เลือกเฉพาะที่ยังไม่เคยนำเข้า</button>
+            <button type="button" @click="backlogImportSelectOnlyNew" class="btn-ghost-sm text-purple-400">เลือกเฉพาะที่ยังไม่เคยนำเข้า</button>
           </div>
           <div class="max-h-56 overflow-y-auto space-y-1.5 pr-1 border border-gray-700/60 rounded-xl p-2">
             <label
@@ -661,7 +997,7 @@
                 v-model="backlogImportSelectedIndices"
                 type="checkbox"
                 :value="s.index"
-                class="rounded border-gray-500 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+                class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
               />
               <span class="text-xs text-gray-400 w-8 shrink-0">#{{ s.index }}</span>
               <span class="text-sm text-gray-200 truncate flex-1">{{ s.title || '(ไม่มีชื่อ)' }}</span>
@@ -752,7 +1088,7 @@
             <textarea v-model="createTaskForm.description" rows="3" class="input-field w-full resize-none" placeholder="Describe the task..."></textarea>
           </div>
           <!-- Sub-task hint -->
-          <div v-if="createTaskForm.parent_id" class="p-2.5 bg-indigo-900/20 border border-indigo-500/30 rounded-lg text-xs text-indigo-300">
+          <div v-if="createTaskForm.parent_id" class="p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-lg text-xs text-purple-300">
             This is a sub-task. Dates are inherited from the parent task.
           </div>
           <div class="grid grid-cols-2 gap-3">
@@ -871,6 +1207,67 @@
       </div>
     </div>
 
+    <!-- Edit Project Modal -->
+    <div v-if="showEditProjectModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeEditProjectModal">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-lg font-bold text-white">แก้ไขโครงการ</h2>
+          <button @click="closeEditProjectModal" class="text-gray-500 hover:text-white">✕</button>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-400 mb-1.5">ชื่อโครงการ <span class="text-red-400">*</span></label>
+            <input v-model="editProjectForm.name" type="text" class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" placeholder="Project name (English only)" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-400 mb-1.5">คำอธิบาย</label>
+            <textarea v-model="editProjectForm.description" rows="3" class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none resize-none" placeholder="Description"></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-400 mb-1.5">สถานะ</label>
+            <select v-model="editProjectForm.status" class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none">
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="ON_HOLD">ON_HOLD</option>
+            </select>
+          </div>
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input v-model="editProjectForm.update_code" type="checkbox" class="mt-1 rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500" />
+            <span class="text-sm text-gray-400">อัปเดตรหัสโครงการ (code) และรหัสงานทั้งหมดตามชื่อใหม่ — ลิงก์เดิม (เช่น /projects/รหัสเก่า) อาจใช้ไม่ได้</span>
+          </label>
+          <div v-if="editProjectError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ editProjectError }}</div>
+        </div>
+        <div class="flex gap-3 mt-5">
+          <button @click="saveEditProject" :disabled="isSavingProject || !editProjectForm.name.trim()" class="flex-1 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-xl transition-colors disabled:opacity-40">
+            {{ isSavingProject ? 'กำลังบันทึก...' : 'บันทึก' }}
+          </button>
+          <button @click="closeEditProjectModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Task Title Modal -->
+    <div v-if="showEditTaskTitleModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeEditTaskTitleModal">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-lg font-bold text-white">แก้ไขชื่อ task</h2>
+          <button type="button" @click="closeEditTaskTitleModal" class="text-gray-500 hover:text-white">✕</button>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-400 mb-1.5">ชื่อ task</label>
+            <input v-model="editTaskTitleValue" type="text" class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" placeholder="Task title" @keydown.enter.prevent="saveEditTaskTitle" />
+          </div>
+        </div>
+        <div class="flex gap-3 mt-5">
+          <button type="button" @click="saveEditTaskTitle" :disabled="isSavingTaskTitle || !editTaskTitleValue.trim()" class="flex-1 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-xl transition-colors disabled:opacity-40">
+            {{ isSavingTaskTitle ? 'กำลังบันทึก...' : 'บันทึก' }}
+          </button>
+          <button type="button" @click="closeEditTaskTitleModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Sprint Modal (Create / Edit) -->
     <div v-if="showSprintModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeSprintModal">
       <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
@@ -916,9 +1313,12 @@
         <div class="flex-1 overflow-y-auto border border-gray-700 rounded-lg p-3 mb-4 min-h-[200px]">
           <div v-if="tasksNotInSprint.length === 0" class="text-center py-8 text-gray-500 text-sm">ไม่มีงานที่ยังไม่อยู่ใน sprint นี้</div>
           <label v-for="t in tasksNotInSprint" :key="t.id" class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-700/50 cursor-pointer">
-            <input type="checkbox" :value="t.id" v-model="selectedTaskIdsForSprint" class="rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500" />
-            <span class="text-xs font-mono text-gray-500">{{ t.code }}</span>
-            <span class="text-sm text-gray-200 truncate flex-1">{{ t.title }}</span>
+            <input type="checkbox" :value="t.id" v-model="selectedTaskIdsForSprint" class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500" />
+            <span class="text-xs font-mono text-gray-500 shrink-0">{{ t.code }}</span>
+            <span class="text-sm text-gray-200 truncate flex-1 min-w-0">{{ t.title }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0" :class="t.sprint_id ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-600 text-gray-400'">
+              {{ t.sprint_id ? (sprints.find(s => s.id === t.sprint_id)?.name ?? 'Sprint อื่น') : 'Backlog' }}
+            </span>
           </label>
         </div>
         <div v-if="addTasksToSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ addTasksToSprintError }}</div>
@@ -1046,12 +1446,15 @@ import GanttMilestoneRow from '~/components/projects/GanttMilestoneRow.vue'
 import MilestoneTimeline from '~/components/projects/MilestoneTimeline.vue'
 import ProjectAnalytics from '~/components/projects/ProjectAnalytics.vue'
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
+import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
 const route = useRoute()
 const router = useRouter()
+const { currentUser } = useAuth()
 const projectsApi = useProjectsApi()
+const { showError, confirm } = useNotification()
 const tasksApi = useTasksApi()
 
 const tabs = [
@@ -1059,6 +1462,7 @@ const tabs = [
   { id: 'board', label: 'Board', icon: '🗂' },
   { id: 'timeline', label: 'Timeline', icon: '📅' },
   { id: 'backlog', label: 'Backlog', icon: '📋' },
+  { id: 'sprints', label: 'Sprints', icon: '🏃' },
   { id: 'analytics', label: 'Analytics', icon: '📈' },
 ]
 
@@ -1089,6 +1493,8 @@ const timelineMode = ref<TimelineMode>('epic')
 const epicTimelineData = ref<import('~/core/modules/projects/infrastructure/projects-api').EpicTimelineData | null>(null)
 const sprintTimelineData = ref<import('~/core/modules/projects/infrastructure/projects-api').SprintTimelineData | null>(null)
 const matrixTimelineLoading = ref(false)
+const timelineFullscreen = ref(false)
+const timelineRefreshing = ref(false)
 
 watch(timelineMode, async (mode) => {
   if (!project.value) return
@@ -1110,6 +1516,33 @@ const timelineFilteredTasks = computed(() => {
 
 function toYMD(d: string) {
   return d.split('T')[0]
+}
+
+/** Set task start/end to full sprint range so the bar size matches the sprint bar. Returns ISO strings (noon UTC) for API. */
+function taskDatesInSprintRange(
+  _task: { start_date?: string | null; end_date?: string | null; due_at?: string | null },
+  sprint: { start_date: string | null; end_date: string | null }
+): { start_date: string; end_date: string } | null {
+  if (!sprint?.start_date) return null
+  const addDays = (ymd: string, days: number) => {
+    const d = new Date(ymd + 'T12:00:00Z')
+    d.setUTCDate(d.getUTCDate() + days)
+    return toYMD(d.toISOString())
+  }
+  const spStart = toYMD(sprint.start_date)
+  let spEnd = sprint.end_date ? toYMD(sprint.end_date) : addDays(spStart, 14)
+  if (spEnd <= spStart) spEnd = addDays(spStart, 1)
+  const toNoonUTC = (ymd: string) => ymd + 'T12:00:00.000Z'
+  return { start_date: toNoonUTC(spStart), end_date: toNoonUTC(spEnd) }
+}
+
+/** For Week view: one column = 7 days (Mon–Sun). Return label "D Mmm – D Mmm" for the timeunit slot. */
+function weekRangeLabel(startOfWeek: Date): string {
+  const d = new Date(startOfWeek)
+  const end = new Date(d)
+  end.setDate(end.getDate() + 6)
+  const fmt = (x: Date) => x.getDate() + ' ' + x.toLocaleDateString('en-US', { month: 'short' })
+  return `${fmt(d)} – ${fmt(end)}`
 }
 
 const ganttChartStart = computed(() => {
@@ -1296,7 +1729,15 @@ const matrixDateRangeEnd = computed(() => (matrixChartEnd.value ? new Date(matri
 const timelineExpandedSprints = ref<Record<string, boolean>>({})
 const timelineExpandedEpics = ref<Record<string, boolean>>({})
 
-const matrixGanttRows = computed(() => {
+type MatrixGanttRow = { taskId: string; label: string; bars: { barStart: string; barEnd: string; ganttBarConfig: { id: string; label: string; hasHandles: boolean; class?: string } }[] }
+
+/** Safe CSS class suffix from epic id (no leading digit, no special chars) */
+function epicBarClassSuffix(epicId: string): string {
+  return 'e-' + epicId.replace(/\W/g, '_')
+}
+const matrixGanttRows = ref<MatrixGanttRow[]>([])
+
+function buildMatrixGanttRows() {
   const today = toYMD(new Date().toISOString())
   const tomorrow = toYMD(new Date(Date.now() + 86400000).toISOString())
   const addDays = (ymd: string, days: number) => {
@@ -1304,30 +1745,75 @@ const matrixGanttRows = computed(() => {
     d.setUTCDate(d.getUTCDate() + days)
     return toYMD(d.toISOString())
   }
-  const rows: { taskId: string; label: string; bars: { barStart: string; barEnd: string; ganttBarConfig: { id: string; label: string; hasHandles: boolean } }[] }[] = []
+  const rows: MatrixGanttRow[] = []
   if (timelineMode.value === 'epic' && epicTimelineData.value?.epics?.length) {
-    for (const ep of epicTimelineData.value.epics) {
-      const epStart = ep.start_date ? toYMD(ep.start_date) : today
-      let epEnd = ep.end_date ? toYMD(ep.end_date) : tomorrow
-      if (epEnd <= epStart) epEnd = addDays(epStart, 1)
-      const taskCount = (ep.tasks || []).length
+    const timelineEpicMap = new Map(epicTimelineData.value.epics.map((e) => [e.id, e]))
+    const backlogOrder = epics.value
+    const epicIdsInOrder = backlogOrder.length
+      ? backlogOrder.map((e) => e.id).filter((id) => timelineEpicMap.has(id))
+      : epicTimelineData.value.epics.map((e) => e.id)
+    type TaskLike = { start_date?: string | null; end_date?: string | null; due_at?: string | null; sub_tasks?: TaskLike[] }
+    const taskDateRange = (t: TaskLike): { s: string; e: string } => {
+      const s = t.start_date ? toYMD(t.start_date) : (t.due_at ? toYMD(t.due_at) : today)
+      let e = t.end_date ? toYMD(t.end_date) : (t.due_at ? toYMD(t.due_at) : tomorrow)
+      if (e <= s) e = addDays(s, 1)
+      return { s, e }
+    }
+    const allTaskRangesInEpic = (taskList: TaskLike[]): { s: string; e: string }[] => {
+      const out: { s: string; e: string }[] = []
+      const walk = (tasks: TaskLike[]) => {
+        for (const t of tasks || []) {
+          out.push(taskDateRange(t))
+          if (t.sub_tasks?.length) walk(t.sub_tasks)
+        }
+      }
+      walk(taskList || [])
+      return out
+    }
+    for (const epicId of epicIdsInOrder) {
+      const ep = timelineEpicMap.get(epicId)
+      if (!ep) continue
+      const tasks = ep.tasks || []
+      const ranges = allTaskRangesInEpic(tasks)
+      let epStart: string
+      let epEnd: string
+      if (ranges.length > 0) {
+        let minT = ranges[0].s
+        let maxT = ranges[0].e
+        for (const r of ranges) {
+          if (r.s < minT) minT = r.s
+          if (r.e > maxT) maxT = r.e
+        }
+        epStart = minT
+        epEnd = maxT <= minT ? addDays(minT, 1) : maxT
+      } else {
+        // No tasks: epic bar length follows "tasks inside" = minimal one-day bar (not epic's own dates)
+        epStart = today
+        epEnd = tomorrow
+        if (epEnd <= epStart) epEnd = addDays(epStart, 1)
+      }
+      const taskCount = tasks.length
       const expanded = timelineExpandedEpics.value[ep.id]
       const toggle = expanded ? '▼' : '▶'
+      const epicBarClass = `gantt-bar-epic gantt-bar-epic-${epicBarClassSuffix(ep.id)}`
+      // Always show epic bar (both when collapsed and when expanded).
+      const epicBar = [{ barStart: epStart, barEnd: epEnd, ganttBarConfig: { id: `epic-${ep.id}`, label: ep.title, hasHandles: true, class: epicBarClass } }]
       rows.push({
         taskId: `epic-${ep.id}`,
         label: `${toggle} 📁 ${ep.title}${taskCount ? ` (${taskCount})` : ''}`,
-        bars: [{ barStart: epStart, barEnd: epEnd, ganttBarConfig: { id: `epic-${ep.id}`, label: ep.title, hasHandles: false } }],
+        bars: epicBar,
       })
       if (expanded) {
+        const taskBarClass = `gantt-bar-task gantt-bar-task-epic-${epicBarClassSuffix(ep.id)}`
         for (const task of ep.tasks || []) {
           let start = task.start_date ? toYMD(task.start_date) : (task.due_at ? toYMD(task.due_at) : today)
           let end = task.end_date ? toYMD(task.end_date) : (task.due_at ? toYMD(task.due_at) : tomorrow)
           if (end <= start) end = addDays(start, 1)
-          const label = `${task.code || ''} ${task.title}`.trim() || task.title
+          const label = task.title || ''
           rows.push({
             taskId: task.id,
-            label: `  ${label.length > 35 ? label.slice(0, 32) + '…' : label}`,
-            bars: [{ barStart: start, barEnd: end, ganttBarConfig: { id: task.id, label, hasHandles: true } }],
+            label: `  ${label}`,
+            bars: [{ barStart: start, barEnd: end, ganttBarConfig: { id: task.id, label, hasHandles: true, class: taskBarClass } }],
           })
         }
       }
@@ -1343,25 +1829,66 @@ const matrixGanttRows = computed(() => {
       rows.push({
         taskId: `sprint-${sp.id}`,
         label: `${toggle} 🏃 ${sp.name}${taskCount ? ` (${taskCount})` : ''}`,
-        bars: [{ barStart: spStart, barEnd: spEnd, ganttBarConfig: { id: `sprint-${sp.id}`, label: sp.name, hasHandles: false } }],
+        bars: [{ barStart: spStart, barEnd: spEnd, ganttBarConfig: { id: `sprint-${sp.id}`, label: sp.name, hasHandles: true, class: 'gantt-bar-sprint' } }],
       })
       if (expanded) {
         for (const task of sp.tasks || []) {
           let start = task.start_date ? toYMD(task.start_date) : (task.due_at ? toYMD(task.due_at) : today)
           let end = task.end_date ? toYMD(task.end_date) : (task.due_at ? toYMD(task.due_at) : tomorrow)
           if (end <= start) end = addDays(start, 1)
-          const label = `${task.code || ''} ${task.title}`.trim() || task.title
+          const label = task.title || ''
           rows.push({
             taskId: task.id,
-            label: `  ${label.length > 35 ? label.slice(0, 32) + '…' : label}`,
-            bars: [{ barStart: start, barEnd: end, ganttBarConfig: { id: task.id, label, hasHandles: true } }],
+            label: `  ${label}`,
+            bars: [{ barStart: start, barEnd: end, ganttBarConfig: { id: task.id, label, hasHandles: true, class: 'gantt-bar-task' } }],
           })
         }
       }
     }
   }
-  return rows
+  matrixGanttRows.value = rows
+}
+
+watch(
+  () => [
+    timelineMode.value,
+    epicTimelineData.value,
+    sprintTimelineData.value,
+    timelineExpandedEpics.value,
+    timelineExpandedSprints.value,
+  ],
+  () => buildMatrixGanttRows(),
+  { deep: true }
+)
+
+/** Dynamic CSS for epic (and its tasks) Gantt bar colors – same color for epic and tasks under it. */
+const epicBarStyles = computed(() => {
+  if (timelineMode.value !== 'epic' || !epicTimelineData.value?.epics?.length) return ''
+  const lines: string[] = []
+  for (const ep of epicTimelineData.value.epics) {
+    const color = ep.color || '#6366f1'
+    const safeId = epicBarClassSuffix(ep.id)
+    const colorAlpha = color.length === 7 ? `${color}80` : color
+    const shadowAlpha = color.length === 7 ? `${color}66` : color
+    // Epic bar
+    lines.push(
+      `.gantt-enterprise .g-gantt-bar.gantt-bar-epic.gantt-bar-epic-${safeId} { background: ${color} !important; border: 1px solid ${colorAlpha} !important; }`,
+      `.gantt-enterprise .g-gantt-bar.gantt-bar-epic.gantt-bar-epic-${safeId}:hover { transform: translateY(-1px); box-shadow: 0 4px 12px ${shadowAlpha}; }`
+    )
+    // Task bars under this epic – same color
+    lines.push(
+      `.gantt-enterprise .g-gantt-bar.gantt-bar-task.gantt-bar-task-epic-${safeId} { background: ${color} !important; border: 1px solid ${colorAlpha} !important; }`,
+      `.gantt-enterprise .g-gantt-bar.gantt-bar-task.gantt-bar-task-epic-${safeId}:hover { transform: translateY(-1px); box-shadow: 0 4px 12px ${shadowAlpha}; }`
+    )
+  }
+  return lines.join('\n')
 })
+
+const milestoneDragPosition = ref<{ id: string; left: number } | null>(null)
+
+function onMilestoneDragMove(payload: { milestoneId: string; leftPx: number }) {
+  milestoneDragPosition.value = { id: payload.milestoneId, left: payload.leftPx }
+}
 
 const matrixMilestoneLinePositions = computed(() => {
   if (!matrixChartStart.value || !matrixChartEnd.value || matrixChartWidth.value <= 0) return []
@@ -1370,10 +1897,12 @@ const matrixMilestoneLinePositions = computed(() => {
   if (end <= start) return []
   const gridOffset = 220
   const chartContentWidth = matrixChartWidth.value
+  const drag = milestoneDragPosition.value
   const list = milestones.value
     .filter((m): m is Milestone & { due_date: string } => !!m.due_date)
     .sort((a, b) => toLocalMidnight(a.due_date) - toLocalMidnight(b.due_date))
   return list.map((m) => {
+    if (drag?.id === m.id) return { id: m.id, left: drag.left }
     const date = toLocalMidnight(m.due_date)
     const pct = Math.max(0, Math.min(1, (date - start) / (end - start)))
     const left = gridOffset + pct * chartContentWidth
@@ -1381,7 +1910,17 @@ const matrixMilestoneLinePositions = computed(() => {
   })
 })
 
+const ganttBarJustDragged = ref(false)
+
+function onMatrixGanttDragStart() {
+  ganttBarJustDragged.value = true
+}
+
 function onMatrixGanttClickBar(payload: { bar: { ganttBarConfig: { id: string } } }) {
+  if (ganttBarJustDragged.value) {
+    ganttBarJustDragged.value = false
+    return
+  }
   const id = payload?.bar?.ganttBarConfig?.id
   if (!id) return
   if (id.startsWith('epic-')) {
@@ -1415,51 +1954,293 @@ function onMatrixLabelClickByLabel(label: string) {
   router.push(taskUrl(id))
 }
 
+function expandAllTimelineTasks() {
+  if (timelineMode.value === 'epic' && epicTimelineData.value?.epics?.length) {
+    const next: Record<string, boolean> = {}
+    for (const ep of epicTimelineData.value.epics) next[ep.id] = true
+    timelineExpandedEpics.value = next
+  } else if (timelineMode.value === 'sprint' && sprintTimelineData.value?.sprints?.length) {
+    const next: Record<string, boolean> = {}
+    for (const sp of sprintTimelineData.value.sprints) next[sp.id] = true
+    timelineExpandedSprints.value = next
+  }
+}
+
+function collapseAllTimelineTasks() {
+  if (timelineMode.value === 'epic' && epicTimelineData.value?.epics?.length) {
+    const next: Record<string, boolean> = {}
+    for (const ep of epicTimelineData.value.epics) next[ep.id] = false
+    timelineExpandedEpics.value = next
+  } else if (timelineMode.value === 'sprint' && sprintTimelineData.value?.sprints?.length) {
+    const next: Record<string, boolean> = {}
+    for (const sp of sprintTimelineData.value.sprints) next[sp.id] = false
+    timelineExpandedSprints.value = next
+  }
+}
+
 function onGanttClickBar(payload: { bar: { ganttBarConfig: { id: string } } }) {
   const id = payload?.bar?.ganttBarConfig?.id
   if (id) router.push(taskUrl(id))
 }
 
-async function onGanttDragEnd(payload: { movedBars?: Map<string, { start: string | Date; end: string | Date }> }) {
-  const map = payload.movedBars
-  if (!map || map.size === 0) return
-  for (const [taskId, range] of map) {
-    const start = typeof range.start === 'string' ? range.start : (range.start as Date).toISOString()
-    const end = typeof range.end === 'string' ? range.end : (range.end as Date).toISOString()
-    try {
-      await tasksApi.updateTask(taskId, {
-        start_date: start,
-        end_date: end,
-      })
-      const idx = allTasks.value.findIndex((t) => t.id === taskId)
-      if (idx !== -1) {
-        allTasks.value[idx] = {
-          ...allTasks.value[idx],
-          start_date: start,
-          end_date: end,
-        }
-      }
-    } catch (e) {
-      console.error('Failed to update task dates:', e)
+function barDateToISO(v: unknown): string {
+  if (typeof v === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + 'T12:00:00Z').toISOString()
+    return new Date(v).toISOString()
+  }
+  if (v instanceof Date) return v.toISOString()
+  return ''
+}
+
+/** อัปเดตข้อมูล timeline ในเครื่อง (ไม่โหลดใหม่) เพื่อไม่ให้ scroll กระโดด */
+function updateEpicInTimelineData(epicId: string, payload: { start_date?: string; end_date?: string }) {
+  const epics = epicTimelineData.value?.epics
+  if (!epics) return
+  const ep = epics.find((e) => e.id === epicId)
+  if (ep) {
+    if (payload.start_date != null) ep.start_date = payload.start_date
+    if (payload.end_date != null) ep.end_date = payload.end_date
+  }
+}
+
+function updateSprintInTimelineData(sprintId: string, payload: { start_date?: string; end_date?: string }) {
+  const sprints = sprintTimelineData.value?.sprints
+  if (!sprints) return
+  const sp = sprints.find((s) => s.id === sprintId)
+  if (sp) {
+    if (payload.start_date != null) sp.start_date = payload.start_date
+    if (payload.end_date != null) sp.end_date = payload.end_date
+  }
+}
+
+function updateTaskInTimelineData(taskId: string, start_date: string, end_date: string) {
+  for (const ep of epicTimelineData.value?.epics ?? []) {
+    const t = ep.tasks?.find((x) => x.id === taskId)
+    if (t) {
+      t.start_date = start_date
+      t.end_date = end_date
+      break
+    }
+  }
+  for (const sp of sprintTimelineData.value?.sprints ?? []) {
+    const t = sp.tasks?.find((x) => x.id === taskId)
+    if (t) {
+      t.start_date = start_date
+      t.end_date = end_date
+      break
     }
   }
 }
 
+/** คำนวณ start/end ของ epic ให้ครอบคลุมทุก task ใน epic นั้น แล้วอัปเดต API + ข้อมูลในเครื่อง */
+async function syncEpicDatesFromTasks(epicId: string) {
+  const tasksInEpic = allTasks.value.filter((t) => t.epic_id === epicId && !t.parent_id)
+  if (tasksInEpic.length === 0) return
+  let minStart: Date | null = null
+  let maxEnd: Date | null = null
+  for (const t of tasksInEpic) {
+    const s = t.start_date ? new Date(t.start_date) : (t.due_at ? new Date(t.due_at) : null)
+    const e = t.end_date ? new Date(t.end_date) : (t.due_at ? new Date(t.due_at) : null)
+    if (s) minStart = minStart == null ? s : (s < minStart ? s : minStart)
+    if (e) maxEnd = maxEnd == null ? e : (e > maxEnd ? e : maxEnd)
+  }
+  if (minStart == null || maxEnd == null) return
+  if (maxEnd <= minStart) maxEnd = new Date(minStart.getTime() + 86400000)
+  const startStr = minStart.toISOString()
+  const endStr = maxEnd.toISOString()
+  try {
+    await projectsApi.updateEpic(epicId, { start_date: startStr, end_date: endStr })
+    updateEpicInTimelineData(epicId, { start_date: startStr, end_date: endStr })
+  } catch (err) {
+    console.error('Failed to sync epic dates from tasks:', err)
+  }
+}
+
+function getTimelineScrollElement(): HTMLElement | null {
+  const wrapper = timelineScrollWrapperRef.value
+  if (!wrapper) return null
+  if (timelineFullscreen.value) {
+    const inner = wrapper.querySelector('.timeline-fullscreen-scroll')
+    return inner as HTMLElement | null
+  }
+  return wrapper
+}
+
+function onTimelinePanStart(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest('.g-gantt-bar, .g-gantt-bar-handle-left, .g-gantt-bar-handle-right, .g-label-column, .milestone-marker, button, a')) return
+  const scrollEl = getTimelineScrollElement()
+  if (!scrollEl) return
+  const startX = e.clientX
+  const startY = e.clientY
+  const startScrollLeft = scrollEl.scrollLeft
+  const startScrollTop = scrollEl.scrollTop
+  const onMove = (e2: MouseEvent) => {
+    scrollEl.scrollLeft = Math.max(0, startScrollLeft + (startX - e2.clientX))
+    if (timelineFullscreen.value) scrollEl.scrollTop = Math.max(0, startScrollTop + (startY - e2.clientY))
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.removeProperty('cursor')
+    document.body.style.removeProperty('user-select')
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+  document.body.style.cursor = 'grabbing'
+  document.body.style.userSelect = 'none'
+}
+
+function onTimelinePanStartTouch(e: TouchEvent) {
+  if ((e.target as HTMLElement).closest('.g-gantt-bar, .g-gantt-bar-handle-left, .g-gantt-bar-handle-right, .g-label-column, .milestone-marker, button, a')) return
+  const scrollEl = getTimelineScrollElement()
+  if (!scrollEl || e.touches.length !== 1) return
+  const startX = e.touches[0].clientX
+  const startY = e.touches[0].clientY
+  const startScrollLeft = scrollEl.scrollLeft
+  const startScrollTop = scrollEl.scrollTop
+  const onMove = (e2: TouchEvent) => {
+    if (e2.touches.length !== 1) return
+    e2.preventDefault()
+    scrollEl.scrollLeft = Math.max(0, startScrollLeft + (startX - e2.touches[0].clientX))
+    if (timelineFullscreen.value) scrollEl.scrollTop = Math.max(0, startScrollTop + (startY - e2.touches[0].clientY))
+  }
+  const onEnd = () => {
+    document.removeEventListener('touchmove', onMove, { capture: true })
+    document.removeEventListener('touchend', onEnd)
+  }
+  document.addEventListener('touchmove', onMove, { capture: true, passive: false })
+  document.addEventListener('touchend', onEnd)
+}
+
+async function onGanttDragEnd(payload: { bar?: { barStart?: unknown; barEnd?: unknown; ganttBarConfig?: { id?: string } }; movedBars?: Map<unknown, unknown> }) {
+  ganttBarJustDragged.value = true
+  const map = payload.movedBars
+  if (!map || map.size === 0) {
+    nextTick(() => { ganttBarJustDragged.value = false })
+    return
+  }
+  const projectId = project.value?.id
+  if (!projectId) {
+    nextTick(() => { ganttBarJustDragged.value = false })
+    return
+  }
+  const affectedEpicIds = new Set<string>()
+  for (const [barObj, _old] of map) {
+    const bar = barObj as { barStart?: unknown; barEnd?: unknown; ganttBarConfig?: { id?: string } }
+    const barId = bar?.ganttBarConfig?.id
+    if (!barId) continue
+    const start = barDateToISO(bar.barStart)
+    const end = barDateToISO(bar.barEnd)
+    if (!start || !end) continue
+    try {
+      if (barId.startsWith('epic-')) {
+        const epicId = barId.slice('epic-'.length)
+        await projectsApi.updateEpic(epicId, { start_date: start, end_date: end })
+        updateEpicInTimelineData(epicId, { start_date: start, end_date: end })
+      } else if (barId.startsWith('sprint-')) {
+        const sprintId = barId.slice('sprint-'.length)
+        const toNoonUTC = (iso: string) => toYMD(iso) + 'T12:00:00.000Z'
+        const startNorm = toNoonUTC(start)
+        const endNorm = toNoonUTC(end)
+        const newStartMs = new Date(startNorm).getTime()
+        const newEndMs = new Date(endNorm).getTime()
+        const newDurationMs = Math.max(newEndMs - newStartMs, 86400000)
+
+        const oldSprint = sprintTimelineData.value?.sprints?.find((s) => s.id === sprintId) ?? sprints.value.find((s) => s.id === sprintId)
+        const oldStartYMD = oldSprint?.start_date ? toYMD(oldSprint.start_date) : null
+        const oldEndYMD = oldSprint?.end_date ? toYMD(oldSprint.end_date) : null
+        const oldStartMs = oldStartYMD ? new Date(oldStartYMD + 'T12:00:00.000Z').getTime() : newStartMs
+        const oldEndMs = oldEndYMD ? new Date(oldEndYMD + 'T12:00:00.000Z').getTime() : newEndMs
+        const oldDurationMs = Math.max(oldEndMs - oldStartMs, 86400000)
+
+        const updatedSprint = await projectsApi.updateSprint(sprintId, { start_date: startNorm, end_date: endNorm })
+        const sprintIdx = sprints.value.findIndex((s) => s.id === sprintId)
+        if (sprintIdx !== -1) sprints.value[sprintIdx] = { ...sprints.value[sprintIdx], ...updatedSprint }
+        updateSprintInTimelineData(sprintId, { start_date: startNorm, end_date: endNorm })
+
+        const tasksInSprint = allTasks.value.filter((t) => t.sprint_id === sprintId)
+        for (const t of tasksInSprint) {
+          const hasStart = t.start_date != null && t.start_date !== ''
+          const hasEnd = t.end_date != null && t.end_date !== ''
+          let tStartMs: number
+          let tEndMs: number
+          if (hasStart && hasEnd) {
+            tStartMs = new Date(toYMD(t.start_date!) + 'T12:00:00.000Z').getTime()
+            tEndMs = new Date(toYMD(t.end_date!) + 'T12:00:00.000Z').getTime()
+          } else {
+            tStartMs = oldStartMs
+            tEndMs = oldEndMs
+          }
+          let ratioStart = (tStartMs - oldStartMs) / oldDurationMs
+          let ratioEnd = (tEndMs - oldStartMs) / oldDurationMs
+          ratioStart = Math.max(0, Math.min(1, ratioStart))
+          ratioEnd = Math.max(0, Math.min(1, ratioEnd))
+          if (ratioEnd <= ratioStart) ratioEnd = Math.min(1, ratioStart + 1 / 7)
+          const newTStartMs = newStartMs + ratioStart * (newEndMs - newStartMs)
+          const newTEndMs = newStartMs + ratioEnd * (newEndMs - newStartMs)
+          const startVal = toNoonUTC(new Date(newTStartMs).toISOString())
+          const endVal = toNoonUTC(new Date(newTEndMs).toISOString())
+          try {
+            await tasksApi.updateTask(t.id, { start_date: startVal, end_date: endVal })
+            const idx = allTasks.value.findIndex((x) => x.id === t.id)
+            if (idx !== -1) {
+              allTasks.value[idx] = { ...allTasks.value[idx], start_date: startVal, end_date: endVal }
+            }
+            updateTaskInTimelineData(t.id, startVal, endVal)
+          } catch (e) {
+            console.error('Failed to scale task dates:', t.id, e)
+          }
+        }
+      } else {
+        await tasksApi.updateTask(barId, { start_date: start, end_date: end })
+        const idx = allTasks.value.findIndex((t) => t.id === barId)
+        if (idx !== -1) {
+          allTasks.value[idx] = {
+            ...allTasks.value[idx],
+            start_date: start,
+            end_date: end,
+          }
+          const epicId = allTasks.value[idx].epic_id
+          if (epicId) affectedEpicIds.add(epicId)
+        }
+        updateTaskInTimelineData(barId, start, end)
+      }
+    } catch (e) {
+      console.error('Failed to update dates after drag/resize:', e)
+    }
+  }
+  for (const epicId of affectedEpicIds) {
+    await syncEpicDatesFromTasks(epicId)
+  }
+  buildMatrixGanttRows()
+  nextTick(() => setTimeout(() => { ganttBarJustDragged.value = false }, 0))
+}
+
 function scrollTimelineToToday() {
   nextTick(() => {
-    const wrapper = timelineScrollWrapperRef.value
+    const scrollEl = getTimelineScrollElement()
     const width = matrixChartWidth.value
-    if (!wrapper || width <= 0) return
+    if (!scrollEl || width <= 0) return
     const start = toLocalMidnight(matrixChartStart.value)
     const end = toLocalMidnight(matrixChartEnd.value)
     const now = Date.now()
     const pct = end > start ? Math.max(0, Math.min(1, (now - start) / (end - start))) : 0.5
     const todayOffsetFromLeft = 0.18
     const todayLeftPx = 220 + pct * width
-    const targetScroll = Math.max(0, todayLeftPx - wrapper.clientWidth * todayOffsetFromLeft)
-    const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth)
-    wrapper.scrollLeft = Math.min(targetScroll, maxScroll)
+    const targetScroll = Math.max(0, todayLeftPx - scrollEl.clientWidth * todayOffsetFromLeft)
+    const maxScroll = Math.max(0, scrollEl.scrollWidth - scrollEl.clientWidth)
+    scrollEl.scrollLeft = Math.min(targetScroll, maxScroll)
   })
+}
+
+async function onExportTimelinePdf() {
+  if (!project.value) return
+  await exportTimelinePdf(
+    project.value,
+    timelineMode.value,
+    epicTimelineData.value,
+    sprintTimelineData.value
+  )
 }
 
 // State
@@ -1488,9 +2269,13 @@ const EPIC_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b
 
 // Computed
 const activeSprint = computed(() => sprints.value.find((s) => s.status === 'ACTIVE') ?? null)
-/** Sprints for "All sprints" list: ACTIVE first, then others in original order */
-const sprintsWithActiveFirst = computed(() =>
-  [...sprints.value].sort((a, b) => (a.status === 'ACTIVE' ? -1 : b.status === 'ACTIVE' ? 1 : 0))
+/** Sprints ordered by sort_order (for drag-and-drop reorder). Display uses this. */
+const sprintsOrdered = computed(() =>
+  [...sprints.value].sort(
+    (a, b) =>
+      (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )
 )
 const totalTasks = computed(() => allTasks.value.length)
 const completedCount = computed(() => allTasks.value.filter((t) => t.status === 'COMPLETED').length)
@@ -1511,6 +2296,41 @@ function getSubTasks(parentId: string) {
   return allTasks.value.filter((t) => t.parent_id === parentId)
 }
 
+/** Backlog display order: epics (with tasks + subs) then unassigned (tasks + subs). Used to assign 001, 002, 003. */
+const allTasksInBacklogOrder = computed(() => {
+  const list: typeof allTasks.value = []
+  epics.value.forEach((ep) => {
+    getTasksForEpic(ep.id).forEach((t) => {
+      list.push(t)
+      list.push(...getSubTasks(t.id))
+    })
+  })
+  getUnassignedTasks().forEach((t) => {
+    list.push(t)
+    list.push(...getSubTasks(t.id))
+  })
+  return list
+})
+
+const taskDisplayCodeMap = computed(() => {
+  const m: Record<string, string> = {}
+  allTasksInBacklogOrder.value.forEach((t, i) => {
+    m[t.id] = String(i + 1).padStart(3, '0')
+  })
+  return m
+})
+
+function taskDisplayCode(task: { id: string; code?: string }) {
+  return taskDisplayCodeMap.value[task.id] ?? taskCodeSuffix(task.code)
+}
+
+/** Show only numeric part for display (e.g. "hdmap-001" → "001"). */
+function taskCodeSuffix(code: string | undefined): string {
+  if (!code) return '–'
+  const suffix = code.split('-').pop()
+  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(3, '0') : code
+}
+
 function sprintTaskCount(type: 'total' | 'done' | 'sp') {
   if (!activeSprint.value) return 0
   const tasks = allTasks.value.filter((t) => t.sprint_id === activeSprint.value!.id)
@@ -1518,6 +2338,15 @@ function sprintTaskCount(type: 'total' | 'done' | 'sp') {
   if (type === 'done') return tasks.filter((t) => t.status === 'COMPLETED').length
   if (type === 'sp') return tasks.reduce((s, t) => s + (t.story_points || 0), 0)
   return 0
+}
+
+function getSprintStats(sprintId: string) {
+  const tasks = allTasks.value.filter((t) => !t.parent_id && t.sprint_id === sprintId)
+  return {
+    total: tasks.length,
+    done: tasks.filter((t) => t.status === 'COMPLETED').length,
+    sp: tasks.reduce((s, t) => s + (t.story_points || 0), 0),
+  }
 }
 
 function statusClass(status: string) {
@@ -1553,13 +2382,86 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** Convert ISO date string (UTC) to "YYYY-MM-DDTHH:mm" in local time for datetime-local input */
+function isoToDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${h}:${min}`
+}
+
+const BACKLOG_EXPANDED_STORAGE_KEY = 'sentinel-backlog-expanded'
+const BACKLOG_EXPECT_RETURN_KEY = 'sentinel-backlog-expect-return'
+
 function taskUrl(taskId: string) {
   const projectId = route.params.id as string
   const tab = activeTab.value
   return { path: `/task/${taskId}`, query: { from_project: projectId, from_tab: tab } }
 }
 
+/** Scroll container is <main> in default layout (overflow-auto), not window. */
+function getMainScrollEl(): HTMLElement | null {
+  if (typeof document === 'undefined') return null
+  return document.querySelector('main')
+}
+
+function saveBacklogExpandedState() {
+  if (typeof sessionStorage === 'undefined' || !project.value) return
+  const key = `${BACKLOG_EXPANDED_STORAGE_KEY}-${project.value.id}`
+  try {
+    const main = getMainScrollEl()
+    const scrollTop = main ? main.scrollTop : 0
+    const scrollLeft = main ? main.scrollLeft : 0
+    sessionStorage.setItem(key, JSON.stringify({
+      expandedEpics: { ...expandedEpics.value },
+      expandedEpicGroups: { ...expandedEpicGroups.value },
+      scrollTop,
+      scrollLeft,
+    }))
+    sessionStorage.setItem(BACKLOG_EXPECT_RETURN_KEY, project.value.id)
+  } catch {
+    // ignore quota or parse errors
+  }
+}
+
+/** Restores expanded state from sessionStorage. Returns saved scroll position if any (for caller to apply after paint). */
+function restoreBacklogExpandedState(projectId: string): { scrollTop: number; scrollLeft: number } | null {
+  if (typeof sessionStorage === 'undefined') return null
+  const key = `${BACKLOG_EXPANDED_STORAGE_KEY}-${projectId}`
+  try {
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return null
+    const data = JSON.parse(raw) as {
+      expandedEpics?: Record<string, boolean>
+      expandedEpicGroups?: Record<string, boolean>
+      scrollTop?: number
+      scrollLeft?: number
+    }
+    if (data.expandedEpics && typeof data.expandedEpics === 'object') {
+      expandedEpics.value = { ...data.expandedEpics }
+    }
+    if (data.expandedEpicGroups && typeof data.expandedEpicGroups === 'object') {
+      expandedEpicGroups.value = { ...data.expandedEpicGroups }
+    }
+    const scrollTop = typeof data.scrollTop === 'number' ? data.scrollTop : 0
+    const scrollLeft = typeof data.scrollLeft === 'number' ? data.scrollLeft : 0
+    if (scrollTop > 0 || scrollLeft > 0) {
+      return { scrollTop, scrollLeft }
+    }
+    return null
+  } catch {
+    // ignore parse errors
+    return null
+  }
+}
+
 function navigateToTask(id: string) {
+  if (activeTab.value === 'backlog') saveBacklogExpandedState()
   router.push(taskUrl(id))
 }
 
@@ -1585,8 +2487,31 @@ async function loadAll() {
     sprints.value = s
     milestones.value = m
     epics.value = e
-    // Auto-expand all epic groups
-    e.forEach((ep) => { expandedEpicGroups.value[ep.id] = true })
+    // Default: collapse all epic groups and tasks (user expands to see). On refresh we keep collapsed; only restore when returning from task page.
+    e.forEach((ep) => { expandedEpicGroups.value[ep.id] = false })
+    expandedEpicGroups.value['__unassigned__'] = false
+    expandedEpics.value = {}
+    const expectReturn = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(BACKLOG_EXPECT_RETURN_KEY) : null
+    const shouldRestore = expectReturn === p.id
+    if (shouldRestore && typeof sessionStorage !== 'undefined') sessionStorage.removeItem(BACKLOG_EXPECT_RETURN_KEY)
+    const savedScroll = shouldRestore ? restoreBacklogExpandedState(p.id) : null
+    if (savedScroll && activeTab.value === 'backlog') {
+      nextTick(() => {
+        const apply = () => {
+          const main = getMainScrollEl()
+          if (main) {
+            main.scrollTop = savedScroll!.scrollTop
+            main.scrollLeft = savedScroll!.scrollLeft
+          }
+        }
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            apply()
+            setTimeout(apply, 80)
+          })
+        })
+      })
+    }
   } catch (e: any) {
     error.value = e.message || 'Failed to load project'
   } finally {
@@ -1636,10 +2561,34 @@ async function handleStatusChange(taskId: string, status: string) {
 // Inline field update (priority, sprint, epic_id)
 async function updateTaskField(taskId: string, field: string, value: any) {
   const idx = allTasks.value.findIndex((t) => t.id === taskId)
-  if (idx !== -1) (allTasks.value[idx] as any)[field] = value || null
+  const task = idx !== -1 ? allTasks.value[idx] : null
+  if (task) (task as any)[field] = value || null
   try {
-    const payload = field === 'epic_id' ? { [field]: value ?? '' } : { [field]: value || undefined }
-    await tasksApi.updateTask(taskId, payload)
+    const payload: Record<string, unknown> = field === 'epic_id' ? { [field]: value ?? '' } : { [field]: value || undefined }
+    // When moving task to a sprint, clamp start/end to sprint range so the bar shows within the sprint
+    if (field === 'sprint_id' && value && task) {
+      let sprint = sprints.value.find((s) => s.id === value) ?? null
+      if (!sprint?.start_date && sprintTimelineData.value?.sprints?.length) {
+        const fromTimeline = sprintTimelineData.value.sprints.find((s) => s.id === value)
+        if (fromTimeline) sprint = fromTimeline as Sprint
+      }
+      const dates = sprint ? taskDatesInSprintRange(task, sprint) : null
+      if (dates) {
+        payload.start_date = dates.start_date
+        payload.end_date = dates.end_date
+        if (idx !== -1) {
+          allTasks.value[idx] = { ...allTasks.value[idx], start_date: dates.start_date, end_date: dates.end_date }
+        }
+      }
+    }
+    await tasksApi.updateTask(taskId, payload as any)
+    // Keep Epic and Sprint timeline in sync: update task dates in both in-memory datasets
+    if (field === 'sprint_id' && payload.start_date && payload.end_date) {
+      updateTaskInTimelineData(taskId, payload.start_date as string, payload.end_date as string)
+    }
+    // Refresh timeline data so task appears under the correct sprint/epic row
+    if (field === 'sprint_id') await loadSprintTimeline()
+    else if (field === 'epic_id') await loadEpicTimeline()
   } catch {
     await loadAll()
   }
@@ -1649,6 +2598,128 @@ function openEditSpField(task: Task) {
   const sp = prompt(`Story points for "${task.title}":`, String(task.story_points || 0))
   if (sp !== null && !isNaN(Number(sp))) {
     updateTaskField(task.id, 'story_points', Number(sp))
+  }
+}
+
+// Edit Task Title modal
+const showEditTaskTitleModal = ref(false)
+const editingTaskForTitle = ref<Task | null>(null)
+const editTaskTitleValue = ref('')
+const isSavingTaskTitle = ref(false)
+
+function openEditTaskTitle(task: Task) {
+  editingTaskForTitle.value = task
+  editTaskTitleValue.value = task.title || ''
+  showEditTaskTitleModal.value = true
+}
+
+function closeEditTaskTitleModal() {
+  showEditTaskTitleModal.value = false
+  editingTaskForTitle.value = null
+  editTaskTitleValue.value = ''
+}
+
+async function saveEditTaskTitle() {
+  const task = editingTaskForTitle.value
+  const trimmed = editTaskTitleValue.value.trim()
+  if (!task || !trimmed) return
+  isSavingTaskTitle.value = true
+  try {
+    await updateTaskField(task.id, 'title', trimmed)
+    closeEditTaskTitleModal()
+  } finally {
+    isSavingTaskTitle.value = false
+  }
+}
+
+const isDuplicatingTask = ref(false)
+/** After duplicate: keep new task visually right below original until page refresh. */
+const duplicatePlacement = ref<{ newId: string; afterId: string } | null>(null)
+
+async function duplicateTask(task: Task) {
+  if (!project.value) return
+  isDuplicatingTask.value = true
+  duplicatePlacement.value = null
+  try {
+    const payload: any = {
+      title: (task.title || '').trim() ? `${(task.title || '').trim()} (copy)` : 'Task (copy)',
+      description: task.description || '',
+      priority: task.priority || 'MEDIUM',
+      story_points: task.story_points ?? 0,
+      project_id: project.value.id,
+    }
+    if (task.epic_id) payload.epic_id = task.epic_id
+    if (task.sprint_id != null) payload.sprint_id = task.sprint_id
+    let newTask = await tasksApi.createTask(payload)
+    const nextOrder = (task.sort_order ?? 0) + 1
+    try {
+      const updated = await tasksApi.updateTask(newTask.id, { sort_order: nextOrder })
+      newTask = updated
+    } catch {
+      // ignore if backend doesn't support sort_order on update
+    }
+    const idx = allTasks.value.findIndex((t) => t.id === task.id)
+    if (idx !== -1) {
+      allTasks.value.splice(idx + 1, 0, newTask)
+    } else {
+      allTasks.value.unshift(newTask)
+    }
+    // Keep duplicated task below original in backlog until refresh
+    duplicatePlacement.value = { newId: newTask.id, afterId: task.id }
+  } catch (e: any) {
+    console.error('Duplicate task failed:', e)
+  } finally {
+    isDuplicatingTask.value = false
+  }
+}
+
+// Edit project modal
+const showEditProjectModal = ref(false)
+const editProjectForm = ref({ name: '', description: '', status: 'ACTIVE' as string, update_code: false })
+const editProjectError = ref('')
+const isSavingProject = ref(false)
+
+function openEditProjectModal() {
+  if (!project.value) return
+  editProjectForm.value = {
+    name: project.value.name,
+    description: project.value.description || '',
+    status: project.value.status || 'ACTIVE',
+    update_code: false,
+  }
+  editProjectError.value = ''
+  showEditProjectModal.value = true
+}
+
+function closeEditProjectModal() {
+  showEditProjectModal.value = false
+}
+
+async function saveEditProject() {
+  if (!project.value) return
+  const idOrCode = (route.params.id as string) || project.value.id || project.value.code
+  if (!idOrCode) return
+  isSavingProject.value = true
+  editProjectError.value = ''
+  try {
+    const updated = await projectsApi.updateProject(idOrCode, {
+      name: editProjectForm.value.name.trim(),
+      description: editProjectForm.value.description,
+      status: editProjectForm.value.status,
+      update_code: editProjectForm.value.update_code,
+    })
+    project.value = updated
+    if (editProjectForm.value.update_code) {
+      await loadAll()
+      if (updated.code && updated.code !== route.params.id) {
+        await router.replace(`/projects/${updated.code}`)
+      }
+    }
+    closeEditProjectModal()
+  } catch (e: any) {
+    editProjectError.value = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'บันทึกไม่สำเร็จ'
+  } finally {
+    isSavingProject.value = false
   }
 }
 
@@ -1671,8 +2742,8 @@ function openEditSprintModal(sprint: Sprint) {
   sprintForm.value = {
     name: sprint.name,
     goal: sprint.goal || '',
-    start_date: sprint.start_date ? new Date(sprint.start_date).toISOString().slice(0, 16) : '',
-    end_date: sprint.end_date ? new Date(sprint.end_date).toISOString().slice(0, 16) : '',
+    start_date: isoToDatetimeLocal(sprint.start_date),
+    end_date: isoToDatetimeLocal(sprint.end_date),
   }
   sprintError.value = ''
   showSprintModal.value = true
@@ -1728,6 +2799,51 @@ async function submitSprint() {
   }
 }
 
+// Sprint drag-and-drop reorder
+const sprintDragId = ref<string | null>(null)
+function onSprintDragStart(e: DragEvent, sprintId: string) {
+  sprintDragId.value = sprintId
+  e.dataTransfer?.setData?.('application/json', JSON.stringify({ type: 'sprint', id: sprintId }))
+  e.dataTransfer!.effectAllowed = 'move'
+}
+function onSprintDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+}
+function onSprintDrop(e: DragEvent, dropIndex: number) {
+  e.preventDefault()
+  sprintDragId.value = null
+  let dragId: string | null = null
+  try {
+    const raw = e.dataTransfer?.getData('application/json')
+    if (raw) {
+      const p = JSON.parse(raw) as { type: string; id: string }
+      if (p.type === 'sprint') dragId = p.id
+    }
+  } catch {}
+  if (!dragId) return
+  const ordered = [...sprintsOrdered.value]
+  const fromIndex = ordered.findIndex((x) => x.id === dragId)
+  if (fromIndex < 0 || fromIndex === dropIndex) return
+  const [removed] = ordered.splice(fromIndex, 1)
+  ordered.splice(dropIndex, 0, removed)
+  reorderSprints(ordered)
+}
+
+async function reorderSprints(newOrder: Sprint[]) {
+  try {
+    for (let i = 0; i < newOrder.length; i++) {
+      const s = newOrder[i]
+      if ((s.sort_order ?? 0) === i) continue
+      const updated = await projectsApi.updateSprint(s.id, { sort_order: i })
+      const idx = sprints.value.findIndex((x) => x.id === s.id)
+      if (idx !== -1) (sprints.value[idx] as Sprint).sort_order = updated.sort_order ?? i
+    }
+  } catch {
+    await loadAll()
+  }
+}
+
 // Add tasks to Sprint
 const showAddTasksToSprintModal = ref(false)
 const sprintForAddTasks = ref<Sprint | null>(null)
@@ -1738,7 +2854,9 @@ const isAddingTasksToSprint = ref(false)
 const tasksNotInSprint = computed(() => {
   const sprintId = sprintForAddTasks.value?.id
   if (!sprintId) return []
-  return allTasks.value.filter((t) => t.sprint_id !== sprintId)
+  return allTasks.value
+    .filter((t) => t.sprint_id !== sprintId)
+    .sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true }))
 })
 
 function openAddTasksToSprintModal(sprint: Sprint) {
@@ -1757,14 +2875,29 @@ function closeAddTasksToSprintModal() {
 
 async function confirmAddTasksToSprint() {
   if (!sprintForAddTasks.value || selectedTaskIdsForSprint.value.length === 0) return
+  const sprint = sprintForAddTasks.value
   isAddingTasksToSprint.value = true
   addTasksToSprintError.value = ''
   try {
-    await projectsApi.addTasksToSprint(sprintForAddTasks.value.id, selectedTaskIdsForSprint.value)
+    await projectsApi.addTasksToSprint(sprint.id, selectedTaskIdsForSprint.value)
     for (const id of selectedTaskIdsForSprint.value) {
       const t = allTasks.value.find((x) => x.id === id)
-      if (t) t.sprint_id = sprintForAddTasks.value!.id
+      if (t) {
+        t.sprint_id = sprint.id
+        const dates = taskDatesInSprintRange(t, sprint)
+        if (dates) {
+          try {
+            await tasksApi.updateTask(id, { start_date: dates.start_date, end_date: dates.end_date })
+            t.start_date = dates.start_date
+            t.end_date = dates.end_date
+            updateTaskInTimelineData(id, dates.start_date, dates.end_date)
+          } catch {
+            // ignore per-task date update failure
+          }
+        }
+      }
     }
+    await loadSprintTimeline()
     closeAddTasksToSprintModal()
   } catch (e: any) {
     const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'เพิ่มงานไม่สำเร็จ'
@@ -1886,8 +3019,7 @@ async function handleStartSprint(id: string) {
     if (idx !== -1) sprints.value[idx] = updated
   } catch (e: any) {
     const msg = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'Failed to start sprint'
-    const text = typeof msg === 'string' ? msg : 'Failed to start sprint'
-    alert(text)
+    showError(typeof msg === 'string' ? msg : 'Failed to start sprint', 'Start sprint failed')
   }
 }
 
@@ -1909,7 +3041,7 @@ function openEditMilestoneModal(m: Milestone) {
   milestoneForm.value = {
     title: m.title,
     description: m.description,
-    due_date: m.due_date ? new Date(m.due_date).toISOString().slice(0, 16) : '',
+    due_date: isoToDatetimeLocal(m.due_date),
     status: m.status,
   }
   milestoneError.value = ''
@@ -1954,13 +3086,33 @@ async function submitMilestone() {
 async function deleteMilestone() {
   if (!editingMilestone.value) return
   const name = editingMilestone.value.title
-  if (!confirm(`ยืนยันการลบ milestone "${name}"?\n\nกด OK เพื่อลบ / Cancel เพื่อยกเลิก`)) return
+  const ok = await confirm({
+    title: 'ยืนยันการลบ milestone',
+    message: `ยืนยันการลบ milestone "${name}"? กด Confirm เพื่อลบ / Cancel เพื่อยกเลิก`,
+    confirmLabel: 'ลบ',
+    cancelLabel: 'ยกเลิก',
+    variant: 'danger'
+  })
+  if (!ok) return
   try {
     await projectsApi.deleteMilestone(editingMilestone.value.id)
     milestones.value = milestones.value.filter((m) => m.id !== editingMilestone.value!.id)
     closeMilestoneModal()
   } catch (e: any) {
     milestoneError.value = e.message
+  }
+}
+
+async function onMilestoneDragEnd(payload: { milestone: Milestone; newDueDate: string }) {
+  milestoneDragPosition.value = null
+  const { milestone, newDueDate } = payload
+  const dueDateISO = newDueDate + 'T12:00:00.000Z'
+  try {
+    const updated = await projectsApi.updateMilestone(milestone.id, { due_date: dueDateISO })
+    const idx = milestones.value.findIndex((m) => m.id === milestone.id)
+    if (idx !== -1) milestones.value[idx] = updated
+  } catch (e) {
+    console.error('Failed to update milestone date:', e)
   }
 }
 
@@ -2112,6 +3264,7 @@ async function loadEpicTimeline() {
   matrixTimelineLoading.value = true
   try {
     epicTimelineData.value = await projectsApi.getEpicTimelineData(project.value.id)
+    nextTick(() => buildMatrixGanttRows())
   } catch (e) {
     console.error('Failed to load epic timeline:', e)
   } finally {
@@ -2124,10 +3277,24 @@ async function loadSprintTimeline() {
   matrixTimelineLoading.value = true
   try {
     sprintTimelineData.value = await projectsApi.getSprintTimelineData(project.value.id)
+    nextTick(() => buildMatrixGanttRows())
   } catch (e) {
     console.error('Failed to load sprint timeline:', e)
   } finally {
     matrixTimelineLoading.value = false
+  }
+}
+
+async function refreshTimeline() {
+  if (!project.value || timelineRefreshing.value) return
+  timelineRefreshing.value = true
+  try {
+    await loadAll()
+    if (timelineMode.value === 'epic') await loadEpicTimeline()
+    else await loadSprintTimeline()
+    nextTick(() => setTimeout(scrollTimelineToToday, 200))
+  } finally {
+    timelineRefreshing.value = false
   }
 }
 
@@ -2145,8 +3312,8 @@ function openEditEpicModal(epic: Epic) {
     title: epic.title,
     description: epic.description || '',
     color: epic.color || '#6366f1',
-    start_date: epic.start_date ? epic.start_date.slice(0, 16) : '',
-    end_date: epic.end_date ? epic.end_date.slice(0, 16) : '',
+    start_date: isoToDatetimeLocal(epic.start_date),
+    end_date: isoToDatetimeLocal(epic.end_date),
   }
   epicError.value = ''
   showEpicModal.value = true
@@ -2175,7 +3342,7 @@ async function submitEpic() {
       payload.project_id = project.value.id
       const created = await projectsApi.createEpic(payload)
       epics.value.push(created)
-      expandedEpicGroups.value[created.id] = true
+      expandedEpicGroups.value[created.id] = false
     }
     closeEpicModal()
   } catch (e: any) {
@@ -2186,7 +3353,14 @@ async function submitEpic() {
 }
 
 async function deleteEpic(epic: Epic) {
-  if (!confirm(`Delete epic "${epic.title}"? Tasks in this epic will be unlinked.`)) return
+  const ok = await confirm({
+    title: 'Delete epic',
+    message: `Delete epic "${epic.title}"? Tasks in this epic will be unlinked.`,
+    confirmLabel: 'Delete',
+    cancelLabel: 'Cancel',
+    variant: 'danger'
+  })
+  if (!ok) return
   isDeletingEpic.value = true
   try {
     await projectsApi.deleteEpic(epic.id)
@@ -2194,7 +3368,7 @@ async function deleteEpic(epic: Epic) {
     // Unlink tasks locally
     allTasks.value = allTasks.value.map((t) => t.epic_id === epic.id ? { ...t, epic_id: null } : t)
   } catch (e: any) {
-    alert(e.message || 'Failed to delete epic')
+    showError(e.message || 'Failed to delete epic', 'Delete epic failed')
   } finally {
     isDeletingEpic.value = false
   }
@@ -2204,18 +3378,236 @@ function toggleEpicGroup(id: string) {
   expandedEpicGroups.value[id] = !expandedEpicGroups.value[id]
 }
 
+function expandAllBacklog() {
+  epics.value.forEach((ep) => { expandedEpicGroups.value[ep.id] = true })
+  expandedEpicGroups.value['__unassigned__'] = true
+  allTasks.value.forEach((t) => {
+    if (!t.parent_id && getSubTasks(t.id).length > 0) expandedEpics.value[t.id] = true
+  })
+}
+
+function collapseAllBacklog() {
+  epics.value.forEach((ep) => { expandedEpicGroups.value[ep.id] = false })
+  expandedEpicGroups.value['__unassigned__'] = false
+  expandedEpics.value = {}
+}
+
+/** Backlog task sort: by sprint order (Backlog first, then Sprint 1, 2, …), then sort_order, then created_at. */
+function backlogSprintOrderIndex(task: { sprint_id?: string | null }) {
+  if (!task.sprint_id) return 0
+  const idx = sprintsOrdered.value.findIndex((s) => s.id === task.sprint_id)
+  return idx === -1 ? 9999 : idx + 1
+}
+
+/** After duplicate: place new task right below original until refresh. */
+function applyDuplicatePlacement<T extends { id: string }>(tasks: T[]): T[] {
+  const placement = duplicatePlacement.value
+  if (!placement || placement.newId === placement.afterId) return tasks
+  const afterIdx = tasks.findIndex((t) => t.id === placement.afterId)
+  const newIdx = tasks.findIndex((t) => t.id === placement.newId)
+  if (afterIdx === -1 || newIdx === -1) return tasks
+  const list = [...tasks]
+  const [item] = list.splice(newIdx, 1)
+  const insertAt = afterIdx < newIdx ? afterIdx + 1 : afterIdx
+  list.splice(insertAt, 0, item)
+  return list
+}
+
 function getTasksForEpic(epicId: string) {
-  return allTasks.value.filter((t) => t.epic_id === epicId && !t.parent_id)
+  const sorted = allTasks.value
+    .filter((t) => t.epic_id === epicId && !t.parent_id)
+    .sort(
+      (a, b) =>
+        backlogSprintOrderIndex(a) - backlogSprintOrderIndex(b) ||
+        (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  return applyDuplicatePlacement(sorted)
 }
 
 function getUnassignedTasks() {
-  return allTasks.value.filter((t) => !t.epic_id && !t.parent_id)
+  const sorted = allTasks.value
+    .filter((t) => !t.epic_id && !t.parent_id)
+    .sort(
+      (a, b) =>
+        backlogSprintOrderIndex(a) - backlogSprintOrderIndex(b) ||
+        (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  return applyDuplicatePlacement(sorted)
+}
+
+// --- Backlog drag-and-drop ---
+async function reorderEpics(newOrder: Epic[]) {
+  for (let i = 0; i < newOrder.length; i++) {
+    if (newOrder[i].sort_order === i) continue
+    try {
+      await projectsApi.updateEpic(newOrder[i].id, { sort_order: i })
+      const idx = epics.value.findIndex((e) => e.id === newOrder[i].id)
+      if (idx >= 0) (epics.value[idx] as { sort_order: number }).sort_order = i
+    } catch {
+      await loadAll()
+      break
+    }
+  }
+}
+
+async function reorderTasksInBacklog(orderedTaskIds: string[]) {
+  try {
+    for (let i = 0; i < orderedTaskIds.length; i++) {
+      await tasksApi.updateTask(orderedTaskIds[i], { sort_order: i })
+      const t = allTasks.value.find((x) => x.id === orderedTaskIds[i])
+      if (t) (t as Task & { sort_order: number }).sort_order = i
+    }
+  } catch {
+    await loadAll()
+  }
+}
+
+const backlogDrag = ref<{ type: 'epic' | 'task'; id: string; epicId?: string | null } | null>(null)
+
+function onEpicDragStart(e: DragEvent, epicId: string) {
+  backlogDrag.value = { type: 'epic', id: epicId }
+  e.dataTransfer?.setData?.('application/json', JSON.stringify({ type: 'epic', id: epicId }))
+  e.dataTransfer!.effectAllowed = 'move'
+}
+
+function onEpicDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+}
+
+function onEpicDrop(e: DragEvent, dropIndex: number) {
+  e.preventDefault()
+  let dragId: string | null = null
+  try {
+    const raw = e.dataTransfer?.getData('application/json')
+    if (raw) {
+      const p = JSON.parse(raw) as { type: string; id: string }
+      if (p.type === 'epic') dragId = p.id
+    }
+  } catch {}
+  backlogDrag.value = null
+  if (!dragId) return
+  const fromIndex = epics.value.findIndex((x) => x.id === dragId)
+  if (fromIndex < 0 || fromIndex === dropIndex) return
+  const next = [...epics.value]
+  const [removed] = next.splice(fromIndex, 1)
+  next.splice(dropIndex, 0, removed)
+  epics.value = next
+  reorderEpics(next)
+}
+
+function onTaskDragStartSetData(e: DragEvent, taskId: string, epicId: string | null) {
+  backlogDrag.value = { type: 'task', id: taskId, epicId }
+  e.dataTransfer?.setData?.('application/json', JSON.stringify({ type: 'task', id: taskId, epicId }))
+  e.dataTransfer!.effectAllowed = 'move'
+  const row = (e.target as HTMLElement)?.closest?.('.backlog-row')
+  if (row && e.dataTransfer?.setDragImage) {
+    const rect = row.getBoundingClientRect()
+    e.dataTransfer.setDragImage(row, Math.min(20, rect.width / 2), rect.height / 2)
+  }
+}
+
+function onTaskDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+}
+
+function onTaskDrop(e: DragEvent, epicId: string | null, dropIndex: number) {
+  e.preventDefault()
+  let taskId: string | null = null
+  let dragEpicId: string | null = null
+  try {
+    const raw = e.dataTransfer?.getData('application/json')
+    if (raw) {
+      const p = JSON.parse(raw) as { type: string; id: string; epicId?: string | null }
+      if (p.type === 'task') {
+        taskId = p.id
+        dragEpicId = p.epicId ?? null
+      }
+    }
+  } catch {}
+  backlogDrag.value = null
+  if (!taskId || dragEpicId !== epicId) return
+  const list = epicId ? getTasksForEpic(epicId) : getUnassignedTasks()
+  const fromIndex = list.findIndex((t) => t.id === taskId)
+  if (fromIndex < 0 || fromIndex === dropIndex) return
+  const next = [...list.map((t) => t.id)]
+  const [removed] = next.splice(fromIndex, 1)
+  next.splice(dropIndex, 0, removed)
+  reorderTasksInBacklog(next)
 }
 
 onMounted(loadAll)
 </script>
 
 <style scoped>
+/* Backlog table: Task column takes remaining space, + Sub column minimal */
+.backlog-grid {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto auto auto;
+}
+
+/* Single grid wrapper: แถวขยายถึงขอบซ้าย–ขวาของตาราง, padding อยู่ที่เซลล์แรก/สุดท้าย */
+.backlog-table-grid {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto auto auto;
+  column-gap: 0.75rem;
+  row-gap: 0;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .backlog-table-grid { column-gap: 1rem; }
+}
+.backlog-subgrid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0;
+}
+@media (min-width: 640px) {
+  .backlog-subgrid { column-gap: 1rem; }
+}
+/* ขยายแถวถึงขอบตาราง โดยให้เนื้อหาชิดในด้วย padding เซลล์แรก/สุดท้าย
+   และให้ตำแหน่งเนื้อหาตรงกับ header Epic (px-3 / sm:px-4) */
+.backlog-subgrid > div:first-child {
+  padding-left: 0.75rem; /* ~px-3 */
+}
+.backlog-subgrid > div:last-child {
+  padding-right: 1rem;
+  margin-left: 0.5rem;
+}
+@media (min-width: 640px) {
+  .backlog-subgrid > div:first-child { padding-left: 1rem; } /* ~sm:px-4 */
+  .backlog-subgrid > div:last-child { padding-right: 1.25rem; margin-left: 0.75rem; }
+}
+
+/* Backlog table header: จัดเรียงหัวตาราง + space สวยงาม */
+.backlog-table-header {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(30, 41, 59, 0.5);
+  color: rgb(203 213 225);
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.8);
+}
+.backlog-row {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+}
+.backlog-row:hover {
+  background: rgba(55, 65, 81, 0.3);
+}
+/* Sub-task rows: space สมดุลกับแถวหลัก */
+.backlog-sub-row {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
 .card {
   @apply bg-gray-800 border border-gray-700 rounded-xl p-5;
 }
@@ -2232,24 +3624,24 @@ onMounted(loadAll)
   @apply block text-xs text-gray-400 mb-1.5 font-medium;
 }
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors;
+  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
 }
 .btn-primary {
-  @apply bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
 }
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;
 }
 .btn-import-sm {
-  @apply px-3 py-1.5 text-xs bg-indigo-900/50 hover:bg-indigo-800/60 border border-indigo-700/50 text-indigo-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
+  @apply px-3 py-1.5 text-xs bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
 }
 .btn-ghost-sm {
   @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;
 }
 /* Timeline tab layout */
 .timeline-tab {
-  --gantt-bar: 99 102 241; /* indigo-500 */
-  --gantt-bar-hover: 129 140 248; /* indigo-400 */
+  --gantt-bar: 147 51 234; /* purple-600 */
+  --gantt-bar-hover: 168 85 247; /* purple-500 */
   --gantt-today: 96 165 250; /* blue-400 */
 }
 
@@ -2260,6 +3652,13 @@ onMounted(loadAll)
 
 .timeline-scroll-wrapper {
   overscroll-behavior-x: contain;
+}
+
+/* Fullscreen: พื้นที่ scroll แนวตั้ง+แนวนอน (ลูกของ wrapper ที่มี flex-1 min-h-0) */
+.timeline-fullscreen-scroll {
+  overscroll-behavior: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .milestone-legend-diamond {
@@ -2330,21 +3729,88 @@ onMounted(loadAll)
   background: rgb(30 41 59 / 0.8);
 }
 
+/* แยก Epic / Sprint / Task ให้เห็นชัด */
+.gantt-enterprise :deep(.gantt-row-epic) > div:first-child {
+  background: linear-gradient(90deg, rgb(67 56 202 / 0.35) 0%, rgb(30 41 59 / 0.6) 100%);
+  border-left: 3px solid rgb(99 102 241);
+  font-weight: 600;
+  color: rgb(224 231 255);
+}
+
+.gantt-enterprise :deep(.gantt-row-sprint) > div:first-child {
+  background: linear-gradient(90deg, rgb(6 95 70 / 0.3) 0%, rgb(30 41 59 / 0.6) 100%);
+  border-left: 3px solid rgb(16 185 129);
+  font-weight: 600;
+  color: rgb(167 243 208);
+}
+
+.gantt-enterprise :deep(.gantt-row-task) > div:first-child {
+  background: rgb(30 41 59 / 0.4);
+  border-left: 3px solid transparent;
+  font-weight: 400;
+  color: rgb(203 213 225);
+}
+
+/* สีแท่งตามประเภทแถว (ถ้า library ไม่ใส่ class ที่ bar) */
+.gantt-enterprise :deep(.gantt-row-epic .g-gantt-bar) {
+  background: linear-gradient(135deg, rgb(99 102 241) 0%, rgb(67 56 202) 100%) !important;
+  border: 1px solid rgb(129 140 248 / 0.5);
+}
+
+.gantt-enterprise :deep(.gantt-row-sprint .g-gantt-bar) {
+  background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(5 150 105) 100%) !important;
+  border: 1px solid rgb(52 211 153 / 0.5);
+}
+
+.gantt-enterprise :deep(.gantt-row-task .g-gantt-bar) {
+  background: linear-gradient(135deg, rgb(139 92 246) 0%, rgb(124 58 237) 100%) !important;
+  border: 1px solid rgb(167 139 250 / 0.5);
+}
+
 .gantt-enterprise :deep(.g-grid-line) {
   border-left: 1px solid rgb(51 65 85 / 0.7);
 }
 
 .gantt-enterprise :deep(.g-gantt-bar) {
-  background: linear-gradient(135deg, rgb(99 102 241) 0%, rgb(79 70 229) 100%) !important;
   border-radius: 6px;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
-  border: 1px solid rgb(99 102 241 / 0.4);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Epic: fallback สี indigo เมื่อไม่มีคลาสเฉพาะ (สีจริงมาจาก epicBarStyles ตาม epic.color) */
+.gantt-enterprise :deep(.g-gantt-bar.gantt-bar-epic:not([class*="gantt-bar-epic-e-"])) {
+  background: linear-gradient(135deg, rgb(99 102 241) 0%, rgb(67 56 202) 100%) !important;
+  border: 1px solid rgb(129 140 248 / 0.5);
+}
+
+.gantt-enterprise :deep(.g-gantt-bar.gantt-bar-epic:hover) {
+  transform: translateY(-1px);
+}
+
+/* Sprint: แท่งสี emerald */
+.gantt-enterprise :deep(.g-gantt-bar.gantt-bar-sprint) {
+  background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(5 150 105) 100%) !important;
+  border: 1px solid rgb(52 211 153 / 0.5);
+}
+
+.gantt-enterprise :deep(.g-gantt-bar.gantt-bar-sprint:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(16 185 129 / 0.4);
+}
+
+/* Task: แท่งสี violet อ่อน แยกจาก Epic */
+.gantt-enterprise :deep(.g-gantt-bar.gantt-bar-task) {
+  background: linear-gradient(135deg, rgb(139 92 246) 0%, rgb(124 58 237) 100%) !important;
+  border: 1px solid rgb(167 139 250 / 0.5);
+}
+
+.gantt-enterprise :deep(.g-gantt-bar.gantt-bar-task:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(139 92 246 / 0.35);
 }
 
 .gantt-enterprise :deep(.g-gantt-bar:hover) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgb(99 102 241 / 0.35);
 }
 
 .gantt-enterprise :deep(.g-gantt-bar-label) {
@@ -2352,17 +3818,36 @@ onMounted(loadAll)
   font-size: 0.8rem;
   font-weight: 500;
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.3);
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
 }
 
+/* ลากขอบซ้าย/ขวาเพื่อขยาย-ย่อแท่ง (resize); ลากกลางแท่งเพื่อเลื่อน (drag) */
 .gantt-enterprise :deep(.g-gantt-bar-handle-left),
 .gantt-enterprise :deep(.g-gantt-bar-handle-right) {
-  background: rgb(255 255 255 / 0.25) !important;
-  width: 8px;
+  background: rgb(255 255 255 / 0.35) !important;
+  width: 12px;
+  min-width: 12px;
   border-radius: 4px 0 0 4px;
+  cursor: ew-resize;
+  transition: background 0.15s ease;
+}
+
+.gantt-enterprise :deep(.g-gantt-bar:hover .g-gantt-bar-handle-left),
+.gantt-enterprise :deep(.g-gantt-bar:hover .g-gantt-bar-handle-right) {
+  background: rgb(255 255 255 / 0.6) !important;
 }
 
 .gantt-enterprise :deep(.g-gantt-bar-handle-right) {
   border-radius: 0 4px 4px 0;
+}
+
+/* Current time ("Now") – ให้เมาส์ทะลุไปถึงแท่ง ไม่บังการลาก/คลิก */
+.gantt-enterprise :deep(.g-grid-current-time),
+.gantt-enterprise :deep(.g-grid-current-time-marker),
+.gantt-enterprise :deep(.g-grid-current-time-text) {
+  pointer-events: none;
 }
 
 .gantt-enterprise :deep(.g-grid-current-time-marker) {

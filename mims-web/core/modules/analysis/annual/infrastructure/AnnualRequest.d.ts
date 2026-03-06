@@ -1,0 +1,75 @@
+export interface IAnnualParams {
+	aadt1: number | null
+	aadt2: number | null
+	ifi1: number | null
+	ifi2: number | null
+	group_km: number | null
+	iri1: number | null
+	iri2: number | null
+	lane_type_id: number | null
+	maintenance_analysis_type_id?: number
+	roads: number[]
+	surface_type_id: number | null
+	name: string
+}
+export interface IAnnualUpdatePrepareDataParams {
+	aadt1: number | null
+	aadt2: number | null
+	ifi1: number | null
+	ifi2: number | null
+	group_km: number
+	iri1: number | null
+	iri2: number | null
+	lane_type_id: number
+	maintenance_analysis_type_id?: number
+	roads: number[]
+	surface_type_id: number
+	name: string
+}
+
+export interface IAnnualStepParams2 {
+	budget?: number
+	comment: string
+	condition_id: number
+	ifi?: number
+	ifi_avg: number | null
+	iri?: number
+	iri_avg: number | null
+	prepare_data_id: number[]
+	surface_type: string
+	target: number | null
+	total_km: number
+	discount: number
+	name: string
+}
+
+export interface IMapDataReq {
+	plan: number
+	year: number
+	display: number
+	criteria: number
+	method?: number
+}
+
+export interface IAnnualUpdateModelReq {
+	id: number
+	intervention_criteria_id: string
+}
+
+export interface ISearchModelReq {
+	aadt1: number | null
+	aadt2: number | null
+	age1: number | null
+	age2: number | null
+	group_km: number | null
+	ifi1: number | null
+	ifi2: number | null
+	iri1: number | null
+	iri2: number | null
+	lane_type_id: number | null
+	maintenance_analysis_type_id: number | null
+	name: string
+	roads: number[]
+	surface_type_id: number | null
+	intervention_criteria_id: string | null
+}

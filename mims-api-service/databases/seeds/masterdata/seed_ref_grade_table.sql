@@ -1,0 +1,11 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO public.ref_grade VALUES (1, 'ดีมาก');
+INSERT INTO public.ref_grade VALUES (2, 'ดี');
+INSERT INTO public.ref_grade VALUES (0, 'ไม่มีข้อมูล');
+INSERT INTO public.ref_grade VALUES (3, 'ปานกลาง');
+INSERT INTO public.ref_grade VALUES (4, 'แย่');
+INSERT INTO public.ref_grade VALUES (5, 'แย่มาก');
+INSERT INTO public.ref_grade VALUES (6, 'เฝ้าระวัง');
+INSERT INTO public.ref_grade VALUES (7, 'พอใช้');
+INSERT INTO public.ref_grade VALUES (8, 'ปรับปรุง');
+SELECT setval('ref_grade_id_seq', 9, true);

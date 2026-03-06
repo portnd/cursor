@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <style>
+    /* map */
+    #map {
+      height: 600px;
+      width: 100%;
+    }
+    .ldmap_placeholder .ldmap_bottomright {
+      display: none;
+    }
+    html,
+    body {
+      padding: 0;
+      margin: 0;
+    }
+  </style>
+  <body>
+    <div id="map"></div>
+  </body>
+  <script
+    type="text/javascript"
+    src="https://api.longdo.com/map/?key=f38639d33e37f4e422cd8085d997d55f"
+  ></script>
+  <script>
+
+       var map = new longdo.Map({
+           placeholder: document.getElementById('map')
+       });
+       map.Ui.DPad.visible(false);
+       map.Ui.Zoombar.visible(false);
+       map.Ui.Geolocation.visible(false);
+       map.Ui.Toolbar.visible(false);
+       map.Ui.LayerSelector.visible(false);
+       map.Ui.Fullscreen.visible(false);
+       map.Ui.Crosshair.visible(false);
+       map.Ui.Scale.visible(false);
+       let zoomLevel = 12
+      map.zoom(zoomLevel, true);
+
+      var textGeom = "{{.MapCenter}}"
+      var Geomlist = textGeom
+          .replaceAll("LINESTRING", "")
+          .replaceAll("(", "")
+          .replaceAll(")", "")
+          .split(" ");
+
+          map.location(
+            { lon: Geomlist[0], lat: Geomlist[1] },
+            true
+        );
+
+       {{ range $index , $value := .Map}}
+       var roadOption = {
+        lineColor:  "{{ $value.Color }}",
+
+    };
+      {{ range $index2, $value2 := $value.TheGeom }}
+        var textGeom = {{ $value2 }}
+
+        var wkt1 = longdo.Util.overlayFromWkt(textGeom, roadOption);
+
+        map.Overlays.add(wkt1[0]);
+       {{ end }}
+      {{ end }}
+  </script>
+</html>

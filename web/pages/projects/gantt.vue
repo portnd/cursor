@@ -13,7 +13,7 @@
         type="button"
         :class="[
           'px-4 py-2 rounded-lg font-medium transition-all',
-          viewMode === 'day' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          viewMode === 'day' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
         ]"
         @click="viewMode = 'day'"
       >
@@ -23,7 +23,7 @@
         type="button"
         :class="[
           'px-4 py-2 rounded-lg font-medium transition-all',
-          viewMode === 'week' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          viewMode === 'week' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
         ]"
         @click="viewMode = 'week'"
       >
@@ -33,7 +33,7 @@
         type="button"
         :class="[
           'px-4 py-2 rounded-lg font-medium transition-all',
-          viewMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          viewMode === 'month' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
         ]"
         @click="viewMode = 'month'"
       >

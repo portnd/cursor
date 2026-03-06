@@ -85,7 +85,7 @@ function markerClass(m: Milestone) {
   if (m.status === 'MISSED') return 'bg-red-500 border-red-400'
   const isOverdue = m.due_date && new Date(m.due_date) < new Date()
   if (isOverdue) return 'bg-red-500/20 border-red-400'
-  return 'bg-gray-800 border-indigo-400 group-hover:bg-indigo-500'
+  return 'bg-gray-800 border-purple-400 group-hover:bg-purple-500'
 }
 
 function dueDateClass(m: Milestone) {

@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  api:
+    image: komgrip/mims-api-service:latest
+    container_name: api
+    ports:
+      - 9000:8080
+    restart: always
+    volumes:
+      - ./storages:/go/src/gitlab.com/mims-api-service/storages
+      - ./public:/go/src/gitlab.com/mims-api-service/public
+      - ../templates:/go/src/gitlab.com/mims-api-service/templates
+    networks:
+      - local
+
+networks:
+  local:

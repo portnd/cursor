@@ -1,0 +1,12 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('ฝ่ายวิศวกรรมทางพิเศษ (69)', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนกบำรุงรักษาโยธา (42)', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 01', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 02', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 43', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 46', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 51', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 52', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ('แผนก 65', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ( 'แผนก 67', 1, FALSE);
+INSERT INTO public.ref_department ("name", "status", "can_delete") VALUES ( 'แผนกอื่น ๆ', 1, FALSE);

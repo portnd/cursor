@@ -1,0 +1,10 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'แบบธรรมดา');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'ดูดซับแรงปะทะความเร็วที่ 50 กม./ชม.');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'ดูดซับแรงปะทะความเร็วที่ 80 กม./ชม.');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'ดูดซับแรงปะทะความเร็วที่ 100 กม./ชม.');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'ดูดซับแรงปะทะความเร็วที่ 110 กม./ชม.');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'ถังกันชนหัวเกาะ');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'อุปกรณ์ดูดซับแรงกระแทก');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'Cushion Tank');
+INSERT INTO public.ref_asset_crashcushion ("name") VALUES ( 'Crash Cushion ดูดซับแรงปะทะความเร็วที่ 80 กม./ชม.');

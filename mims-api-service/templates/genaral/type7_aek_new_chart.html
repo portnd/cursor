@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+        /* map */
+        #chart1 {
+          height: 350px;
+          width: 100%;
+          padding: 1em;
+          border: solid rgba(0, 0, 0, 0.70);
+          border-width:0.5pt ;
+        }
+        #chart2 {
+          height: 350px;
+          width: 100%;
+          break-inside: avoid;
+          padding: 1em;
+          border: solid rgba(0, 0, 0, 0.70);
+          border-width:0.5pt ;
+        }
+        .ldmap_placeholder .ldmap_bottomright {
+            display: none;
+        }
+        html,body{
+            padding:0;
+            margin: -40px -50px;;
+        }
+    </style>
+    {{ $item := . }}
+  </head>
+  <body>
+    <div id="chart1"></div>
+    <div id="chart2" style="margin-top: 60px;"></div>
+  </body>
+  <script src="https://unpkg.com/pagedjs@0.4.3/dist/paged.polyfill.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script>
+  class RepeatTableHeadersHandler extends Paged.Handler {
+        constructor(chunker, polisher, caller) {
+            super(chunker, polisher, caller);
+            this.splitTablesRefs = [];
+        }
+  
+        afterPageLayout(pageElement, page, breakToken, chunker) {
+            this.chunker = chunker;
+            this.splitTablesRefs = [];
+  
+            if (breakToken) {
+                const node = breakToken.node;
+                const tables = this.findAllAncestors(node, "table");
+                if (node.tagName === "TABLE") tables.push(node);
+  
+                if (tables.length > 0) {
+                    this.splitTablesRefs = tables.map((t) => t.dataset.ref);
+  
+                    let thead =
+                        node.tagName === "THEAD" ?
+                            node :
+                            this.findFirstAncestor(node, "thead");
+                    if (thead) {
+                        let lastTheadNode = thead.hasChildNodes() ?
+                            thead.lastChild :
+                            thead;
+                        breakToken.node = this.nodeAfter(lastTheadNode, chunker.source);
+                    }
+  
+                    this.hideEmptyTables(pageElement, node);
+                }
+            }
+        }
+  
+        hideEmptyTables(pageElement, breakTokenNode) {
+            this.splitTablesRefs.forEach((ref) => {
+                let table = pageElement.querySelector("[data-ref='" + ref + "']");
+                if (table) {
+                    let sourceBody = table.querySelector("tbody > tr");
+                    if (
+                        !sourceBody ||
+                        this.refEquals(sourceBody.firstElementChild, breakTokenNode)
+                    ) {
+                        table.style.visibility = "hidden";
+                        table.style.position = "absolute";
+                        let lineSpacer = table.nextSibling;
+                        if (lineSpacer) {
+                            lineSpacer.style.visibility = "hidden";
+                            lineSpacer.style.position = "absolute";
+                        }
+                    }
+                }
+            });
+        }
+  
+        refEquals(a, b) {
+            return (
+                a && a.dataset && b && b.dataset && a.dataset.ref === b.dataset.ref
+            );
+        }
+  
+        findFirstAncestor(element, selector) {
+            while (element.parentNode && element.parentNode.nodeType === 1) {
+                if (element.parentNode.matches(selector)) return element.parentNode;
+                element = element.parentNode;
+            }
+            return null;
+        }
+  
+        findAllAncestors(element, selector) {
+            const ancestors = [];
+            while (element.parentNode && element.parentNode.nodeType === 1) {
+                if (element.parentNode.matches(selector))
+                    ancestors.unshift(element.parentNode);
+                element = element.parentNode;
+            }
+            return ancestors;
+        }
+  
+        layout(rendered, layout) {
+            this.splitTablesRefs.forEach((ref) => {
+                const renderedTable = rendered.querySelector(
+                    "[data-ref='" + ref + "']"
+                );
+                if (renderedTable) {
+                    if (!renderedTable.getAttribute("repeated-headers")) {
+                        const sourceTable = this.chunker.source.querySelector(
+                            "[data-ref='" + ref + "']"
+                        );
+                        this.repeatColgroup(sourceTable, renderedTable);
+                        this.repeatTHead(sourceTable, renderedTable);
+                        renderedTable.setAttribute("repeated-headers", true);
+                    }
+                }
+            });
+        }
+  
+        repeatColgroup(sourceTable, renderedTable) {
+            let colgroup = sourceTable.querySelectorAll("colgroup");
+            let firstChild = renderedTable.firstChild;
+            colgroup.forEach((colgroup) => {
+                let clonedColgroup = colgroup.cloneNode(true);
+                renderedTable.insertBefore(clonedColgroup, firstChild);
+            });
+        }
+  
+        repeatTHead(sourceTable, renderedTable) {
+            let thead = sourceTable.querySelector("thead");
+            if (thead) {
+                let clonedThead = thead.cloneNode(true);
+                renderedTable.insertBefore(clonedThead, renderedTable.firstChild);
+            }
+        }
+  
+        nodeAfter(node, limiter) {
+            if (limiter && node === limiter) return;
+            let significantNode = this.nextSignificantNode(node);
+            if (significantNode) return significantNode;
+            if (node.parentNode) {
+                while ((node = node.parentNode)) {
+                    if (limiter && node === limiter) return;
+                    significantNode = this.nextSignificantNode(node);
+                    if (significantNode) return significantNode;
+                }
+            }
+        }
+  
+        nextSignificantNode(sib) {
+            while ((sib = sib.nextSibling)) {
+                if (!this.isIgnorable(sib)) return sib;
+            }
+            return null;
+        }
+  
+        isIgnorable(node) {
+            return (
+                node.nodeType === 8 ||
+                (node.nodeType === 3 && this.isAllWhitespace(node))
+            );
+        }
+  
+        isAllWhitespace(node) {
+            return !/[^\t\n\r ]/.test(node.textContent);
+        }
+    }
+  
+    Paged.registerHandlers(RepeatTableHeadersHandler);
+
+class Handler extends Paged.Handler {
+  constructor(chunker, polisher, caller) {
+    super(chunker, polisher, caller);
+  }
+  afterPreview(pages) {
+    let pagedjs_pages = document.getElementsByClassName('pagedjs_pages');
+    let div = document.createElement('div');
+    div.id = 'success-pagejs';
+
+    if (pagedjs_pages[0].children.length >1) {
+        insertAfter(div, pagedjs_pages[0]);
+    }
+
+    var series1 = [];
+    {{ range $index, $value := .Summary }}
+        {{ if and (ne $index 0) (ne $index 1) }}
+            series1.push(parseFloat("{{ $value }}"));
+        {{ end }}
+    {{ end }}
+    var color1 = [];
+    var schedule1 = [];
+    var color2 = [];
+    var schedule2 = [];
+
+    {{ range $index, $value := .Grade }}
+      color1.push("{{ $value.RefGrade.Color }}");
+      color2.push("{{ $value.RefGrade.Color }}");
+      schedule1.push("{{ $value.RefGrade.Name }}")
+      schedule2.push("{{ $value.RefGrade.Name }}")
+
+    {{ end }}
+    var title1 = "ข้อมูลสภาพทาง {{.Type}} ปี "+ "{{.Year}}"
+    // var schedule1 = ['ตื้นมาก','ตื้น','ลึก','ลึกมาก']
+    //chart2
+    var series2 = [];
+    {{ range $index, $grade := .Grade }}
+            var name = "{{ $grade.RefGrade.Name}}";
+            var data = [];
+            {{ range $i, $v := $item.Grade }}
+                data.push(0);
+            {{ end }}
+            {{ $summaryIndex := add $index 2 }}
+            data[{{ $index }}] = {{ index $item.Summary $summaryIndex }};
+            var obj = {
+                name: name,
+                data: data
+            };
+            series2.push(obj);
+    {{ end }}
+
+    var title2 = "ข้อมูลสภาพทาง {{.Type}} ปี "+ "{{.Year}}"
+
+    var options1 = {
+      series: series1,
+      chart: {
+          type: "pie",
+          toolbar: {
+              show: false
+          },
+          fontFamily: "sarabun",
+          height: 400,  
+          width: 600 ,
+      },
+      plotOptions: {
+        pie: {
+          dataLabels: {
+            offset: -5,
+            //minAngleToShowLabel: 0
+          },
+        },
+      },
+      labels: schedule1,
+      title: {
+        text: title1,
+        align: "center",
+        style: {
+          fontSize: "12pt",
+        },
+      },
+      dataLabels: {
+        style: {
+          fontSize: "6pt",
+          colors: ["#000"],
+        },
+        dropShadow: {
+          enabled: false
+        }
+      },
+      colors: color1,
+      tooltip: {
+        enabled: false,
+      },
+      legend: {
+        position: "bottom",
+        offsetY: 10,
+        horizontalAlign: "center",
+        itemMargin: {
+          horizontal: 15,
+        },
+        /*formatter: function(val, opts) {
+          var series = opts.w.globals.series;
+          var total = series.reduce((sum, val) => sum + val, 0); // Calculate the sum of all values
+          var percent = (series[opts.seriesIndex] / total * 100).toFixed(1); // Calculate the percentage
+          return val + " - " + percent + '%'; // Return the label with the percentage
+        },*/
+      },
+      events: {
+          mounted: function (chartContext, config) {
+              setTimeout(function () {
+                  let chart = document.getElementById('chart1');
+                  let div = document.createElement('div');
+                  div.id = 'success-apexchart1';
+
+                  insertAfter(div, chart);
+              }, 1000)
+          }
+      }
+    };
+    
+    var chart1 = new ApexCharts(document.querySelector("#chart1"), options1);
+    chart1.render();
+
+
+    var options2 = {
+      series: series2,
+      chart: {
+          type: "bar",
+          toolbar: {
+              show: false
+          },
+          fontFamily: "sarabun",
+          height: 400,  
+          width: 600 ,
+          stacked: true,
+      },
+      dataLabels: {
+        enabled: false,
+        
+      },
+      tooltip: {
+        enabled: false,
+      },
+      stroke: {
+        show: true,
+        width: 2,
+        colors: ["transparent"],
+        curve: "smooth",
+      },
+      
+      legend: {
+        showForSingleSeries: true,
+        itemMargin: {
+          horizontal: 15,
+        },
+        markers: {
+          radius: 12,
+        },
+      },
+      title: {
+        text: title2,
+        align: "center",
+        style: {
+          fontSize: "12pt",
+        },
+      },
+      colors: color2,
+      plotOptions: {
+        bar: {
+          distributed: true,
+          horizontal: false,
+          columnWidth: "50%",
+
+          dataLabels: {
+            total: {
+                  enabled: true,           
+                  formatter: function (val) {
+                    return val.toFixed(3);
+                  },
+                  style: {
+                  fontSize: "8pt",
+                  colors: ["#000"],
+                  },
+             },
+          },
+        },
+      },
+      xaxis: {
+        title: {
+          text: 'เกณฑ์การประเมิน',
+          style: {
+            fontFamily: 'sarabun',
+            fontSize: "8pt",
+          },
+        },
+        categories: schedule2,
+        labels: {
+          show: true,
+        },
+        axisBorder: {
+          show: false,
+        },
+        axisTicks: {
+          show: false,
+        },
+      },
+      yaxis: {
+        title: {
+          text: 'ระยะทาง (กม.)',
+          style: {
+          fontFamily: 'sarabun',
+            fontSize: "8pt",
+          },
+         },
+        labels: {
+          formatter: function (val) {
+            return val.toFixed(3);
+          },
+        },
+      },
+      grid: {
+        borderColor: "#EAEAEA",
+        strokeDashArray: 5,
+        xaxis: {
+          lines: {
+            show: false,
+          },
+        },
+        yaxis: {       
+          lines: {
+            show: true,
+          },
+        },
+      },
+      events: {
+          mounted: function (chartContext, config) {
+              setTimeout(function () {
+                  let chart = document.getElementById('chart2');
+                  let div = document.createElement('div');
+                  div.id = 'success-apexchart2';
+
+                  insertAfter(div, chart);
+              }, 1000)
+          }
+      }
+    };
+    var chart2 = new ApexCharts(document.querySelector("#chart2"), options2);
+    chart2.render();
+  }
+}
+Paged.registerHandlers(Handler);
+function insertAfter(newNode, existingNode) {
+    existingNode.parentNode.insertBefore(newNode, existingNode.nextSibling);
+}
+</script>
+</html>

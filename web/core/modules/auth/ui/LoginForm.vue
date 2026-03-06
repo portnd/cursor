@@ -1,13 +1,13 @@
 <template>
   <div class="w-full max-w-md mx-auto">
     <!-- Card Container -->
-    <div class="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
+    <div class="bg-gray-800/80 backdrop-blur-xl border border-gray-700 rounded-2xl shadow-2xl p-8">
       <!-- Header -->
       <div class="text-center mb-8">
-        <h2 class="text-3xl font-bold text-slate-900 mb-2">
+        <h2 class="text-3xl font-bold text-white mb-2">
           Welcome Back
         </h2>
-        <p class="text-slate-600">
+        <p class="text-gray-400">
           Sign in to your account to continue
         </p>
       </div>
@@ -16,7 +16,7 @@
       <form @submit.prevent="handleSubmit" class="space-y-6">
         <!-- Email Field -->
         <div>
-          <label for="email" class="block text-sm font-medium text-slate-700 mb-2">
+          <label for="email" class="block text-sm font-medium text-gray-300 mb-2">
             Email Address
           </label>
           <input
@@ -25,18 +25,18 @@
             type="email"
             required
             placeholder="you@example.com"
-            class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 outline-none"
+            class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 outline-none"
             :class="{ 'border-red-500': errors.email }"
             :disabled="isLoading"
           />
-          <p v-if="errors.email" class="mt-1 text-sm text-red-600">
+          <p v-if="errors.email" class="mt-1 text-sm text-red-400">
             {{ errors.email }}
           </p>
         </div>
 
         <!-- Password Field -->
         <div>
-          <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
+          <label for="password" class="block text-sm font-medium text-gray-300 mb-2">
             Password
           </label>
           <input
@@ -45,17 +45,17 @@
             type="password"
             required
             placeholder="••••••••"
-            class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 outline-none"
+            class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 outline-none"
             :class="{ 'border-red-500': errors.password }"
             :disabled="isLoading"
           />
-          <p v-if="errors.password" class="mt-1 text-sm text-red-600">
+          <p v-if="errors.password" class="mt-1 text-sm text-red-400">
             {{ errors.password }}
           </p>
         </div>
 
         <!-- Error Message -->
-        <div v-if="authStore.error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div v-if="authStore.error" class="bg-red-900/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg">
           <p class="text-sm">{{ authStore.error }}</p>
         </div>
 
@@ -63,7 +63,7 @@
         <button
           type="submit"
           :disabled="isLoading"
-          class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-purple-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           <span v-if="!isLoading">Sign In</span>
           <span v-else class="flex items-center justify-center">
@@ -78,11 +78,11 @@
 
       <!-- Footer -->
       <div class="mt-6 text-center">
-        <p class="text-sm text-slate-600">
+        <p class="text-sm text-gray-400">
           Don't have an account?
           <NuxtLink
             to="/register"
-            class="font-semibold text-purple-600 hover:text-purple-700 transition-colors"
+            class="font-semibold text-purple-400 hover:text-purple-300 transition-colors"
           >
             Sign up
           </NuxtLink>

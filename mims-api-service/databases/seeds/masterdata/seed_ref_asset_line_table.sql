@@ -1,0 +1,11 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นประ');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นทึบเดี่ยว');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นทึบคู่');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นทึบคู่เส้นประ');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นประคู่เส้นทึบ');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นประถี่');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นประห่าง');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นประชิด');
+INSERT INTO public.ref_asset_line ("name") VALUES ('เส้นประกลาง');
+INSERT INTO public.ref_asset_line ("name") VALUES ( 'เส้นประชิดเล็ก');

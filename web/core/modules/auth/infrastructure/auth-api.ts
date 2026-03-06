@@ -7,6 +7,7 @@
  * Follows Feature-Sliced Design (FSD) - Infrastructure layer
  */
 
+import { useAuth } from '~/composables/useAuth'
 import { useHttp } from '~/core/shared/api/http'
 
 interface RegisterRequest {
@@ -20,12 +21,15 @@ interface LoginRequest {
   password: string
 }
 
-interface User {
+export interface User {
   id: number
   email: string
   role: string // CEO, PM, DEV
   created_at: string
   updated_at: string
+  display_name?: string
+  health_score?: number
+  tech_stack?: string[]
 }
 
 interface AuthResponse {
@@ -114,5 +118,40 @@ export const authApi = {
     }
 
     return response.data
+  },
+
+  /**
+   * Get current user profile (authenticated)
+   * GET /auth/me
+   */
+  async getMe(): Promise<User> {
+    const { fetchWithAuth } = useAuth()
+    const res = await fetchWithAuth<{ message: string; data: User }>('/auth/me')
+    return res.data
+  },
+
+  /**
+   * Update own profile
+   * PATCH /auth/me
+   */
+  async updateProfile(payload: { display_name?: string; tech_stack?: string[] }) {
+    const { fetchWithAuth } = useAuth()
+    const res = await fetchWithAuth<{ message: string; data: User }>('/auth/me', {
+      method: 'PATCH',
+      body: payload,
+    })
+    return res.data
+  },
+
+  /**
+   * Change own password
+   * PATCH /auth/me/password
+   */
+  async changePassword(currentPassword: string, newPassword: string) {
+    const { fetchWithAuth } = useAuth()
+    await fetchWithAuth<{ message: string }>('/auth/me/password', {
+      method: 'PATCH',
+      body: { current_password: currentPassword, new_password: newPassword },
+    })
   },
 }

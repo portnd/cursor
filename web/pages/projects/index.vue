@@ -10,7 +10,7 @@
       </div>
       <button
         type="button"
-        class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-all"
+        class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/20 transition-all"
         @click="openCreateModal"
       >
         <span>+</span>
@@ -21,7 +21,7 @@
     <!-- System Metrics Row -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
       <div class="metric-card">
-        <div class="text-2xl font-bold text-indigo-400">{{ totalActive }}</div>
+        <div class="text-2xl font-bold text-purple-400">{{ totalActive }}</div>
         <div class="metric-label">Active Projects</div>
       </div>
       <div class="metric-card">
@@ -53,7 +53,7 @@
           @click="statusFilter = s"
           class="px-3 py-1.5 text-sm rounded-lg transition-colors font-medium"
           :class="statusFilter === s
-            ? 'bg-indigo-600 text-white'
+            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
             : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'"
         >
           {{ s === 'ALL' ? 'All' : s.replace('_', ' ') }}
@@ -107,7 +107,7 @@
                 {{ healthLabel(project) }}
               </span>
             </div>
-            <h3 class="text-lg font-bold text-white truncate group-hover:text-indigo-300 transition-colors">
+            <h3 class="text-lg font-bold text-white truncate group-hover:text-purple-300 transition-colors">
               {{ project.name }}
             </h3>
             <p class="text-xs text-gray-500 font-mono mt-0.5">{{ project.code }}</p>
@@ -165,13 +165,6 @@
             {{ formatDate(project.created_at) }}
           </span>
           <div class="flex gap-2">
-            <NuxtLink
-              :to="`/projects/${project.code || project.id}?tab=gantt`"
-              class="btn-ghost-sm"
-              @click.stop
-            >
-              Gantt
-            </NuxtLink>
             <NuxtLink
               :to="`/projects/${project.code || project.id}`"
               class="btn-primary-sm"
@@ -341,7 +334,7 @@ function progressPct(project: Project) {
 function progressBarClass(project: Project) {
   const pct = progressPct(project)
   if (pct >= 80) return 'bg-green-500'
-  if (pct >= 40) return 'bg-indigo-500'
+  if (pct >= 40) return 'bg-purple-500'
   return 'bg-yellow-500'
 }
 
@@ -447,16 +440,16 @@ onMounted(loadProjects)
   @apply text-xs text-gray-500 mt-1 uppercase tracking-wide;
 }
 .project-card {
-  @apply bg-gray-800 border border-gray-700 rounded-2xl p-5 hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/5 transition-all cursor-default;
+  @apply bg-gray-800 border border-gray-700 rounded-2xl p-5 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5 transition-all cursor-default;
 }
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors;
+  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
 }
 .btn-primary {
-  @apply bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
 }
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;
 }
 .btn-ghost-sm {
   @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;

@@ -17,6 +17,10 @@ func NewNoopAIService() domain.AIService {
 	return &noopAIService{}
 }
 
+func (n *noopAIService) ListModels() ([]string, error) {
+	return nil, errors.New(errMsgNoAPIKey)
+}
+
 func (n *noopAIService) EstimateEffort(_, _ string) (int, string, error) {
 	return 0, "", errors.New(errMsgNoAPIKey)
 }
@@ -31,4 +35,12 @@ func (n *noopAIService) AnalyzeAppeal(_, _, _ string) (string, int, string, erro
 
 func (n *noopAIService) AnalyzeTimeNegotiation(_, _ string, _, _ int, _ string) (string, int, string, error) {
 	return "", 0, "", errors.New(errMsgNoAPIKey)
+}
+
+func (n *noopAIService) EstimateAndScheduleTasks(_ []domain.TaskEstimateInput) ([]domain.TaskEstimateAndOrder, error) {
+	return nil, errors.New(errMsgNoAPIKey)
+}
+
+func (n *noopAIService) GenerateWorkPlan(_, _ string) (*domain.AIGeneratedPlan, error) {
+	return nil, errors.New(errMsgNoAPIKey)
 }

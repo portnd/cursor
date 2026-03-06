@@ -19,6 +19,7 @@ export interface Sprint {
   start_date: string | null
   end_date: string | null
   status: 'PLANNING' | 'ACTIVE' | 'COMPLETED'
+  sort_order?: number
   created_at: string
   updated_at: string
   tasks?: Task[]
@@ -58,6 +59,23 @@ export interface SprintTimelineData {
   sprints: Sprint[]
 }
 
+export interface AIGeneratedPlan {
+  epics: { title: string; description: string; color: string }[]
+  milestones: { title: string; description: string; due_date: string }[]
+  sprints: { name: string; goal: string; start_date: string; end_date: string }[]
+  tasks: {
+    title: string
+    description: string
+    priority: string
+    story_points: number
+    epic_index?: number | null
+    sprint_index?: number | null
+    milestone_index?: number | null
+    start_date: string
+    end_date: string
+  }[]
+}
+
 export interface Task {
   id: string
   code: string
@@ -72,6 +90,7 @@ export interface Task {
   epic_id: string | null
   sprint_id: string | null
   milestone_id: string | null
+  sort_order: number
   assigned_to: number | null
   created_by: number | null
   due_at: string | null
@@ -121,6 +140,14 @@ function useProjectsApi() {
   async function createProject(payload: { name: string; description?: string; status?: string }): Promise<Project> {
     const data = await fetchWithAuth<{ data: Project }>('/sentinel/projects', {
       method: 'POST',
+      body: payload,
+    })
+    return data.data
+  }
+
+  async function updateProject(idOrCode: string, payload: { name: string; description?: string; status?: string; update_code?: boolean }): Promise<Project> {
+    const data = await fetchWithAuth<{ data: Project }>(`/sentinel/projects/${idOrCode}`, {
+      method: 'PATCH',
       body: payload,
     })
     return data.data
@@ -264,10 +291,43 @@ function useProjectsApi() {
     return data.data || { sprints: [] }
   }
 
+  /** Run AI estimate on a task; updates task.ai_estimated_minutes. Returns updated task. Creator/CEO/PM only. */
+  async function estimateTask(taskIdOrCode: string): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${encodeURIComponent(taskIdOrCode)}/estimate`, {
+      method: 'POST',
+    })
+    return data.data
+  }
+
+  /** Clear project plan: remove all tasks, sprints, milestones, epics. CEO/PM only. */
+  async function clearProjectPlan(projectIdOrCode: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/clear-plan`, {
+      method: 'POST',
+    })
+  }
+
+  /** AI Agent: estimate time + arrange timeline for existing tasks (no new tasks created). CEO/PM only. */
+  async function scheduleProjectWithAI(projectIdOrCode: string): Promise<{ message: string; updated: number }> {
+    return fetchWithAuth<{ message: string; updated: number }>(
+      `/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/ai-schedule`,
+      { method: 'POST', timeoutMs: 120000 }
+    )
+  }
+
+  /** (Optional) Generate new epics, milestones, sprints, tasks from project name/description. CEO/PM only. */
+  async function generateProjectPlan(projectIdOrCode: string): Promise<AIGeneratedPlan> {
+    const data = await fetchWithAuth<{ data: AIGeneratedPlan }>(
+      `/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/ai-plan`,
+      { method: 'POST', timeoutMs: 120000 }
+    )
+    return data.data
+  }
+
   return {
     getProjects,
     getProject,
     createProject,
+    updateProject,
     deleteProject,
     getSprints,
     createSprint,
@@ -288,6 +348,10 @@ function useProjectsApi() {
     deleteEpic,
     getEpicTimelineData,
     getSprintTimelineData,
+    estimateTask,
+    clearProjectPlan,
+    scheduleProjectWithAI,
+    generateProjectPlan,
   }
 }
 

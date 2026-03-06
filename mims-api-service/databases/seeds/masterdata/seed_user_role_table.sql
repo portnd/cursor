@@ -1,0 +1,4 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO "public"."user_role" ( "user_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 1, 1, NULL, NULL, '2023-01-23 08:35:18.511081', '2023-01-23 08:35:18.511081');
+INSERT INTO "public"."user_role" ( "user_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 1, 2, NULL, NULL, '2023-01-23 08:35:18.511081', '2023-01-23 08:35:18.511081');
+INSERT INTO "public"."user_role" ( "user_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 1, 3, NULL, NULL, '2023-01-23 08:35:18.511081', '2023-01-23 08:35:18.511081');

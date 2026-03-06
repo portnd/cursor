@@ -56,12 +56,13 @@ const formatBalance = (balance: number): string => {
 
 <style scoped>
 .wallet-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1f2937 0%, #374151 50%, #4c1d95 100%);
+  border: 1px solid rgba(147, 51, 234, 0.3);
   border-radius: 1.5rem;
   padding: 2rem;
   color: white;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;
 }
@@ -79,7 +80,8 @@ const formatBalance = (balance: number): string => {
 
 .wallet-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.15), 0 15px 15px -5px rgba(0, 0, 0, 0.08);
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.2), 0 15px 15px -5px rgba(147, 51, 234, 0.1);
 }
 
 .wallet-card-header {

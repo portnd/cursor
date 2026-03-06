@@ -1,0 +1,3 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO "public"."menu" ( "parent_id", "name", "route", "icon", "is_active", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 0, 'สายทาง', 'road', 'icon-road', 1, NULL, NULL, '2023-01-23 05:43:23.486529', '2023-01-23 05:43:23.486529');
+INSERT INTO "public"."menu" ( "parent_id", "name", "route", "icon", "is_active", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 0, '11', '11', '111111', 1, 11112, NULL, '2023-01-23 05:52:00.069258', '2023-01-23 06:17:57.757031');

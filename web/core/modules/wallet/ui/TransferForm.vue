@@ -153,16 +153,17 @@ watch(() => props.error, (newError) => {
 
 <style scoped>
 .transfer-form-container {
-  background: white;
+  background: #1f2937;
+  border: 1px solid #374151;
   border-radius: 1rem;
   padding: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
 }
 
 .transfer-title {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #1f2937;
+  color: #f9fafb;
   margin: 0 0 1.5rem 0;
   display: flex;
   align-items: center;
@@ -184,27 +185,33 @@ watch(() => props.error, (newError) => {
 .form-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
+  color: #9ca3af;
 }
 
 .form-input {
   padding: 0.75rem 1rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid #4b5563;
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: all 0.2s;
-  background: white;
+  background: #111827;
+  color: #f9fafb;
+}
+
+.form-input::placeholder {
+  color: #6b7280;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #a855f7;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2);
 }
 
 .form-input:disabled {
-  background: #f3f4f6;
+  background: #374151;
   cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .input-error {
@@ -213,12 +220,12 @@ watch(() => props.error, (newError) => {
 
 .input-error:focus {
   border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
 .error-message {
   font-size: 0.875rem;
-  color: #ef4444;
+  color: #f87171;
   margin: 0;
 }
 
@@ -229,20 +236,20 @@ watch(() => props.error, (newError) => {
 }
 
 .alert-error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
 .alert-success {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
 .submit-button {
   padding: 0.875rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
   color: white;
   border: none;
   border-radius: 0.5rem;
@@ -258,7 +265,7 @@ watch(() => props.error, (newError) => {
 
 .submit-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 15px -3px rgba(124, 58, 237, 0.3), 0 4px 6px -2px rgba(219, 39, 119, 0.2);
 }
 
 .submit-button:active:not(:disabled) {

@@ -1,379 +1,342 @@
 <template>
-  <div class="min-h-screen bg-gray-900 p-6">
-    <!-- Header -->
-    <div class="mb-6 border-b border-gray-700 pb-4">
-      <h1 class="text-2xl font-bold text-white">CEO STRATEGIC OVERVIEW</h1>
-      <p class="text-sm text-gray-400 mt-1">System-wide operational metrics</p>
-    </div>
+  <div class="min-h-screen bg-gray-900 text-gray-100">
+    <!-- CEO Command Center Header -->
+    <header class="sticky top-0 z-10 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              CEO Command Center
+            </h1>
+            <p class="mt-1 text-sm text-gray-400">
+              Strategic metrics at a glance — what founders need to see
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500">
+              Updated {{ lastUpdated }}
+            </span>
+            <button
+              type="button"
+              @click="refresh"
+              class="inline-flex items-center gap-2 rounded-xl border border-gray-600 bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:border-gray-500 hover:bg-gray-700 hover:text-white"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="text-center py-20">
-      <div class="text-gray-400">Loading system data...</div>
+    <div v-if="isLoading" class="flex flex-col items-center justify-center py-24">
+      <div class="h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      <p class="mt-4 text-sm text-gray-500">Loading strategic data...</p>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="bg-red-900/20 border border-red-500 rounded p-4 text-red-400">
-      {{ error }}
+    <div v-else-if="error" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="rounded-xl border border-red-500/50 bg-red-950/20 px-5 py-4 text-red-400">
+        <div class="flex items-start gap-3">
+          <span class="text-xl">⚠️</span>
+          <div>
+            <p class="font-medium">Failed to load data</p>
+            <p class="mt-1 text-sm text-red-300">{{ error }}</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Content -->
-    <div v-else>
-      <!-- Key Metrics (Top Row) -->
-      <div class="grid grid-cols-3 gap-4 mb-8">
-        <!-- System Velocity -->
-        <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">System Velocity</div>
-          <div class="text-3xl font-bold text-white">{{ systemVelocity }}%</div>
-          <div class="text-xs text-gray-500 mt-1">
-            {{ completedCount }} / {{ tasks.length }} completed
+    <!-- Main Content: Single-pane strategic view -->
+    <main v-else class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <!-- Five headline numbers (founder-first KPIs) -->
+      <section class="mb-8">
+        <h2 class="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Five numbers that matter
+        </h2>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div
+            class="rounded-xl border p-5 shadow-lg"
+            :class="financeSummary ? (financeSummary.runway_months >= 12 ? 'border-emerald-500/50 bg-gray-800/60' : financeSummary.runway_months >= 6 ? 'border-amber-500/50 bg-gray-800/60' : 'border-red-500/50 bg-gray-800/60') : 'border-gray-700/80 bg-gray-800/60'"
+          >
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Cash Runway</div>
+            <div class="mt-2 text-2xl font-bold text-white">
+              {{ financeSummary && financeSummary.runway_months > 0 ? financeSummary.runway_months.toFixed(1) + ' mo' : '—' }}
+            </div>
+            <div class="mt-1 text-xs text-gray-500">
+              {{ financeSummary ? 'From accounting' : 'กรอกที่หน้าบัญชี' }}
+            </div>
+          </div>
+          <div
+            class="rounded-xl border p-5 shadow-lg"
+            :class="overviewStatus.engineering"
+          >
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Engineering Health</div>
+            <div class="mt-2 text-2xl font-bold text-white">
+              {{ overview ? overview.engineering_health_index.toFixed(1) : '—' }}
+            </div>
+            <div class="mt-1 text-xs text-gray-500">0–100 composite</div>
+          </div>
+          <div
+            class="rounded-xl border p-5 shadow-lg"
+            :class="overviewStatus.projects"
+          >
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Projects On Track</div>
+            <div class="mt-2 text-2xl font-bold text-white">
+              {{ overview ? overview.project_on_track_rate_pct.toFixed(1) : '—' }}%
+            </div>
+            <div class="mt-1 text-xs text-gray-500">Delivery reliability</div>
+          </div>
+          <div
+            class="rounded-xl border p-5 shadow-lg"
+            :class="overviewStatus.velocity"
+          >
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Velocity Trend</div>
+            <div class="mt-2 text-2xl font-bold text-white">
+              {{ overview ? (overview.team_velocity_trend_pct >= 0 ? '+' : '') + overview.team_velocity_trend_pct.toFixed(1) : '—' }}%
+            </div>
+            <div class="mt-1 text-xs text-gray-500">Sprint-over-sprint</div>
+          </div>
+          <div
+            class="rounded-xl border p-5 shadow-lg"
+            :class="overviewStatus.sprint"
+          >
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Sprint Success</div>
+            <div class="mt-2 text-2xl font-bold text-white">
+              {{ overview ? overview.sprint_success_rate_pct.toFixed(1) : '—' }}%
+            </div>
+            <div class="mt-1 text-xs text-gray-500">Commitments met</div>
           </div>
         </div>
+      </section>
 
-        <!-- Pipeline Value -->
-        <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">Pipeline Value</div>
-          <div class="text-3xl font-bold text-white">{{ pipelineHours }}h</div>
-          <div class="text-xs text-gray-500 mt-1">
-            Total estimated workload
+      <!-- Company pulse (from accounting) -->
+      <section class="mb-8">
+        <h2 class="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Company pulse
+        </h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div class="rounded-xl border border-gray-700/80 bg-gray-800/60 px-4 py-3">
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">MRR / Revenue</div>
+            <div class="mt-1 text-lg font-semibold text-white">
+              {{ financeSummary ? formatFinance(financeSummary.last_month_mrr) + ' ' + financeSummary.currency : '—' }}
+            </div>
+            <div class="mt-0.5 text-xs text-gray-500">รายได้เดือนล่าสุด</div>
+          </div>
+          <div class="rounded-xl border border-gray-700/80 bg-gray-800/60 px-4 py-3">
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Burn rate</div>
+            <div class="mt-1 text-lg font-semibold text-white">
+              {{ financeSummary ? formatFinance(financeSummary.burn_rate) + ' ' + financeSummary.currency : '—' }}
+            </div>
+            <div class="mt-0.5 text-xs text-gray-500">เฉลี่ย/เดือน (12 เดือน)</div>
+          </div>
+          <div class="rounded-xl border border-gray-700/80 bg-gray-800/60 px-4 py-3">
+            <div class="text-xs font-medium uppercase tracking-wider text-gray-500">Net new ARR</div>
+            <div class="mt-1 text-lg font-semibold text-white">
+              {{ financeSummary ? formatFinance(financeSummary.net_new_arr) + ' ' + financeSummary.currency : '—' }}
+            </div>
+            <div class="mt-0.5 text-xs text-gray-500">เทียบเดือนก่อน</div>
           </div>
         </div>
+      </section>
 
-        <!-- Active Workforce -->
-        <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">Active Workforce</div>
-          <div class="text-3xl font-bold text-white">{{ activeWorkforce }}</div>
-          <div class="text-xs text-gray-500 mt-1">
-            Unique developers assigned
-          </div>
+      <!-- Delivery & product health -->
+      <section class="mb-8">
+        <h2 class="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Delivery & product health
+        </h2>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiScoreCard
+            label="Engineering health"
+            :value="overview?.engineering_health_index ?? 0"
+            format="number"
+            sublabel="Composite 0–100"
+            :status="rag(overview?.engineering_health_index ?? 0, 70, 50)"
+          />
+          <KpiScoreCard
+            label="Sprint success rate"
+            :value="overview?.sprint_success_rate_pct ?? 0"
+            format="pct"
+            sublabel="Commitments met"
+            :status="rag(overview?.sprint_success_rate_pct ?? 0, 80, 60)"
+          />
+          <KpiScoreCard
+            label="Milestone hit rate"
+            :value="overview?.milestone_hit_rate_pct ?? 0"
+            format="pct"
+            sublabel="Milestones reached"
+            :status="rag(overview?.milestone_hit_rate_pct ?? 0, 80, 60)"
+          />
+          <KpiScoreCard
+            label="Cursor adoption"
+            :value="overview?.cursor_adoption_score ?? 0"
+            format="raw"
+            sublabel="AI tool usage"
+            status="neutral"
+          />
+          <KpiScoreCard
+            label="Team velocity trend"
+            :value="overview?.team_velocity_trend_pct ?? 0"
+            format="pct"
+            :trend="overview && overview.team_velocity_trend_pct > 0 ? 'up' : overview && overview.team_velocity_trend_pct < 0 ? 'down' : 'stable'"
+            trend-label="vs last period"
+            :status="overview && overview.team_velocity_trend_pct >= 0 ? 'good' : 'warn'"
+          />
         </div>
-      </div>
+      </section>
 
-      <!-- Secondary Metrics -->
-      <div class="grid grid-cols-4 gap-4 mb-8">
-        <div class="bg-gray-800 border border-gray-700 rounded p-3">
-          <div class="text-xs text-gray-500">IN PROGRESS</div>
-          <div class="text-xl font-bold text-blue-400">{{ inProgressCount }}</div>
+      <!-- Team: who drives results -->
+      <section>
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Team — who drives results
+          </h2>
+          <span class="rounded-full bg-gray-600/30 px-3 py-1 text-xs font-medium text-gray-400">
+            {{ team.length }} members
+          </span>
         </div>
-        <div class="bg-gray-800 border border-gray-700 rounded p-3">
-          <div class="text-xs text-gray-500">PENDING</div>
-          <div class="text-xl font-bold text-yellow-400">{{ pendingCount }}</div>
-        </div>
-        <div class="bg-gray-800 border border-gray-700 rounded p-3">
-          <div class="text-xs text-gray-500">UNASSIGNED</div>
-          <div class="text-xl font-bold text-orange-400">{{ unassignedCount }}</div>
-        </div>
-        <div 
-          class="bg-gray-800 border border-gray-700 rounded p-3 cursor-pointer hover:bg-gray-700 transition-colors"
-          @click="scrollToApprovals"
-        >
-          <div class="text-xs text-gray-500">🚦 READY FOR REVIEW</div>
-          <div class="text-xl font-bold text-white">{{ reviewPendingCount }}</div>
-          <div class="text-xs text-gray-400 mt-1">Click to review</div>
-        </div>
-      </div>
-
-      <!-- 🚦 QUALITY GATE: Tasks Ready for Approval -->
-      <div v-if="reviewPendingTasks.length > 0" id="approvals-section" class="mb-8">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-bold text-white uppercase">🚦 Quality Gate: Ready for Approval</h2>
-          <span class="text-sm text-gray-500">{{ reviewPendingTasks.length }} tasks awaiting review</span>
-        </div>
-        
-        <div class="bg-gray-800 border border-gray-700 rounded overflow-hidden">
+        <div class="overflow-hidden rounded-xl border border-gray-700/80 bg-gray-800/60 shadow-lg">
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
-              <thead class="bg-gray-900 text-xs text-gray-400 uppercase">
-                <tr>
-                  <th class="text-left p-3">Task</th>
-                  <th class="text-left p-3">Developer</th>
-                  <th class="text-center p-3">AI Score</th>
-                  <th class="text-right p-3">Submitted</th>
-                  <th class="text-center p-3">Action</th>
+              <thead>
+                <tr class="border-b border-gray-700 bg-gray-900/80 text-left text-xs font-medium uppercase tracking-wider text-gray-400">
+                  <th class="px-5 py-4">#</th>
+                  <th class="px-5 py-4">Member</th>
+                  <th class="px-5 py-4">Role</th>
+                  <th class="px-5 py-4 text-right">Delivery</th>
+                  <th class="px-5 py-4 text-right">Quality</th>
+                  <th class="px-5 py-4 text-right">Rework</th>
+                  <th class="px-5 py-4 text-right">Score</th>
                 </tr>
               </thead>
-              <tbody class="text-gray-300">
-                <tr 
-                  v-for="task in reviewPendingTasks" 
-                  :key="task.id"
-                  class="border-t border-gray-700 hover:bg-gray-700/50"
+              <tbody class="divide-y divide-gray-700/80">
+                <tr
+                  v-for="(m, i) in team"
+                  :key="m.user_id"
+                  class="transition-colors hover:bg-gray-700/30"
                 >
-                  <td class="p-3">
-                    <div class="font-medium text-white">{{ task.title }}</div>
-                    <div class="text-xs text-gray-500 mt-1">{{ task.description?.substring(0, 60) }}...</div>
-                  </td>
-                  <td class="p-3">
-                    <div class="flex items-center gap-2">
-                      <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                        D{{ task.assigned_to || task.created_by }}
-                      </div>
-                      <span>Dev #{{ task.assigned_to || task.created_by }}</span>
-                    </div>
-                  </td>
-                  <td class="p-3 text-center">
-                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-700 text-green-100 rounded text-xs font-bold">
-                      <span>✅</span>
-                      <span>PASS</span>
+                  <td class="px-5 py-4 text-gray-500">{{ i + 1 }}</td>
+                  <td class="px-5 py-4 font-medium text-white">{{ m.email }}</td>
+                  <td class="px-5 py-4">
+                    <span
+                      class="inline-flex rounded-md px-2 py-1 text-xs font-semibold"
+                      :class="roleBadgeClass(m.role)"
+                    >
+                      {{ m.role }}
                     </span>
                   </td>
-                  <td class="p-3 text-right text-xs text-gray-400">
-                    {{ formatTimeAgo(task.updated_at) }}
+                  <td class="px-5 py-4 text-right" :class="pctColor(m.delivery_rate_pct)">
+                    {{ m.delivery_rate_pct.toFixed(1) }}%
                   </td>
-                  <td class="p-3 text-center">
-                    <button
-                      @click="goToTask(task)"
-                      class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded transition-colors flex items-center gap-2 mx-auto"
-                    >
-                      <span>🔍</span>
-                      <span>Review</span>
-                    </button>
+                  <td class="px-5 py-4 text-right text-gray-300">{{ m.code_quality_index.toFixed(0) }}</td>
+                  <td class="px-5 py-4 text-right" :class="reworkColor(m.rework_rate_pct)">
+                    {{ m.rework_rate_pct.toFixed(1) }}%
+                  </td>
+                  <td class="px-5 py-4 text-right font-bold" :class="scoreColor(m.composite_score)">
+                    {{ m.composite_score.toFixed(1) }}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <div v-if="team.length === 0" class="px-5 py-8 text-center text-gray-500">
+            No team data. Ensure performance module is configured.
+          </div>
         </div>
-      </div>
-
-      <!-- Critical Issues: Tasks IN_PROGRESS > 3 days -->
-      <div v-if="bottleneckTasks.length > 0" class="mb-8">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-bold text-red-400 uppercase">⚠️ Potential Bottlenecks</h2>
-          <span class="text-sm text-gray-500">Tasks in progress > 3 days</span>
-        </div>
-        
-        <div class="bg-red-900/10 border border-red-500/50 rounded overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-red-900/20 text-xs text-gray-400 uppercase">
-              <tr>
-                <th class="text-left p-3">Task</th>
-                <th class="text-left p-3">Assigned To</th>
-                <th class="text-left p-3">Days Stuck</th>
-                <th class="text-left p-3">Est. Hours</th>
-              </tr>
-            </thead>
-            <tbody class="text-gray-300">
-              <tr 
-                v-for="task in bottleneckTasks" 
-                :key="task.id"
-                class="border-t border-red-500/20 hover:bg-red-900/10 cursor-pointer"
-                @click="goToTask(task)"
-              >
-                <td class="p-3 font-medium">{{ task.title }}</td>
-                <td class="p-3">Dev #{{ task.assigned_to }}</td>
-                <td class="p-3 text-red-400 font-bold">{{ getDaysStuck(task) }} days</td>
-                <td class="p-3">{{ (task.ai_estimated_minutes / 60).toFixed(1) }}h</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- All Tasks Table -->
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-bold text-white uppercase">All Tasks</h2>
-          <div class="text-sm text-gray-500">{{ tasks.length }} total</div>
-        </div>
-        
-        <div class="bg-gray-800 border border-gray-700 rounded overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-xs text-gray-400 uppercase">
-              <tr>
-                <th class="text-left p-3">Status</th>
-                <th class="text-left p-3">Task</th>
-                <th class="text-left p-3">Assigned</th>
-                <th class="text-right p-3">Est. Hours</th>
-                <th class="text-right p-3">Created</th>
-              </tr>
-            </thead>
-            <tbody class="text-gray-300">
-              <tr 
-                v-for="task in tasks" 
-                :key="task.id"
-                class="border-t border-gray-700 hover:bg-gray-700/50 cursor-pointer"
-                @click="goToTask(task)"
-              >
-                <td class="p-3">
-                  <span 
-                    :class="getStatusClass(task.status)"
-                    class="px-2 py-1 text-xs font-bold rounded"
-                  >
-                    {{ task.status }}
-                  </span>
-                </td>
-                <td class="p-3 font-medium">{{ task.title }}</td>
-                <td class="p-3">
-                  <span v-if="task.assigned_to">Dev #{{ task.assigned_to }}</span>
-                  <span v-else class="text-orange-400">Unassigned</span>
-                </td>
-                <td class="p-3 text-right">{{ (task.ai_estimated_minutes / 60).toFixed(1) }}</td>
-                <td class="p-3 text-right text-gray-500 text-xs">
-                  {{ formatDate(task.created_at) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-interface Task {
-  id: string
-  title: string
-  description: string
-  status: string
-  ai_estimated_minutes: number
-  assigned_to?: number
-  created_at: string
-  updated_at?: string
-}
+import type { OverviewKPIs } from '~/core/modules/performance/performance-api'
+import type { TeamMemberKPI } from '~/core/modules/performance/performance-api'
+import { usePerformanceStore } from '~/core/modules/performance/performance-store'
+import { useFinanceApi } from '~/core/modules/finance/finance-api'
+import type { FinanceSummary } from '~/core/modules/finance/finance-api'
+import KpiScoreCard from '~/components/performance/KpiScoreCard.vue'
 
-const { fetchWithAuth } = useAuth()
+const performanceStore = usePerformanceStore()
+const financeApi = useFinanceApi()
+const { currentUser } = useAuth()
 
-const tasks = ref<Task[]>([])
 const isLoading = ref(true)
 const error = ref('')
+const lastUpdated = ref('—')
+const financeSummary = ref<FinanceSummary | null>(null)
 
-// Key Metrics
-const systemVelocity = computed(() => {
-  if (tasks.value.length === 0) return 0
-  const completed = tasks.value.filter(t => t.status === 'COMPLETED').length
-  return Math.round((completed / tasks.value.length) * 100)
-})
+const overview = computed<OverviewKPIs | null>(() => performanceStore.overview)
+const team = computed<TeamMemberKPI[]>(() => performanceStore.team)
 
-const pipelineHours = computed(() => {
-  const totalMinutes = tasks.value.reduce((sum, t) => sum + (t.ai_estimated_minutes || 0), 0)
-  return (totalMinutes / 60).toFixed(1)
-})
-
-const activeWorkforce = computed(() => {
-  const uniqueDevs = new Set(
-    tasks.value
-      .filter(t => t.assigned_to)
-      .map(t => t.assigned_to)
-  )
-  return uniqueDevs.size
-})
-
-// Secondary Metrics
-const completedCount = computed(() => 
-  tasks.value.filter(t => t.status === 'COMPLETED').length
-)
-
-const inProgressCount = computed(() => 
-  tasks.value.filter(t => t.status === 'IN_PROGRESS').length
-)
-
-const pendingCount = computed(() => 
-  tasks.value.filter(t => t.status === 'PENDING').length
-)
-
-const unassignedCount = computed(() => 
-  tasks.value.filter(t => !t.assigned_to).length
-)
-
-// 🚦 Quality Gate Metrics
-const reviewPendingCount = computed(() => 
-  tasks.value.filter(t => t.status === 'REVIEW_PENDING').length
-)
-
-const reviewPendingTasks = computed(() => 
-  tasks.value
-    .filter(t => t.status === 'REVIEW_PENDING')
-    .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
-)
-
-const avgTaskHours = computed(() => {
-  if (tasks.value.length === 0) return 0
-  const avg = tasks.value.reduce((sum, t) => sum + (t.ai_estimated_minutes || 0), 0) / tasks.value.length
-  return (avg / 60).toFixed(1)
-})
-
-// Bottleneck Detection: IN_PROGRESS > 3 days
-const bottleneckTasks = computed(() => {
-  const threeDaysAgo = new Date()
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-  
-  return tasks.value.filter(task => {
-    if (task.status !== 'IN_PROGRESS') return false
-    const createdDate = new Date(task.created_at)
-    return createdDate < threeDaysAgo
-  })
-})
-
-const getDaysStuck = (task: Task) => {
-  const createdDate = new Date(task.created_at)
-  const now = new Date()
-  const diffTime = Math.abs(now.getTime() - createdDate.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return diffDays
+function formatFinance(value: number): string {
+  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 }
 
-// Fetch Data
-const fetchTasks = async () => {
+function rag(value: number, goodThreshold: number, warnThreshold: number): 'good' | 'warn' | 'bad' | 'neutral' {
+  if (value >= goodThreshold) return 'good'
+  if (value >= warnThreshold) return 'warn'
+  return 'bad'
+}
+
+const overviewStatus = computed(() => {
+  const o = overview.value
+  const border = (status: 'good' | 'warn' | 'bad') => {
+    if (status === 'good') return 'border-emerald-500/50 bg-gray-800/60'
+    if (status === 'warn') return 'border-amber-500/50 bg-gray-800/60'
+    return 'border-red-500/50 bg-gray-800/60'
+  }
+  return {
+    engineering: o ? border(rag(o.engineering_health_index, 70, 50)) : 'border-gray-700/80 bg-gray-800/60',
+    projects: o ? border(rag(o.project_on_track_rate_pct, 80, 60)) : 'border-gray-700/80 bg-gray-800/60',
+    velocity: o
+      ? (o.team_velocity_trend_pct >= 0 ? border('good') : border('warn'))
+      : 'border-gray-700/80 bg-gray-800/60',
+    sprint: o ? border(rag(o.sprint_success_rate_pct, 80, 60)) : 'border-gray-700/80 bg-gray-800/60',
+  }
+})
+
+function roleBadgeClass(role: string): string {
+  if (role === 'CEO') return 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40'
+  if (role === 'PM') return 'bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/40'
+  return 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
+}
+
+function pctColor(pct: number): string {
+  if (pct >= 80) return 'text-emerald-400'
+  if (pct >= 60) return 'text-amber-400'
+  return 'text-red-400'
+}
+
+function reworkColor(pct: number): string {
+  if (pct <= 10) return 'text-emerald-400'
+  if (pct <= 20) return 'text-amber-400'
+  return 'text-red-400'
+}
+
+function scoreColor(score: number): string {
+  if (score >= 70) return 'text-emerald-400'
+  if (score >= 50) return 'text-amber-400'
+  return 'text-red-400'
+}
+
+async function refresh() {
+  isLoading.value = true
+  error.value = ''
   try {
-    isLoading.value = true
-    const response = await fetchWithAuth<{ data: Task[] }>('/sentinel/tasks')
-    tasks.value = response.data || []
-    error.value = ''
-  } catch (err: any) {
-    error.value = err.data?.message || err.message || 'Failed to load tasks'
-    console.error('Failed to fetch tasks:', err)
+    await performanceStore.fetchAll(currentUser.value?.role ?? 'CEO')
+    financeSummary.value = await financeApi.getSummary()
+    lastUpdated.value = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  } catch (e: any) {
+    error.value = e?.message ?? performanceStore.error ?? 'Failed to load'
   } finally {
     isLoading.value = false
   }
 }
 
-// Utilities
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    COMPLETED: 'bg-green-700 text-green-100',
-    IN_PROGRESS: 'bg-blue-700 text-blue-100',
-    PENDING: 'bg-yellow-700 text-yellow-100',
-    BLOCKED: 'bg-red-700 text-red-100',
-    REVIEW_PENDING: 'bg-indigo-900 text-indigo-200 border border-indigo-600' // 🚦 Quality Gate
-  }
-  return classes[status] || 'bg-gray-700 text-gray-100'
-}
-
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric'
-  })
-}
-
-const formatTimeAgo = (dateString: string) => {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  return `${diffDays}d ago`
-}
-
-const scrollToApprovals = () => {
-  const section = document.getElementById('approvals-section')
-  if (section) {
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-}
-
-// Navigation helper (use task.code for pretty URL when available)
-const goToTask = (task: { id: string; code?: string }) => {
-  navigateTo(`/task/${task?.code || task?.id}`)
-}
-
 onMounted(() => {
-  fetchTasks()
+  refresh()
 })
 </script>

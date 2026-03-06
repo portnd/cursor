@@ -9,7 +9,7 @@
           <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
         <span v-if="sprints.length === 0" class="text-xs text-gray-500 w-full sm:w-auto">— No sprints yet</span>
-        <span v-else-if="filterSprint" class="text-xs text-indigo-400 truncate max-w-full">{{ sprintNameById(filterSprint) || 'Sprint' }}</span>
+        <span v-else-if="filterSprint" class="text-xs text-purple-400 truncate max-w-full">{{ sprintNameById(filterSprint) || 'Sprint' }}</span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <label class="text-xs text-gray-400 uppercase tracking-wide w-14 sm:w-auto shrink-0">Priority</label>
@@ -81,21 +81,21 @@
               @click="$emit('task-click', task)"
             >
               <div class="flex items-start justify-between gap-1 mb-2">
-                <span class="text-xs text-gray-500 font-mono">{{ task.code }}</span>
+                <span class="text-xs text-gray-500 font-mono">{{ taskDisplayCode(task) }}</span>
                 <span class="text-xs border rounded px-1" :class="priorityCls(task.priority)">{{ task.priority }}</span>
               </div>
-              <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-indigo-400 mb-1 truncate" :title="sprintNameById(task.sprint_id)">📌 {{ sprintNameById(task.sprint_id) }}</p>
+              <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate" :title="sprintNameById(task.sprint_id)">📌 {{ sprintNameById(task.sprint_id) }}</p>
               <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
               <div class="flex items-center justify-between text-xs text-gray-500">
                 <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
-                <span v-if="task.assigned_to" class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">{{ task.assigned_to }}</span></span>
+                <span v-if="task.assigned_to" class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ task.assigned_to }}</span></span>
                 <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
                   {{ daysUntilDue(task)! < 0 ? Math.abs(daysUntilDue(task)!) + 'd overdue' : daysUntilDue(task) + 'd left' }}
                 </span>
               </div>
               <div v-if="task.progress > 0" class="mt-2">
                 <div class="h-1 bg-gray-700 rounded-full overflow-hidden">
-                  <div class="h-full bg-indigo-500 rounded-full transition-all" :style="{ width: task.progress + '%' }"></div>
+                  <div class="h-full bg-purple-500 rounded-full transition-all" :style="{ width: task.progress + '%' }"></div>
                 </div>
               </div>
             </div>
@@ -112,21 +112,21 @@
                 @click="$emit('task-click', task)"
               >
                 <div class="flex items-start justify-between gap-1 mb-2">
-                  <span class="text-xs text-gray-500 font-mono">{{ task.code }}</span>
+                  <span class="text-xs text-gray-500 font-mono">{{ taskDisplayCode(task) }}</span>
                   <span class="text-xs border rounded px-1" :class="priorityCls(task.priority)">{{ task.priority }}</span>
                 </div>
-                <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-indigo-400 mb-1 truncate">📌 {{ sprintNameById(task.sprint_id) }}</p>
+                <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate">📌 {{ sprintNameById(task.sprint_id) }}</p>
                 <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
                 <div class="flex items-center justify-between text-xs text-gray-500">
                   <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
-                  <span v-if="task.assigned_to" class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">{{ task.assigned_to }}</span></span>
+                  <span v-if="task.assigned_to" class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ task.assigned_to }}</span></span>
                   <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
                     {{ daysUntilDue(task)! < 0 ? Math.abs(daysUntilDue(task)!) + 'd overdue' : daysUntilDue(task) + 'd left' }}
                   </span>
                 </div>
                 <div v-if="task.progress > 0" class="mt-2">
                   <div class="h-1 bg-gray-700 rounded-full overflow-hidden">
-                    <div class="h-full bg-indigo-500 rounded-full transition-all" :style="{ width: task.progress + '%' }"></div>
+                    <div class="h-full bg-purple-500 rounded-full transition-all" :style="{ width: task.progress + '%' }"></div>
                   </div>
                 </div>
               </div>
@@ -153,6 +153,8 @@ import type { Sprint } from '~/core/modules/projects/infrastructure/projects-api
 const props = defineProps<{
   tasks: Task[]
   sprints: Sprint[]
+  /** Optional map taskId -> display code (e.g. 001, 002) from project backlog order */
+  taskDisplayCodeMap?: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -178,6 +180,13 @@ const priorityConfig: Record<string, string> = {
 }
 function priorityCls(p: string) {
   return priorityConfig[p] ?? 'text-gray-400 bg-gray-700 border-gray-600'
+}
+
+function taskDisplayCode(task: Task): string {
+  if (props.taskDisplayCodeMap?.[task.id]) return props.taskDisplayCodeMap[task.id]
+  if (!task.code) return '–'
+  const suffix = task.code.split('-').pop()
+  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(3, '0') : task.code
 }
 function daysUntilDue(task: Task): number | null {
   if (!task.due_at) return null
@@ -279,11 +288,11 @@ function onDrop(e: DragEvent, newStatus: string) {
 }
 
 .drop-target {
-  @apply border-indigo-500/60 bg-indigo-500/5;
+  @apply border-purple-500/60 bg-purple-500/5;
 }
 
 .kanban-card {
-  @apply bg-gray-900 border border-gray-700 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/5 transition-all select-none;
+  @apply bg-gray-900 border border-gray-700 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/5 transition-all select-none;
 }
 
 .badge-count {
@@ -291,6 +300,6 @@ function onDrop(e: DragEvent, newStatus: string) {
 }
 
 .input-select {
-  @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-200 focus:outline-none focus:border-indigo-500 transition-colors;
+  @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-200 focus:outline-none focus:border-purple-500 transition-colors;
 }
 </style>

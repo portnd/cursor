@@ -48,7 +48,7 @@
           <label class="block text-sm text-gray-400 mb-2">Active Model</label>
           <select
             v-model="formData.active_model"
-            class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:border-blue-500 outline-none"
+            class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 outline-none"
           >
             <option v-for="model in availableModels" :key="model" :value="model">
               {{ model }}
@@ -56,7 +56,7 @@
             </option>
           </select>
           <p class="text-xs text-gray-500 mt-2">
-            Recommended: gemini-2.5-flash-lite for balanced performance
+            {{ modelsLoadNote }}
           </p>
         </div>
 
@@ -123,6 +123,22 @@
           </div>
         </div>
 
+        <!-- 4. Quota (real values only at Google) -->
+        <div class="bg-gray-800 border border-gray-700 rounded p-4">
+          <h2 class="text-sm font-bold text-gray-400 uppercase mb-3">โควต้า Gemini</h2>
+          <p class="text-sm text-gray-400 mb-3">
+            โควต้าจริง (RPM / RPD / TPM) Google ไม่เปิด API ให้ดึงได้ — ดูได้ที่ Google AI Studio เท่านั้น
+          </p>
+          <a
+            href="https://aistudio.google.com/rate-limit"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 font-medium"
+          >
+            ดูโควต้าจริงที่ Google AI Studio →
+          </a>
+        </div>
+
       </div>
 
       <!-- Action Buttons -->
@@ -130,7 +146,7 @@
         <button
           @click="saveConfiguration"
           :disabled="isSaving"
-          class="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
+          class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
         >
           <span v-if="isSaving" class="animate-spin">⚙️</span>
           <span v-else>💾</span>
@@ -146,8 +162,8 @@
       </div>
 
       <!-- Info Footer -->
-      <div class="mt-6 p-4 bg-blue-900/10 border border-blue-500/30 rounded">
-        <p class="text-sm text-blue-300">
+      <div class="mt-6 p-4 bg-purple-900/10 border border-purple-500/30 rounded">
+        <p class="text-sm text-purple-300">
           Changes take effect immediately for all AI operations.
         </p>
       </div>
@@ -156,7 +172,7 @@
     <!-- Success Toast -->
     <div
       v-if="showSuccessToast"
-      class="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-4 rounded flex items-center gap-3 z-50"
+      class="fixed bottom-8 right-8 bg-gray-800 border-2 border-purple-500 text-white px-6 py-4 rounded-lg flex items-center gap-3 z-50 shadow-xl"
     >
       <span>✅</span>
       <div>
@@ -181,6 +197,7 @@ interface SystemConfig {
 }
 
 const { fetchWithAuth } = useAuth()
+const { showError, confirm } = useNotification()
 
 // State
 const config = ref<SystemConfig>({
@@ -218,14 +235,21 @@ const fetchConfig = async () => {
   }
 }
 
-// Fetch available models
+const modelsFromAPI = ref(false)
+const modelsLoadNote = computed(() =>
+  modelsFromAPI.value
+    ? `Loaded ${availableModels.value.length} models from Gemini API.`
+    : 'Using default list (Gemini API unavailable or no key).'
+)
+
+// Fetch available models (backend calls Gemini List Models API)
 const fetchModels = async () => {
   try {
     const response = await fetchWithAuth<{ data: string[] }>('/admin/models')
     availableModels.value = response.data || []
+    modelsFromAPI.value = availableModels.value.length > 0
   } catch (err: any) {
     console.error('Failed to fetch models:', err)
-    // Fallback to default models
     availableModels.value = [
       'gemini-1.5-flash',
       'gemini-1.5-pro',
@@ -233,6 +257,7 @@ const fetchModels = async () => {
       'gemini-2.5-flash-lite',
       'gemini-exp-1206'
     ]
+    modelsFromAPI.value = false
   }
 }
 
@@ -253,7 +278,7 @@ const saveConfiguration = async () => {
       showSuccessToast.value = false
     }, 3000)
   } catch (err: any) {
-    alert(`Failed to save configuration: ${err.data?.message || err.message}`)
+    showError(err.data?.message || err.message || 'Failed to save configuration', 'Save failed')
     console.error('Failed to save config:', err)
   } finally {
     isSaving.value = false
@@ -261,8 +286,15 @@ const saveConfiguration = async () => {
 }
 
 // Reset to defaults
-const resetToDefaults = () => {
-  if (confirm('Reset to default configuration?\n\nModel: gemini-2.5-flash-lite\nTemperature: 0.4\nCursor Assistance: 80%')) {
+const resetToDefaults = async () => {
+  const ok = await confirm({
+    title: 'Reset to defaults',
+    message: 'Reset to default configuration? Model: gemini-2.5-flash-lite, Temperature: 0.4, Cursor Assistance: 80%',
+    confirmLabel: 'Reset',
+    cancelLabel: 'Cancel',
+    variant: 'primary'
+  })
+  if (ok) {
     formData.value = {
       active_model: 'gemini-2.5-flash-lite',
       temperature: 0.4,

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>รายงานปริมาณจราจร</title>    
+    <script>
+        let date = new Date()
+        var options = { day: "numeric", month: 'short', year: 'numeric' };
+        head = document.getElementsByTagName('head')[0],
+        style = document.createElement('style');
+        style.textContent = `
+        @page {
+            @bottom-right {
+                content: "วันที่พิมพ์ ${date.toLocaleString('th-TH', options)} หน้า "counter(page) "/" counter(pages);
+                margin-top: 10px;
+                font-size: 10pt;
+            }
+        }
+        `
+        head.appendChild(style);
+    </script>
+    <style type="text/css">
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap');
+
+        html,
+        body {
+            margin: 0px 0px 0px 0px;
+            padding: 0;
+        }
+
+        div,
+        p,
+        label,
+        span {
+            font-family: "sarabun";
+            font-size: 10pt;
+            font-weight: 300;
+            line-height: 22px;
+        }
+
+        @page {
+            size: A4;
+            margin-top: 40mm;
+            margin-bottom: 19mm;
+            margin-left: 7mm;
+            margin-right: 7mm;
+            border: none;
+        }
+
+        @page {
+            @top-center {
+                content: element(header);
+                margin-top: 25px;
+                font-size: 10pt;
+            }
+        }
+
+        .page {
+            padding-top: 30px !important;
+            padding-bottom: 10px !important;
+        }
+
+        header {
+            display: block;
+            position: running(header);
+        }
+
+        footer {
+            display: block;
+            position: running(footer);
+        }
+
+        .text-start {
+            text-align: left;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-end {
+            text-align: right;
+        }
+
+        .d-flex {
+            display: flex;
+        }
+
+        .d-block {
+            display: block;
+        }
+
+        .w-100 {
+            width: 100%;
+        }
+
+        .table, tr, th, td {
+          caption-side: bottom;
+          border-collapse: collapse;
+          padding: 0.2rem;
+          border: solid rgba(0, 0, 0, 0.70);
+          border-width:0.5pt ;
+        }
+        .table th {
+            font-weight: 400;
+            border: solid rgba(0, 0, 0, 0.70);
+            border-width:0.5pt ;
+        }
+        .table tr td {
+          vertical-align: middle;
+        }
+        .page-break {
+          page-break-after: always;
+        }
+        .table-main {
+          background-color: #D9D9D9;
+        }
+        .table-subMain {
+          background-color: #e7e7e7;
+        }
+        .logo {
+          position: absolute;
+          top: 2em;
+        }
+        .page-break { 
+        page-break-after: always; 
+    }
+    </style>
+  </head>
+
+
+
+  <body>
+
+
+       {{ range $index, $item := . }}
+    <header>
+
+     
+      <div class="d-flex ">
+        <div id="img">
+            <img width="75" class="logo" src="data:image/png;base64,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" /> 
+        </div>
+       
+          <div class="d-block w-100">
+                <p style="font-size:12pt;line-height: 1.75; font-weight: 400; margin-bottom: 0; margin-top: 3px;">
+                    รายงานข้อมูลปริมาณจราจร ปี พ.ศ. {{$item.Year}}
+                </p>
+                <p style="width: 80%; margin: 0 auto; font-size:12pt;line-height: 1.75; font-weight: 400;">
+                    หมายเลขทางหลวง : {{$item.RoadGroupName}} ตอนควบคุม : {{$item.RoadSectionName}}<br> ชื่อสายทาง : {{$item.RoadName}}
+                </p>
+                <p style="width: 80%; margin: 0 auto; font-size:12pt;line-height: 1.75; font-weight: 400;">
+                    กม.เริ่มต้น {{$item.KmStart}}  กม.สิ้นสุด {{$item.KmEnd}} ระยะทาง {{$item.TotalKm}} กม.
+                </p>
+          </div>
+      </div>
+    </header>
+    <div class="page  page-break">
+      <table class="table w-100">
+        <thead>
+          <tr class="table-main">
+            <th>ประเภท</th>
+            <th>ปริมาณ (คัน/วัน)</th>
+            <th>วันที่สำรวจ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="text-center">
+            <td class="text-start">ปริมาณจราจร รถ 4 ล้อ </td>
+            <td>{{$item.Veh1}}</td>
+            <td>{{$item.SurveyedDate}}</td>
+          </tr>
+          <tr class="text-center">
+            <td class="text-start">ปริมาณจราจร รถ 6 ล้อ </td>
+            <td>{{$item.Veh2}}</td>
+            <td>{{$item.SurveyedDate}}</td>
+          </tr>
+          <tr class="text-center">
+            <td class="text-start">ปริมาณจราจร รถมากกว่า 6 ล้อ</td>
+            <td>{{$item.Veh3}}</td>
+            <td>{{$item.SurveyedDate}}</td>
+          </tr>
+          <tr class="text-center">
+            <td style="font-weight: 400;">รวม</td>
+            <td style="font-weight: 400;">{{$item.Total}}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+     
+    </div>
+  
+  </body>
+  {{ end }}
+ 
+  <script src="https://unpkg.com/pagedjs@0.4.3/dist/paged.polyfill.js"></script>
+
+  
+  <script>
+  
+
+    class RepeatTableHeadersHandler extends Paged.Handler {
+        constructor(chunker, polisher, caller) {
+            super(chunker, polisher, caller);
+            this.splitTablesRefs = [];
+        }
+  
+        afterPageLayout(pageElement, page, breakToken, chunker) {
+            this.chunker = chunker;
+            this.splitTablesRefs = [];
+  
+            if (breakToken) {
+                const node = breakToken.node;
+                const tables = this.findAllAncestors(node, "table");
+                if (node.tagName === "TABLE") tables.push(node);
+  
+                if (tables.length > 0) {
+                    this.splitTablesRefs = tables.map((t) => t.dataset.ref);
+  
+                    let thead =
+                        node.tagName === "THEAD" ?
+                            node :
+                            this.findFirstAncestor(node, "thead");
+                    if (thead) {
+                        let lastTheadNode = thead.hasChildNodes() ?
+                            thead.lastChild :
+                            thead;
+                        breakToken.node = this.nodeAfter(lastTheadNode, chunker.source);
+                    }
+  
+                    this.hideEmptyTables(pageElement, node);
+                }
+            }
+        }
+  
+        hideEmptyTables(pageElement, breakTokenNode) {
+            this.splitTablesRefs.forEach((ref) => {
+                let table = pageElement.querySelector("[data-ref='" + ref + "']");
+                if (table) {
+                    let sourceBody = table.querySelector("tbody > tr");
+                    if (
+                        !sourceBody ||
+                        this.refEquals(sourceBody.firstElementChild, breakTokenNode)
+                    ) {
+                        table.style.visibility = "hidden";
+                        table.style.position = "absolute";
+                        let lineSpacer = table.nextSibling;
+                        if (lineSpacer) {
+                            lineSpacer.style.visibility = "hidden";
+                            lineSpacer.style.position = "absolute";
+                        }
+                    }
+                }
+            });
+        }
+  
+        refEquals(a, b) {
+            return (
+                a && a.dataset && b && b.dataset && a.dataset.ref === b.dataset.ref
+            );
+        }
+  
+        findFirstAncestor(element, selector) {
+            while (element.parentNode && element.parentNode.nodeType === 1) {
+                if (element.parentNode.matches(selector)) return element.parentNode;
+                element = element.parentNode;
+            }
+            return null;
+        }
+  
+        findAllAncestors(element, selector) {
+            const ancestors = [];
+            while (element.parentNode && element.parentNode.nodeType === 1) {
+                if (element.parentNode.matches(selector))
+                    ancestors.unshift(element.parentNode);
+                element = element.parentNode;
+            }
+            return ancestors;
+        }
+  
+        layout(rendered, layout) {
+            this.splitTablesRefs.forEach((ref) => {
+                const renderedTable = rendered.querySelector(
+                    "[data-ref='" + ref + "']"
+                );
+                if (renderedTable) {
+                    if (!renderedTable.getAttribute("repeated-headers")) {
+                        const sourceTable = this.chunker.source.querySelector(
+                            "[data-ref='" + ref + "']"
+                        );
+                        this.repeatColgroup(sourceTable, renderedTable);
+                        this.repeatTHead(sourceTable, renderedTable);
+                        renderedTable.setAttribute("repeated-headers", true);
+                    }
+                }
+            });
+        }
+  
+        repeatColgroup(sourceTable, renderedTable) {
+            let colgroup = sourceTable.querySelectorAll("colgroup");
+            let firstChild = renderedTable.firstChild;
+            colgroup.forEach((colgroup) => {
+                let clonedColgroup = colgroup.cloneNode(true);
+                renderedTable.insertBefore(clonedColgroup, firstChild);
+            });
+        }
+  
+        repeatTHead(sourceTable, renderedTable) {
+            let thead = sourceTable.querySelector("thead");
+            if (thead) {
+                let clonedThead = thead.cloneNode(true);
+                renderedTable.insertBefore(clonedThead, renderedTable.firstChild);
+            }
+        }
+  
+        nodeAfter(node, limiter) {
+            if (limiter && node === limiter) return;
+            let significantNode = this.nextSignificantNode(node);
+            if (significantNode) return significantNode;
+            if (node.parentNode) {
+                while ((node = node.parentNode)) {
+                    if (limiter && node === limiter) return;
+                    significantNode = this.nextSignificantNode(node);
+                    if (significantNode) return significantNode;
+                }
+            }
+        }
+  
+        nextSignificantNode(sib) {
+            while ((sib = sib.nextSibling)) {
+                if (!this.isIgnorable(sib)) return sib;
+            }
+            return null;
+        }
+  
+        isIgnorable(node) {
+            return (
+                node.nodeType === 8 ||
+                (node.nodeType === 3 && this.isAllWhitespace(node))
+            );
+        }
+  
+        isAllWhitespace(node) {
+            return !/[^\t\n\r ]/.test(node.textContent);
+        }
+    }
+  
+    Paged.registerHandlers(RepeatTableHeadersHandler);
+  
+    class Handler extends Paged.Handler {
+      constructor(chunker, polisher, caller) {
+        super(chunker, polisher, caller);
+      }
+      afterPreview(pages) {
+        let pagedjs_pages = document.getElementsByClassName('pagedjs_pages');
+        let div = document.createElement('div');
+        div.id = 'success-pagejs';
+  
+        if (pagedjs_pages[0].children.length >1) {
+            insertAfter(div, pagedjs_pages[0]);
+        }
+      }
+    }
+    Paged.registerHandlers(Handler);
+    function insertAfter(newNode, existingNode) {
+        existingNode.parentNode.insertBefore(newNode, existingNode.nextSibling);
+    }
+  </script>
+</html>

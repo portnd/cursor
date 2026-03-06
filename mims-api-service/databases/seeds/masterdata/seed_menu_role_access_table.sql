@@ -1,0 +1,10 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 1, 1, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 2, 1, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 3, 1, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 4, 1, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 5, 2, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 1, 2, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 2, 2, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 3, 2, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');
+INSERT INTO "public"."menu_role_access" ( "menu_id", "role_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 4, 2, NULL, NULL, '2023-01-23 07:00:00.76141', '2023-01-23 07:00:00.76141');

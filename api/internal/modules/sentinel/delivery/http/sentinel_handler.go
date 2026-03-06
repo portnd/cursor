@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -73,6 +74,7 @@ type updateTaskReq struct {
 	Description string  `json:"description"`
 	ParentID    *string `json:"parent_id"`
 	EpicID      *string `json:"epic_id"`
+	SortOrder   *int    `json:"sort_order"`
 	StartDate   *string `json:"start_date"`
 	EndDate     *string `json:"end_date"`
 	Progress    *int    `json:"progress"`
@@ -96,6 +98,7 @@ type updateEpicReq struct {
 	Description string  `json:"description"`
 	Status      string  `json:"status"`
 	Color       string  `json:"color"`
+	SortOrder   *int    `json:"sort_order"`
 	StartDate   *string `json:"start_date"`
 	EndDate     *string `json:"end_date"`
 }
@@ -113,6 +116,7 @@ type updateSprintReq struct {
 	Goal      string  `json:"goal"`
 	StartDate *string `json:"start_date"`
 	EndDate   *string `json:"end_date"`
+	SortOrder *int    `json:"sort_order"`
 }
 
 type addTasksToSprintReq struct {
@@ -243,6 +247,46 @@ func (h *SentinelHandler) GetProjectByID(c *gin.Context) {
 	})
 }
 
+type updateProjectReq struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	UpdateCode  bool   `json:"update_code"` // if true, set project code to slugify(name) and update all task codes to new prefix
+}
+
+// UpdateProject handles PATCH /sentinel/projects/:id (id may be UUID or project code)
+func (h *SentinelHandler) UpdateProject(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Project id or code is required"})
+		return
+	}
+	existing, err := h.usecase.GetProjectByIDOrCode(idStr)
+	if err != nil || existing == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
+		return
+	}
+	var req updateProjectReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	status := req.Status
+	if status == "" {
+		status = existing.Status
+	}
+	project, err := h.usecase.UpdateProject(existing.ID, req.Name, req.Description, status, req.UpdateCode)
+	if err != nil {
+		if err.Error() == "project name is required" || err.Error() == "project name must be in English only (letters, numbers, spaces, hyphens)" || contains(err.Error(), "invalid project status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update project", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Project updated successfully", "data": project})
+}
+
 // DeleteProject handles DELETE /sentinel/projects/:id (id may be UUID or project code)
 func (h *SentinelHandler) DeleteProject(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
@@ -285,6 +329,131 @@ func (h *SentinelHandler) DeleteProject(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Project deleted successfully",
 	})
+}
+
+// GenerateProjectPlan handles POST /sentinel/projects/:id/ai-plan — AI generates epics, milestones, sprints, tasks (CEO/PM only).
+func (h *SentinelHandler) GenerateProjectPlan(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project id required"})
+		return
+	}
+	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	if err != nil || project == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	plan, err := h.usecase.GenerateProjectPlan(project.ID, userID, userRole)
+	if err != nil {
+		log.Printf("[GenerateProjectPlan] error: %v", err)
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI plan failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "AI work plan created successfully",
+		"data":    plan,
+	})
+}
+
+// ScheduleProjectWithAI handles POST /sentinel/projects/:id/ai-schedule — estimate time + arrange timeline for existing tasks (CEO/PM only).
+func (h *SentinelHandler) ScheduleProjectWithAI(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project id required"})
+		return
+	}
+	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	if err != nil || project == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	updatedCount, err := h.usecase.ScheduleProjectWithAI(project.ID, userID, userRole)
+	if err != nil {
+		log.Printf("[ScheduleProjectWithAI] error: %v", err)
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "no tasks to schedule") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI schedule failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "AI estimated and scheduled tasks successfully",
+		"updated": updatedCount,
+	})
+}
+
+// ClearProjectPlan handles POST /sentinel/projects/:id/clear-plan — removes all tasks, sprints, milestones, epics (CEO/PM only).
+func (h *SentinelHandler) ClearProjectPlan(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project id required"})
+		return
+	}
+	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	if err != nil || project == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	if err := h.usecase.ClearProjectPlan(project.ID, userID, userRole); err != nil {
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear plan", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Project plan cleared successfully"})
 }
 
 // CreateTask handles POST /api/v1/tasks
@@ -417,8 +586,14 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 }
 
 // AssignTask handles POST /api/v1/tasks/:id/assign
-// :id can be UUID or task code
+// :id can be UUID or task code. The requesting user (PM/CEO) is recorded as assigned_by for leaderboard scope.
 func (h *SentinelHandler) AssignTask(c *gin.Context) {
+	assignerID := getUserIDFromContext(c)
+	if assignerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+
 	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
@@ -434,7 +609,7 @@ func (h *SentinelHandler) AssignTask(c *gin.Context) {
 		return
 	}
 
-	if err := h.usecase.AssignTask(task.ID, req.DevID); err != nil {
+	if err := h.usecase.AssignTask(task.ID, req.DevID, assignerID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to assign task",
 			"message": err.Error(),
@@ -1010,7 +1185,8 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	hasSP := req.StoryPoints != nil
 	hasSprint := req.SprintID != nil && *req.SprintID != ""
 	hasMilestone := req.MilestoneID != nil && *req.MilestoneID != ""
-	if !hasTitle && !hasDesc && !hasParent && !hasEpicKey && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone {
+	hasSortOrder := req.SortOrder != nil
+	if !hasTitle && !hasDesc && !hasParent && !hasEpicKey && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone && !hasSortOrder {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Bad Request",
 			"message": "At least one field must be provided",
@@ -1084,8 +1260,12 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 		}
 		milestoneIDUpd = &mid
 	}
+	var sortOrderUpd *int
+	if hasSortOrder {
+		sortOrderUpd = req.SortOrder
+	}
 
-	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey)
+	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd)
 	if err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {
@@ -1153,6 +1333,39 @@ func (h *SentinelHandler) UpdateTaskSlideResources(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Slide resources updated", "data": task})
+}
+
+// EstimateTask handles POST /api/v1/sentinel/tasks/:id/estimate — AI estimates time and updates task.ai_estimated_minutes
+func (h *SentinelHandler) EstimateTask(c *gin.Context) {
+	taskResolved, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	updated, err := h.usecase.EstimateTask(taskResolved.ID, userID, userRole)
+	if err != nil {
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Estimate failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "AI estimate updated", "data": updated})
 }
 
 // DeleteTask handles DELETE /api/v1/sentinel/tasks/:id
@@ -1425,6 +1638,12 @@ func (h *SentinelHandler) GetAvailableModels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Available Gemini models", "data": models})
 }
 
+// GetAIUsage handles GET /admin/ai-usage — approximate Gemini API usage and remaining quota (from our request counter).
+func (h *SentinelHandler) GetAIUsage(c *gin.Context) {
+	usage := h.usecase.GetAIUsage()
+	c.JSON(http.StatusOK, gin.H{"message": "AI usage (approximate)", "data": usage})
+}
+
 // --- Sprint Handlers ---
 
 func (h *SentinelHandler) CreateSprint(c *gin.Context) {
@@ -1591,7 +1810,7 @@ func (h *SentinelHandler) UpdateSprint(c *gin.Context) {
 		}
 		endDate = &t
 	}
-	sprint, err := h.usecase.UpdateSprint(sprintID, req.Name, req.Goal, startDate, endDate)
+	sprint, err := h.usecase.UpdateSprint(sprintID, req.Name, req.Goal, startDate, endDate, req.SortOrder)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sprint", "message": err.Error()})
 		return
@@ -1979,7 +2198,7 @@ func (h *SentinelHandler) UpdateEpic(c *gin.Context) {
 		}
 		endDate = &t
 	}
-	epic, err := h.usecase.UpdateEpic(epicID, req.Title, req.Description, req.Status, req.Color, startDate, endDate)
+	epic, err := h.usecase.UpdateEpic(epicID, req.Title, req.Description, req.Status, req.Color, req.SortOrder, startDate, endDate)
 	if err != nil {
 		if contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
@@ -2035,4 +2254,42 @@ func (h *SentinelHandler) GetSprintTimeline(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Sprint timeline retrieved successfully", "data": data})
+}
+
+// ExportTimelinePDF handles GET /sentinel/projects/:id/timeline/export-pdf?mode=epic|sprint
+// Returns raw PDF bytes (application/pdf) — same pattern as mims-api-service ExportPDF.
+// Frontend fetches with Authorization header, receives blob, opens in new tab.
+func (h *SentinelHandler) ExportTimelinePDF(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+	mode := c.DefaultQuery("mode", "epic")
+	if mode != "epic" && mode != "sprint" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mode must be 'epic' or 'sprint'"})
+		return
+	}
+
+	// Template dir: from env TEMPLATE_DIR or default to /app/templates/
+	templateDir := os.Getenv("TEMPLATE_DIR")
+	if templateDir == "" {
+		templateDir = "./templates/"
+	}
+	if templateDir[len(templateDir)-1] != '/' {
+		templateDir += "/"
+	}
+
+	log.Printf("ExportTimelinePDF: projectID=%s mode=%s templateDir=%s", projectID, mode, templateDir)
+
+	pdfBytes, filename, err := h.usecase.ExportTimelinePDF(projectID, mode, templateDir)
+	if err != nil {
+		log.Printf("ExportTimelinePDF error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "PDF generation failed", "message": err.Error()})
+		return
+	}
+
+	c.Header("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, filename))
+	c.Header("Content-Description", "Timeline PDF Report")
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
 }

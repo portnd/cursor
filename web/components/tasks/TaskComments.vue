@@ -10,7 +10,7 @@
         :key="comment.id"
         class="flex gap-3"
       >
-        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm font-bold">
           {{ (comment.user_email || String(comment.user_id)).charAt(0).toUpperCase() }}
         </div>
         <div class="flex-1 bg-gray-800 rounded-xl px-4 py-3 border border-gray-700/50">
@@ -33,7 +33,7 @@
           v-model="newComment"
           placeholder="Write a comment... (Shift+Enter for new line)"
           rows="2"
-          class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none"
+          class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
           @keydown.enter.prevent="handleEnter"
         ></textarea>
         <button
@@ -92,6 +92,6 @@ function submitComment() {
 
 <style scoped>
 .btn-primary {
-  @apply bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors;
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-colors;
 }
 </style>

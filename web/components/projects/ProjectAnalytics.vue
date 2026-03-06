@@ -3,10 +3,10 @@
     <!-- Key Metrics Row -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
       <div class="metric-card">
-        <div class="metric-value text-indigo-400">{{ analytics.completed_tasks }}/{{ analytics.total_tasks }}</div>
+        <div class="metric-value text-purple-400">{{ analytics.completed_tasks }}/{{ analytics.total_tasks }}</div>
         <div class="metric-label">Tasks Completed</div>
         <div class="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-          <div class="h-full bg-indigo-500 rounded-full" :style="{ width: completionPct + '%' }"></div>
+          <div class="h-full bg-purple-500 rounded-full" :style="{ width: completionPct + '%' }"></div>
         </div>
       </div>
       <div class="metric-card">
@@ -74,7 +74,7 @@
             >
               <td class="py-3 px-3">
                 <div class="flex items-center gap-2">
-                  <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                  <div class="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold">
                     {{ String(row.user_email || row.user_id).charAt(0).toUpperCase() }}
                   </div>
                   <span class="text-gray-300">{{ row.user_email || `Dev #${row.user_id}` }}</span>

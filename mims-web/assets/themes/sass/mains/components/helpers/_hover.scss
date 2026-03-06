@@ -1,0 +1,14 @@
+//
+// Hover
+//
+
+// Hover colors
+@each $name, $color in $theme-text-colors {
+	// Hover
+	.bg-hover-#{$name} {
+		&:hover {
+			transition: $transition-link;
+			background-color: var(--kt-text-#{$name}) !important;
+		}
+	}
+}

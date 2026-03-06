@@ -1,0 +1,14 @@
+-- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (1, 1, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (1, 2, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (1, 3, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (1, 4, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (1, 5, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (1, 6, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (3, 4, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (3, 5, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES (3, 6, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 3, 7, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 3, 8, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 3, 9, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');
+INSERT INTO "public"."role_access_control" ( "rule_id", "access_control_id", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 3, 10, NULL, NULL, '2023-01-23 08:52:14.432107', '2023-01-23 08:52:14.432107');

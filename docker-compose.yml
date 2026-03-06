@@ -92,11 +92,15 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-komgrip_secret}
       JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_change_in_production}
+      CHROME_PATH: /usr/bin/chromium
+      TIMELINE_PDF_PATH: /app/storages/timeline_pdf/
+      STORAGE_URL: ${STORAGE_URL:-http://localhost:8080}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:
       - ./api:/app
       - api_cache:/go/pkg/mod
+      - ./api/storages:/app/storages
     networks:
       - komgrip_network
     depends_on:

@@ -1,0 +1,25 @@
+FROM golang:1.24-alpine
+
+ENV GONOSUMDB=gitlab.com/mims-api-service
+ENV GOPRIVATE=gitlab.com/mims-api-service
+ENV GOSUMDB=off
+ENV GOFLAGS="-mod=mod"
+
+# Chromium for PDF generation (chromedp); from Alpine community repo
+RUN apk add --no-cache git gcc musl-dev && \
+    apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.19/community \
+    chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
+ENV CHROME_PATH=/usr/bin/chromium
+
+WORKDIR /app
+
+RUN go install github.com/cosmtrek/air@v1.52.1
+
+COPY go.mod ./
+RUN go mod download || true
+
+COPY . .
+RUN go mod tidy
+
+CMD ["air", "-c", ".air.toml"]

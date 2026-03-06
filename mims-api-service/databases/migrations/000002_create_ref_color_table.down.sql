@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS ref_color_list;

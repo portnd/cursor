@@ -56,6 +56,7 @@ type Sprint struct {
 	StartDate *time.Time `json:"start_date"`
 	EndDate   *time.Time `json:"end_date"`
 	Status    string     `json:"status" gorm:"default:'PLANNING'"` // PLANNING, ACTIVE, COMPLETED
+	SortOrder int        `json:"sort_order" gorm:"default:0"`
 	CreatedAt time.Time  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 	Tasks     []Task     `json:"tasks,omitempty" gorm:"foreignKey:SprintID"`
@@ -165,6 +166,7 @@ type Task struct {
 
 	// WBS / Gantt: sub-tasks and planned dates
 	ParentID  *uuid.UUID `json:"parent_id" gorm:"type:uuid;index"`             // For sub-tasks (Work Breakdown Structure)
+	SortOrder int        `json:"sort_order" gorm:"default:0"`                 // Order within epic (backlog drag-and-drop)
 	StartDate *time.Time `json:"start_date"`                                    // Planned start date
 	EndDate   *time.Time `json:"end_date"`                                      // Planned end date
 	Progress  int        `json:"progress" gorm:"default:0"`                     // 0 to 100%
@@ -188,8 +190,9 @@ type Task struct {
 	Status string `json:"status" gorm:"default:'PENDING';index"`
 
 	// Relationships (uint to match User ID)
-	AssignedTo *uint `json:"assigned_to"`
-	CreatedBy  *uint `json:"created_by"`
+	AssignedTo   *uint `json:"assigned_to"`   // Developer assigned to this task
+	AssignedByID *uint `json:"assigned_by_id" gorm:"index"` // PM/CEO who assigned the task (for PM-scoped leaderboard)
+	CreatedBy    *uint `json:"created_by"`
 
 	// Enriched from auth (not stored in DB)
 	CreatedByRole  string `json:"created_by_role,omitempty" gorm:"-"`
@@ -280,7 +283,9 @@ type SentinelRepository interface {
 	GetProjectByID(id uuid.UUID) (*Project, error)
 	GetProjectByCode(code string) (*Project, error)
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
+	UpdateProject(p *Project) error
 	DeleteProject(id uuid.UUID) error
+	DeleteProjectPlan(projectID uuid.UUID) error // Remove all tasks, sprints, milestones, epics for the project
 
 	CreateTask(task *Task) error
 	GetTaskByID(id uuid.UUID) (*Task, error)
@@ -373,10 +378,11 @@ type SentinelUsecase interface {
 	GetProjects() ([]Project, error)
 	GetProjectDetails(id uuid.UUID) (*Project, error)
 	GetProjectByIDOrCode(idOrCode string) (*Project, error) // UUID or project code (e.g. mims-hdmap-main)
+	UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*Project, error)
 	DeleteProject(id uuid.UUID) error
 
 	CreateTask(title, desc string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID) (*Task, error)
-	AssignTask(taskID uuid.UUID, devID uint) error
+	AssignTask(taskID uuid.UUID, devID uint, assignerID uint) error
 	SubmitWork(taskID uuid.UUID, devID uint, commitHash, diff string) (*Submission, error)
 	GetTaskByID(taskID uuid.UUID) (*Task, error)
 	GetTaskByIDOrCode(idOrCode string) (*Task, error) // idOrCode is UUID or task code (e.g. mims-hdmap-main-001)
@@ -392,8 +398,12 @@ type SentinelUsecase interface {
 	RemoveDependency(id uuid.UUID) error
 
 	// Task Management with Access Control
-	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool) (*Task, error)
+	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int) (*Task, error)
 	UpdateTaskResourceURLs(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, resourceURLs datatypes.JSON) (*Task, error)
+	EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*Task, error) // AI estimate time and update task.ai_estimated_minutes
+	GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*AIGeneratedPlan, error) // AI generates epics, milestones, sprints, tasks
+	ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error                     // Remove all tasks, sprints, milestones, epics (CEO/PM)
+	ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (updatedCount int, err error) // Estimate + schedule existing tasks (CEO/PM)
 	DeleteTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) error
 
 	// Appeal System
@@ -413,7 +423,7 @@ type SentinelUsecase interface {
 	CompleteSprint(sprintID uuid.UUID) (*Sprint, error)
 	ReopenSprint(sprintID uuid.UUID) (*Sprint, error)
 	AddTasksToSprint(sprintID uuid.UUID, taskIDs []uuid.UUID) error
-	UpdateSprint(sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*Sprint, error)
+	UpdateSprint(sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time, sortOrder *int) (*Sprint, error)
 	DeleteSprint(sprintID uuid.UUID) error
 
 	// Milestones
@@ -440,16 +450,20 @@ type SentinelUsecase interface {
 	GetSystemConfig() (*SystemConfig, error)
 	UpdateSystemConfig(activeModel string, temperature float32, cursorAssistance int, userRole string) (*SystemConfig, error)
 	GetAvailableModels() []string
+	GetAIUsage() AIUsage
 
 	// Epics (Hierarchy Dimension 1)
 	CreateEpic(projectID uuid.UUID, title, description, color string, startDate, endDate *time.Time) (*Epic, error)
 	GetEpicsByProject(projectID uuid.UUID) ([]Epic, error)
-	UpdateEpic(epicID uuid.UUID, title, description, status, color string, startDate, endDate *time.Time) (*Epic, error)
+	UpdateEpic(epicID uuid.UUID, title, description, status, color string, sortOrder *int, startDate, endDate *time.Time) (*Epic, error)
 	DeleteEpic(epicID uuid.UUID) error
 
 	// Timeline Views (Matrix Dimension)
 	GetEpicTimelineData(projectID uuid.UUID) (*EpicTimelineData, error)
 	GetSprintTimelineData(projectID uuid.UUID) (*SprintTimelineData, error)
+
+	// Timeline PDF Export (chromedp → PDF bytes, same pattern as mims-api-service)
+	ExportTimelinePDF(projectID uuid.UUID, mode string, templateDir string) ([]byte, string, error)
 
 	// Google Slides Import
 	PreviewGoogleSlides(req *PreviewGoogleSlidesRequest, serverAPIKey string) (*PreviewGoogleSlidesResult, error)
@@ -524,10 +538,86 @@ type ImportGoogleSlidesResult struct {
 	Tasks           []*Task `json:"tasks"`
 }
 
+// AIGeneratedPlan is the structured output from AI for generating a project work plan
+type AIGeneratedPlan struct {
+	Epics      []AIPlanEpic      `json:"epics"`
+	Milestones []AIPlanMilestone `json:"milestones"`
+	Sprints    []AIPlanSprint    `json:"sprints"`
+	Tasks      []AIPlanTask      `json:"tasks"`
+}
+type AIPlanEpic struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Color       string `json:"color"`
+}
+type AIPlanMilestone struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	DueDate     string `json:"due_date"` // YYYY-MM-DD
+}
+type AIPlanSprint struct {
+	Name      string `json:"name"`
+	Goal      string `json:"goal"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+type AIPlanTask struct {
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	Priority        string `json:"priority"`
+	StoryPoints     int    `json:"story_points"`
+	EpicIndex       *int   `json:"epic_index"`        // 0-based index into epics list
+	SprintIndex     *int   `json:"sprint_index"`     // 0-based index into sprints list
+	MilestoneIndex  *int   `json:"milestone_index"`  // 0-based index into milestones list
+	StartDate       string `json:"start_date"`       // YYYY-MM-DD
+	EndDate         string `json:"end_date"`         // YYYY-MM-DD
+}
+
+// TaskEstimateInput is a minimal task info sent to AI for batch estimate + order
+type TaskEstimateInput struct {
+	Index       int    `json:"task_index"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Priority    string `json:"priority"`
+	StoryPoints int    `json:"story_points"`
+}
+
+// TaskEstimateAndOrder is AI output per task: estimated minutes and suggested execution order (1-based)
+type TaskEstimateAndOrder struct {
+	TaskIndex int `json:"task_index"` // 0-based, matches input
+	Minutes   int `json:"minutes"`
+	Order     int `json:"order"` // 1-based execution order (1 = first task to do)
+}
+
+// AIUsage holds approximate Gemini API usage for display (we track calls; limits from env or default).
+type AIUsage struct {
+	RequestsLastMinute int `json:"requests_last_minute"`
+	RequestsToday      int `json:"requests_today"`
+	LimitRPM           int `json:"limit_rpm"`
+	LimitRPD           int `json:"limit_rpd"`
+	RemainingRPM       int `json:"remaining_rpm"`
+	RemainingRPD       int `json:"remaining_rpd"`
+}
+
+// UsageTracker records Gemini API calls and returns approximate usage (thread-safe).
+type UsageTracker interface {
+	RecordRequest()
+	GetUsage(limitRPM, limitRPD int) AIUsage
+}
+
 // AIService defines the interface for AI operations (Port)
 type AIService interface {
+	// ListModels returns model IDs from Gemini API (e.g. gemini-2.5-flash-lite). Empty or error = use fallback list.
+	ListModels() ([]string, error)
+
 	// EstimateEffort รับ Title/Desc แล้วคืนค่าเป็น นาที (minutes) และเหตุผล
 	EstimateEffort(title, description string) (minutes int, reasoning string, err error)
+
+	// EstimateAndScheduleTasks ประเมินเวลาและลำดับการทำของแต่ละ task จากข้อมูลที่มี คืนค่า minutes และ order (1-based)
+	EstimateAndScheduleTasks(inputs []TaskEstimateInput) ([]TaskEstimateAndOrder, error)
+
+	// GenerateWorkPlan สร้างแผนงาน (epics, milestones, sprints, tasks) จากชื่อและคำอธิบายโปรเจกต์
+	GenerateWorkPlan(projectName, projectDescription string) (*AIGeneratedPlan, error)
 
 	// ReviewCode วิเคราะห์ code diff และคืนค่า verdict (PASS/FAIL), score (0-100), feedback
 	ReviewCode(diff string) (verdict string, score int, feedback string, err error)

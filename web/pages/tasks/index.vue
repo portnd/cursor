@@ -75,7 +75,7 @@
             <div class="flex items-start justify-between gap-4 mb-3">
               <div class="flex-1">
                 <h3 class="text-base font-bold text-white mb-1">{{ task.title }}</h3>
-                <p class="text-xs text-gray-500">ID: {{ task.id.substring(0, 8) }}...</p>
+                <p class="text-xs text-gray-500">ID: {{ taskCodeDisplay(task) }}</p>
               </div>
               
               <!-- Time Negotiation Badge -->
@@ -202,7 +202,7 @@
             <div class="flex items-start justify-between gap-4 mb-3">
               <div class="flex-1">
                 <h3 class="text-base font-bold text-white mb-1">{{ task.title }}</h3>
-                <p class="text-xs text-gray-500">ID: {{ task.id.substring(0, 8) }}...</p>
+                <p class="text-xs text-gray-500">ID: {{ taskCodeDisplay(task) }}</p>
               </div>
               
               <!-- Appeal Badge -->
@@ -467,6 +467,7 @@ interface Appeal {
 // Composables
 const authStore = useAuthStore()
 const { fetchWithAuth, currentUser } = useAuth()
+const { showError, confirm } = useNotification()
 
 // State
 const isLoading = ref(true)
@@ -520,7 +521,14 @@ const fetchData = async () => {
 
 // Time Negotiation Actions
 const approveNegotiation = async (taskId: string, minutes: number) => {
-  if (!confirm(`Approve time negotiation to ${minutes} minutes?`)) return
+  const ok = await confirm({
+    title: 'Approve time negotiation',
+    message: `Approve time negotiation to ${minutes} minutes?`,
+    confirmLabel: 'Approve',
+    cancelLabel: 'Cancel',
+    variant: 'primary'
+  })
+  if (!ok) return
 
   try {
     await fetchWithAuth(`/sentinel/tasks/${taskId}/negotiate/resolve`, {
@@ -531,11 +539,10 @@ const approveNegotiation = async (taskId: string, minutes: number) => {
       })
     })
     
-    // Refresh data
     await fetchData()
   } catch (err: any) {
     console.error('Failed to approve negotiation:', err)
-    alert(err.data?.message || 'Failed to approve negotiation')
+    showError(err.data?.message || 'Failed to approve negotiation')
   }
 }
 
@@ -556,7 +563,7 @@ const rejectNegotiation = async (taskId: string) => {
     await fetchData()
   } catch (err: any) {
     console.error('Failed to reject negotiation:', err)
-    alert(err.data?.message || 'Failed to reject negotiation')
+    showError(err.data?.message || 'Failed to reject negotiation')
   }
 }
 
@@ -566,7 +573,14 @@ const approveAppeal = async (task: Task) => {
   const submission = task.submissions?.find(s => s.appeal?.status === 'PENDING')
   if (!submission?.appeal) return
 
-  if (!confirm('Approve this appeal and set verdict to PASS?')) return
+  const ok = await confirm({
+    title: 'Approve appeal',
+    message: 'Approve this appeal and set verdict to PASS?',
+    confirmLabel: 'Approve',
+    cancelLabel: 'Cancel',
+    variant: 'primary'
+  })
+  if (!ok) return
 
   try {
     await fetchWithAuth(`/sentinel/submissions/${submission.id}/appeals/${submission.appeal.id}/resolve`, {
@@ -577,11 +591,10 @@ const approveAppeal = async (task: Task) => {
       })
     })
     
-    // Refresh data
     await fetchData()
   } catch (err: any) {
     console.error('Failed to approve appeal:', err)
-    alert(err.data?.message || 'Failed to approve appeal')
+    showError(err.data?.message || 'Failed to approve appeal')
   }
 }
 
@@ -606,7 +619,7 @@ const rejectAppeal = async (task: Task) => {
     await fetchData()
   } catch (err: any) {
     console.error('Failed to reject appeal:', err)
-    alert(err.data?.message || 'Failed to reject appeal')
+    showError(err.data?.message || 'Failed to reject appeal')
   }
 }
 
@@ -667,6 +680,15 @@ const getDeadlineCountdown = (dateStr: string): string => {
     return `${daysLeft}d left`
   }
   return `${hoursLeft}h left`
+}
+
+function taskCodeDisplay(task: { id: string; code?: string }): string {
+  if (task.code) {
+    const suffix = task.code.split('-').pop()
+    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(3, '0')
+    return task.code
+  }
+  return task.id.substring(0, 8) + '…'
 }
 
 // Navigation helper

@@ -1,0 +1,82 @@
+package domain
+
+// PersonalKPIs is the response for GET /performance/me (all roles)
+type PersonalKPIs struct {
+	UserID   uint    `json:"user_id"`
+	Email    string  `json:"email"`
+	Role     string  `json:"role"`
+	HealthScore float64 `json:"health_score"`
+
+	// DEV-focused metrics (populated for DEV; zeros for others)
+	DeliveryRatePct   float64 `json:"delivery_rate_pct"`   // completed on time / tasks with due_date
+	CodeQualityIndex  float64 `json:"code_quality_index"`  // AVG(ai_score) from submissions
+	ReworkRatePct     float64 `json:"rework_rate_pct"`     // FAIL submissions / total
+	TimeAccuracyPct   float64 `json:"time_accuracy_pct"`   // 1 - |logged - estimated|/estimated
+	SprintVelocitySP  float64 `json:"sprint_velocity_sp"`   // avg story points last 3 sprints
+	VelocityTrend     string  `json:"velocity_trend"`      // "up" | "down" | "stable"
+}
+
+// TeamMemberKPI is one row in the team leaderboard (for /performance/team)
+type TeamMemberKPI struct {
+	UserID            uint    `json:"user_id"`
+	Email             string  `json:"email"`
+	Role              string  `json:"role"`
+	HealthScore       float64 `json:"health_score"`
+	DeliveryRatePct   float64 `json:"delivery_rate_pct"`
+	CodeQualityIndex  float64 `json:"code_quality_index"`
+	ReworkRatePct     float64 `json:"rework_rate_pct"`
+	TimeAccuracyPct   float64 `json:"time_accuracy_pct"`
+	SprintVelocitySP  float64 `json:"sprint_velocity_sp"`
+	CompositeScore    float64 `json:"composite_score"` // 0-100 for ranking
+}
+
+// TeamKPIsResponse is the response for GET /performance/team (CEO + PM)
+type TeamKPIsResponse struct {
+	Members []TeamMemberKPI `json:"members"`
+}
+
+// OverviewKPIs is the response for GET /performance/overview (CEO only)
+type OverviewKPIs struct {
+	EngineeringHealthIndex float64 `json:"engineering_health_index"` // weighted composite 0-100
+	SprintSuccessRatePct   float64 `json:"sprint_success_rate_pct"`
+	ProjectOnTrackRatePct  float64 `json:"project_on_track_rate_pct"`
+	MilestoneHitRatePct    float64 `json:"milestone_hit_rate_pct"`
+	CursorAdoptionScore    int     `json:"cursor_adoption_score"`   // from system_config
+	TeamVelocityTrendPct   float64 `json:"team_velocity_trend_pct"` // sprint-over-sprint growth %
+}
+
+// Usecase defines the performance business logic interface
+type Usecase interface {
+	GetPersonalKPIs(userID uint, role string) (*PersonalKPIs, error)
+	GetTeamKPIs(requestingUserID uint, requestingRole string) (*TeamKPIsResponse, error)
+	GetOverviewKPIs(requestingUserID uint, requestingRole string) (*OverviewKPIs, error)
+}
+
+// Repository defines the data access interface for performance aggregations
+type Repository interface {
+	// Raw aggregates for a single user (DEV metrics) — all tasks
+	GetUserTaskDeliveryStats(userID uint) (tasksWithDue int, completedOnTime int, err error)
+	GetUserSubmissionStats(userID uint) (avgScore float64, totalSubs int, failCount int, err error)
+	GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64, sampleCount int, err error)
+	GetUserSprintVelocity(userID uint, lastNSprints int) (avgStoryPoints float64, trend string, err error)
+
+	// PM-scoped: only tasks assigned by this PM (assigned_by_id = pmID)
+	GetDevUserIDsAssignedByPM(pmID uint) ([]uint, error)
+	GetUserTaskDeliveryStatsForAssignedBy(devID, assignedByID uint) (tasksWithDue int, completedOnTime int, err error)
+	GetUserSubmissionStatsForAssignedBy(devID, assignedByID uint) (avgScore float64, totalSubs int, failCount int, err error)
+	GetUserTimeAccuracyForAssignedBy(devID, assignedByID uint) (avgAccuracyPct float64, sampleCount int, err error)
+	GetUserSprintVelocityForAssignedBy(devID, assignedByID uint, lastNSprints int) (avgStoryPoints float64, trend string, err error)
+
+	// For team: same metrics for every user (DEV role)
+	GetAllDevUserIDs() ([]uint, error)
+	GetUserEmailAndRole(userID uint) (email string, role string, healthScore float64, err error)
+
+	// Company-wide (for overview)
+	GetSprintSuccessRate() (ratePct float64, err error)
+	GetMilestoneHitRate() (reached, missed int, err error)
+	GetProjectOnTrackRate() (onTrackPct float64, err error)
+	GetCursorAdoptionScore() (score int, err error)
+	GetTeamVelocityTrend() (growthPct float64, err error)
+	GetCompanyWideDeliveryAndQuality() (avgDeliveryPct, avgCodeQuality float64, err error)
+	GetCompanyWideReworkAndTimeAccuracy() (avgReworkPct, avgTimeAccuracyPct float64, err error)
+}

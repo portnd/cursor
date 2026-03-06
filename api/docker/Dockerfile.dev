@@ -7,7 +7,11 @@ RUN apk add --no-cache \
     git \
     make \
     gcc \
-    musl-dev
+    musl-dev && \
+    apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.19/community \
+    chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
+ENV CHROME_PATH=/usr/bin/chromium
 
 RUN go install github.com/air-verse/air@v1.61.5
 
