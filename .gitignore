@@ -91,6 +91,8 @@ redisdata/
 
 # Backups
 backups/
+backup_postgres.sql
+mongo_dump.archive
 *.bak
 *.backup
 *.old
