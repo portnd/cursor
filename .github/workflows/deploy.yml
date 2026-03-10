@@ -77,9 +77,8 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
-          source: "deploy/*"
-          target: "~/kg"
-          strip_components: 1
+          source: "deploy"
+          target: "~/"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -88,7 +87,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
-            cd ~/kg
+            cd ~/deploy
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
