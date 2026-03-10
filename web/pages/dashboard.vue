@@ -20,6 +20,7 @@ const { currentUser } = useAuth()
 // Role to Component Mapping
 const roleViewMap: Record<string, any> = {
   CEO: CeoView,
+  MANAGER: CeoView,
   PM: PmView,
   DEV: DevView
 }

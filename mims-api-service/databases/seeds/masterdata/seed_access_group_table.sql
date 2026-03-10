@@ -1,2 +1,0 @@
--- example: INSERT INTO table (column1, column2) VALUES (value1, value2);
-INSERT INTO "public"."access_group" ( "name", "created_by", "updated_by", "created_at", "updated_at") VALUES ( 'BEM Infrastructure and Asset Management System', NULL, NULL, '2023-01-23 06:28:20.086399', '2023-01-23 06:28:20.086399');

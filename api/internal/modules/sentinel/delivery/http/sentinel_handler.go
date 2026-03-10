@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -32,27 +33,33 @@ type createProjectReq struct {
 }
 
 type createTaskReq struct {
-	Title       string  `json:"title" binding:"required"`
-	Description string  `json:"description"`
-	DueDate     *string `json:"due_date"`
-	ProjectID   *string `json:"project_id"`
-	ParentID    *string `json:"parent_id"`
-	EpicID      *string `json:"epic_id"`
-	StartDate   *string `json:"start_date"`
-	EndDate     *string `json:"end_date"`
-	Priority    string  `json:"priority"`
-	StoryPoints int     `json:"story_points"`
-	SprintID    *string `json:"sprint_id"`
-	MilestoneID *string `json:"milestone_id"`
+	Title               string  `json:"title" binding:"required"`
+	Description         string  `json:"description"`
+	TaskType            string  `json:"task_type"` // FEATURE, TASK, BUG (default: TASK)
+	DueDate             *string `json:"due_date"`
+	ProjectID           *string `json:"project_id"`
+	ParentID            *string `json:"parent_id"`
+	EpicID              *string `json:"epic_id"`
+	StartDate           *string `json:"start_date"`
+	EndDate             *string `json:"end_date"`
+	Priority            string  `json:"priority"`
+	StoryPoints         int     `json:"story_points"`
+	SprintID            *string `json:"sprint_id"`
+	MilestoneID         *string `json:"milestone_id"`
+	EstimatedMinutes    *int    `json:"estimated_minutes"` // Manual estimate; stored for Costing Engine (mandatory from frontend)
 }
 
 type assignTaskReq struct {
-	DevID uint `json:"dev_id" binding:"required"`
+	DevID uint `json:"dev_id"` // 0 = unassign
 }
 
 type submitWorkReq struct {
-	CommitHash string `json:"commit_hash" binding:"required"`
-	Diff       string `json:"diff"` // Optional: Code diff for AI review
+	ReferenceURL string `json:"reference_url" binding:"required"`
+	Note         string `json:"note"`
+}
+
+type rejectTaskReq struct {
+	Reason string `json:"reason" binding:"required,min=10"`
 }
 
 type submitAppealReq struct {
@@ -70,18 +77,20 @@ type negotiateTimeReq struct {
 }
 
 type updateTaskReq struct {
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	ParentID    *string `json:"parent_id"`
-	EpicID      *string `json:"epic_id"`
-	SortOrder   *int    `json:"sort_order"`
-	StartDate   *string `json:"start_date"`
-	EndDate     *string `json:"end_date"`
-	Progress    *int    `json:"progress"`
-	Priority    string  `json:"priority"`
-	StoryPoints *int    `json:"story_points"`
-	SprintID    *string `json:"sprint_id"`
-	MilestoneID *string `json:"milestone_id"`
+	Title            string  `json:"title"`
+	Description      string  `json:"description"`
+	TaskType         string  `json:"task_type"` // FEATURE, TASK, BUG
+	ParentID         *string `json:"parent_id"`
+	EpicID           *string `json:"epic_id"`
+	SortOrder        *int    `json:"sort_order"`
+	StartDate        *string `json:"start_date"`
+	EndDate          *string `json:"end_date"`
+	Progress         *int    `json:"progress"`
+	Priority         string  `json:"priority"`
+	StoryPoints      *int    `json:"story_points"`
+	SprintID         *string `json:"sprint_id"`
+	MilestoneID      *string `json:"milestone_id"`
+	EstimatedMinutes *int    `json:"estimated_minutes"` // Manual estimate; feeds Costing Engine
 }
 
 type createEpicReq struct {
@@ -165,6 +174,20 @@ type updateConfigReq struct {
 
 // --- Handlers ---
 
+// callerCtx extracts CallerContext (role + team_id) from the Gin context (set by AuthMiddleware).
+func callerCtx(c *gin.Context) domain.CallerContext {
+	role, _ := c.Get("role")
+	teamID, _ := c.Get("team_id")
+	ctx := domain.CallerContext{}
+	if r, ok := role.(string); ok {
+		ctx.Role = r
+	}
+	if t, ok := teamID.(*uint); ok {
+		ctx.TeamID = t
+	}
+	return ctx
+}
+
 // CreateProject handles POST /sentinel/projects
 func (h *SentinelHandler) CreateProject(c *gin.Context) {
 	var req createProjectReq
@@ -179,7 +202,7 @@ func (h *SentinelHandler) CreateProject(c *gin.Context) {
 	if status == "" {
 		status = "ACTIVE"
 	}
-	project, err := h.usecase.CreateProject(req.Name, req.Description, status)
+	project, err := h.usecase.CreateProject(req.Name, req.Description, status, callerCtx(c))
 	if err != nil {
 		if err.Error() == "project name is required" || err.Error() == "project name must be in English only (letters, numbers, spaces, hyphens)" || contains(err.Error(), "invalid project status") {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -202,7 +225,7 @@ func (h *SentinelHandler) CreateProject(c *gin.Context) {
 
 // GetProjects handles GET /sentinel/projects
 func (h *SentinelHandler) GetProjects(c *gin.Context) {
-	projects, err := h.usecase.GetProjects()
+	projects, err := h.usecase.GetProjects(callerCtx(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve projects",
@@ -226,7 +249,7 @@ func (h *SentinelHandler) GetProjectByID(c *gin.Context) {
 		})
 		return
 	}
-	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 	if err != nil {
 		if err.Error() == "project not found" || contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -261,7 +284,7 @@ func (h *SentinelHandler) UpdateProject(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Project id or code is required"})
 		return
 	}
-	existing, err := h.usecase.GetProjectByIDOrCode(idStr)
+	existing, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 	if err != nil || existing == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
 		return
@@ -297,7 +320,7 @@ func (h *SentinelHandler) DeleteProject(c *gin.Context) {
 		})
 		return
 	}
-	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 	if err != nil {
 		if err.Error() == "project not found" || contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -331,14 +354,44 @@ func (h *SentinelHandler) DeleteProject(c *gin.Context) {
 	})
 }
 
-// GenerateProjectPlan handles POST /sentinel/projects/:id/ai-plan — AI generates epics, milestones, sprints, tasks (CEO/PM only).
+// assignProjectTeamReq is the DTO for PATCH /sentinel/projects/:id/assign-team
+type assignProjectTeamReq struct {
+	TeamID *uint `json:"team_id"` // null = unassign from team
+}
+
+// AssignProjectTeam handles PATCH /sentinel/projects/:id/assign-team (CEO only)
+func (h *SentinelHandler) AssignProjectTeam(c *gin.Context) {
+	role, _ := c.Get("role")
+	roleStr, _ := role.(string)
+	if roleStr != "CEO" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO can assign teams to projects"})
+		return
+	}
+	idStr := strings.TrimSpace(c.Param("id"))
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
+	if err != nil || project == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
+		return
+	}
+	var req assignProjectTeamReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	updated, err := h.usecase.AssignProjectTeam(project.ID, req.TeamID, roleStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign team", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Team assigned successfully", "data": updated})
+}
 func (h *SentinelHandler) GenerateProjectPlan(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project id required"})
 		return
 	}
-	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 	if err != nil || project == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
 		return
@@ -380,7 +433,7 @@ func (h *SentinelHandler) ScheduleProjectWithAI(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project id required"})
 		return
 	}
-	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 	if err != nil || project == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
 		return
@@ -426,7 +479,7 @@ func (h *SentinelHandler) ClearProjectPlan(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "project id required"})
 		return
 	}
-	project, err := h.usecase.GetProjectByIDOrCode(idStr)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 	if err != nil || project == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
 		return
@@ -569,7 +622,7 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 		epicID = &eid
 	}
 
-	task, err := h.usecase.CreateTask(req.Title, req.Description, userID, dueDate, projectID, parentID, startDate, endDate, req.Priority, req.StoryPoints, sprintID, milestoneID, epicID)
+	task, err := h.usecase.CreateTask(req.Title, req.Description, req.TaskType, userID, dueDate, projectID, parentID, startDate, endDate, req.Priority, req.StoryPoints, sprintID, milestoneID, epicID, req.EstimatedMinutes)
 	if err != nil {
 		log.Printf("[CreateTask] usecase error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -649,18 +702,8 @@ func (h *SentinelHandler) SubmitWork(c *gin.Context) {
 		return
 	}
 
-	sub, err := h.usecase.SubmitWork(task.ID, userID, req.CommitHash, req.Diff)
+	sub, err := h.usecase.SubmitWork(task.ID, userID, req.ReferenceURL, req.Note)
 	if err != nil {
-		// Check for duplicate commit hash error (PostgreSQL unique constraint violation)
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") || 
-		   strings.Contains(err.Error(), "idx_submissions_task_commit") {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "Duplicate submission",
-				"message": "This commit hash has already been submitted for this task. Please use a different commit hash or check your previous submissions.",
-			})
-			return
-		}
-		
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to submit work",
 			"message": err.Error(),
@@ -669,9 +712,41 @@ func (h *SentinelHandler) SubmitWork(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Work submitted successfully",
+		"message": "Work handed over for review",
 		"data":    sub,
 	})
+}
+
+// SubmitUAT stores UAT payload on a FEATURE task and promotes it to REVIEW_PENDING for PM/CEO review.
+func (h *SentinelHandler) SubmitUAT(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+
+	var req domain.UATPayloadData
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+
+	if err := h.usecase.SubmitUAT(task.ID, userID, req); err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to submit UAT", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "UAT submitted — feature is now pending PM/CEO review"})
 }
 
 // GetTaskByID handles GET /api/v1/sentinel/tasks/:id
@@ -730,8 +805,42 @@ func (h *SentinelHandler) GetMyTasks(c *gin.Context) {
 		return
 	}
 
+	activeSprints, err := h.usecase.GetMyActiveSprints(userID)
+	if err != nil {
+		activeSprints = nil
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Tasks retrieved successfully",
+		"message":        "Tasks retrieved successfully",
+		"data":           tasks,
+		"active_sprints": activeSprints,
+	})
+}
+
+// GetGlobalActiveTasks handles GET /api/v1/sentinel/tasks/my-global-active
+// Returns all TASK/BUG items for the caller's team across all projects,
+// regardless of sprint assignment. Powers the Dev Global Kanban Board.
+func (h *SentinelHandler) GetGlobalActiveTasks(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "user not authenticated",
+		})
+		return
+	}
+
+	tasks, err := h.usecase.GetGlobalActiveTasks(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve global active tasks",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Global active tasks retrieved successfully",
 		"data":    tasks,
 	})
 }
@@ -754,11 +863,52 @@ func (h *SentinelHandler) GetUnassignedTasks(c *gin.Context) {
 	})
 }
 
+// GetTeamActiveTasks handles GET /api/v1/sentinel/tasks/team-active
+// Returns all tasks in ACTIVE sprints within the caller's team.
+// Used by the "Quick Log Time" global modal to let devs log time against any teammate's task.
+// CEO/MANAGER bypass team restriction and see all active-sprint tasks.
+func (h *SentinelHandler) GetTeamActiveTasks(c *gin.Context) {
+	ctx := callerCtx(c)
+	tasks, err := h.usecase.GetTeamActiveTasks(ctx.TeamID, ctx.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve team active tasks",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Team active tasks retrieved successfully",
+		"data":    tasks,
+	})
+}
+
+// GetActiveFeatures handles GET /api/v1/sentinel/tasks/features
+// Returns all FEATURE-type tasks for the PM/CEO Feature Roadmap Board.
+// Each feature includes a roll-up progress (0-100%) and its child TASK/BUG items for the accordion.
+// PM is scoped to their team; CEO/MANAGER see all teams.
+func (h *SentinelHandler) GetActiveFeatures(c *gin.Context) {
+	ctx := callerCtx(c)
+	items, err := h.usecase.GetActiveFeatures(ctx.TeamID, ctx.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve feature roadmap",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Feature roadmap retrieved successfully",
+		"data":    items,
+	})
+}
+
 // GetAllTasks handles GET /api/v1/sentinel/tasks
 // Optional query: ?project_id=UUID to get only that project's tasks (for project Board/Backlog).
+// Optional query: ?task_type=FEATURE|TASK|BUG to filter by task typology.
 // Without project_id: returns ALL tasks (ADMIN/PM overview).
 func (h *SentinelHandler) GetAllTasks(c *gin.Context) {
-	var tasks interface{}
+	var tasks []domain.Task
 	var err error
 	var message string
 	if idStr := c.Query("project_id"); idStr != "" {
@@ -767,14 +917,10 @@ func (h *SentinelHandler) GetAllTasks(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project_id must be a valid UUID"})
 			return
 		}
-		var list []domain.Task
-		list, err = h.usecase.GetTasksByProjectID(projectID)
-		tasks = list
+		tasks, err = h.usecase.GetTasksByProjectID(projectID)
 		message = "Project tasks retrieved successfully"
 	} else {
-		var list []domain.Task
-		list, err = h.usecase.GetAllTasks()
-		tasks = list
+		tasks, err = h.usecase.GetAllTasks()
 		message = "All tasks retrieved successfully"
 	}
 	if err != nil {
@@ -783,6 +929,16 @@ func (h *SentinelHandler) GetAllTasks(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+	// Optional client-side filter by task_type (avoids breaking the repository interface)
+	if taskTypeFilter := c.Query("task_type"); taskTypeFilter != "" {
+		filtered := tasks[:0]
+		for _, t := range tasks {
+			if t.TaskType == taskTypeFilter {
+				filtered = append(filtered, t)
+			}
+		}
+		tasks = filtered
 	}
 	c.JSON(http.StatusOK, gin.H{"message": message, "data": tasks})
 }
@@ -1176,6 +1332,7 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	// 4. Validate: At least one field must be provided
 	hasTitle := req.Title != ""
 	hasDesc := req.Description != ""
+	hasTaskType := req.TaskType != ""
 	hasParent := req.ParentID != nil && *req.ParentID != ""
 	hasEpicKey := req.EpicID != nil
 	hasStart := req.StartDate != nil && *req.StartDate != ""
@@ -1183,10 +1340,11 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	hasProgress := req.Progress != nil
 	hasPriority := req.Priority != ""
 	hasSP := req.StoryPoints != nil
-	hasSprint := req.SprintID != nil && *req.SprintID != ""
-	hasMilestone := req.MilestoneID != nil && *req.MilestoneID != ""
+	hasSprint := req.SprintID != nil
+	hasMilestone := req.MilestoneID != nil
 	hasSortOrder := req.SortOrder != nil
-	if !hasTitle && !hasDesc && !hasParent && !hasEpicKey && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone && !hasSortOrder {
+	hasEstMins := req.EstimatedMinutes != nil
+	if !hasTitle && !hasDesc && !hasTaskType && !hasParent && !hasEpicKey && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone && !hasSortOrder && !hasEstMins {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Bad Request",
 			"message": "At least one field must be provided",
@@ -1244,28 +1402,34 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	}
 	var sprintIDUpd *uuid.UUID
 	if hasSprint {
-		sid, err := uuid.Parse(*req.SprintID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "sprint_id must be a valid UUID"})
-			return
+		if *req.SprintID != "" {
+			sid, err := uuid.Parse(*req.SprintID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "sprint_id must be a valid UUID"})
+				return
+			}
+			sprintIDUpd = &sid
 		}
-		sprintIDUpd = &sid
+		// empty string = unassign from sprint (sprintIDUpd stays nil)
 	}
 	var milestoneIDUpd *uuid.UUID
 	if hasMilestone {
-		mid, err := uuid.Parse(*req.MilestoneID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "milestone_id must be a valid UUID"})
-			return
+		if *req.MilestoneID != "" {
+			mid, err := uuid.Parse(*req.MilestoneID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "milestone_id must be a valid UUID"})
+				return
+			}
+			milestoneIDUpd = &mid
 		}
-		milestoneIDUpd = &mid
+		// empty string = unassign from milestone (milestoneIDUpd stays nil)
 	}
 	var sortOrderUpd *int
 	if hasSortOrder {
 		sortOrderUpd = req.SortOrder
 	}
 
-	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd)
+	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
 	if err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {
@@ -1335,7 +1499,7 @@ func (h *SentinelHandler) UpdateTaskSlideResources(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Slide resources updated", "data": task})
 }
 
-// EstimateTask handles POST /api/v1/sentinel/tasks/:id/estimate — AI estimates time and updates task.ai_estimated_minutes
+// EstimateTask handles POST /api/v1/sentinel/tasks/:id/estimate — AI estimates time and updates task.estimated_minutes (used by ScheduleProjectWithAI)
 func (h *SentinelHandler) EstimateTask(c *gin.Context) {
 	taskResolved, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
@@ -1495,7 +1659,200 @@ func (h *SentinelHandler) ApproveTask(c *gin.Context) {
 	})
 }
 
-// resolveTaskIDOrCode resolves route param "id" (UUID or task code e.g. mims-hdmap-main-001) to a task.
+// RejectTask returns a task to IN_PROGRESS with a rejection reason comment (PM/CEO/MANAGER only)
+// POST /api/v1/sentinel/tasks/:id/reject ; :id can be UUID or task code
+func (h *SentinelHandler) RejectTask(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+
+	rejectorID := getUserIDFromContext(c)
+	if rejectorID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "user not authenticated",
+		})
+		return
+	}
+
+	rejectorRole := getUserRoleFromContext(c)
+	if rejectorRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "user role not found",
+		})
+		return
+	}
+
+	var req rejectTaskReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if err := h.usecase.RejectTask(task.ID, rejectorID, rejectorRole, req.Reason); err != nil {
+		if contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not pending review") || contains(err.Error(), "current status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to reject task",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Task rejected and returned to IN_PROGRESS",
+	})
+}
+
+// MarkReadyForTest moves a TASK/BUG from IN_PROGRESS to READY_FOR_TEST (Dev action).
+// POST /api/v1/sentinel/tasks/:id/ready-for-test
+func (h *SentinelHandler) MarkReadyForTest(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	devID := getUserIDFromContext(c)
+	if devID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	if err := h.usecase.MarkReadyForTest(task.ID, devID); err != nil {
+		var badReq *domain.ErrBadRequest
+		if errors.As(err, &badReq) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update task", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Task marked as READY_FOR_TEST"})
+}
+
+// ApproveSubTask moves a READY_FOR_TEST task to COMPLETED (PM/CEO action, Continuous UAT).
+// POST /api/v1/sentinel/tasks/:id/approve-sub
+func (h *SentinelHandler) ApproveSubTask(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	pmID := getUserIDFromContext(c)
+	if pmID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	pmRole := getUserRoleFromContext(c)
+	if pmRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	if err := h.usecase.ApproveSubTask(task.ID, pmID, pmRole); err != nil {
+		if contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "READY_FOR_TEST") || contains(err.Error(), "current status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve sub-task", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sub-task approved and marked as COMPLETED"})
+}
+
+// RejectSubTask moves a READY_FOR_TEST task back to IN_PROGRESS and logs the reason (PM/CEO action).
+// POST /api/v1/sentinel/tasks/:id/reject-sub
+func (h *SentinelHandler) RejectSubTask(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	pmID := getUserIDFromContext(c)
+	if pmID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	pmRole := getUserRoleFromContext(c)
+	if pmRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	var req rejectTaskReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	if err := h.usecase.RejectSubTask(task.ID, pmID, pmRole, req.Reason); err != nil {
+		if contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		var badReq *domain.ErrBadRequest
+		if errors.As(err, &badReq) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "READY_FOR_TEST") || contains(err.Error(), "current status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject sub-task", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sub-task rejected and returned to IN_PROGRESS"})
+}
+
+// GetTasksReadyForTest returns all TASK/BUG items in READY_FOR_TEST status for the caller's team.
+// GET /api/v1/sentinel/tasks/ready-for-test
+func (h *SentinelHandler) GetTasksReadyForTest(c *gin.Context) {
+	ctx := callerCtx(c)
+	if ctx.Role == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	tasks, err := h.usecase.GetTasksReadyForTest(ctx.TeamID, ctx.Role)
+	if err != nil {
+		if contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch test queue", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": tasks})
+}
+
 func (h *SentinelHandler) resolveTaskIDOrCode(c *gin.Context) (*domain.Task, error) {
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -1985,6 +2342,10 @@ func (h *SentinelHandler) LogTime(c *gin.Context) {
 	}
 	log, err := h.usecase.LogTime(task.ID, userID, req.Minutes, req.Description)
 	if err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log time", "message": err.Error()})
 		return
 	}
@@ -2012,7 +2373,7 @@ func (h *SentinelHandler) GetProjectAnalytics(c *gin.Context) {
 	var projectID uuid.UUID
 	var err error
 	if projectID, err = uuid.Parse(idStr); err != nil {
-		project, err := h.usecase.GetProjectByIDOrCode(idStr)
+		project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
 			return
@@ -2292,4 +2653,43 @@ func (h *SentinelHandler) ExportTimelinePDF(c *gin.Context) {
 	c.Header("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, filename))
 	c.Header("Content-Description", "Timeline PDF Report")
 	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
+// SplitTask decomposes one task into N sub-tasks and deletes the original.
+func (h *SentinelHandler) SplitTask(c *gin.Context) {
+	requesterID := getUserIDFromContext(c)
+	if requesterID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	requesterRole := getUserRoleFromContext(c)
+
+	taskID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid task ID"})
+		return
+	}
+
+	var req struct {
+		Splits []domain.SplitTaskItem `json:"splits" binding:"required,min=2"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+
+	created, err := h.usecase.SplitTask(taskID, req.Splits, requesterID, requesterRole)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if domain.IsBadRequest(err) {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": "Split failed", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": fmt.Sprintf("Task split into %d sub-tasks", len(created)),
+		"data":    created,
+	})
 }

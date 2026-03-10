@@ -94,8 +94,8 @@
                 <div class="space-y-2">
                   <div class="flex items-center gap-4 text-xs">
                     <div>
-                      <span class="text-gray-500">AI Estimate:</span>
-                      <span class="text-yellow-400 font-bold ml-1">{{ task.ai_estimated_minutes }} min</span>
+                      <span class="text-gray-500">Estimate:</span>
+                      <span class="text-yellow-400 font-bold ml-1">{{ task.estimated_minutes }} min</span>
                     </div>
                     <div>
                       <span class="text-gray-500">→ Dev Proposes:</span>
@@ -174,135 +174,6 @@
         </div>
       </div>
 
-      <!-- SECTION 2: ⚖️ PENDING APPEALS (CEO/PM ONLY) -->
-      <div 
-        v-if="showApprovals && appealTasks.length > 0"
-        class="bg-gray-800 border border-gray-700 rounded p-6 mb-8"
-      >
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h2 class="text-lg font-bold text-white uppercase flex items-center gap-2">
-              <span>⚖️</span>
-              <span>Pending Appeals</span>
-            </h2>
-            <p class="text-sm text-gray-400 mt-1">Developers challenging AI verdicts</p>
-          </div>
-          <div class="px-3 py-1 bg-purple-700 text-purple-100 font-bold rounded text-sm">
-            {{ appealTasks.length }}
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div
-            v-for="task in appealTasks"
-            :key="task.id"
-            class="bg-gray-900 border border-gray-700 hover:border-gray-600 rounded p-4 transition-all cursor-pointer"
-            @click="goToTask(task)"
-          >
-            <div class="flex items-start justify-between gap-4 mb-3">
-              <div class="flex-1">
-                <h3 class="text-base font-bold text-white mb-1">{{ task.title }}</h3>
-                <p class="text-xs text-gray-500">ID: {{ taskCodeDisplay(task) }}</p>
-              </div>
-              
-              <!-- Appeal Badge -->
-              <div class="px-2 py-1 bg-purple-700 text-purple-100 text-xs font-bold rounded flex items-center gap-1">
-                <span>⚖️</span>
-                <span>APPEAL</span>
-              </div>
-            </div>
-
-            <!-- Task Info -->
-            <div class="mb-4">
-              <p class="text-sm text-gray-400 mb-2">{{ task.description || 'No description' }}</p>
-              
-              <!-- Appeal Details -->
-              <div class="bg-gray-950 border border-gray-700 rounded p-3">
-                <template v-for="(submission, idx) in task.submissions" :key="submission.id">
-                  <div v-if="submission.appeal?.status === 'PENDING'" class="space-y-2">
-                    <div class="flex items-center gap-4 text-xs">
-                      <div>
-                        <span class="text-gray-500">Original Verdict:</span>
-                        <span 
-                          :class="[
-                            'font-bold ml-1',
-                            submission.ai_verdict === 'PASS' ? 'text-green-400' : 'text-red-400'
-                          ]"
-                        >
-                          {{ submission.ai_verdict }} ({{ submission.ai_score }})
-                        </span>
-                      </div>
-                      <div>
-                        <span class="text-gray-500">AI Suggests:</span>
-                        <span 
-                          v-if="submission.appeal.ai_recommendation"
-                          :class="[
-                            'font-bold ml-1',
-                            submission.appeal.ai_recommendation === 'OVERTURN' ? 'text-green-400' : 'text-red-400'
-                          ]"
-                        >
-                          {{ submission.appeal.ai_recommendation }} ({{ submission.appeal.ai_confidence }}%)
-                        </span>
-                        <span v-else class="text-gray-500 ml-1 italic">
-                          (ไม่มีข้อมูล)
-                        </span>
-                      </div>
-                    </div>
-                    <p class="text-xs text-gray-400">
-                      <span class="text-gray-500">Developer's Plea:</span> {{ submission.appeal.reason }}
-                    </p>
-                    
-                    <!-- AI Reasoning - Always show -->
-                    <div class="mt-2 border-l-4 px-3 py-2 rounded"
-                         :class="submission.appeal.ai_reasoning && submission.appeal.ai_reasoning.trim() 
-                           ? 'bg-blue-900/20 border-blue-500' 
-                           : 'bg-gray-800/50 border-gray-600'">
-                      <p class="text-xs"
-                         :class="submission.appeal.ai_reasoning && submission.appeal.ai_reasoning.trim()
-                           ? 'text-blue-300'
-                           : 'text-gray-400 italic'">
-                        <span class="font-bold">💡 ความเห็น AI:</span> 
-                        <span v-if="submission.appeal.ai_reasoning && submission.appeal.ai_reasoning.trim()">
-                          "{{ submission.appeal.ai_reasoning }}"
-                        </span>
-                        <span v-else>
-                          ⚠️ ไม่มีข้อมูล - กรุณาใช้ดุลยพินิจในการตัดสิน
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex items-center gap-3">
-              <button
-                @click.stop="approveAppeal(task)"
-                class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
-              >
-                <span>✅</span>
-                <span>Approve Appeal</span>
-              </button>
-              <button
-                @click.stop="rejectAppeal(task)"
-                class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
-              >
-                <span>❌</span>
-                <span>Reject Appeal</span>
-              </button>
-              <NuxtLink 
-                :to="`/task/${task.code || task.id}`"
-                @click.stop
-                class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-all"
-              >
-                View Details →
-              </NuxtLink>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- SECTION 3: ⚡ MY ACTIVE MISSIONS (FOR EVERYONE) -->
       <div v-if="myTasks.length > 0" class="bg-gray-800 border border-gray-700 rounded p-6">
         <div class="flex items-center justify-between mb-4">
@@ -363,9 +234,9 @@
             <!-- Task Metrics -->
             <div class="space-y-2 mb-4 text-xs">
               <div class="flex items-center gap-2">
-                <span class="text-gray-500">AI Estimate:</span>
+                <span class="text-gray-500">Estimated:</span>
                 <span class="text-blue-400 font-bold">
-                  {{ task.ai_estimated_minutes }} min ({{ (task.ai_estimated_minutes / 60).toFixed(1) }}h)
+                  {{ task.estimated_minutes }} min ({{ (task.estimated_minutes / 60).toFixed(1) }}h)
                 </span>
               </div>
               <div v-if="task.due_at" class="flex items-center gap-2">
@@ -407,7 +278,7 @@
 
       <!-- EMPTY STATE -->
       <div 
-        v-if="!isLoading && !error && timeNegotiations.length === 0 && appealTasks.length === 0 && myTasks.length === 0"
+        v-if="!isLoading && !error && timeNegotiations.length === 0 && myTasks.length === 0"
         class="text-center py-20"
       >
         <div class="text-6xl mb-4">✨</div>
@@ -433,9 +304,9 @@ interface Task {
   code?: string
   title: string
   description: string
-  ai_estimated_minutes: number
+  estimated_minutes: number
+  proposed_minutes?: number
   negotiation_status: string
-  proposed_minutes: number
   negotiation_reason: string
   negotiation_ai_recommendation?: string
   negotiation_ai_confidence?: number
@@ -450,18 +321,9 @@ interface Task {
 
 interface Submission {
   id: string
-  ai_verdict: string
-  ai_score: number
-  appeal?: Appeal
-}
-
-interface Appeal {
-  id: string
-  status: string
-  reason: string
-  ai_recommendation: string
-  ai_confidence: number
-  ai_reasoning: string
+  reference_url: string
+  note: string
+  created_at: string
 }
 
 // Composables
@@ -480,13 +342,9 @@ const showApprovals = computed(() => {
   return currentUser.value?.role === 'CEO' || currentUser.value?.role === 'PM'
 })
 
-// Separate time negotiations and appeals
+// Separate time negotiations from other approvals
 const timeNegotiations = computed(() => {
   return approvals.value.filter(task => task.negotiation_status === 'PENDING')
-})
-
-const appealTasks = computed(() => {
-  return approvals.value.filter(task => hasPendingAppeal(task))
 })
 
 // Methods
@@ -567,67 +425,6 @@ const rejectNegotiation = async (taskId: string) => {
   }
 }
 
-// Appeal Actions
-const approveAppeal = async (task: Task) => {
-  // Find the pending appeal
-  const submission = task.submissions?.find(s => s.appeal?.status === 'PENDING')
-  if (!submission?.appeal) return
-
-  const ok = await confirm({
-    title: 'Approve appeal',
-    message: 'Approve this appeal and set verdict to PASS?',
-    confirmLabel: 'Approve',
-    cancelLabel: 'Cancel',
-    variant: 'primary'
-  })
-  if (!ok) return
-
-  try {
-    await fetchWithAuth(`/sentinel/submissions/${submission.id}/appeals/${submission.appeal.id}/resolve`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decision: 'APPROVED',
-        resolver_note: 'Approved from inbox'
-      })
-    })
-    
-    await fetchData()
-  } catch (err: any) {
-    console.error('Failed to approve appeal:', err)
-    showError(err.data?.message || 'Failed to approve appeal')
-  }
-}
-
-const rejectAppeal = async (task: Task) => {
-  // Find the pending appeal
-  const submission = task.submissions?.find(s => s.appeal?.status === 'PENDING')
-  if (!submission?.appeal) return
-
-  const reason = prompt('Reason for rejection (optional):')
-  if (reason === null) return // User cancelled
-
-  try {
-    await fetchWithAuth(`/sentinel/submissions/${submission.id}/appeals/${submission.appeal.id}/resolve`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decision: 'REJECTED',
-        resolver_note: reason || 'Rejected from inbox'
-      })
-    })
-    
-    // Refresh data
-    await fetchData()
-  } catch (err: any) {
-    console.error('Failed to reject appeal:', err)
-    showError(err.data?.message || 'Failed to reject appeal')
-  }
-}
-
-const hasPendingAppeal = (task: Task): boolean => {
-  if (!task.submissions) return false
-  return task.submissions.some(sub => sub.appeal?.status === 'PENDING')
-}
-
 // Deadline Utilities
 const getDeadlineUrgency = (task: Task): 'normal' | 'urgent' | 'overdue' => {
   if (!task.due_at || task.status === 'COMPLETED') return 'normal'
@@ -685,7 +482,7 @@ const getDeadlineCountdown = (dateStr: string): string => {
 function taskCodeDisplay(task: { id: string; code?: string }): string {
   if (task.code) {
     const suffix = task.code.split('-').pop()
-    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(3, '0')
+    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(4, '0')
     return task.code
   }
   return task.id.substring(0, 8) + '…'

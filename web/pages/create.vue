@@ -1,271 +1,289 @@
 <template>
-  <div class="min-h-screen bg-gray-900 p-8">
-    <!-- Header -->
-    <div class="mb-8">
-      <h1 class="text-4xl font-bold text-white mb-2">
-        Create New Mission 🚀
-      </h1>
-      <p class="text-gray-400">Define your task and create the mission</p>
-    </div>
+  <div class="min-h-screen bg-gray-900 flex items-start justify-center p-6">
+    <div class="w-full max-w-lg">
+      <!-- Header -->
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-white tracking-tight">Create Task</h1>
+        <p class="text-sm text-gray-400 mt-1">Add a new task to your project</p>
+      </div>
 
-    <!-- Creation Form Card -->
-    <div class="max-w-3xl mx-auto">
-      <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-8 backdrop-blur">
-        <!-- Success Message -->
-        <div 
-          v-if="showSuccess" 
-          class="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-lg text-green-400 flex items-center gap-3 animate-fade-in"
-        >
-          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <p class="font-semibold">Task Created Successfully!</p>
-            <p class="text-sm text-green-300">Redirecting to dashboard...</p>
+      <!-- Card -->
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl">
+
+        <!-- Scrollable form body -->
+        <div class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+          <!-- Success -->
+          <div v-if="showSuccessMsg" class="flex items-center gap-3 p-3 bg-green-900/30 border border-green-600 rounded-lg text-green-400 text-sm">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Task created! Redirecting...
           </div>
-        </div>
 
-        <!-- Error Message -->
-        <div 
-          v-if="errorMessage" 
-          class="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 flex items-center gap-3"
-        >
-          <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+          <!-- Error -->
+          <div v-if="errorMessage" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ errorMessage }}</div>
+
+          <!-- Task Type Selector -->
           <div>
-            <p class="font-semibold">Failed to Create Task</p>
-            <p class="text-sm text-red-300">{{ errorMessage }}</p>
+            <label class="label">Type *</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                @click="form.task_type = 'FEATURE'"
+                :class="form.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'"
+                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+              >
+                <span class="text-base">★</span> Feature
+              </button>
+              <button
+                type="button"
+                @click="form.task_type = 'TASK'"
+                :class="form.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'"
+                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+              >
+                <span class="text-base">📋</span> Task
+              </button>
+              <button
+                type="button"
+                @click="form.task_type = 'BUG'"
+                :class="form.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'"
+                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+              >
+                <span class="text-base">⚠</span> Bug
+              </button>
+            </div>
+            <!-- PM Rule hint -->
+            <div v-if="form.task_type === 'FEATURE'" class="mt-2 flex items-start gap-2 p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-lg text-xs text-purple-300">
+              <span class="shrink-0 mt-0.5">★</span>
+              <span><strong>Feature mode:</strong> Acts as a parent container. Estimated Minutes is disabled — add sub-tasks of type Task/Bug to assign work.</span>
+            </div>
           </div>
-        </div>
 
-        <form @submit.prevent="handleSubmit" class="space-y-6">
-          <!-- Task Title -->
+          <!-- Title -->
           <div>
-            <label for="title" class="block text-sm font-medium text-gray-300 mb-2">
-              Task Title <span class="text-red-400">*</span>
-            </label>
-            <input
-              id="title"
-              v-model="formData.title"
-              type="text"
-              required
-              placeholder="e.g., Implement user authentication system"
-              class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-              :disabled="isSubmitting"
-            />
+            <label class="label">Title *</label>
+            <input v-model="form.title" type="text" class="input-field w-full" placeholder="e.g. Implement user authentication system" />
           </div>
 
           <!-- Description -->
           <div>
-            <label for="description" class="block text-sm font-medium text-gray-300 mb-2">
-              Description <span class="text-red-400">*</span>
-            </label>
-            <textarea
-              id="description"
-              v-model="formData.description"
-              required
-              rows="8"
-              placeholder="Provide detailed requirements, technical specifications, and acceptance criteria..."
-              class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition resize-none"
-              :disabled="isSubmitting"
-            ></textarea>
-            <p class="mt-2 text-sm text-gray-500">
-              💡 Tip: Add clear requirements and acceptance criteria
-            </p>
+            <label class="label">Description</label>
+            <textarea v-model="form.description" rows="4" class="input-field w-full resize-none" placeholder="Describe the task objectives and requirements..."></textarea>
           </div>
 
-          <!-- Deadline -->
+          <!-- Project -->
           <div>
-            <label for="deadline" class="block text-sm font-medium text-gray-300 mb-2">
-              ⏰ Deadline <span class="text-gray-500 text-xs">(Optional)</span>
+            <label class="label">Project</label>
+            <select v-model="form.project_id" @change="onProjectChange" class="input-field w-full">
+              <option value="">— No project —</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+
+          <!-- Estimated Effort -->
+          <div>
+            <label class="label" :class="form.task_type === 'FEATURE' ? 'text-gray-500' : ''">
+              Estimated Effort (Minutes)
+              <span v-if="form.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
             </label>
             <input
-              id="deadline"
-              v-model="formData.deadline"
-              type="datetime-local"
-              class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
-              :disabled="isSubmitting"
-              :min="minDeadline"
+              v-model.number="form.estimated_minutes"
+              type="number"
+              min="0"
+              step="1"
+              class="input-field w-full transition-opacity"
+              :class="form.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''"
+              :disabled="form.task_type === 'FEATURE'"
+              placeholder="e.g. 60 (minutes)"
             />
-            <p class="mt-2 text-sm text-red-400 flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Set a deadline to enforce urgency and track performance
-            </p>
+            <p v-if="form.task_type !== 'FEATURE'" class="text-xs text-gray-500 mt-1">Minutes. Used for Manday and Quotation (Costing Engine).</p>
           </div>
 
-          <!-- Action Buttons -->
-          <div class="flex items-center gap-4 pt-4">
-            <button
-              type="submit"
-              :disabled="isSubmitting || !formData.title || !formData.description"
-              class="flex-1 py-4 px-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-purple-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-            >
-              <svg 
-                v-if="isSubmitting" 
-                class="animate-spin h-5 w-5" 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
-                viewBox="0 0 24 24"
-              >
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <svg 
-                v-else 
-                class="w-5 h-5" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span v-if="isSubmitting">Analyzing with AI...</span>
-              <span v-else>Initialize Task & Run AI Analysis</span>
-            </button>
-
-            <NuxtLink
-              to="/dashboard"
-              class="px-6 py-4 bg-gray-700/50 hover:bg-gray-700 border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white font-medium rounded-lg transition-all"
-            >
-              Cancel
-            </NuxtLink>
+          <!-- Priority & Story Points -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="label">Priority</label>
+              <select v-model="form.priority" class="input-field w-full">
+                <option value="CRITICAL">🔴 Critical</option>
+                <option value="HIGH">🟠 High</option>
+                <option value="MEDIUM">🟡 Medium</option>
+                <option value="LOW">🟢 Low</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Story Points</label>
+              <input v-model.number="form.story_points" type="number" min="0" class="input-field w-full" placeholder="0" />
+            </div>
           </div>
-        </form>
 
-        <!-- Additional Info -->
-        <div class="mt-8 pt-6 border-t border-gray-700">
-          <div class="flex items-center gap-2 text-sm text-gray-500">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <span>Your data is secure and encrypted</span>
+          <!-- Sprint (only when project is selected) -->
+          <div v-if="form.project_id && sprints.length">
+            <label class="label">Sprint</label>
+            <select v-model="form.sprint_id" class="input-field w-full">
+              <option value="">Backlog</option>
+              <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
           </div>
+
+          <!-- Epic (only when project is selected) -->
+          <div v-if="form.project_id && epics.length">
+            <label class="label">Epic</label>
+            <select v-model="form.epic_id" class="input-field w-full">
+              <option value="">No Epic</option>
+              <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
+            </select>
+          </div>
+
+          <!-- Due Date -->
+          <div>
+            <label class="label">Due Date</label>
+            <input v-model="form.due_date" type="datetime-local" class="input-field w-full" />
+          </div>
+
+          <!-- Start / End Dates -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="label">Start Date</label>
+              <input v-model="form.start_date" type="datetime-local" class="input-field w-full" />
+            </div>
+            <div>
+              <label class="label">End Date</label>
+              <input v-model="form.end_date" type="datetime-local" class="input-field w-full" />
+            </div>
+          </div>
+
         </div>
-      </div>
 
-      <!-- Pro Tips Card -->
-      <div class="mt-6 bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-xl p-6">
-        <h3 class="text-lg font-semibold text-white mb-3">
-          ✨ Pro Tips for Better AI Estimation:
-        </h3>
-        <ul class="space-y-2 text-sm text-gray-300">
-          <li class="flex items-start gap-2">
-            <span class="text-purple-400 shrink-0">•</span>
-            <span>Include specific technical requirements (API endpoints, database schema, etc.)</span>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-purple-400 shrink-0">•</span>
-            <span>Mention any third-party integrations or external dependencies</span>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-purple-400 shrink-0">•</span>
-            <span>List acceptance criteria and expected deliverables</span>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-purple-400 shrink-0">•</span>
-            <span>Note any performance or security requirements</span>
-          </li>
-        </ul>
+        <!-- Footer actions -->
+        <div class="flex gap-3 p-6 pt-4 border-t border-gray-700">
+          <button
+            @click="handleSubmit"
+            :disabled="isSubmitting || !form.title.trim()"
+            class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-40 text-white font-semibold rounded-xl py-2.5 transition-colors flex items-center justify-center gap-2"
+          >
+            <svg v-if="isSubmitting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span>{{ isSubmitting ? 'Creating...' : 'Create Task' }}</span>
+          </button>
+          <NuxtLink to="/dashboard" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors text-sm font-medium">Cancel</NuxtLink>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
+import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
+
 definePageMeta({
   layout: 'default',
   middleware: 'auth'
 })
 
-const { fetchWithAuth } = useAuth()
 const router = useRouter()
+const projectsApi = useProjectsApi()
+const tasksApi = useTasksApi()
+const { showSuccess, showError } = useNotification()
 
-// Form state
-const formData = ref({
-  title: '',
-  description: '',
-  deadline: ''
+interface ProjectItem { id: string; name: string }
+interface SprintItem  { id: string; name: string }
+interface EpicItem   { id: string; title: string }
+
+const projects = ref<ProjectItem[]>([])
+const sprints  = ref<SprintItem[]>([])
+const epics    = ref<EpicItem[]>([])
+
+const isSubmitting   = ref(false)
+const showSuccessMsg = ref(false)
+const errorMessage   = ref('')
+
+const form = ref({
+  task_type:         'TASK',
+  title:             '',
+  description:       '',
+  project_id:        '',
+  sprint_id:         '',
+  epic_id:           '',
+  priority:          'MEDIUM',
+  story_points:      0,
+  estimated_minutes: 0,
+  due_date:          '',
+  start_date:        '',
+  end_date:          '',
 })
 
-const isSubmitting = ref(false)
-const errorMessage = ref('')
-const showSuccess = ref(false)
-
-// Minimum deadline is now (local time for datetime-local input)
-const minDeadline = computed(() => {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const h = String(now.getHours()).padStart(2, '0')
-  const min = String(now.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${h}:${min}`
+onMounted(async () => {
+  try {
+    const list = await projectsApi.getProjects()
+    projects.value = list.map((p: any) => ({ id: p.id, name: p.name }))
+  } catch {
+    // non-critical
+  }
 })
 
-// Handle form submission
-const handleSubmit = async () => {
-  isSubmitting.value = true
-  errorMessage.value = ''
-  showSuccess.value = false
+async function onProjectChange() {
+  sprints.value = []
+  epics.value   = []
+  form.value.sprint_id = ''
+  form.value.epic_id   = ''
+  if (!form.value.project_id) return
+  try {
+    const [sprintList, epicList] = await Promise.all([
+      projectsApi.getSprints(form.value.project_id),
+      projectsApi.getEpics(form.value.project_id),
+    ])
+    sprints.value = sprintList.map((s: any) => ({ id: s.id, name: s.name }))
+    epics.value   = epicList.map((e: any) => ({ id: e.id, title: e.title }))
+  } catch {
+    // ignore
+  }
+}
+
+async function handleSubmit() {
+  if (!form.value.title.trim()) return
+  isSubmitting.value  = true
+  errorMessage.value  = ''
+  showSuccessMsg.value = false
 
   try {
-    // Prepare request body
-    const requestBody: any = {
-      title: formData.value.title,
-      description: formData.value.description
+    const payload: any = {
+      title:             form.value.title,
+      description:       form.value.description,
+      task_type:         form.value.task_type || 'TASK',
+      priority:          form.value.priority,
+      story_points:      form.value.story_points,
+      estimated_minutes: form.value.task_type === 'FEATURE' ? 0 : (Number(form.value.estimated_minutes) || 0),
     }
+    if (form.value.project_id)  payload.project_id  = form.value.project_id
+    if (form.value.sprint_id)   payload.sprint_id   = form.value.sprint_id
+    if (form.value.epic_id)     payload.epic_id     = form.value.epic_id
+    if (form.value.due_date)    payload.due_date    = new Date(form.value.due_date).toISOString()
+    if (form.value.start_date)  payload.start_date  = new Date(form.value.start_date).toISOString()
+    if (form.value.end_date)    payload.end_date    = new Date(form.value.end_date).toISOString()
 
-    // Add deadline if provided (convert to ISO8601/RFC3339 format)
-    if (formData.value.deadline) {
-      requestBody.due_date = new Date(formData.value.deadline).toISOString()
-    }
-
-    const response = await fetchWithAuth('/sentinel/tasks', {
-      method: 'POST',
-      body: requestBody
-    })
-
-    // Show success message
-    showSuccess.value = true
-
-    // Wait a moment for user to see success message
+    await tasksApi.createTask(payload)
+    showSuccessMsg.value = true
+    showSuccess('Task created successfully!', 'Done')
     setTimeout(() => {
-      router.push('/dashboard')
-    }, 2000)
-
-  } catch (error: any) {
-    console.error('Failed to create task:', error)
-    errorMessage.value = error.data?.message || error.message || 'Failed to create task. Please try again.'
-    
-    // Scroll to top to show error
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+      if (form.value.project_id) {
+        router.push(`/projects/${form.value.project_id}?tab=backlog`)
+      } else {
+        router.push('/dashboard')
+      }
+    }, 1200)
+  } catch (err: any) {
+    errorMessage.value = err?.data?.message ?? err?.message ?? 'Failed to create task.'
+    showError(errorMessage.value)
   } finally {
     isSubmitting.value = false
   }
 }
-
-// Reset form when component unmounts
-onUnmounted(() => {
-  formData.value = { title: '', description: '', deadline: '' }
-})
 </script>
 
 <style scoped>
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.label {
+  @apply block text-xs text-gray-400 mb-1.5 font-medium;
 }
-
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
+.input-field {
+  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
 }
 </style>

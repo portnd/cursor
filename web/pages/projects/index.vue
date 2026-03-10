@@ -9,6 +9,7 @@
         <p class="text-sm text-gray-400 mt-1">{{ projects.length }} active workspaces</p>
       </div>
       <button
+        v-if="canManageProjects"
         type="button"
         class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/20 transition-all"
         @click="openCreateModal"
@@ -16,6 +17,21 @@
         <span>+</span>
         <span>New Project</span>
       </button>
+    </div>
+
+    <!-- Squad Banner for PM/DEV -->
+    <div
+      v-if="!isCEO && squadName"
+      class="mb-6 flex items-center gap-3 px-4 py-3 bg-purple-900/30 border border-purple-500/30 rounded-xl"
+    >
+      <div class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600/20 text-purple-400">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+      <div>
+        <span class="text-xs text-purple-400 uppercase tracking-widest font-semibold">Your Squad</span>
+        <p class="text-white font-bold leading-tight">{{ squadName }}</p>
+      </div>
+      <span class="ml-auto text-xs text-gray-500">Showing projects for your team only</span>
     </div>
 
     <!-- System Metrics Row -->
@@ -78,7 +94,7 @@
       <div class="text-6xl mb-4">📭</div>
       <h2 class="text-xl font-semibold text-gray-300 mb-2">No projects found</h2>
       <p class="text-gray-500 mb-6">{{ search ? 'Try a different search term.' : 'Create your first project to get started.' }}</p>
-      <button v-if="!search" @click="openCreateModal" class="btn-primary px-6 py-2.5">
+      <button v-if="!search && canManageProjects" @click="openCreateModal" class="btn-primary px-6 py-2.5">
         Create Project
       </button>
     </div>
@@ -88,7 +104,8 @@
       <div
         v-for="project in filteredProjects"
         :key="project.id"
-        class="project-card group"
+        class="project-card group block cursor-pointer"
+        @click="navigateTo(`/projects/${project.code || project.id}`)"
       >
         <!-- Card Header -->
         <div class="flex items-start justify-between mb-4">
@@ -114,6 +131,7 @@
           </div>
           <!-- Delete Button -->
           <button
+            v-if="canDeleteProjects"
             @click.stop="confirmDelete(project)"
             class="opacity-0 group-hover:opacity-100 p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all ml-2"
           >
@@ -128,7 +146,31 @@
           {{ project.description || 'No description provided.' }}
         </p>
 
-        <!-- Task Stats -->
+        <!-- Team Badge + CEO Assign Dropdown -->
+        <div class="mb-4">
+          <!-- Current Team Badge (all roles) -->
+          <div v-if="project.team_id" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 mb-2">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v1h-3zM4.75 12.094A5.973 5.973 0 004 15v1H1v-1a3 3 0 013.75-2.906z"/></svg>
+            {{ teamsStore.teamNameById(project.team_id) }}
+          </div>
+          <div v-else class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-700/50 text-gray-500 mb-2">
+            No team assigned
+          </div>
+          <!-- CEO-only: Assign Team Dropdown -->
+          <div v-if="isCEO" class="mt-1">
+            <select
+              :value="project.team_id ?? ''"
+              @change="assignTeam(project, ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+              class="w-full bg-gray-700/60 border border-gray-600/50 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-purple-500 transition-colors cursor-pointer"
+              @click.stop
+            >
+              <option value="">— Unassign team —</option>
+              <option v-for="team in teamsStore.teams" :key="team.id" :value="team.id">
+                {{ team.name }}
+              </option>
+            </select>
+          </div>
+        </div>
         <div class="grid grid-cols-3 gap-2 mb-4">
           <div class="text-center p-2 bg-gray-800/60 rounded-lg">
             <div class="text-sm font-bold text-gray-200">{{ getTaskCount(project, 'total') }}</div>
@@ -159,19 +201,20 @@
           </div>
         </div>
 
+        <!-- Capital Balance -->
+        <div v-if="project.capital_balance != null && project.capital_balance > 0" class="mb-4 flex items-center justify-between px-3 py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+          <div class="flex items-center gap-1.5 text-xs text-emerald-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="font-medium">Capital</span>
+          </div>
+          <span class="text-xs font-bold text-emerald-300">฿{{ Math.round(project.capital_balance).toLocaleString('th-TH') }}</span>
+        </div>
+
         <!-- Footer -->
         <div class="flex items-center justify-between pt-3 border-t border-gray-700/50">
           <span class="text-xs text-gray-600">
             {{ formatDate(project.created_at) }}
           </span>
-          <div class="flex gap-2">
-            <NuxtLink
-              :to="`/projects/${project.code || project.id}`"
-              class="btn-primary-sm"
-            >
-              Open Hub →
-            </NuxtLink>
-          </div>
         </div>
       </div>
     </div>
@@ -188,7 +231,26 @@
           <button @click="closeCreateModal" class="text-gray-500 hover:text-white transition-colors">✕</button>
         </div>
 
-        <div class="space-y-4">
+        <!-- Mode Toggle -->
+        <div class="flex gap-2 mb-5 p-1 bg-gray-900/60 rounded-xl">
+          <button
+            @click="importMode = false"
+            class="flex-1 py-2 text-xs font-semibold rounded-lg transition-colors"
+            :class="!importMode ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+          >
+            ✨ New Project
+          </button>
+          <button
+            @click="importMode = true"
+            class="flex-1 py-2 text-xs font-semibold rounded-lg transition-colors"
+            :class="importMode ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+          >
+            📥 Import from Backup
+          </button>
+        </div>
+
+        <!-- New Project Form -->
+        <div v-if="!importMode" class="space-y-4">
           <div>
             <label class="block text-sm text-gray-400 mb-1.5">Project Name <span class="text-red-400">*</span></label>
             <input
@@ -224,13 +286,83 @@
           </div>
         </div>
 
+        <!-- Import from Backup Form -->
+        <div v-else class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1.5">Project Name <span class="text-red-400">*</span></label>
+            <input
+              v-model="importForm.name"
+              type="text"
+              placeholder="ชื่อโครงการใหม่ (English only)"
+              class="input-field w-full"
+              :class="{ 'border-red-500': createError }"
+            />
+            <p class="text-xs text-gray-500 mt-1">โครงการจะได้รับ code ใหม่โดยอัตโนมัติ</p>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1.5">ไฟล์ Backup (.sentinel.json) <span class="text-red-400">*</span></label>
+            <label
+              class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-colors"
+              :class="importFile ? 'border-purple-500/60 bg-purple-500/5' : 'border-gray-600 bg-gray-700/40 hover:border-gray-500'"
+            >
+              <template v-if="!importFile">
+                <svg class="w-8 h-8 text-gray-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p class="text-xs text-gray-400">คลิกเพื่อเลือกไฟล์ หรือลาก & วาง</p>
+                <p class="text-xs text-gray-600 mt-1">.sentinel.json</p>
+              </template>
+              <template v-else>
+                <svg class="w-6 h-6 text-purple-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-xs text-purple-300 font-semibold">{{ importFile.name }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ formatFileSize(importFile.size) }}</p>
+              </template>
+              <input type="file" accept=".json,.sentinel.json" class="hidden" @change="onImportFileChange" />
+            </label>
+          </div>
+
+          <!-- Preview -->
+          <div v-if="importPayloadPreview" class="bg-gray-700/40 border border-gray-600/50 rounded-xl p-3 space-y-1">
+            <p class="text-xs font-semibold text-gray-300 mb-2">ข้อมูลที่จะ import:</p>
+            <div class="grid grid-cols-2 gap-1 text-xs">
+              <span class="text-gray-500">โครงการต้นทาง:</span>
+              <span class="text-gray-200 font-medium">{{ importPayloadPreview.project?.name || '-' }}</span>
+              <span class="text-gray-500">Tasks:</span>
+              <span class="text-gray-200">{{ importPayloadPreview.tasks?.length || 0 }} รายการ</span>
+              <span class="text-gray-500">Sprints:</span>
+              <span class="text-gray-200">{{ importPayloadPreview.sprints?.length || 0 }} รายการ</span>
+              <span class="text-gray-500">Milestones:</span>
+              <span class="text-gray-200">{{ importPayloadPreview.milestones?.length || 0 }} รายการ</span>
+              <span class="text-gray-500">Epics:</span>
+              <span class="text-gray-200">{{ importPayloadPreview.epics?.length || 0 }} รายการ</span>
+            </div>
+          </div>
+
+          <div v-if="createError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">
+            {{ createError }}
+          </div>
+        </div>
+
         <div class="flex gap-3 mt-6">
           <button
+            v-if="!importMode"
             @click="createProject"
             :disabled="isCreating || !createForm.name.trim()"
-            class="flex-1 btn-primary py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            class="flex-1 btn-primary py-2.5 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
+            <div v-if="isCreating" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             {{ isCreating ? 'Creating...' : 'Create Project' }}
+          </button>
+          <button
+            v-else
+            @click="importProjectFromBackup"
+            :disabled="isCreating || !importForm.name.trim() || !importPayloadPreview"
+            class="flex-1 btn-primary py-2.5 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <div v-if="isCreating" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            {{ isCreating ? 'Importing...' : '📥 Import & Create' }}
           </button>
           <button @click="closeCreateModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">
             Cancel
@@ -273,10 +405,23 @@
 <script setup lang="ts">
 import { useAuth } from '~/composables/useAuth'
 import type { Project } from '~/core/modules/projects/infrastructure/projects-api'
+import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
-const { fetchWithAuth } = useAuth()
+const { fetchWithAuth, currentUser } = useAuth()
+const teamsStore = useTeamsStore()
+const projectsApi = useProjectsApi()
+
+const isCEO = computed(() => currentUser.value?.role === 'CEO' || currentUser.value?.role === 'MANAGER')
+const canManageProjects = computed(() => ['CEO', 'MANAGER', 'PM'].includes(currentUser.value?.role ?? ''))
+const canDeleteProjects = computed(() => ['CEO'].includes(currentUser.value?.role ?? ''))
+const squadName = computed(() => {
+  const tid = currentUser.value?.team_id
+  if (!tid) return null
+  return teamsStore.teamNameById(tid)
+})
 
 const projects = ref<Project[]>([])
 const isLoading = ref(true)
@@ -288,6 +433,12 @@ const showCreateModal = ref(false)
 const createForm = ref({ name: '', description: '', status: 'ACTIVE' })
 const isCreating = ref(false)
 const createError = ref('')
+
+// Import-from-backup mode
+const importMode = ref(false)
+const importForm = ref({ name: '' })
+const importFile = ref<File | null>(null)
+const importPayloadPreview = ref<Record<string, any> | null>(null)
 
 const showDeleteModal = ref(false)
 const projectToDelete = ref<Project | null>(null)
@@ -378,11 +529,17 @@ async function loadProjects() {
 function openCreateModal() {
   createForm.value = { name: '', description: '', status: 'ACTIVE' }
   createError.value = ''
+  importMode.value = false
+  importForm.value = { name: '' }
+  importFile.value = null
+  importPayloadPreview.value = null
   showCreateModal.value = true
 }
 
 function closeCreateModal() {
   showCreateModal.value = false
+  importFile.value = null
+  importPayloadPreview.value = null
 }
 
 async function createProject() {
@@ -401,6 +558,58 @@ async function createProject() {
   } finally {
     isCreating.value = false
   }
+}
+
+function onImportFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  importFile.value = file
+  importPayloadPreview.value = null
+  createError.value = ''
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const json = JSON.parse(e.target?.result as string)
+      // Support both raw payload and wrapped { payload: ... } formats
+      const payload = json.payload ?? json
+      if (!payload.project) {
+        createError.value = 'ไฟล์ไม่ถูกต้อง: ไม่พบข้อมูล project ในไฟล์ backup'
+        importFile.value = null
+        return
+      }
+      importPayloadPreview.value = payload
+      // Pre-fill name from backup if empty
+      if (!importForm.value.name && payload.project?.name) {
+        importForm.value.name = payload.project.name + ' (Imported)'
+      }
+    } catch {
+      createError.value = 'ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบว่าเป็นไฟล์ .sentinel.json ที่ถูกต้อง'
+      importFile.value = null
+    }
+  }
+  reader.readAsText(file)
+}
+
+async function importProjectFromBackup() {
+  if (!importForm.value.name.trim() || !importPayloadPreview.value) return
+  isCreating.value = true
+  createError.value = ''
+  try {
+    await projectsApi.importProjectFromBackup(importForm.value.name.trim(), importPayloadPreview.value)
+    closeCreateModal()
+    await loadProjects()
+  } catch (e: any) {
+    createError.value = e.message || 'Failed to import project from backup'
+  } finally {
+    isCreating.value = false
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
 function confirmDelete(project: Project) {
@@ -429,7 +638,19 @@ async function deleteProject() {
   }
 }
 
-onMounted(loadProjects)
+async function assignTeam(project: Project, teamId: number | null) {
+  try {
+    await teamsStore.assignProjectToTeam(project.id, teamId)
+    project.team_id = teamId
+    project.team_name = teamId ? teamsStore.teamNameById(teamId) : undefined
+  } catch (_e) {
+    // silent — user will see no change
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadProjects(), teamsStore.fetchTeams()])
+})
 </script>
 
 <style scoped>
@@ -440,7 +661,7 @@ onMounted(loadProjects)
   @apply text-xs text-gray-500 mt-1 uppercase tracking-wide;
 }
 .project-card {
-  @apply bg-gray-800 border border-gray-700 rounded-2xl p-5 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5 transition-all cursor-default;
+  @apply bg-gray-800 border border-gray-700 rounded-2xl p-5 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5 transition-all cursor-pointer;
 }
 .input-field {
   @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;

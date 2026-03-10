@@ -13,5 +13,6 @@ func RegisterRoutes(router *gin.RouterGroup, usecase perfDomain.Usecase) {
 		perf.GET("/me", handler.GetMe)
 		perf.GET("/team", handler.GetTeam)
 		perf.GET("/overview", handler.GetOverview)
+		perf.POST("/users/:id/reset-rework", handler.ResetReworkRate) // CEO only
 	}
 }

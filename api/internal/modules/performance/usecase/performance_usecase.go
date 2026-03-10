@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"fmt"
+
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	perfDomain "github.com/portnd/the-sentinel-core/internal/modules/performance/domain"
 	"math"
@@ -248,4 +250,18 @@ func (u *performanceUsecase) GetOverviewKPIs(requestingUserID uint, requestingRo
 	out.EngineeringHealthIndex = 0.30*avgDelivery + 0.25*avgQuality + 0.20*(100-avgRework) + 0.15*velocityNorm + 0.10*avgTimeAcc
 	out.EngineeringHealthIndex = math.Round(out.EngineeringHealthIndex*100) / 100
 	return out, nil
+}
+
+// ResetReworkRate clears the rework history for a developer by setting rework_reset_at = NOW().
+// Only CEO is allowed to perform this action.
+func (u *performanceUsecase) ResetReworkRate(devUserID uint, requesterRole string) error {
+	if requesterRole != "CEO" {
+		return fmt.Errorf("access denied: only CEO can reset rework rate (your role: %s)", requesterRole)
+	}
+	// Verify target user exists
+	targetUser, err := u.authRepo.FindByID(devUserID)
+	if err != nil || targetUser == nil {
+		return fmt.Errorf("user not found")
+	}
+	return u.authRepo.ResetReworkRate(devUserID)
 }

@@ -50,6 +50,7 @@ type Usecase interface {
 	GetPersonalKPIs(userID uint, role string) (*PersonalKPIs, error)
 	GetTeamKPIs(requestingUserID uint, requestingRole string) (*TeamKPIsResponse, error)
 	GetOverviewKPIs(requestingUserID uint, requestingRole string) (*OverviewKPIs, error)
+	ResetReworkRate(devUserID uint, requesterRole string) error // CEO only: reset rework history for a dev
 }
 
 // Repository defines the data access interface for performance aggregations

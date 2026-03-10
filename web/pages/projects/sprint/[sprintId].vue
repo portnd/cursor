@@ -307,6 +307,19 @@
             <label class="label">Description</label>
             <textarea v-model="createTaskForm.description" rows="3" class="input-field w-full resize-none" placeholder="Describe the task..."></textarea>
           </div>
+          <div>
+            <label class="label">Estimated Effort (Minutes/Hours) *</label>
+            <input
+              v-model.number="createTaskForm.estimated_minutes"
+              type="number"
+              min="0"
+              step="1"
+              class="input-field w-full"
+              placeholder="e.g. 60 (minutes)"
+              required
+            />
+            <p class="text-xs text-gray-500 mt-1">Minutes. Used for Manday and Quotation (Costing Engine).</p>
+          </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="label">Priority</label>
@@ -347,7 +360,7 @@
           <div v-if="createTaskError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ createTaskError }}</div>
         </div>
         <div class="flex gap-3 mt-5">
-          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim()" class="flex-1 btn-primary py-2.5 disabled:opacity-40">
+          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim() || (Number(createTaskForm.estimated_minutes) ?? 0) < 0" class="flex-1 btn-primary py-2.5 disabled:opacity-40">
             {{ isCreatingTask ? 'Creating...' : 'Create Task' }}
           </button>
           <button @click="closeCreateTaskModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
@@ -483,7 +496,7 @@ function priorityBadge(p: string) {
 function taskCodeSuffix(code: string | undefined): string {
   if (!code) return '–'
   const suffix = code.split('-').pop()
-  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(3, '0') : code
+  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(4, '0') : code
 }
 
 function taskStatusBadge(status: string) {
@@ -595,6 +608,7 @@ const createTaskForm = ref({
   due_date: '',
   start_date: '',
   end_date: '',
+  estimated_minutes: 0,
 })
 const isCreatingTask = ref(false)
 const createTaskError = ref('')
@@ -609,6 +623,7 @@ function openCreateTaskModal() {
     due_date: '',
     start_date: '',
     end_date: '',
+    estimated_minutes: 0,
   }
   createTaskError.value = ''
   showCreateTaskModal.value = true
@@ -630,6 +645,7 @@ async function submitCreateTask() {
       story_points: createTaskForm.value.story_points,
       project_id: project.value.id,
       sprint_id: sprint.value.id,
+      estimated_minutes: Number(createTaskForm.value.estimated_minutes) || 0,
     }
     if (createTaskForm.value.due_date) payload.due_date = new Date(createTaskForm.value.due_date).toISOString()
     if (createTaskForm.value.start_date) payload.start_date = new Date(createTaskForm.value.start_date).toISOString()

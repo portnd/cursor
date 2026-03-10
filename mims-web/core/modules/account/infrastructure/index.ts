@@ -1,5 +1,0 @@
-export * from "./AccountModel.d"
-export * from "./AccountRequest.d"
-export * from "./AccountService"
-export * from "./ChangePasswordService"
-export * from "./ChangePasswordRequest.d"

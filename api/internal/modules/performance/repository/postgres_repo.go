@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	perfDomain "github.com/portnd/the-sentinel-core/internal/modules/performance/domain"
 	sentinelDomain "github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
@@ -38,24 +40,62 @@ func (r *postgresRepo) GetUserTaskDeliveryStats(userID uint) (tasksWithDue int, 
 }
 
 func (r *postgresRepo) GetUserSubmissionStats(userID uint) (avgScore float64, totalSubs int, failCount int, err error) {
-	type agg struct {
-		Avg   float64
-		Total int64
-		Fails int64
-	}
-	var a agg
-	err = r.db.Model(&sentinelDomain.Submission{}).
-		Select("COALESCE(AVG(ai_score), 0) as avg, COUNT(*) as total, SUM(CASE WHEN ai_verdict = 'FAIL' THEN 1 ELSE 0 END) as fails").
-		Where("dev_id = ?", userID).
-		Scan(&a).Error
+	// Fetch rework_reset_at cutoff for this user (NULL means no reset ever done)
+	var resetAt *time.Time
+	type resetRow struct{ ReworkResetAt *time.Time }
+	var rr resetRow
+	r.db.Raw("SELECT rework_reset_at FROM users WHERE id = ?", userID).Scan(&rr)
+	resetAt = rr.ReworkResetAt
+
+	// totalSubs = tasks assigned to this dev that have at least one submission
+	// failCount = tasks assigned to this dev that have at least one [REJECTED] comment (rework events)
+	var total int64
+	err = r.db.Model(&sentinelDomain.Task{}).
+		Where("assigned_to = ? AND id IN (SELECT DISTINCT task_id FROM submissions WHERE dev_id = ?)", userID, userID).
+		Count(&total).Error
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	return a.Avg, int(a.Total), int(a.Fails), nil
+	if total == 0 {
+		return 0, 0, 0, nil
+	}
+
+	var fails int64
+	if resetAt != nil {
+		err = r.db.Raw(`
+			SELECT COUNT(DISTINCT t.id)
+			FROM tasks t
+			WHERE t.assigned_to = ?
+			  AND EXISTS (
+			      SELECT 1 FROM task_comments tc
+			      WHERE tc.task_id = t.id
+			        AND tc.content LIKE '[REJECTED]%'
+			        AND tc.created_at > ?
+			  )
+		`, userID, resetAt).Scan(&fails).Error
+	} else {
+		err = r.db.Raw(`
+			SELECT COUNT(DISTINCT t.id)
+			FROM tasks t
+			WHERE t.assigned_to = ?
+			  AND EXISTS (
+			      SELECT 1 FROM task_comments tc
+			      WHERE tc.task_id = t.id
+			        AND tc.content LIKE '[REJECTED]%'
+			  )
+		`, userID).Scan(&fails).Error
+	}
+	if err != nil {
+		return 0, int(total), 0, err
+	}
+
+	// avgScore repurposed as approval rate (0–100) for the composite score
+	avgScore = (1.0 - float64(fails)/float64(total)) * 100
+	return avgScore, int(total), int(fails), nil
 }
 
 func (r *postgresRepo) GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64, sampleCount int, err error) {
-	// For each task assigned to user that has ai_estimated_minutes > 0 and has time_logs, compute
+	// For each task assigned to user that has estimated_minutes > 0 and has time_logs, compute
 	// accuracy = 1 - |sum(logged_mins) - estimated| / estimated, capped 0..1. Then average.
 	type row struct {
 		Accuracy float64
@@ -63,12 +103,12 @@ func (r *postgresRepo) GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64,
 	var rows []row
 	err = r.db.Raw(`
 		WITH task_totals AS (
-			SELECT t.id, t.ai_estimated_minutes AS est,
+			SELECT t.id, t.estimated_minutes AS est,
 				COALESCE(SUM(tl.minutes), 0)::int AS logged
 			FROM tasks t
 			LEFT JOIN time_logs tl ON tl.task_id = t.id AND tl.user_id = ?
-			WHERE t.assigned_to = ? AND t.ai_estimated_minutes > 0
-			GROUP BY t.id, t.ai_estimated_minutes
+			WHERE t.assigned_to = ? AND t.estimated_minutes > 0
+			GROUP BY t.id, t.estimated_minutes
 		)
 		SELECT LEAST(1.0, GREATEST(0.0, 1.0 - ABS(logged - est)::float / NULLIF(est, 0))) AS accuracy
 		FROM task_totals
@@ -164,21 +204,59 @@ func (r *postgresRepo) GetUserTaskDeliveryStatsForAssignedBy(devID, assignedByID
 }
 
 func (r *postgresRepo) GetUserSubmissionStatsForAssignedBy(devID, assignedByID uint) (avgScore float64, totalSubs int, failCount int, err error) {
-	type agg struct {
-		Avg   float64
-		Total int64
-		Fails int64
-	}
-	var a agg
-	err = r.db.Model(&sentinelDomain.Submission{}).
-		Select("COALESCE(AVG(submissions.ai_score), 0) AS avg, COUNT(*) AS total, SUM(CASE WHEN submissions.ai_verdict = 'FAIL' THEN 1 ELSE 0 END) AS fails").
-		Joins("INNER JOIN tasks ON tasks.id = submissions.task_id AND tasks.assigned_to = ? AND tasks.assigned_by_id = ?", devID, assignedByID).
-		Where("submissions.dev_id = ?", devID).
-		Scan(&a).Error
+	// Fetch rework_reset_at cutoff for this dev
+	var resetAt *time.Time
+	type resetRow struct{ ReworkResetAt *time.Time }
+	var rr resetRow
+	r.db.Raw("SELECT rework_reset_at FROM users WHERE id = ?", devID).Scan(&rr)
+	resetAt = rr.ReworkResetAt
+
+	// totalSubs = tasks assigned to devID by assignedByID that have at least one submission
+	// failCount = those tasks that have at least one [REJECTED] comment (rework events)
+	var total int64
+	err = r.db.Model(&sentinelDomain.Task{}).
+		Where("assigned_to = ? AND assigned_by_id = ? AND id IN (SELECT DISTINCT task_id FROM submissions WHERE dev_id = ?)", devID, assignedByID, devID).
+		Count(&total).Error
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	return a.Avg, int(a.Total), int(a.Fails), nil
+	if total == 0 {
+		return 0, 0, 0, nil
+	}
+
+	var fails int64
+	if resetAt != nil {
+		err = r.db.Raw(`
+			SELECT COUNT(DISTINCT t.id)
+			FROM tasks t
+			WHERE t.assigned_to = ?
+			  AND t.assigned_by_id = ?
+			  AND EXISTS (
+			      SELECT 1 FROM task_comments tc
+			      WHERE tc.task_id = t.id
+			        AND tc.content LIKE '[REJECTED]%'
+			        AND tc.created_at > ?
+			  )
+		`, devID, assignedByID, resetAt).Scan(&fails).Error
+	} else {
+		err = r.db.Raw(`
+			SELECT COUNT(DISTINCT t.id)
+			FROM tasks t
+			WHERE t.assigned_to = ?
+			  AND t.assigned_by_id = ?
+			  AND EXISTS (
+			      SELECT 1 FROM task_comments tc
+			      WHERE tc.task_id = t.id
+			        AND tc.content LIKE '[REJECTED]%'
+			  )
+		`, devID, assignedByID).Scan(&fails).Error
+	}
+	if err != nil {
+		return 0, int(total), 0, err
+	}
+
+	avgScore = (1.0 - float64(fails)/float64(total)) * 100
+	return avgScore, int(total), int(fails), nil
 }
 
 func (r *postgresRepo) GetUserTimeAccuracyForAssignedBy(devID, assignedByID uint) (avgAccuracyPct float64, sampleCount int, err error) {
@@ -188,12 +266,12 @@ func (r *postgresRepo) GetUserTimeAccuracyForAssignedBy(devID, assignedByID uint
 	var rows []row
 	err = r.db.Raw(`
 		WITH task_totals AS (
-			SELECT t.id, t.ai_estimated_minutes AS est,
+			SELECT t.id, t.estimated_minutes AS est,
 				COALESCE(SUM(tl.minutes), 0)::int AS logged
 			FROM tasks t
 			LEFT JOIN time_logs tl ON tl.task_id = t.id AND tl.user_id = ?
-			WHERE t.assigned_to = ? AND t.assigned_by_id = ? AND t.ai_estimated_minutes > 0
-			GROUP BY t.id, t.ai_estimated_minutes
+			WHERE t.assigned_to = ? AND t.assigned_by_id = ? AND t.estimated_minutes > 0
+			GROUP BY t.id, t.estimated_minutes
 		)
 		SELECT LEAST(1.0, GREATEST(0.0, 1.0 - ABS(logged - est)::float / NULLIF(est, 0))) AS accuracy
 		FROM task_totals
@@ -450,3 +528,4 @@ func (r *postgresRepo) GetCompanyWideReworkAndTimeAccuracy() (avgReworkPct, avgT
 	}
 	return avgReworkPct, avgTimeAccuracyPct, nil
 }
+ 

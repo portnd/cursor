@@ -22,14 +22,18 @@ import (
 	perfHttp "github.com/portnd/the-sentinel-core/internal/modules/performance/delivery/http"
 	perfRepo "github.com/portnd/the-sentinel-core/internal/modules/performance/repository"
 	perfUsecase "github.com/portnd/the-sentinel-core/internal/modules/performance/usecase"
+	pricingHttp "github.com/portnd/the-sentinel-core/internal/modules/pricing/delivery/http"
+	pricingDomain "github.com/portnd/the-sentinel-core/internal/modules/pricing/domain"
+	pricingRepo "github.com/portnd/the-sentinel-core/internal/modules/pricing/repository"
+	pricingUsecase "github.com/portnd/the-sentinel-core/internal/modules/pricing/usecase"
+	pulseHttp "github.com/portnd/the-sentinel-core/internal/modules/pulse/delivery/http"
+	pulseDomain "github.com/portnd/the-sentinel-core/internal/modules/pulse/domain"
+	pulseRepo "github.com/portnd/the-sentinel-core/internal/modules/pulse/repository"
+	pulseUsecase "github.com/portnd/the-sentinel-core/internal/modules/pulse/usecase"
 	sentinelHttp "github.com/portnd/the-sentinel-core/internal/modules/sentinel/delivery/http"
 	sentinelDomain "github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 	sentinelRepo "github.com/portnd/the-sentinel-core/internal/modules/sentinel/repository"
 	sentinelUsecase "github.com/portnd/the-sentinel-core/internal/modules/sentinel/usecase"
-	walletHttp "github.com/portnd/the-sentinel-core/internal/modules/wallet/delivery/http"
-	walletDomain "github.com/portnd/the-sentinel-core/internal/modules/wallet/domain"
-	walletRepo "github.com/portnd/the-sentinel-core/internal/modules/wallet/repository"
-	walletUsecase "github.com/portnd/the-sentinel-core/internal/modules/wallet/usecase"
 )
 
 func main() {
@@ -66,9 +70,9 @@ func main() {
 	// Auto-migrate database schemas
 	log.Println("🔄 Running database migrations...")
 	if err := db.AutoMigrate(
+		&authDomain.Team{},
 		&authDomain.User{},
-		&walletDomain.Wallet{},
-		&walletDomain.Transaction{},
+		&authDomain.TeamTransaction{},
 		&sentinelDomain.SystemConfig{},
 		&sentinelDomain.Project{},
 		&sentinelDomain.Sprint{},
@@ -80,7 +84,13 @@ func main() {
 		&sentinelDomain.TaskDependency{},
 		&sentinelDomain.TaskComment{},
 		&sentinelDomain.TimeLog{},
+		&sentinelDomain.ProjectTransaction{},
 		&financeDomain.MonthlyEntry{},
+		&pricingDomain.EmployeeSalary{},
+		&pricingDomain.CompanyCostConfig{},
+		&pricingDomain.ProjectCostSnapshot{},
+		&pricingDomain.ProjectExpense{},
+		&pulseDomain.DailyStandup{},
 	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
@@ -92,13 +102,6 @@ func main() {
 	authUsecaseInstance := authUsecase.NewAuthUsecase(authRepository)
 	log.Println("✅ Auth Module initialized")
 
-	// Initialize Wallet Module (Hexagonal Architecture Wiring)
-	log.Println("💰 Initializing Wallet Module...")
-	walletRepository := walletRepo.NewPostgresRepository(db)
-	walletUsecaseInstance := walletUsecase.NewWalletUsecase(walletRepository, db)
-	walletHandlerInstance := walletHttp.NewWalletHandler(walletUsecaseInstance)
-	log.Println("✅ Wallet Module initialized")
-
 	// Initialize Sentinel Module (Hexagonal Architecture Wiring)
 	log.Println("🛡️  Initializing Sentinel Module...")
 
@@ -106,6 +109,9 @@ func main() {
 	aiUsageTracker := sentinelRepo.NewMemoryUsageTracker()
 	var aiService sentinelDomain.AIService
 	switch {
+	case cfg.UseNoopAI:
+		aiService = sentinelRepo.NewNoopAIService()
+		log.Println("✅ AI service: noop (USE_NOOP_AI=true — no external API calls)")
 	case cfg.GroqAPIKey != "":
 		var errAI error
 		aiService, errAI = sentinelRepo.NewGroqService(cfg.GroqAPIKey, sentinelRepository, aiUsageTracker)
@@ -144,6 +150,28 @@ func main() {
 	financeUsecaseInstance := financeUsecase.NewFinanceUsecase(financeRepository)
 	log.Println("✅ Finance Module initialized")
 
+	// Initialize Pricing Module (fully loaded costing & quotation)
+	log.Println("💰 Initializing Pricing Module...")
+	pricingRepository := pricingRepo.NewPostgresRepository(db)
+	pricingUsecaseInstance := pricingUsecase.NewCostingUsecase(pricingRepository)
+	log.Println("✅ Pricing Module initialized")
+
+	// Initialize Team Finance Usecase (Internal VC model — depends on auth + pricing repos)
+	log.Println("🏦 Initializing Team Finance Usecase...")
+	teamFinanceUsecaseInstance := authUsecase.NewTeamFinanceUsecase(authRepository, pricingRepository)
+	log.Println("✅ Team Finance Usecase initialized")
+
+	// Initialize Project Finance Usecase (Internal VC model — per-project capital)
+	log.Println("💼 Initializing Project Finance Usecase...")
+	projectFinanceUsecaseInstance := sentinelUsecase.NewProjectFinanceUsecase(sentinelRepository, authRepository, pricingRepository)
+	log.Println("✅ Project Finance Usecase initialized")
+
+	// Initialize Pulse Module (async daily standup & activity tracker)
+	log.Println("📡 Initializing Pulse Module...")
+	pulseRepository := pulseRepo.NewPostgresRepository(db)
+	pulseUsecaseInstance := pulseUsecase.NewPulseUsecase(pulseRepository, authRepository)
+	log.Println("✅ Pulse Module initialized")
+
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -168,15 +196,12 @@ func main() {
 	authMiddleware := middleware.AuthMiddleware(cfg.JWTSecret)
 	
 	// Auth routes (includes user management endpoints)
-	authHttp.RegisterRoutes(apiGroup, authUsecaseInstance, authMiddleware)
-
-	// Wallet routes (protected by auth middleware)
-	walletHttp.RegisterRoutes(apiGroup, walletHandlerInstance, authMiddleware)
+	authHttp.RegisterRoutes(apiGroup, authUsecaseInstance, teamFinanceUsecaseInstance, authMiddleware)
 
 	// Sentinel routes (protected by auth middleware)
 	sentinelGroup := apiGroup.Group("")
 	sentinelGroup.Use(authMiddleware)
-	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, cfg.GoogleAPIKey)
+	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey)
 
 	// Performance routes (protected by auth middleware)
 	perfGroup := apiGroup.Group("")
@@ -188,12 +213,21 @@ func main() {
 	finGroup.Use(authMiddleware)
 	financeHttp.RegisterRoutes(finGroup, financeUsecaseInstance)
 
+	// Pricing routes (costing & quotation — protected by auth middleware)
+	pricingGroup := apiGroup.Group("")
+	pricingGroup.Use(authMiddleware)
+	pricingHttp.RegisterRoutes(pricingGroup, pricingUsecaseInstance)
+
+	// Pulse routes (daily standup & team activity — protected by auth middleware)
+	pulseGroup := apiGroup.Group("")
+	pulseGroup.Use(authMiddleware)
+	pulseHttp.RegisterRoutes(pulseGroup, pulseUsecaseInstance)
+
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)
 	log.Printf("🌐 Health endpoint: http://localhost:%s/health", cfg.AppPort)
 	log.Printf("🔐 Auth endpoints: http://localhost:%s/api/v1/auth/register | /api/v1/auth/login", cfg.AppPort)
 	log.Printf("👥 User Management (CEO): GET /api/v1/auth/users | POST /api/v1/auth/users | POST /api/v1/auth/users/import | PATCH /api/v1/auth/users/:id/role")
-	log.Printf("💰 Wallet endpoints: http://localhost:%s/api/v1/wallets/me | /api/v1/wallets/transfer", cfg.AppPort)
 	log.Printf("🛡️  Sentinel endpoints: http://localhost:%s/api/v1/sentinel/tasks | /api/v1/sentinel/tasks/my", cfg.AppPort)
 	log.Printf("⚙️  AI Config endpoints (CEO): GET/PUT /api/v1/admin/config | GET /api/v1/admin/models")
 
@@ -201,3 +235,6 @@ func main() {
 		log.Fatalf("❌ Failed to start server: %v", err)
 	}
 }
+ 
+ 
+ 

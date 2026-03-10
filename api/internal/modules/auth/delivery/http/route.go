@@ -8,9 +8,10 @@ import (
 // RegisterRoutes registers all authentication routes
 // This follows the Dependency Injection pattern - all dependencies are passed in
 // authMiddleware is optional - pass nil if you want to set it up differently
-func RegisterRoutes(router *gin.RouterGroup, usecase domain.Usecase, authMiddleware gin.HandlerFunc) {
+func RegisterRoutes(router *gin.RouterGroup, usecase domain.Usecase, teamFinanceUsecase domain.TeamFinanceUsecase, authMiddleware gin.HandlerFunc) {
 	// Create handler with usecase dependency
 	handler := NewAuthHandler(usecase)
+	financeHandler := NewTeamFinanceHandler(teamFinanceUsecase)
 
 	// Auth routes group
 	authGroup := router.Group("/auth")
@@ -32,6 +33,17 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.Usecase, authMiddlew
 			authGroup.DELETE("/users/:id", authMiddleware, handler.DeleteUser)
 			authGroup.PATCH("/users/:id/password", authMiddleware, handler.ResetPassword)
 			authGroup.PATCH("/users/:id/role", authMiddleware, handler.ChangeRole)
+			// Team / Squad management (CEO only)
+			authGroup.GET("/teams", authMiddleware, handler.GetTeams)
+			authGroup.POST("/teams", authMiddleware, handler.CreateTeam)
+			authGroup.PATCH("/teams/:id", authMiddleware, handler.UpdateTeam)
+			authGroup.DELETE("/teams/:id", authMiddleware, handler.DeleteTeam)
+			authGroup.PATCH("/users/:id/assign-team", authMiddleware, handler.AssignUserToTeam)
+			// Team Finance / Internal VC model (CEO only)
+			authGroup.GET("/teams/:id/finance/cost", authMiddleware, financeHandler.GetTeamMonthlyCost)
+			authGroup.POST("/teams/:id/finance/inject", authMiddleware, financeHandler.InjectCapital)
+			authGroup.PUT("/teams/:id/finance/capital", authMiddleware, financeHandler.EditCapital)
+			authGroup.POST("/teams/:id/finance/close-cycle", authMiddleware, financeHandler.CloseCycleAndPayout)
 		}
 	}
 }

@@ -292,8 +292,10 @@ const passwordForm = reactive({
 
 const roleLabels: Record<string, string> = {
   CEO: 'Chief Executive',
+  MANAGER: 'Manager',
   PM: 'Project Manager',
   DEV: 'Developer',
+  SUPPORT: 'Support',
 }
 
 const roleLabel = computed(() => (profile.value ? roleLabels[profile.value.role] || profile.value.role : ''))

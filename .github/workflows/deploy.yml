@@ -1,0 +1,86 @@
+# =============================================================================
+# Sentinel Core — Deploy Staging
+# =============================================================================
+# Builds backend (api) + frontend (web), pushes to GHCR, then deploys via SSH.
+# Project structure: api/ (Go), web/ (Nuxt 3). No model service.
+# =============================================================================
+
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service: [backend, frontend]
+        include:
+          - service: backend
+            context: ./api
+            dockerfile: ./api/docker/Dockerfile.prod
+            image_tag: sentinel-backend
+            build_args: ""
+
+          - service: frontend
+            context: ./web
+            dockerfile: ./web/docker/Dockerfile.prod
+            image_tag: sentinel-frontend
+            # Optional: add build-args if Nuxt needs env at build time (e.g. NUXT_PUBLIC_*)
+            # build_args: NUXT_PUBLIC_API_BASE=${{ secrets.NUXT_PUBLIC_API_BASE }}
+            build_args: ""
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_tag }}:staging
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-server:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          script: |
+            set -e
+            # DEPLOY_PATH: directory on server that contains docker-compose (e.g. ~/sentinel/deploy)
+            cd ${{ secrets.DEPLOY_PATH || '~/sentinel/deploy' }}
+
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            docker compose pull
+            docker compose up -d
+            docker image prune -f

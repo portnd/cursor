@@ -1,6 +1,0 @@
-export * from "./ReportModels.d"
-export * from "./ReportService"
-export * from "./ReportsRequest.d"
-export * from "./ChildReportModel.d"
-export * from "./ChildReportRequest.d"
-export * from "./ChildReportService"

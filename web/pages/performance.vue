@@ -54,7 +54,7 @@
           :status="store.overview.team_velocity_trend_pct >= 0 ? 'good' : 'warn'"
         />
       </div>
-      <PerformanceTeamLeaderboard :members="store.team" />
+      <PerformanceTeamLeaderboard :members="store.team" @refresh="store.fetchTeam()" />
     </template>
   </div>
 </template>

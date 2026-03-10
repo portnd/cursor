@@ -1,7 +1,0 @@
-export * from "./RoadSummaryModel.d"
-export * from "./RoadSummaryRequest.d"
-export * from "./RoadDetailModel.d"
-export * from "./RoadDetailRequest.d"
-export * from "./RoadTrafficModel.d"
-export * from "./RoadTrafficRequest.d"
-export * from "./RoadSummaryService"

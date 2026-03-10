@@ -6,9 +6,65 @@ export interface Project {
   name: string
   description: string
   status: 'ACTIVE' | 'COMPLETED' | 'ON_HOLD'
+  color?: string
+  // Squad Model
+  team_id?: number | null
+  team_name?: string
+  // Internal VC — Project Capital
+  capital_balance: number
+  bonus_percentage: number
   created_at: string
   updated_at: string
   tasks?: Task[]
+}
+
+export interface ProjectTransaction {
+  id: number
+  project_id: string
+  type: 'INJECTION' | 'BURN' | 'BONUS_PAYOUT' | 'ADJUSTMENT'
+  amount: number
+  reference: string
+  created_at: string
+}
+
+export interface ProjectCapitalResponse {
+  project_id: string
+  project_name: string
+  team_id?: number | null
+  team_monthly_cost: number
+  capital_balance: number
+  bonus_percentage: number
+  runway_months: number
+  transactions: ProjectTransaction[]
+}
+
+export interface InjectProjectCapitalPayload {
+  amount: number
+  bonus_percentage?: number
+  note?: string
+}
+
+export interface EditProjectCapitalPayload {
+  new_balance: number
+  bonus_percentage?: number | null
+  note?: string
+}
+
+export interface CloseProjectCycleResponse {
+  project_id: string
+  balance_before: number
+  bonus_percentage: number
+  bonus_amount: number
+  balance_after: number
+}
+
+export interface ProjectBackup {
+  id: string
+  project_id: string
+  label: string
+  payload?: Record<string, unknown>
+  created_by: number | null
+  created_at: string
 }
 
 export interface Sprint {
@@ -81,6 +137,7 @@ export interface Task {
   code: string
   title: string
   description: string
+  task_type: 'FEATURE' | 'TASK' | 'BUG'
   status: 'PENDING' | 'IN_PROGRESS' | 'REVIEW_PENDING' | 'COMPLETED' | 'BLOCKED'
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
   story_points: number
@@ -92,13 +149,15 @@ export interface Task {
   milestone_id: string | null
   sort_order: number
   assigned_to: number | null
+  assigned_to_display_name?: string
+  assigned_to_email?: string
   created_by: number | null
   due_at: string | null
   start_date: string | null
   end_date: string | null
   started_at: string | null
   completed_at: string | null
-  ai_estimated_minutes: number
+  estimated_minutes: number
   sub_tasks?: Task[]
   created_at: string
   updated_at: string
@@ -291,7 +350,7 @@ function useProjectsApi() {
     return data.data || { sprints: [] }
   }
 
-  /** Run AI estimate on a task; updates task.ai_estimated_minutes. Returns updated task. Creator/CEO/PM only. */
+  /** Run AI estimate on a task; updates task.estimated_minutes. Returns updated task. Creator/CEO/PM only. */
   async function estimateTask(taskIdOrCode: string): Promise<Task> {
     const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${encodeURIComponent(taskIdOrCode)}/estimate`, {
       method: 'POST',
@@ -320,6 +379,82 @@ function useProjectsApi() {
       `/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/ai-plan`,
       { method: 'POST', timeoutMs: 120000 }
     )
+    return data.data
+  }
+
+  // --- Project Finance (Internal VC — per-project capital) ---
+
+  async function getProjectCapital(projectId: string): Promise<ProjectCapitalResponse> {
+    const data = await fetchWithAuth<{ data: ProjectCapitalResponse }>(`/sentinel/projects/${projectId}/finance/capital`)
+    return data.data
+  }
+
+  async function injectProjectCapital(projectId: string, payload: InjectProjectCapitalPayload): Promise<Project> {
+    const data = await fetchWithAuth<{ data: Project }>(`/sentinel/projects/${projectId}/finance/inject`, {
+      method: 'POST',
+      body: payload,
+    })
+    return data.data
+  }
+
+  async function editProjectCapital(projectId: string, payload: EditProjectCapitalPayload): Promise<Project> {
+    const data = await fetchWithAuth<{ data: Project }>(`/sentinel/projects/${projectId}/finance/capital`, {
+      method: 'PUT',
+      body: payload,
+    })
+    return data.data
+  }
+
+  async function closeProjectCycle(projectId: string): Promise<CloseProjectCycleResponse> {
+    const data = await fetchWithAuth<{ data: CloseProjectCycleResponse }>(`/sentinel/projects/${projectId}/finance/close-cycle`, {
+      method: 'POST',
+    })
+    return data.data
+  }
+
+  async function deleteProjectTransaction(projectId: string, txId: number): Promise<void> {
+    await fetchWithAuth(`/sentinel/projects/${projectId}/finance/transactions/${txId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // --- Project Backups ---
+
+  async function getProjectBackups(projectId: string): Promise<ProjectBackup[]> {
+    const data = await fetchWithAuth<{ data: ProjectBackup[] }>(`/sentinel/projects/${projectId}/backups`)
+    return data.data || []
+  }
+
+  async function createProjectBackup(projectId: string, label?: string): Promise<ProjectBackup> {
+    const data = await fetchWithAuth<{ data: ProjectBackup }>(`/sentinel/projects/${projectId}/backups`, {
+      method: 'POST',
+      body: { label: label || '' },
+    })
+    return data.data
+  }
+
+  async function restoreProjectBackup(projectId: string, backupId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/projects/${projectId}/backups/${backupId}/restore`, {
+      method: 'POST',
+    })
+  }
+
+  async function deleteProjectBackup(projectId: string, backupId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/projects/${projectId}/backups/${backupId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async function getProjectBackupPayload(projectId: string, backupId: string): Promise<Record<string, unknown>> {
+    const data = await fetchWithAuth<{ data: Record<string, unknown> }>(`/sentinel/projects/${projectId}/backups/${backupId}/payload`)
+    return data.data
+  }
+
+  async function importProjectFromBackup(name: string, payload: Record<string, unknown>): Promise<Project> {
+    const data = await fetchWithAuth<{ data: Project }>('/sentinel/projects/import-backup', {
+      method: 'POST',
+      body: { name, payload },
+    })
     return data.data
   }
 
@@ -352,6 +487,17 @@ function useProjectsApi() {
     clearProjectPlan,
     scheduleProjectWithAI,
     generateProjectPlan,
+    getProjectCapital,
+    injectProjectCapital,
+    editProjectCapital,
+    closeProjectCycle,
+    deleteProjectTransaction,
+    getProjectBackups,
+    createProjectBackup,
+    restoreProjectBackup,
+    deleteProjectBackup,
+    getProjectBackupPayload,
+    importProjectFromBackup,
   }
 }
 

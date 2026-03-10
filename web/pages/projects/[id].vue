@@ -272,6 +272,8 @@
             :tasks="allTasks"
             :sprints="sprints"
             :task-display-code-map="taskDisplayCodeMap"
+            :user-role="currentUser?.role"
+            :active-sprint="activeSprint"
             @task-click="(t) => navigateToTask(t.id)"
             @status-change="handleStatusChange"
           />
@@ -576,6 +578,11 @@
                         <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(task)">{{ taskDisplayCode(task) }}</span>
                       </div>
                       <div class="flex items-center gap-1 min-w-0">
+                        <span
+                          class="shrink-0 text-xs font-bold"
+                          :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                          :title="task.task_type"
+                        >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
                         <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(task.id)">{{ task.title }}</span>
                         <button type="button" @click.stop="openEditTaskTitle(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="แก้ไขชื่อ task">✎</button>
                         <button type="button" @click.stop="duplicateTask(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="Duplicate task">⎘</button>
@@ -619,6 +626,11 @@
                         </div>
                         <div class="flex items-center gap-1 min-w-0">
                           <span class="text-gray-600 shrink-0">↳</span>
+                          <span
+                            class="shrink-0 text-xs font-bold"
+                            :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                            :title="sub.task_type"
+                          >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
                           <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
                         </div>
                         <div class="flex items-center justify-center shrink-0">
@@ -700,6 +712,11 @@
                           <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(task)">{{ taskDisplayCode(task) }}</span>
                         </div>
                         <div class="flex items-center gap-1 min-w-0">
+                          <span
+                            class="shrink-0 text-xs font-bold"
+                            :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                            :title="task.task_type"
+                          >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
                           <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(task.id)">{{ task.title }}</span>
                           <button type="button" @click.stop="openEditTaskTitle(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="แก้ไขชื่อ task">✎</button>
                           <button type="button" @click.stop="duplicateTask(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="Duplicate task">⎘</button>
@@ -742,6 +759,11 @@
                           </div>
                           <div class="flex items-center gap-1 min-w-0">
                             <span class="text-gray-600 shrink-0">↳</span>
+                            <span
+                              class="shrink-0 text-xs font-bold"
+                              :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                              :title="sub.task_type"
+                            >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
                             <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
                           </div>
                           <div class="flex items-center justify-center shrink-0">
@@ -930,155 +952,276 @@
           <ProjectAnalytics v-else-if="analytics" :analytics="analytics" />
           <div v-else class="text-center py-20 text-gray-500 text-sm">Failed to load analytics.</div>
         </div>
+
+        <!-- TAB: Capital (Internal VC — per-project capital tracking) -->
+        <div v-if="activeTab === 'capital'">
+          <ProjectCapitalPanel :project-id="project.id" :team-id="project.team_id" />
+        </div>
+
+        <!-- TAB: Costing & Quotation -->
+        <div v-if="activeTab === 'costing'">
+          <QuotationBuilder :project-id="project.id" />
+        </div>
+
+        <!-- TAB: Backup & Restore -->
+        <div v-if="activeTab === 'backup'">
+          <ProjectBackupPanel :project-id="project.id" @restored="onProjectRestored" />
+        </div>
       </div>
     </div>
 
     <!-- Import from Google Slides Modal (Backlog) -->
-    <div v-if="showBacklogImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeBacklogImportModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-xl w-full shadow-2xl">
-        <div class="flex items-center justify-between mb-5">
+    <div v-if="showBacklogImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="closeBacklogImportModal">
+      <div
+        class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full my-auto flex flex-col max-h-[90vh]"
+        :class="backlogImportStep === 'select' ? 'max-w-5xl' : 'max-w-xl'"
+      >
+        <!-- Modal Header (fixed, never scrolls) -->
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0 border-b border-gray-700/60">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
+            <div class="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0">
               <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
             </div>
             <div>
               <h2 class="text-lg font-bold text-white">Import from Google Slides</h2>
-              <p class="text-xs text-gray-400">สร้าง task อัตโนมัติจากแต่ละ slide — เลือก Epic ได้</p>
+              <p class="text-xs text-gray-400">สร้าง sub-task จากแต่ละ slide — Manual Triage ก่อน import</p>
             </div>
           </div>
-          <button @click="closeBacklogImportModal" class="text-gray-500 hover:text-white transition-colors">✕</button>
+          <button @click="closeBacklogImportModal" class="text-gray-500 hover:text-white transition-colors shrink-0 ml-4">✕</button>
         </div>
 
-        <!-- Result state -->
-        <div v-if="backlogImportStep === 'result' && backlogImportResult" class="space-y-4">
-          <div class="p-4 bg-green-900/20 border border-green-600/40 rounded-xl">
-            <div class="flex items-center gap-2 mb-2">
-              <svg class="w-5 h-5 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-              <span class="text-green-400 font-semibold text-sm">Import สำเร็จ!</span>
-            </div>
-            <p class="text-gray-300 text-sm font-medium mb-1">{{ backlogImportResult.presentation_title }}</p>
-            <p class="text-gray-400 text-xs">สร้าง {{ backlogImportResult.created_count }} tasks จาก {{ backlogImportResult.slide_count }} slides</p>
-          </div>
-          <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-            <div
-              v-for="task in backlogImportResult.tasks"
-              :key="task.id"
-              class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
-            >
-              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
-              <span class="text-gray-200 truncate">{{ task.title }}</span>
-            </div>
-          </div>
-          <button @click="closeBacklogImportModal" class="w-full btn-primary py-2.5">Done</button>
-        </div>
+        <!-- Modal Body (scrollable) -->
+        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
 
-        <!-- Step 2: Select slides + Epic -->
-        <div v-else-if="backlogImportStep === 'select' && backlogImportPreview" class="space-y-4">
-          <div class="p-3 bg-gray-700/40 rounded-xl">
-            <p class="text-sm font-medium text-white">{{ backlogImportPreview.presentation_title }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">
-              เลือก slide ที่จะ import ({{ backlogImportSelectedIndices.length }} / {{ backlogImportPreview.slides.length }})
-              <span v-if="(backlogImportPreview.already_imported_slide_indices?.length ?? 0) > 0">— หน้าที่นำเข้าแล้วจะถูก uncheck ไว้</span>
-            </p>
-          </div>
-          <div class="flex items-center gap-2 flex-wrap">
-            <button type="button" @click="backlogImportSelectAll" class="btn-ghost-sm">เลือกทั้งหมด</button>
-            <button type="button" @click="backlogImportDeselectAll" class="btn-ghost-sm">ยกเลิกทั้งหมด</button>
-            <button type="button" @click="backlogImportSelectOnlyNew" class="btn-ghost-sm text-purple-400">เลือกเฉพาะที่ยังไม่เคยนำเข้า</button>
-          </div>
-          <div class="max-h-56 overflow-y-auto space-y-1.5 pr-1 border border-gray-700/60 rounded-xl p-2">
-            <label
-              v-for="s in backlogImportPreview.slides"
-              :key="s.index"
-              class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-700/40 cursor-pointer"
-              :class="{ 'opacity-70': s.hidden }"
-            >
-              <input
-                v-model="backlogImportSelectedIndices"
-                type="checkbox"
-                :value="s.index"
-                class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-              />
-              <span class="text-xs text-gray-400 w-8 shrink-0">#{{ s.index }}</span>
-              <span class="text-sm text-gray-200 truncate flex-1">{{ s.title || '(ไม่มีชื่อ)' }}</span>
-              <span v-if="s.hidden" class="text-xs text-amber-400/90 shrink-0">ซ่อน</span>
-              <span v-else-if="(backlogImportPreview.already_imported_slide_indices || []).includes(s.index)" class="text-xs text-gray-500 shrink-0">นำเข้าแล้ว</span>
-            </label>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
+          <!-- Result state -->
+          <template v-if="backlogImportStep === 'result' && backlogImportResult">
+            <div class="p-4 bg-green-900/20 border border-green-600/40 rounded-xl">
+              <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                <span class="text-green-400 font-semibold text-sm">Import สำเร็จ!</span>
+              </div>
+              <p class="text-gray-300 text-sm font-medium mb-1">{{ backlogImportResult.presentation_title }}</p>
+              <p class="text-gray-400 text-xs">สร้าง {{ backlogImportResult.created_count }} tasks จาก {{ backlogImportResult.slide_count }} slides</p>
+            </div>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div
+                v-for="task in backlogImportResult.tasks"
+                :key="task.id"
+                class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
+              >
+                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
+                <span class="text-gray-200 truncate">{{ task.title }}</span>
+              </div>
+            </div>
+            <button @click="closeBacklogImportModal" class="w-full btn-primary py-2.5">Done</button>
+          </template>
+
+          <!-- Step 2: Manual Triage Table -->
+          <template v-else-if="backlogImportStep === 'select' && backlogImportPreview">
+            <div class="flex items-center justify-between gap-3">
+              <div class="p-3 bg-gray-700/40 rounded-xl flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate">{{ backlogImportPreview.presentation_title }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  {{ backlogImportSelectedIndices.length }} / {{ backlogImportPreview.slides.length }} slides selected — กรอก Estimated Minutes ก่อน import
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" @click="backlogImportSelectAll" class="btn-ghost-sm">ทั้งหมด</button>
+                <button type="button" @click="backlogImportDeselectAll" class="btn-ghost-sm">ยกเลิก</button>
+                <button type="button" @click="backlogImportSelectOnlyNew" class="btn-ghost-sm text-purple-400">เฉพาะใหม่</button>
+              </div>
+            </div>
+
+            <!-- Triage Table -->
+            <div class="overflow-x-auto border border-gray-700/60 rounded-xl">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-700/60 bg-gray-900/60">
+                    <th class="py-2 px-3 text-left w-8"></th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-10">#</th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold min-w-[200px]">Task Title</th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold min-w-[140px]">Assignee</th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Est. Minutes <span class="text-red-400">*</span></th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="s in backlogImportPreview.slides"
+                    :key="s.index"
+                    class="border-b border-gray-700/30 transition-colors"
+                    :class="backlogImportSelectedIndices.includes(s.index) ? 'bg-gray-800/80' : 'bg-gray-900/40 opacity-50'"
+                  >
+                    <td class="py-2 px-3">
+                      <input
+                        v-model="backlogImportSelectedIndices"
+                        type="checkbox"
+                        :value="s.index"
+                        class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                      />
+                    </td>
+                    <td class="py-2 px-3 text-xs text-gray-400 font-mono">
+                      {{ s.index }}
+                      <span v-if="s.hidden" class="text-amber-400 ml-1 text-[10px]">ซ่อน</span>
+                      <span v-else-if="(backlogImportPreview.already_imported_slide_indices || []).includes(s.index)" class="text-gray-500 ml-1 text-[10px]">นำเข้าแล้ว</span>
+                    </td>
+                    <td class="py-2 px-2">
+                      <input
+                        v-if="backlogImportTriagedSlides[s.index]"
+                        v-model="backlogImportTriagedSlides[s.index].title"
+                        type="text"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/60"
+                        :disabled="!backlogImportSelectedIndices.includes(s.index)"
+                      />
+                    </td>
+                    <td class="py-2 px-2">
+                      <select
+                        v-if="backlogImportTriagedSlides[s.index]"
+                        v-model="backlogImportTriagedSlides[s.index].assignee_id"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500/60"
+                        :disabled="!backlogImportSelectedIndices.includes(s.index)"
+                      >
+                        <option :value="null">— Unassigned —</option>
+                        <option v-for="u in backlogImportAssignees" :key="u.id" :value="u.id">{{ u.display_name || u.email }}</option>
+                      </select>
+                    </td>
+                    <td class="py-2 px-2">
+                      <input
+                        v-if="backlogImportTriagedSlides[s.index]"
+                        v-model.number="backlogImportTriagedSlides[s.index].estimated_minutes"
+                        type="number"
+                        min="0"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500/60"
+                        :class="backlogImportSelectedIndices.includes(s.index) && !backlogImportTriagedSlides[s.index]?.estimated_minutes ? 'border-red-500/60' : ''"
+                        :disabled="!backlogImportSelectedIndices.includes(s.index)"
+                        placeholder="0"
+                      />
+                    </td>
+                    <td class="py-2 px-2">
+                      <select
+                        v-if="backlogImportTriagedSlides[s.index]"
+                        v-model="backlogImportTriagedSlides[s.index].priority"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500/60"
+                        :disabled="!backlogImportSelectedIndices.includes(s.index)"
+                      >
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="LOW">LOW</option>
+                      </select>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="backlogImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ backlogImportError }}</div>
+            <div class="flex gap-3">
+              <button
+                @click="submitBacklogImport"
+                :disabled="isBacklogImporting || backlogImportSelectedIndices.length === 0"
+                class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <svg v-if="isBacklogImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isBacklogImporting ? 'กำลัง import...' : `Import ${backlogImportSelectedIndices.length} Slides` }}
+              </button>
+              <button type="button" @click="backlogImportStep = 'form'" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">กลับ</button>
+            </div>
+          </template>
+
+          <!-- Step 1: Form (URL + Epic + Parent Task) -->
+          <template v-else>
             <div>
-              <label class="label">Priority ของทุก task</label>
-              <select v-model="backlogImportForm.priority" class="input-field w-full" :disabled="isBacklogImporting">
-                <option value="CRITICAL">🔴 Critical</option>
-                <option value="HIGH">🟠 High</option>
-                <option value="MEDIUM">🟡 Medium</option>
-                <option value="LOW">🟢 Low</option>
+              <label class="label">Google Slides URL *</label>
+              <input
+                v-model="backlogImportForm.presentation_url"
+                type="url"
+                class="input-field w-full"
+                placeholder="https://docs.google.com/presentation/d/..."
+                :disabled="isBacklogLoadingPreview"
+              />
+              <p class="text-xs text-gray-500 mt-1">ต้องเปิดสิทธิ์ "Anyone with the link can view"</p>
+            </div>
+            <div v-if="epics.length">
+              <label class="label">Epic</label>
+              <select v-model="backlogImportForm.epic_id" class="input-field w-full" :disabled="isBacklogLoadingPreview" @change="onBacklogImportEpicChange">
+                <option value="">— ทุก Epic / Unassigned —</option>
+                <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
               </select>
             </div>
             <div>
-              <label class="label">Story Points (ต่อ task)</label>
-              <input v-model.number="backlogImportForm.story_points" type="number" min="0" class="input-field w-full" placeholder="1" :disabled="isBacklogImporting" />
+              <label class="label">Target Parent Task <span class="text-gray-500 font-normal">(Sub-tasks จะถูกสร้างใต้ task นี้)</span></label>
+              <select v-model="backlogImportForm.parent_id" class="input-field w-full" :disabled="isBacklogLoadingPreview">
+                <option value="">— No Parent (Top-level tasks) —</option>
+                <option v-for="t in backlogParentTaskOptions" :key="t.id" :value="t.id">
+                  [{{ taskCodeSuffix(t.code) }}] {{ t.title }}
+                </option>
+              </select>
+              <p v-if="backlogImportForm.epic_id && !backlogParentTaskOptions.length" class="text-xs text-amber-400/80 mt-1">ไม่มี task ใน Epic นี้ที่จะเป็น parent ได้</p>
             </div>
-          </div>
-          <div v-if="epics.length">
-            <label class="label">นำเข้า Epic ไหน</label>
-            <select v-model="backlogImportForm.epic_id" class="input-field w-full" :disabled="isBacklogImporting">
-              <option value="">Unassigned (ไม่ใส่ Epic)</option>
-              <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
-            </select>
-          </div>
-          <div v-if="backlogImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ backlogImportError }}</div>
-          <div class="flex gap-3">
-            <button
-              @click="submitBacklogImport"
-              :disabled="isBacklogImporting || backlogImportSelectedIndices.length === 0"
-              class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              <svg v-if="isBacklogImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-              {{ isBacklogImporting ? 'กำลัง import...' : `Import ${backlogImportSelectedIndices.length} Slides` }}
-            </button>
-            <button type="button" @click="backlogImportStep = 'form'" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">กลับ</button>
-          </div>
-        </div>
+            <div v-if="backlogImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ backlogImportError }}</div>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                @click="loadBacklogImportPreview"
+                :disabled="isBacklogLoadingPreview || !backlogImportForm.presentation_url.trim()"
+                class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <svg v-if="isBacklogLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isBacklogLoadingPreview ? 'กำลังโหลด...' : 'โหลดรายการ slide' }}
+              </button>
+              <button @click="closeBacklogImportModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
+            </div>
+          </template>
 
-        <!-- Step 1: Form (URL) -->
-        <div v-else class="space-y-4">
-          <div>
-            <label class="label">Google Slides URL *</label>
-            <input
-              v-model="backlogImportForm.presentation_url"
-              type="url"
-              class="input-field w-full"
-              placeholder="https://docs.google.com/presentation/d/..."
-              :disabled="isBacklogLoadingPreview"
-            />
-            <p class="text-xs text-gray-500 mt-1">ต้องเปิดสิทธิ์ "Anyone with the link can view"</p>
-          </div>
-          <div v-if="backlogImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ backlogImportError }}</div>
-          <div class="flex gap-3 mt-1">
-            <button
-              type="button"
-              @click="loadBacklogImportPreview"
-              :disabled="isBacklogLoadingPreview || !backlogImportForm.presentation_url.trim()"
-              class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              <svg v-if="isBacklogLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-              {{ isBacklogLoadingPreview ? 'กำลังโหลด...' : 'โหลดรายการ slide' }}
-            </button>
-            <button @click="closeBacklogImportModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
-          </div>
         </div>
       </div>
     </div>
 
     <!-- Create Task Modal -->
-    <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeCreateTaskModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
-        <div class="flex items-center justify-between mb-5">
+    <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto" @click.self="closeCreateTaskModal">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-lg w-full shadow-2xl my-auto">
+        <div class="flex items-center justify-between p-6 pb-0">
           <h2 class="text-lg font-bold text-white">{{ createTaskForm.parent_id ? 'Add Sub-task' : 'Add Task' }}</h2>
           <button @click="closeCreateTaskModal" class="text-gray-500 hover:text-white">✕</button>
         </div>
-        <div class="space-y-4">
+        <div class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          <!-- Task Type Selector -->
+          <div>
+            <label class="label">Type *</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                @click="createTaskForm.task_type = 'FEATURE'"
+                :class="createTaskForm.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'"
+                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+              >
+                <span class="text-base">★</span> Feature
+              </button>
+              <button
+                type="button"
+                @click="createTaskForm.task_type = 'TASK'"
+                :class="createTaskForm.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'"
+                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+              >
+                <span class="text-base">📋</span> Task
+              </button>
+              <button
+                type="button"
+                @click="createTaskForm.task_type = 'BUG'"
+                :class="createTaskForm.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'"
+                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+              >
+                <span class="text-base">⚠</span> Bug
+              </button>
+            </div>
+            <!-- PM Rule hint for FEATURE type -->
+            <div v-if="createTaskForm.task_type === 'FEATURE'" class="mt-2 flex items-start gap-2 p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-lg text-xs text-purple-300">
+              <span class="shrink-0 mt-0.5">★</span>
+              <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and Estimated Minutes are disabled — add sub-tasks of type Task/Bug to assign work.</span>
+            </div>
+          </div>
+
           <div>
             <label class="label">Title *</label>
             <input v-model="createTaskForm.title" type="text" class="input-field w-full" placeholder="Task title..." />
@@ -1086,6 +1229,23 @@
           <div>
             <label class="label">Description</label>
             <textarea v-model="createTaskForm.description" rows="3" class="input-field w-full resize-none" placeholder="Describe the task..."></textarea>
+          </div>
+          <div>
+            <label class="label" :class="createTaskForm.task_type === 'FEATURE' ? 'text-gray-500' : ''">
+              Estimated Effort (Minutes)
+              <span v-if="createTaskForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
+            </label>
+            <input
+              v-model.number="createTaskForm.estimated_minutes"
+              type="number"
+              min="0"
+              step="1"
+              class="input-field w-full transition-opacity"
+              :class="createTaskForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''"
+              :disabled="createTaskForm.task_type === 'FEATURE'"
+              placeholder="e.g. 60 (minutes)"
+            />
+            <p v-if="createTaskForm.task_type !== 'FEATURE'" class="text-xs text-gray-500 mt-1">Minutes. Used for Manday and Quotation (Costing Engine).</p>
           </div>
           <!-- Sub-task hint -->
           <div v-if="createTaskForm.parent_id" class="p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-lg text-xs text-purple-300">
@@ -1147,8 +1307,12 @@
           </template>
           <div v-if="createTaskError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ createTaskError }}</div>
         </div>
-        <div class="flex gap-3 mt-5">
-          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim()" class="flex-1 btn-primary py-2.5 disabled:opacity-40">
+        <div class="flex gap-3 p-6 pt-4 border-t border-gray-700">
+          <button
+            @click="submitCreateTask"
+            :disabled="isCreatingTask || !createTaskForm.title.trim()"
+            class="flex-1 btn-primary py-2.5 disabled:opacity-40"
+          >
             {{ isCreatingTask ? 'Creating...' : 'Create Task' }}
           </button>
           <button @click="closeCreateTaskModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
@@ -1445,8 +1609,12 @@ import KanbanBoard from '~/components/projects/KanbanBoard.vue'
 import GanttMilestoneRow from '~/components/projects/GanttMilestoneRow.vue'
 import MilestoneTimeline from '~/components/projects/MilestoneTimeline.vue'
 import ProjectAnalytics from '~/components/projects/ProjectAnalytics.vue'
+import QuotationBuilder from '~/core/modules/pricing/ui/QuotationBuilder.vue'
+import ProjectBackupPanel from '~/core/modules/projects/ui/ProjectBackupPanel.vue'
+import ProjectCapitalPanel from '~/core/modules/projects/ui/ProjectCapitalPanel.vue'
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
+import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -1464,6 +1632,9 @@ const tabs = [
   { id: 'backlog', label: 'Backlog', icon: '📋' },
   { id: 'sprints', label: 'Sprints', icon: '🏃' },
   { id: 'analytics', label: 'Analytics', icon: '📈' },
+  { id: 'capital', label: 'Capital', icon: '🏦' },
+  { id: 'costing', label: 'Costing', icon: '💰' },
+  { id: 'backup', label: 'Backup', icon: '🗄' },
 ]
 
 const activeTab = ref((route.query.tab as string) || 'overview')
@@ -2315,7 +2486,7 @@ const allTasksInBacklogOrder = computed(() => {
 const taskDisplayCodeMap = computed(() => {
   const m: Record<string, string> = {}
   allTasksInBacklogOrder.value.forEach((t, i) => {
-    m[t.id] = String(i + 1).padStart(3, '0')
+    m[t.id] = String(i + 1).padStart(4, '0')
   })
   return m
 })
@@ -2328,7 +2499,7 @@ function taskDisplayCode(task: { id: string; code?: string }) {
 function taskCodeSuffix(code: string | undefined): string {
   if (!code) return '–'
   const suffix = code.split('-').pop()
-  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(3, '0') : code
+  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(4, '0') : code
 }
 
 function sprintTaskCount(type: 'total' | 'done' | 'sp') {
@@ -2467,6 +2638,11 @@ function navigateToTask(id: string) {
 
 function toggleEpic(id: string) {
   expandedEpics.value[id] = !expandedEpics.value[id]
+}
+
+// Reload all project data after a backup restore
+async function onProjectRestored() {
+  await loadAll()
 }
 
 // Load data
@@ -3119,14 +3295,15 @@ async function onMilestoneDragEnd(payload: { milestone: Milestone; newDueDate: s
 // Create Task Modal
 const showCreateTaskModal = ref(false)
 const createTaskForm = ref({
-  title: '', description: '', priority: 'MEDIUM', story_points: 0,
-  sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: '', epic_id: ''
+  title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0,
+  sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: '', epic_id: '',
+  estimated_minutes: 0
 })
 const isCreatingTask = ref(false)
 const createTaskError = ref('')
 
 function openCreateTaskModal(parentId?: string, epicId?: string) {
-  createTaskForm.value = { title: '', description: '', priority: 'MEDIUM', story_points: 0, sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: parentId || '', epic_id: epicId || '' }
+  createTaskForm.value = { title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0, sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: parentId || '', epic_id: epicId || '', estimated_minutes: 0 }
   createTaskError.value = ''
   showCreateTaskModal.value = true
 }
@@ -3134,6 +3311,9 @@ function openCreateTaskModal(parentId?: string, epicId?: string) {
 function closeCreateTaskModal() { showCreateTaskModal.value = false }
 
 // Backlog Import from Google Slides
+interface BacklogImportAssignee { id: number; email: string; display_name: string; role: string }
+interface BacklogTriagedSlide { title: string; assignee_id: number | null; estimated_minutes: number; priority: string }
+
 const showBacklogImportModal = ref(false)
 const backlogImportStep = ref<'form' | 'select' | 'result'>('form')
 const isBacklogImporting = ref(false)
@@ -3146,21 +3326,70 @@ const backlogImportPreview = ref<{
   already_imported_slide_indices?: number[]
 } | null>(null)
 const backlogImportSelectedIndices = ref<number[]>([])
+// Per-slide triage data keyed by slide index (1-based)
+const backlogImportTriagedSlides = ref<Record<number, BacklogTriagedSlide>>({})
+const backlogImportAssignees = ref<BacklogImportAssignee[]>([])
 const backlogImportForm = ref({
   presentation_url: '',
   priority: 'MEDIUM' as const,
   story_points: 1,
   epic_id: '',
+  parent_id: '',
 })
 
+// Top-level tasks (no parent) for "Target Parent Task" dropdown
+// When an epic is selected, show only tasks belonging to that epic
+const backlogParentTaskOptions = computed(() => {
+  const epicId = backlogImportForm.value.epic_id
+  return allTasks.value
+    .filter((t) => {
+      if (t.parent_id) return false
+      if (epicId) return t.epic_id === epicId
+      return true
+    })
+    .sort((a, b) => a.title.localeCompare(b.title))
+})
+
+function onBacklogImportEpicChange() {
+  // Reset parent_id if it no longer belongs to the newly selected epic
+  const currentParent = backlogParentTaskOptions.value.find((t) => t.id === backlogImportForm.value.parent_id)
+  if (!currentParent) backlogImportForm.value.parent_id = ''
+}
+
+async function loadBacklogImportAssignees() {
+  if (backlogImportAssignees.value.length > 0) return
+  try {
+    const { fetchWithAuth: fw } = useAuth()
+    const role = (currentUser.value?.role || '').toUpperCase()
+    if (role === 'PM') {
+      const { getTeams } = useTeamsApi()
+      const teams = await getTeams()
+      const userId = currentUser.value?.user_id
+      const myTeam = teams.find((t: any) => t.users?.some((u: any) => u.id === userId))
+      backlogImportAssignees.value = (myTeam?.users ?? [])
+        .filter((u: any) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+        .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
+    } else {
+      const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
+      backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>
+        ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
+      )
+    }
+  } catch {
+    // non-critical
+  }
+}
+
 function openBacklogImportModal() {
-  backlogImportForm.value = { presentation_url: '', priority: 'MEDIUM', story_points: 1, epic_id: '' }
+  backlogImportForm.value = { presentation_url: '', priority: 'MEDIUM', story_points: 1, epic_id: '', parent_id: '' }
   backlogImportStep.value = 'form'
   backlogImportError.value = ''
   backlogImportResult.value = null
   backlogImportPreview.value = null
   backlogImportSelectedIndices.value = []
+  backlogImportTriagedSlides.value = {}
   showBacklogImportModal.value = true
+  loadBacklogImportAssignees()
 }
 
 function closeBacklogImportModal() {
@@ -3181,6 +3410,18 @@ async function loadBacklogImportPreview() {
     backlogImportSelectedIndices.value = data.slides
       .filter((s: { index: number; hidden?: boolean }) => !s.hidden && !alreadySet.has(s.index))
       .map((s: { index: number }) => s.index)
+
+    // Initialise per-slide triage data
+    const triagedMap: Record<number, BacklogTriagedSlide> = {}
+    for (const s of data.slides) {
+      triagedMap[s.index] = {
+        title: s.title ? `Slide ${s.index}: ${s.title}` : `Slide ${s.index}`,
+        assignee_id: null,
+        estimated_minutes: 0,
+        priority: backlogImportForm.value.priority || 'MEDIUM',
+      }
+    }
+    backlogImportTriagedSlides.value = triagedMap
     backlogImportStep.value = 'select'
   } catch (e: any) {
     backlogImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
@@ -3210,14 +3451,25 @@ async function submitBacklogImport() {
   isBacklogImporting.value = true
   backlogImportError.value = ''
   try {
+    // Build per-slide triage array for selected slides
+    const triageSlides = backlogImportSelectedIndices.value.map((idx) => {
+      const t = backlogImportTriagedSlides.value[idx]
+      return {
+        slide_index: idx,
+        title: t?.title || `Slide ${idx}`,
+        assignee_id: t?.assignee_id ?? null,
+        estimated_minutes: t?.estimated_minutes ?? 0,
+        priority: t?.priority || 'MEDIUM',
+      }
+    })
+
     const payload: any = {
       presentation_url: backlogImportForm.value.presentation_url.trim(),
       project_id: project.value.id,
-      priority: backlogImportForm.value.priority,
-      story_points: backlogImportForm.value.story_points,
+      slides: triageSlides,
     }
     if (backlogImportForm.value.epic_id) payload.epic_id = backlogImportForm.value.epic_id
-    if (backlogImportSelectedIndices.value.length > 0) payload.slide_indices = backlogImportSelectedIndices.value
+    if (backlogImportForm.value.parent_id) payload.parent_id = backlogImportForm.value.parent_id
     backlogImportResult.value = await tasksApi.importGoogleSlides(payload)
     backlogImportStep.value = 'result'
   } catch (e: any) {
@@ -3232,12 +3484,15 @@ async function submitCreateTask() {
   isCreatingTask.value = true
   createTaskError.value = ''
   try {
+    const estMins = Number(createTaskForm.value.estimated_minutes) || 0
     const payload: any = {
       title: createTaskForm.value.title,
       description: createTaskForm.value.description,
+      task_type: createTaskForm.value.task_type || 'TASK',
       priority: createTaskForm.value.priority,
       story_points: createTaskForm.value.story_points,
       project_id: project.value.id,
+      estimated_minutes: estMins,
     }
     if (createTaskForm.value.parent_id) payload.parent_id = createTaskForm.value.parent_id
     if (createTaskForm.value.epic_id) payload.epic_id = createTaskForm.value.epic_id

@@ -1,6 +1,0 @@
-export * from "./TableACModel.d"
-export * from "./TableACRequest.d"
-export * from "./TableAcService"
-export * from "./TableConcrete.d"
-export * from "./TableConcreteRequest.d"
-export * from "./TableConcreteService"

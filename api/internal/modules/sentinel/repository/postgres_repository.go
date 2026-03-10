@@ -21,32 +21,54 @@ func NewPostgresRepository(db *gorm.DB) domain.SentinelRepository {
 
 // --- Project Operations ---
 
+// teamScope applies a team-based filter for non-CEO/MANAGER users.
+// CEO and MANAGER bypass all filters; PM/DEV are restricted to their team's projects.
+func teamScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
+	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager || ctx.TeamID == nil {
+		return db
+	}
+	return db.Where("team_id = ?", *ctx.TeamID)
+}
+
 func (r *postgresRepository) CreateProject(p *domain.Project) error {
 	return r.db.Create(p).Error
 }
 
-func (r *postgresRepository) GetAllProjects() ([]domain.Project, error) {
+func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.Project, error) {
 	var projects []domain.Project
-	err := r.db.Order("created_at desc").Find(&projects).Error
+	err := teamScope(r.db, ctx).
+		Order("created_at desc").
+		Find(&projects).Error
 	return projects, err
 }
 
-func (r *postgresRepository) GetProjectByID(id uuid.UUID) (*domain.Project, error) {
+func (r *postgresRepository) GetProjectByID(id uuid.UUID, ctx domain.CallerContext) (*domain.Project, error) {
 	var project domain.Project
-	err := r.db.First(&project, "id = ?", id).Error
+	err := teamScope(r.db, ctx).First(&project, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &project, nil
 }
 
-func (r *postgresRepository) GetProjectByCode(code string) (*domain.Project, error) {
+func (r *postgresRepository) GetProjectByCode(code string, ctx domain.CallerContext) (*domain.Project, error) {
 	var project domain.Project
-	err := r.db.First(&project, "code = ?", code).Error
+	err := teamScope(r.db, ctx).First(&project, "code = ?", code).Error
 	if err != nil {
 		return nil, err
 	}
 	return &project, nil
+}
+
+func (r *postgresRepository) AssignProjectTeam(projectID uuid.UUID, teamID *uint) error {
+	result := r.db.Model(&domain.Project{}).Where("id = ?", projectID).Update("team_id", teamID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("project not found")
+	}
+	return nil
 }
 
 func (r *postgresRepository) UpdateProject(p *domain.Project) error {
@@ -101,7 +123,12 @@ func (r *postgresRepository) CreateTask(task *domain.Task) error {
 func (r *postgresRepository) GetTaskByID(id uuid.UUID) (*domain.Task, error) {
 	var task domain.Task
 	err := r.db.Preload("Submissions", func(db *gorm.DB) *gorm.DB {
-		return db.Order("created_at desc").Limit(100)
+		return db.Select("id, task_id, dev_id, reference_url, note, created_at").
+			Order("created_at desc").Limit(20)
+	}).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order")
+	}).Preload("ParentTask", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, title, status, task_type, project_id")
 	}).First(&task, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -112,7 +139,12 @@ func (r *postgresRepository) GetTaskByID(id uuid.UUID) (*domain.Task, error) {
 func (r *postgresRepository) GetTaskByCode(code string) (*domain.Task, error) {
 	var task domain.Task
 	err := r.db.Preload("Submissions", func(db *gorm.DB) *gorm.DB {
-		return db.Order("created_at desc").Limit(100)
+		return db.Select("id, task_id, dev_id, reference_url, note, created_at").
+			Order("created_at desc").Limit(20)
+	}).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order")
+	}).Preload("ParentTask", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, title, status, task_type, project_id")
 	}).First(&task, "code = ?", code).Error
 	if err != nil {
 		return nil, err
@@ -159,6 +191,166 @@ func (r *postgresRepository) GetTasksByAssignee(userID uint) ([]domain.Task, err
 	return tasks, err
 }
 
+// GetActiveSprintTasksByAssignee returns only tasks that belong to an ACTIVE sprint
+// and are assigned to the given user. DEV role sees strictly their active battlefield.
+// Also includes child tasks whose parent (FEATURE) is in an active sprint.
+func (r *postgresRepository) GetActiveSprintTasksByAssignee(userID uint) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.db.
+		Where("tasks.assigned_to = ?", userID).
+		Where(`
+			EXISTS (
+				SELECT 1 FROM sprints s
+				WHERE s.id = tasks.sprint_id AND s.status = 'ACTIVE'
+			)
+			OR EXISTS (
+				SELECT 1 FROM tasks parent
+				JOIN sprints s ON s.id = parent.sprint_id
+				WHERE parent.id = tasks.parent_id AND s.status = 'ACTIVE'
+			)
+		`).
+		Order("tasks.created_at desc").
+		Find(&tasks).Error
+	return tasks, err
+}
+
+// GetActiveSprintsForUser returns distinct ACTIVE sprints that have tasks assigned to the given user.
+func (r *postgresRepository) GetActiveSprintsForUser(userID uint) ([]domain.Sprint, error) {
+	var sprints []domain.Sprint
+	err := r.db.
+		Distinct("sprints.*").
+		Table("sprints").
+		Joins("JOIN tasks ON tasks.sprint_id = sprints.id").
+		Where("sprints.status = ? AND tasks.assigned_to = ?", "ACTIVE", userID).
+		Order("sprints.created_at desc").
+		Find(&sprints).Error
+	return sprints, err
+}
+
+// GetGlobalActiveTasksByUser returns TASK and BUG items for the team scoped to ACTIVE sprints only.
+// A task is included when:
+//   a) it is directly assigned to an ACTIVE sprint, OR
+//   b) its parent task (FEATURE or TASK) is assigned to an ACTIVE sprint (sub-task inclusion rule).
+// FEATURE types are excluded from results — they belong to the PM/CEO Feature Roadmap Board.
+func (r *postgresRepository) GetGlobalActiveTasksByUser(userID uint) ([]domain.GlobalActiveTask, error) {
+	var results []domain.GlobalActiveTask
+	err := r.db.Table("tasks").
+		Select("tasks.id, tasks.code, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.task_type, tasks.story_points, tasks.estimated_minutes, tasks.assigned_to, tasks.project_id, tasks.sprint_id, tasks.epic_id, tasks.parent_id, tasks.due_at, tasks.started_at, tasks.created_at, tasks.updated_at, projects.name AS project_name, projects.color AS project_color").
+		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", userID).
+		Where("tasks.task_type IN ? AND tasks.status NOT IN ?",
+			[]string{"TASK", "BUG"},
+			[]string{"COMPLETED", "CANCELLED"},
+		).
+		Where(`
+			EXISTS (
+				SELECT 1 FROM sprints s
+				WHERE s.id = tasks.sprint_id AND s.status = 'ACTIVE'
+			)
+			OR EXISTS (
+				SELECT 1 FROM tasks parent
+				JOIN sprints s ON s.id = parent.sprint_id
+				WHERE parent.id = tasks.parent_id AND s.status = 'ACTIVE'
+			)
+		`).
+		Order("tasks.created_at DESC").
+		Scan(&results).Error
+	return results, err
+}
+
+// GetTeamActiveTasks returns TASK and BUG items in ACTIVE sprints for a team.
+// FEATURE types are excluded — they belong to the PM/CEO Feature Roadmap Board.
+// CEO/MANAGER callers with teamID=0 get all active-sprint tasks across all teams.
+func (r *postgresRepository) GetTeamActiveTasks(teamID uint) ([]domain.GlobalActiveTask, error) {
+	var results []domain.GlobalActiveTask
+	q := r.db.Table("tasks").
+		Select("tasks.*, projects.name AS project_name, projects.color AS project_color").
+		Joins("JOIN sprints ON sprints.id = tasks.sprint_id").
+		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Where("sprints.status = ? AND tasks.task_type IN ?", "ACTIVE", []string{"TASK", "BUG"}).
+		Order("tasks.created_at DESC")
+	if teamID != 0 {
+		q = q.Where("projects.team_id = ?", teamID)
+	}
+	err := q.Scan(&results).Error
+	return results, err
+}
+
+// GetActiveFeatures returns all FEATURE-type tasks across projects for a given team.
+// Each feature is enriched with project identity and a computed roll-up progress
+// calculated from its direct child tasks (TASK/BUG). PMs and CEOs use this for
+// the Feature Roadmap Board — a non-draggable, management-level view.
+// teamID=0 means no team filter (CEO sees all).
+func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoadmapItem, error) {
+	// Step 1: fetch all FEATURE tasks with project details
+	type featureRow struct {
+		domain.Task
+		ProjectName  string `gorm:"column:project_name"`
+		ProjectColor string `gorm:"column:project_color"`
+	}
+	var features []featureRow
+	q := r.db.Table("tasks").
+		Select("tasks.*, projects.name AS project_name, projects.color AS project_color").
+		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Where("tasks.task_type = ?", "FEATURE").
+		Order("tasks.created_at DESC")
+	if teamID != 0 {
+		q = q.Where("projects.team_id = ?", teamID)
+	}
+	if err := q.Scan(&features).Error; err != nil {
+		return nil, err
+	}
+	if len(features) == 0 {
+		return []domain.FeatureRoadmapItem{}, nil
+	}
+
+	// Step 2: collect feature IDs, then bulk-fetch child tasks
+	featureIDs := make([]string, 0, len(features))
+	for _, f := range features {
+		featureIDs = append(featureIDs, f.ID.String())
+	}
+	var children []domain.Task
+	if err := r.db.Table("tasks").
+		Where("parent_id IN ? AND task_type IN ?", featureIDs, []string{"TASK", "BUG"}).
+		Order("created_at ASC").
+		Scan(&children).Error; err != nil {
+		return nil, err
+	}
+
+	// Step 3: index children by parent_id
+	childMap := make(map[string][]domain.Task)
+	for _, c := range children {
+		if c.ParentID != nil {
+			pid := c.ParentID.String()
+			childMap[pid] = append(childMap[pid], c)
+		}
+	}
+
+	// Step 4: build result items with roll-up progress
+	results := make([]domain.FeatureRoadmapItem, 0, len(features))
+	for _, f := range features {
+		kids := childMap[f.ID.String()]
+		var rollup int
+		if len(kids) > 0 {
+			completed := 0
+			for _, k := range kids {
+				if k.Status == "COMPLETED" {
+					completed++
+				}
+			}
+			rollup = int(float64(completed) / float64(len(kids)) * 100)
+		}
+		results = append(results, domain.FeatureRoadmapItem{
+			Task:         f.Task,
+			ProjectName:  f.ProjectName,
+			ProjectColor: f.ProjectColor,
+			RollupProgress: rollup,
+			ChildTasks:   kids,
+		})
+	}
+	return results, nil
+}
+
 func (r *postgresRepository) GetUnassignedTasks() ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.Where("assigned_to IS NULL").
@@ -178,38 +370,20 @@ func (r *postgresRepository) GetAllTasks() ([]domain.Task, error) {
 	return tasks, err
 }
 
-// GetTasksRequiringApproval returns tasks that need PM/CEO attention
-// Logic:
+// GetTasksRequiringApproval returns tasks that need PM/CEO attention:
+// - Tasks with status REVIEW_PENDING (awaiting handover approval)
 // - Tasks with negotiation_status = 'PENDING' (dev wants more time)
-// - Tasks with submissions that have appeals where status = 'PENDING'
 func (r *postgresRepository) GetTasksRequiringApproval() ([]domain.Task, error) {
 	var tasks []domain.Task
 
-	// Subquery: Find task IDs with PENDING appeals
-	var taskIDsWithPendingAppeals []string
-	r.db.Table("tasks").
-		Select("DISTINCT tasks.id").
-		Joins("JOIN submissions ON submissions.task_id = tasks.id").
-		Joins("JOIN appeals ON appeals.submission_id = submissions.id").
-		Where("appeals.status = ?", "PENDING").
-		Pluck("tasks.id", &taskIDsWithPendingAppeals)
-
-	// Main query: Find tasks with PENDING time negotiations OR PENDING appeals
-	// ALWAYS preload submissions and appeals for ALL tasks
-	query := r.db.
+	err := r.db.
 		Preload("Submissions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at desc")
+			return db.Select("id, task_id, dev_id, reference_url, note, created_at").
+				Order("created_at desc")
 		}).
-		Preload("Submissions.Appeal") // Eager load appeals within submissions
-
-	// Build WHERE condition
-	if len(taskIDsWithPendingAppeals) > 0 {
-		query = query.Where("negotiation_status = ? OR id IN ?", "PENDING", taskIDsWithPendingAppeals)
-	} else {
-		query = query.Where("negotiation_status = ?", "PENDING")
-	}
-
-	err := query.Order("created_at desc").Find(&tasks).Error
+		Where("status = ? OR negotiation_status = ?", "REVIEW_PENDING", "PENDING").
+		Order("created_at desc").
+		Find(&tasks).Error
 
 	return tasks, err
 }
@@ -259,6 +433,29 @@ func (r *postgresRepository) ApproveTask(id uuid.UUID) error {
 	}
 	
 	return nil
+}
+
+// RejectTask returns a task to IN_PROGRESS and logs the rejection reason as a comment
+func (r *postgresRepository) RejectTask(taskID uuid.UUID, rejectorID uint, reason string) error {
+	result := r.db.Exec(`
+		UPDATE tasks
+		SET status = 'IN_PROGRESS',
+		    updated_at = NOW()
+		WHERE id = ?
+	`, taskID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("task not found")
+	}
+
+	comment := &domain.TaskComment{
+		TaskID:  taskID,
+		UserID:  rejectorID,
+		Content: fmt.Sprintf("[REJECTED] %s", reason),
+	}
+	return r.db.Create(comment).Error
 }
 
 // --- Submission Operations ---
@@ -457,6 +654,37 @@ func (r *postgresRepository) GetTotalLoggedMinutes(taskID uuid.UUID) (int, error
 	return int(total), err
 }
 
+func (r *postgresRepository) CountChildTasks(parentID uuid.UUID) (int, error) {
+	var count int64
+	err := r.db.Model(&domain.Task{}).Where("parent_id = ?", parentID).Count(&count).Error
+	return int(count), err
+}
+
+func (r *postgresRepository) GetChildTasksByParentID(parentID uuid.UUID) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.db.Where("parent_id = ?", parentID).Find(&tasks).Error
+	return tasks, err
+}
+
+func (r *postgresRepository) GetTasksReadyForTest(teamID uint) ([]domain.GlobalActiveTask, error) {
+	var results []domain.GlobalActiveTask
+	q := r.db.Table("tasks").
+		Select(`tasks.*,
+			projects.name AS project_name,
+			projects.color AS project_color,
+			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(u.email, '') AS assigned_to_email`).
+		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
+		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_TEST", []string{"TASK", "BUG"}).
+		Order("tasks.created_at DESC")
+	if teamID != 0 {
+		q = q.Where("projects.team_id = ?", teamID)
+	}
+	err := q.Scan(&results).Error
+	return results, err
+}
+
 // --- Bulk Operations ---
 
 func (r *postgresRepository) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string) error {
@@ -592,7 +820,7 @@ func (r *postgresRepository) GetProjectAnalytics(projectID uuid.UUID) (*domain.P
 		SELECT 
 			t.assigned_to as user_id,
 			COUNT(t.id) as assigned_tasks,
-			COALESCE(SUM(t.ai_estimated_minutes), 0) as estimated_mins,
+			COALESCE(SUM(t.estimated_minutes), 0) as estimated_mins,
 			COALESCE(SUM(tl_sum.total_logged), 0) as logged_mins
 		FROM tasks t
 		LEFT JOIN (
@@ -706,4 +934,122 @@ func (r *postgresRepository) GetImportedSlideIndicesByPresentationID(presentatio
 		}
 	}
 	return indices, nil
+}
+
+// --- Project Finance Operations ---
+
+func (r *postgresRepository) UpdateProjectCapital(projectID uuid.UUID, newBalance float64, bonusPct *float64) error {
+	updates := map[string]interface{}{"capital_balance": newBalance}
+	if bonusPct != nil {
+		updates["bonus_percentage"] = *bonusPct
+	}
+	result := r.db.Model(&domain.Project{}).Where("id = ?", projectID).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("project not found")
+	}
+	return nil
+}
+
+func (r *postgresRepository) CreateProjectTransaction(tx *domain.ProjectTransaction) error {
+	return r.db.Create(tx).Error
+}
+
+func (r *postgresRepository) GetProjectTransactions(projectID uuid.UUID) ([]domain.ProjectTransaction, error) {
+	var txns []domain.ProjectTransaction
+	err := r.db.Where("project_id = ?", projectID).Order("created_at desc").Find(&txns).Error
+	return txns, err
+}
+
+func (r *postgresRepository) DeleteProjectTransaction(txID int64, projectID uuid.UUID) error {
+	result := r.db.Where("id = ? AND project_id = ?", txID, projectID).Delete(&domain.ProjectTransaction{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("transaction not found")
+	}
+	return nil
+}
+
+// --- Internal B2B Outsource Request Operations ---
+
+func (r *postgresRepository) CreateB2BRequest(req *domain.B2BRequest) error {
+	return r.db.Create(req).Error
+}
+
+func (r *postgresRepository) GetB2BRequestByID(id uuid.UUID) (*domain.B2BRequest, error) {
+	var req domain.B2BRequest
+	if err := r.db.First(&req, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &req, nil
+}
+
+func (r *postgresRepository) UpdateB2BRequest(req *domain.B2BRequest) error {
+	return r.db.Save(req).Error
+}
+
+// GetB2BRequests returns requests filtered by team and direction.
+// direction "inbound"  → requests where target_team_id = teamID
+// direction "outbound" → requests where requester_team_id = teamID
+func (r *postgresRepository) GetB2BRequests(teamID uint, direction string) ([]domain.B2BRequest, error) {
+	var reqs []domain.B2BRequest
+	var q *gorm.DB
+	if direction == "outbound" {
+		q = r.db.Where("requester_team_id = ?", teamID)
+	} else {
+		q = r.db.Where("target_team_id = ?", teamID)
+	}
+	if err := q.Order("created_at desc").Find(&reqs).Error; err != nil {
+		return nil, err
+	}
+	return reqs, nil
+}
+
+// GetFirstProjectByTeamID returns the first active project that belongs to the given team.
+func (r *postgresRepository) GetFirstProjectByTeamID(teamID uint) (*domain.Project, error) {
+	var project domain.Project
+	err := r.db.Where("team_id = ?", teamID).
+		Order("created_at asc").
+		First(&project).Error
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+// --- Project Backup Operations ---
+
+func (r *postgresRepository) CreateProjectBackup(backup *domain.ProjectBackup) error {
+	return r.db.Create(backup).Error
+}
+
+func (r *postgresRepository) GetProjectBackups(projectID uuid.UUID) ([]domain.ProjectBackup, error) {
+	var backups []domain.ProjectBackup
+	err := r.db.Where("project_id = ?", projectID).
+		Order("created_at desc").
+		Find(&backups).Error
+	return backups, err
+}
+
+func (r *postgresRepository) GetProjectBackupByID(id uuid.UUID) (*domain.ProjectBackup, error) {
+	var backup domain.ProjectBackup
+	if err := r.db.First(&backup, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &backup, nil
+}
+
+func (r *postgresRepository) DeleteProjectBackup(id uuid.UUID, projectID uuid.UUID) error {
+	result := r.db.Where("id = ? AND project_id = ?", id, projectID).Delete(&domain.ProjectBackup{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("backup not found")
+	}
+	return nil
 }

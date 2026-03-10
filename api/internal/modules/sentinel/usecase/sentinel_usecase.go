@@ -56,7 +56,7 @@ func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIServi
 // projectNameEnglishOnly matches letters, digits, spaces, hyphens, underscores (English only)
 var projectNameEnglishOnly = regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
 
-func (u *sentinelUsecase) CreateProject(name, description, status string) (*domain.Project, error) {
+func (u *sentinelUsecase) CreateProject(name, description, status string, ctx domain.CallerContext) (*domain.Project, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("project name is required")
@@ -77,18 +77,22 @@ func (u *sentinelUsecase) CreateProject(name, description, status string) (*doma
 		Description: description,
 		Status:      status,
 	}
+	// Auto-assign team_id so the project is visible to the creator's team
+	if ctx.TeamID != nil {
+		p.TeamID = ctx.TeamID
+	}
 	if err := u.repo.CreateProject(p); err != nil {
 		return nil, fmt.Errorf("failed to create project: %w", err)
 	}
 	return p, nil
 }
 
-func (u *sentinelUsecase) GetProjects() ([]domain.Project, error) {
-	return u.repo.GetAllProjects()
+func (u *sentinelUsecase) GetProjects(ctx domain.CallerContext) ([]domain.Project, error) {
+	return u.repo.GetAllProjects(ctx)
 }
 
-func (u *sentinelUsecase) GetProjectDetails(id uuid.UUID) (*domain.Project, error) {
-	p, err := u.repo.GetProjectByID(id)
+func (u *sentinelUsecase) GetProjectDetails(id uuid.UUID, ctx domain.CallerContext) (*domain.Project, error) {
+	p, err := u.repo.GetProjectByID(id, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
@@ -99,15 +103,15 @@ func (u *sentinelUsecase) GetProjectDetails(id uuid.UUID) (*domain.Project, erro
 }
 
 // GetProjectByIDOrCode retrieves a project by UUID or by code (e.g. mims-hdmap-main).
-func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string) (*domain.Project, error) {
+func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string, ctx domain.CallerContext) (*domain.Project, error) {
 	idOrCode = strings.TrimSpace(idOrCode)
 	if idOrCode == "" {
 		return nil, errors.New("project id or code is required")
 	}
 	if id, err := uuid.Parse(idOrCode); err == nil {
-		return u.GetProjectDetails(id)
+		return u.GetProjectDetails(id, ctx)
 	}
-	p, err := u.repo.GetProjectByCode(idOrCode)
+	p, err := u.repo.GetProjectByCode(idOrCode, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("project not found: %w", err)
 	}
@@ -117,9 +121,22 @@ func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string) (*domain.Project
 	return p, nil
 }
 
+// AssignProjectTeam sets or clears the team for a project (CEO or MANAGER only).
+func (u *sentinelUsecase) AssignProjectTeam(projectID uuid.UUID, teamID *uint, requesterRole string) (*domain.Project, error) {
+	if requesterRole != domain.RoleCEO && requesterRole != domain.RoleManager {
+		return nil, fmt.Errorf("unauthorized: only CEO or MANAGER can assign projects to teams")
+	}
+	if err := u.repo.AssignProjectTeam(projectID, teamID); err != nil {
+		return nil, fmt.Errorf("failed to assign team: %w", err)
+	}
+	ceoCtx := domain.CallerContext{Role: domain.RoleCEO}
+	return u.repo.GetProjectByID(projectID, ceoCtx)
+}
+
 // UpdateProject updates project name, description, and status. If updateCode is true, also sets project.Code to slugify(name) and updates all task codes in the project to use the new prefix (so they match the new name).
 func (u *sentinelUsecase) UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*domain.Project, error) {
-	p, err := u.repo.GetProjectByID(projectID)
+	ceoCtx := domain.CallerContext{Role: domain.RoleCEO}
+	p, err := u.repo.GetProjectByID(projectID, ceoCtx)
 	if err != nil || p == nil {
 		return nil, errors.New("project not found")
 	}
@@ -180,8 +197,21 @@ func slugify(name string) string {
 
 var validPriorities = map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}
 
-func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID) (*domain.Task, error) {
-	const defaultEstimatedMinutes = 0
+func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*domain.Task, error) {
+	defaultEstimatedMinutes := 0
+	if estimatedMinutes != nil && *estimatedMinutes >= 0 {
+		defaultEstimatedMinutes = *estimatedMinutes
+	}
+
+	// Validate and normalise task type
+	switch domain.TaskType(taskType) {
+	case domain.TaskTypeFeature, domain.TaskTypeTask, domain.TaskTypeBug:
+		// valid
+	case "":
+		taskType = string(domain.TaskTypeTask)
+	default:
+		return nil, fmt.Errorf("invalid task_type: %s (allowed: FEATURE, TASK, BUG)", taskType)
+	}
 
 	if priority == "" {
 		priority = "MEDIUM"
@@ -207,7 +237,7 @@ func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate
 
 	slug := "task"
 	if projectID != nil {
-		proj, err := u.repo.GetProjectByID(*projectID)
+		proj, err := u.repo.GetProjectByID(*projectID, domain.CallerContext{Role: domain.RoleCEO})
 		if err == nil && proj != nil {
 			slug = slugify(proj.Name)
 		}
@@ -219,23 +249,24 @@ func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate
 	code := fmt.Sprintf("%s-%03d", slug, maxSuffix+1)
 
 	task := &domain.Task{
-		ID:                 uuid.New(),
-		Code:               code,
-		Title:              title,
-		Description:        desc,
-		CreatedBy:          &creatorID,
-		Status:             "PENDING",
-		AIEstimatedMinutes: defaultEstimatedMinutes,
-		DueAt:              dueDate,
-		ProjectID:          projectID,
-		ParentID:           parentID,
-		EpicID:             epicID,
-		StartDate:          startDate,
-		EndDate:            endDate,
-		Priority:           priority,
-		StoryPoints:        storyPoints,
-		SprintID:           sprintID,
-		MilestoneID:        milestoneID,
+		ID:               uuid.New(),
+		Code:             code,
+		Title:            title,
+		Description:      desc,
+		TaskType:         taskType,
+		CreatedBy:        &creatorID,
+		Status:           "PENDING",
+		EstimatedMinutes: defaultEstimatedMinutes,
+		DueAt:            dueDate,
+		ProjectID:        projectID,
+		ParentID:         parentID,
+		EpicID:           epicID,
+		StartDate:        startDate,
+		EndDate:          endDate,
+		Priority:         priority,
+		StoryPoints:      storyPoints,
+		SprintID:         sprintID,
+		MilestoneID:      milestoneID,
 	}
 
 	if err := u.repo.CreateTask(task); err != nil {
@@ -245,6 +276,7 @@ func (u *sentinelUsecase) CreateTask(title, desc string, creatorID uint, dueDate
 }
 
 // AssignTask assigns a developer to a task. assignerID is the PM/CEO who performs the assign (for PM-scoped leaderboard).
+// devID = 0 means unassign (set AssignedTo = nil, revert to PENDING).
 func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID uint) error {
 	// 1. Validate if task exists
 	task, err := u.repo.GetTaskByID(taskID)
@@ -253,6 +285,15 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID ui
 	}
 	if task == nil {
 		return errors.New("task not found")
+	}
+
+	if devID == 0 {
+		// Unassign: clear assignee, revert status to PENDING
+		task.AssignedTo = nil
+		task.AssignedByID = nil
+		task.Status = "PENDING"
+		task.StartedAt = nil
+		return u.repo.UpdateTask(task)
 	}
 
 	// 2. Update assignment
@@ -273,35 +314,27 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID ui
 	return nil
 }
 
-// SubmitWork handles code submission with AI Code Review
-func (u *sentinelUsecase) SubmitWork(taskID uuid.UUID, devID uint, commitHash, diff string) (*domain.Submission, error) {
-	// No AI code review: submission is always PASS, human approval still required
+// SubmitWork records a handover: Dev submits a PR/Commit URL and moves the task to REVIEW_PENDING
+func (u *sentinelUsecase) SubmitWork(taskID uuid.UUID, devID uint, referenceURL, note string) (*domain.Submission, error) {
 	sub := &domain.Submission{
-		ID:         uuid.New(),
-		TaskID:     taskID,
-		DevID:      devID,
-		CommitHash: commitHash,
-		Diff:       diff,
-		AIVerdict:  "PASS",
-		AIScore:    100,
-		AIFeedback: []byte(`{"feedback": ""}`),
+		ID:           uuid.New(),
+		TaskID:       taskID,
+		DevID:        devID,
+		ReferenceURL: referenceURL,
+		Note:         note,
 	}
 
 	if err := u.repo.CreateSubmission(sub); err != nil {
 		return nil, err
 	}
 
-	// Move to REVIEW_PENDING for PM/CEO approval (human quality gate)
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
-		fmt.Printf("⚠️  Failed to get task for review queue: %v\n", err)
-	} else {
-		task.Status = "REVIEW_PENDING"
-		if err := u.repo.UpdateTask(task); err != nil {
-			fmt.Printf("⚠️  Failed to update task status to REVIEW_PENDING: %v\n", err)
-		} else {
-			fmt.Printf("🚦 Task %s moved to REVIEW_PENDING - awaiting PM/CEO approval\n", task.ID)
-		}
+		return nil, fmt.Errorf("failed to get task: %w", err)
+	}
+	task.Status = "REVIEW_PENDING"
+	if err := u.repo.UpdateTask(task); err != nil {
+		return nil, fmt.Errorf("failed to update task status: %w", err)
 	}
 
 	return sub, nil
@@ -350,17 +383,63 @@ func (u *sentinelUsecase) getTaskByIDAndEnrich(taskID uuid.UUID, task *domain.Ta
 			task.CreatedByEmail = creator.Email
 		}
 	}
+	if task.AssignedTo != nil {
+		assignee, err := u.authRepo.FindByID(*task.AssignedTo)
+		if err == nil && assignee != nil {
+			if assignee.DisplayName != "" {
+				task.AssignedToDisplayName = assignee.DisplayName
+			}
+			task.AssignedToEmail = assignee.Email
+		}
+	}
 	return task, nil
 }
 
-// GetMyTasks retrieves all tasks assigned to a user
+// GetMyTasks retrieves tasks assigned to a user that belong to an ACTIVE sprint.
+// DEV role must only see their active battlefield — tasks outside active sprints are excluded.
 func (u *sentinelUsecase) GetMyTasks(userID uint) ([]domain.Task, error) {
-	tasks, err := u.repo.GetTasksByAssignee(userID)
+	tasks, err := u.repo.GetActiveSprintTasksByAssignee(userID)
 	if err != nil {
 		return nil, err
 	}
 
 	return tasks, nil
+}
+
+// GetMyActiveSprints returns the ACTIVE sprints that contain tasks assigned to the user.
+func (u *sentinelUsecase) GetMyActiveSprints(userID uint) ([]domain.Sprint, error) {
+	return u.repo.GetActiveSprintsForUser(userID)
+}
+
+// GetGlobalActiveTasks returns all tasks assigned to the user across ALL projects
+// where the sprint is ACTIVE, enriched with project name and color.
+func (u *sentinelUsecase) GetGlobalActiveTasks(userID uint) ([]domain.GlobalActiveTask, error) {
+	return u.repo.GetGlobalActiveTasksByUser(userID)
+}
+
+// GetTeamActiveTasks returns all ACTIVE-sprint tasks within the caller's team.
+// CEO/MANAGER (no team restriction) get all active-sprint tasks across all teams.
+func (u *sentinelUsecase) GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]domain.GlobalActiveTask, error) {
+	teamID := uint(0)
+	if callerRole != domain.RoleCEO && callerRole != domain.RoleManager && callerTeamID != nil {
+		teamID = *callerTeamID
+	}
+	tasks, err := u.repo.GetTeamActiveTasks(teamID)
+	if err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
+// GetActiveFeatures returns all FEATURE-type tasks for the PM/CEO Feature Roadmap Board.
+// Each feature carries a roll-up progress (0–100%) computed from child TASK/BUG completion.
+// CEO/MANAGER see all teams; PM is scoped to their own team.
+func (u *sentinelUsecase) GetActiveFeatures(callerTeamID *uint, callerRole string) ([]domain.FeatureRoadmapItem, error) {
+	teamID := uint(0)
+	if callerRole != domain.RoleCEO && callerRole != domain.RoleManager && callerTeamID != nil {
+		teamID = *callerTeamID
+	}
+	return u.repo.GetActiveFeatures(teamID)
 }
 
 // GetUnassignedTasks retrieves all tasks that are not assigned to anyone
@@ -452,16 +531,13 @@ func (u *sentinelUsecase) RemoveDependency(id uuid.UUID) error {
 	return u.repo.DeleteTaskDependency(id)
 }
 
-// GetPendingApprovals returns tasks requiring PM/CEO attention
-// Includes: Time negotiations (PENDING) and Appeals (PENDING)
-// Access: CEO and PM roles only
+// GetPendingApprovals returns tasks requiring PM/CEO/MANAGER attention
+// Includes: REVIEW_PENDING handovers, time negotiations (PENDING), appeals (PENDING)
 func (u *sentinelUsecase) GetPendingApprovals(userRole string) ([]domain.Task, error) {
-	// 🔒 ROLE VALIDATION: Only CEO and PM can view approvals inbox
-	if userRole != "CEO" && userRole != "PM" {
-		return nil, fmt.Errorf("access denied: only CEO and PM can view approvals inbox")
+	if userRole != "CEO" && userRole != "PM" && userRole != "MANAGER" {
+		return nil, fmt.Errorf("access denied: only CEO, PM, or MANAGER can view approvals inbox")
 	}
 
-	// Fetch tasks requiring approval
 	tasks, err := u.repo.GetTasksRequiringApproval()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch pending approvals: %w", err)
@@ -470,20 +546,17 @@ func (u *sentinelUsecase) GetPendingApprovals(userRole string) ([]domain.Task, e
 	return tasks, nil
 }
 
-// SubmitAppeal allows a developer to appeal an AI FAIL verdict
+// SubmitAppeal allows a developer to appeal a rejected task
 func (u *sentinelUsecase) SubmitAppeal(submissionID uuid.UUID, devID uint, reason string) (*domain.Appeal, error) {
-	// 1. Validate submission exists
 	submission, err := u.repo.GetSubmissionByID(submissionID)
 	if err != nil {
 		return nil, fmt.Errorf("submission not found: %w", err)
 	}
 
-	// 2. Ensure only the developer who submitted can appeal
 	if submission.DevID != devID {
 		return nil, errors.New("unauthorized: only the developer who submitted can appeal")
 	}
 
-	// 3. Check if appeal already exists
 	existingAppeal, err := u.repo.GetAppealBySubmissionID(submissionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing appeal: %w", err)
@@ -492,61 +565,45 @@ func (u *sentinelUsecase) SubmitAppeal(submissionID uuid.UUID, devID uint, reaso
 		return nil, errors.New("appeal already exists for this submission")
 	}
 
-	// 4. Validate that submission is a FAIL (only FAILs can be appealed)
-	if submission.AIVerdict != "FAIL" {
-		return nil, errors.New("can only appeal FAIL verdicts")
-	}
-
-	// No AI: appeal is human-only; CEO/PM decide without AI advisory
 	appeal := &domain.Appeal{
-		ID:                uuid.New(),
-		SubmissionID:      submissionID,
-		DeveloperID:       devID,
-		Reason:            reason,
-		Status:            "PENDING",
-		AIRecommendation:  "",
-		AIConfidence:      0,
-		AIReasoning:       "",
+		ID:           uuid.New(),
+		SubmissionID: submissionID,
+		DeveloperID:  devID,
+		Reason:       reason,
+		Status:       "PENDING",
 	}
 
 	if err := u.repo.CreateAppeal(appeal); err != nil {
 		return nil, fmt.Errorf("failed to create appeal: %w", err)
 	}
 
-	fmt.Printf("⚖️  Appeal created (human review only)\n")
-
 	return appeal, nil
 }
 
 // ResolveAppeal allows PM/CEO to approve or reject an appeal
 func (u *sentinelUsecase) ResolveAppeal(appealID uuid.UUID, resolverID uint, status string, note string) error {
-	// 1. Validate status
 	if status != "APPROVED" && status != "REJECTED" {
 		return errors.New("status must be APPROVED or REJECTED")
 	}
 
-	// 2. 🔒 ROLE VALIDATION: Only CEO/PM can resolve appeals
 	resolver, err := u.authRepo.FindByID(resolverID)
 	if err != nil {
 		return fmt.Errorf("unauthorized: resolver user not found: %w", err)
 	}
 
-	if resolver.Role != authDomain.RoleCEO && resolver.Role != authDomain.RolePM {
-		return fmt.Errorf("forbidden: only CEO or PM can resolve appeals (current role: %s)", resolver.Role)
+	if resolver.Role != authDomain.RoleCEO && resolver.Role != authDomain.RoleManager && resolver.Role != authDomain.RolePM {
+		return fmt.Errorf("forbidden: only CEO, MANAGER, or PM can resolve appeals (current role: %s)", resolver.Role)
 	}
 
-	// 3. Get appeal
 	appeal, err := u.repo.GetAppealByID(appealID)
 	if err != nil {
 		return fmt.Errorf("appeal not found: %w", err)
 	}
 
-	// 4. Check if already resolved
 	if appeal.Status != "PENDING" {
 		return fmt.Errorf("appeal already resolved with status: %s", appeal.Status)
 	}
 
-	// 5. Update appeal
 	appeal.Status = status
 	appeal.ResolverID = &resolverID
 	appeal.ResolverNote = note
@@ -555,24 +612,13 @@ func (u *sentinelUsecase) ResolveAppeal(appealID uuid.UUID, resolverID uint, sta
 		return fmt.Errorf("failed to update appeal: %w", err)
 	}
 
-	// 6. If APPROVED, override the submission verdict AND auto-complete task
+	// If APPROVED, auto-complete the task
 	if status == "APPROVED" {
 		submission, err := u.repo.GetSubmissionByID(appeal.SubmissionID)
 		if err != nil {
 			return fmt.Errorf("failed to get submission: %w", err)
 		}
 
-		// Override submission verdict
-		submission.AIVerdict = "PASS"
-		submission.IsOverridden = true
-
-		if err := u.repo.UpdateSubmission(submission); err != nil {
-			return fmt.Errorf("failed to override submission: %w", err)
-		}
-
-		fmt.Printf("✅ Appeal APPROVED: Submission %s overridden to PASS\n", submission.ID)
-
-		// 🎯 AUTO-COMPLETE TASK
 		task, err := u.repo.GetTaskByID(submission.TaskID)
 		if err != nil {
 			fmt.Printf("⚠️  Warning: Failed to get task for auto-completion: %v\n", err)
@@ -580,28 +626,13 @@ func (u *sentinelUsecase) ResolveAppeal(appealID uuid.UUID, resolverID uint, sta
 			task.Status = "COMPLETED"
 			now := time.Now()
 			task.CompletedAt = &now
-
-			// 🔧 FIX: Ensure started_at is set (required by DB constraint)
 			if task.StartedAt == nil {
 				task.StartedAt = &now
-				fmt.Printf("⚠️  Task had no started_at, setting to now\n")
 			}
-
 			if err := u.repo.UpdateTask(task); err != nil {
 				fmt.Printf("⚠️  Warning: Failed to auto-complete task: %v\n", err)
-			} else {
-				fmt.Printf("🎉 Task %s auto-completed via appeal approval\n", task.ID)
-
-				// Calculate actual time taken
-				if task.StartedAt != nil {
-					duration := now.Sub(*task.StartedAt)
-					fmt.Printf("📊 Actual Time: %.2f hours (AI Estimated: %.2f hours)\n",
-						duration.Hours(), float64(task.AIEstimatedMinutes)/60.0)
-				}
 			}
 		}
-	} else {
-		fmt.Printf("❌ Appeal REJECTED by %s (%s): Submission remains FAIL\n", resolver.Email, resolver.Role)
 	}
 
 	return nil
@@ -632,7 +663,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 	if minutes <= 0 {
 		return errors.New("proposed minutes must be greater than 0")
 	}
-	if task.AIEstimatedMinutes > 0 && minutes <= task.AIEstimatedMinutes {
+	if task.EstimatedMinutes > 0 && minutes <= task.EstimatedMinutes {
 		return errors.New("proposed time must be greater than current estimated minutes")
 	}
 
@@ -665,7 +696,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 
 // UpdateTask updates a task with access control (no AI).
 // Creator, CEO, or PM can update. Gantt fields applied when provided.
-func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int) (*domain.Task, error) {
+func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -684,6 +715,14 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 	}
 	if description != "" {
 		task.Description = description
+	}
+	if taskType != "" {
+		switch domain.TaskType(taskType) {
+		case domain.TaskTypeFeature, domain.TaskTypeTask, domain.TaskTypeBug:
+			task.TaskType = taskType
+		default:
+			return nil, fmt.Errorf("invalid task_type: %s (allowed: FEATURE, TASK, BUG)", taskType)
+		}
 	}
 	if parentID != nil {
 		task.ParentID = parentID
@@ -725,6 +764,9 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 	if sortOrder != nil {
 		task.SortOrder = *sortOrder
 	}
+	if estimatedMinutes != nil && *estimatedMinutes >= 0 {
+		task.EstimatedMinutes = *estimatedMinutes
+	}
 
 	if err := u.repo.UpdateTask(task); err != nil {
 		return nil, fmt.Errorf("failed to update task: %w", err)
@@ -754,8 +796,8 @@ func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUse
 	return task, nil
 }
 
-// EstimateTask uses AI to estimate task effort (title + description) and updates task.ai_estimated_minutes.
-// Only task creator, CEO, or PM can run estimate.
+// EstimateTask uses AI to estimate task effort (title + description) and updates task.estimated_minutes.
+// Used internally by ScheduleProjectWithAI. Only task creator, CEO, or PM can run estimate.
 func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -771,7 +813,7 @@ func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, 
 	if err != nil {
 		return nil, fmt.Errorf("AI estimate failed: %w", err)
 	}
-	task.AIEstimatedMinutes = minutes
+	task.EstimatedMinutes = minutes
 	if err := u.repo.UpdateTask(task); err != nil {
 		return nil, fmt.Errorf("failed to update task estimate: %w", err)
 	}
@@ -785,7 +827,7 @@ func (u *sentinelUsecase) GenerateProjectPlan(projectID uuid.UUID, requestingUse
 	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
 		return nil, fmt.Errorf("unauthorized: only CEO or PM can generate AI work plan")
 	}
-	proj, err := u.repo.GetProjectByID(projectID)
+	proj, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO})
 	if err != nil || proj == nil {
 		return nil, fmt.Errorf("project not found: %w", err)
 	}
@@ -867,7 +909,7 @@ func (u *sentinelUsecase) GenerateProjectPlan(projectID uuid.UUID, requestingUse
 		if endDate != nil {
 			dueDate = endDate
 		}
-		_, err := u.CreateTask(t.Title, t.Description, requestingUserID, dueDate, &projectID, nil, startDate, endDate, priority, t.StoryPoints, sprintID, milestoneID, epicID)
+		_, err := u.CreateTask(t.Title, t.Description, string(domain.TaskTypeTask), requestingUserID, dueDate, &projectID, nil, startDate, endDate, priority, t.StoryPoints, sprintID, milestoneID, epicID, nil)
 		if err != nil {
 			return nil, fmt.Errorf("create task %q: %w", t.Title, err)
 		}
@@ -882,7 +924,7 @@ func (u *sentinelUsecase) ClearProjectPlan(projectID uuid.UUID, requestingUserID
 	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
 		return fmt.Errorf("unauthorized: only CEO or PM can clear project plan")
 	}
-	if _, err := u.repo.GetProjectByID(projectID); err != nil {
+	if _, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO}); err != nil {
 		return fmt.Errorf("project not found: %w", err)
 	}
 	if err := u.repo.DeleteProjectPlan(projectID); err != nil {
@@ -897,7 +939,7 @@ func (u *sentinelUsecase) ScheduleProjectWithAI(projectID uuid.UUID, requestingU
 	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
 		return 0, fmt.Errorf("unauthorized: only CEO or PM can run AI schedule")
 	}
-	if _, err := u.repo.GetProjectByID(projectID); err != nil {
+	if _, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO}); err != nil {
 		return 0, fmt.Errorf("project not found: %w", err)
 	}
 	tasks, err := u.repo.GetTasksByProjectID(projectID)
@@ -948,7 +990,7 @@ func (u *sentinelUsecase) ScheduleProjectWithAI(projectID uuid.UUID, requestingU
 			minutes = 60
 		}
 		end := cursor.Add(time.Duration(minutes) * time.Minute)
-		task.AIEstimatedMinutes = minutes
+		task.EstimatedMinutes = minutes
 		task.StartDate = &cursor
 		task.EndDate = &end
 		if err := u.repo.UpdateTask(task); err != nil {
@@ -1017,22 +1059,195 @@ func (u *sentinelUsecase) ApproveTask(taskID uuid.UUID, approverID uint, approve
 		return fmt.Errorf("failed to approve task: %w", err)
 	}
 
-	// 4️⃣ Reload task to get updated CompletedAt for logging
-	task, _ = u.repo.GetTaskByID(taskID)
-	
-	fmt.Printf("✅ Task %s APPROVED by %s (ID: %d)\n", taskID, approverRole, approverID)
-	if task != nil && task.CompletedAt != nil {
-		fmt.Printf("🎉 Task marked COMPLETED at %s\n", task.CompletedAt.Format(time.RFC3339))
-		
-		// Calculate actual time taken
-		if task.StartedAt != nil {
-			duration := task.CompletedAt.Sub(*task.StartedAt)
-			fmt.Printf("📊 Actual Time: %.2f hours (AI Estimated: %.2f hours)\n", 
-				duration.Hours(), float64(task.AIEstimatedMinutes)/60.0)
+	// 4️⃣ Roll-up: if this is a child TASK/BUG and has a parent FEATURE,
+	//    check if all siblings are now COMPLETED → auto-promote parent to READY_FOR_UAT
+	if (task.TaskType == "TASK" || task.TaskType == "BUG") && task.ParentID != nil {
+		siblings, err := u.repo.GetChildTasksByParentID(*task.ParentID)
+		if err == nil && len(siblings) > 0 {
+			allDone := true
+			for _, s := range siblings {
+				effectiveStatus := s.Status
+				if s.ID == taskID {
+					effectiveStatus = "COMPLETED" // just approved above
+				}
+				if effectiveStatus != "COMPLETED" {
+					allDone = false
+					break
+				}
+			}
+			if allDone {
+				parent, err := u.repo.GetTaskByID(*task.ParentID)
+				if err == nil && parent != nil && parent.TaskType == "FEATURE" &&
+					parent.Status != "COMPLETED" && parent.Status != "READY_FOR_UAT" && parent.Status != "REVIEW_PENDING" {
+					parent.Status = "READY_FOR_UAT"
+					_ = u.repo.UpdateTask(parent)
+				}
+			}
 		}
 	}
 
 	return nil
+}
+
+// SubmitUAT stores the UAT payload on a FEATURE task and moves it to REVIEW_PENDING for PM/CEO to review.
+func (u *sentinelUsecase) SubmitUAT(taskID uuid.UUID, devID uint, payload domain.UATPayloadData) error {
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return errors.New("task not found")
+	}
+
+	if task.TaskType != "FEATURE" {
+		return &domain.ErrBadRequest{Msg: "submit-uat is only allowed for FEATURE tasks"}
+	}
+	if task.Status != "READY_FOR_UAT" {
+		return &domain.ErrBadRequest{Msg: fmt.Sprintf("task must be in READY_FOR_UAT status to submit UAT (current: %s)", task.Status)}
+	}
+
+	if payload.StagingURL == "" || (!strings.HasPrefix(payload.StagingURL, "http://") && !strings.HasPrefix(payload.StagingURL, "https://")) {
+		return &domain.ErrBadRequest{Msg: "staging_url must be a valid http or https URL"}
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to encode UAT payload: %w", err)
+	}
+	task.UATPayload = datatypes.JSON(raw)
+	task.Status = "REVIEW_PENDING"
+
+	if err := u.repo.UpdateTask(task); err != nil {
+		return fmt.Errorf("failed to save UAT payload: %w", err)
+	}
+	return nil
+}
+
+// RejectTask returns a task to IN_PROGRESS and logs rejection reason as a comment (PM/CEO/MANAGER only)
+func (u *sentinelUsecase) RejectTask(taskID uuid.UUID, rejectorID uint, rejectorRole string, reason string) error {
+	if rejectorRole != "CEO" && rejectorRole != "PM" && rejectorRole != "MANAGER" {
+		return fmt.Errorf("access denied: only PM, CEO or MANAGER can reject tasks (your role: %s)", rejectorRole)
+	}
+
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return errors.New("task not found")
+	}
+	if task.Status != "REVIEW_PENDING" {
+		return fmt.Errorf("task is not pending review (current status: %s)", task.Status)
+	}
+
+	return u.repo.RejectTask(taskID, rejectorID, reason)
+}
+
+// MarkReadyForTest moves a TASK or BUG from IN_PROGRESS to READY_FOR_TEST (Dev action).
+func (u *sentinelUsecase) MarkReadyForTest(taskID uuid.UUID, devID uint) error {
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return errors.New("task not found")
+	}
+	if task.TaskType != "TASK" && task.TaskType != "BUG" {
+		return &domain.ErrBadRequest{Msg: "only TASK or BUG type tasks can be moved to READY_FOR_TEST"}
+	}
+	if task.Status != "IN_PROGRESS" {
+		return &domain.ErrBadRequest{Msg: fmt.Sprintf("task must be IN_PROGRESS to mark ready for test (current: %s)", task.Status)}
+	}
+	task.Status = "READY_FOR_TEST"
+	if err := u.repo.UpdateTask(task); err != nil {
+		return fmt.Errorf("failed to update task status: %w", err)
+	}
+	return nil
+}
+
+// ApproveSubTask moves a READY_FOR_TEST task to COMPLETED (PM/CEO action, Continuous UAT lane).
+func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string) error {
+	if pmRole != "CEO" && pmRole != "PM" && pmRole != "MANAGER" {
+		return fmt.Errorf("access denied: only PM, CEO or MANAGER can approve sub-tasks (your role: %s)", pmRole)
+	}
+
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return errors.New("task not found")
+	}
+	if task.Status != "READY_FOR_TEST" {
+		return fmt.Errorf("task is not in READY_FOR_TEST status (current: %s)", task.Status)
+	}
+
+	if err := u.repo.ApproveTask(taskID); err != nil {
+		return fmt.Errorf("failed to approve sub-task: %w", err)
+	}
+
+	// Roll-up: if all siblings are COMPLETED, promote parent FEATURE to READY_FOR_UAT
+	if (task.TaskType == "TASK" || task.TaskType == "BUG") && task.ParentID != nil {
+		siblings, err := u.repo.GetChildTasksByParentID(*task.ParentID)
+		if err == nil && len(siblings) > 0 {
+			allDone := true
+			for _, s := range siblings {
+				effectiveStatus := s.Status
+				if s.ID == taskID {
+					effectiveStatus = "COMPLETED"
+				}
+				if effectiveStatus != "COMPLETED" {
+					allDone = false
+					break
+				}
+			}
+			if allDone {
+				parent, err := u.repo.GetTaskByID(*task.ParentID)
+				if err == nil && parent != nil && parent.TaskType == "FEATURE" &&
+					parent.Status != "COMPLETED" && parent.Status != "READY_FOR_UAT" && parent.Status != "REVIEW_PENDING" {
+					parent.Status = "READY_FOR_UAT"
+					_ = u.repo.UpdateTask(parent)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// RejectSubTask moves a READY_FOR_TEST task back to IN_PROGRESS and logs the rejection reason (PM/CEO action).
+func (u *sentinelUsecase) RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error {
+	if pmRole != "CEO" && pmRole != "PM" && pmRole != "MANAGER" {
+		return fmt.Errorf("access denied: only PM, CEO or MANAGER can reject sub-tasks (your role: %s)", pmRole)
+	}
+	if len(reason) < 10 {
+		return &domain.ErrBadRequest{Msg: "rejection reason must be at least 10 characters"}
+	}
+
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return errors.New("task not found")
+	}
+	if task.Status != "READY_FOR_TEST" {
+		return fmt.Errorf("task is not in READY_FOR_TEST status (current: %s)", task.Status)
+	}
+
+	return u.repo.RejectTask(taskID, pmUserID, reason)
+}
+
+// GetTasksReadyForTest returns all TASK/BUG items in READY_FOR_TEST status, scoped to the caller's team (PM/CEO).
+func (u *sentinelUsecase) GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]domain.GlobalActiveTask, error) {
+	if callerRole != "CEO" && callerRole != "PM" && callerRole != "MANAGER" {
+		return nil, fmt.Errorf("access denied: only PM, CEO or MANAGER can view the test queue (your role: %s)", callerRole)
+	}
+	var teamID uint
+	if callerTeamID != nil {
+		teamID = *callerTeamID
+	}
+	return u.repo.GetTasksReadyForTest(teamID)
 }
 
 // --- System Configuration Management ---
@@ -1373,6 +1588,13 @@ func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, de
 	}
 	if _, err := u.repo.GetTaskByID(taskID); err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
+	}
+	childCount, err := u.repo.CountChildTasks(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify task hierarchy: %w", err)
+	}
+	if childCount > 0 {
+		return nil, &domain.ErrBadRequest{Msg: "time cannot be logged against a Parent Task; log time on its Sub-tasks instead"}
 	}
 	t := &domain.TimeLog{
 		ID:          uuid.New(),
@@ -2258,6 +2480,29 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 	if err != nil {
 		return nil, fmt.Errorf("invalid project_id: %w", err)
 	}
+	var parentUUID *uuid.UUID
+	if req.ParentID != "" {
+		parsed, err := uuid.Parse(req.ParentID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parent_id: %w", err)
+		}
+		parentUUID = &parsed
+	}
+
+	// Build triage map: slide_index -> TriagedSlide for per-slide overrides.
+	// Also derive SlideIndices from triage data when provided.
+	triagedMap := make(map[int]domain.TriagedSlide)
+	if len(req.Slides) > 0 {
+		for _, ts := range req.Slides {
+			triagedMap[ts.SlideIndex] = ts
+		}
+		// Derive SlideIndices from triage data so filtering works normally downstream.
+		if len(req.SlideIndices) == 0 {
+			for idx := range triagedMap {
+				req.SlideIndices = append(req.SlideIndices, idx)
+			}
+		}
+	}
 
 	apiKey := strings.TrimSpace(req.APIKey)
 	if apiKey == "" {
@@ -2398,7 +2643,7 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 	}
 
 	slug := "task"
-	proj, err := u.repo.GetProjectByID(projectUUID)
+	proj, err := u.repo.GetProjectByID(projectUUID, domain.CallerContext{Role: domain.RoleCEO})
 	if err == nil && proj != nil {
 		slug = slugify(proj.Name)
 	}
@@ -2471,20 +2716,45 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 		code := fmt.Sprintf("%s-%03d", slug, maxSuffix+1+i)
 
 		projectIDCopy := projectUUID
+
+		// Apply per-slide triage overrides when provided, else fall back to request-level defaults.
 		taskTitle := fmt.Sprintf("Slide %d: %s", slide.Index, slide.Title)
+		taskPriority := priority
+		taskEstimatedMinutes := 0
+		var taskAssigneeID *uint
+		if triage, ok := triagedMap[slide.Index]; ok {
+			if strings.TrimSpace(triage.Title) != "" {
+				taskTitle = strings.TrimSpace(triage.Title)
+			}
+			p := strings.ToUpper(strings.TrimSpace(triage.Priority))
+			if map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}[p] {
+				taskPriority = p
+			}
+			if triage.EstimatedMinutes > 0 {
+				taskEstimatedMinutes = triage.EstimatedMinutes
+			}
+			taskAssigneeID = triage.AssigneeID
+		}
+
 		task := &domain.Task{
-			ID:           uuid.New(),
-			Code:         code,
-			Title:        taskTitle,
-			Description:  description,
-			CreatedBy:    &creatorID,
-			Status:       "PENDING",
-			Priority:     priority,
-			StoryPoints:  storyPoints,
-			SprintID:     sprintUUID, // nil when importing to backlog
-			EpicID:       epicUUID,  // set when importing to a specific epic
-			ProjectID:    &projectIDCopy,
-			ResourceURLs: datatypes.JSON(resourceURLsJSON),
+			ID:               uuid.New(),
+			Code:             code,
+			Title:            taskTitle,
+			Description:      description,
+			TaskType:         string(domain.TaskTypeTask),
+			CreatedBy:        &creatorID,
+			Status:           "PENDING",
+			Priority:         taskPriority,
+			StoryPoints:      storyPoints,
+			EstimatedMinutes: taskEstimatedMinutes,
+			SprintID:         sprintUUID,
+			EpicID:           epicUUID,
+			ProjectID:        &projectIDCopy,
+			ParentID:         parentUUID,
+			ResourceURLs:     datatypes.JSON(resourceURLsJSON),
+		}
+		if taskAssigneeID != nil {
+			task.AssignedTo = taskAssigneeID
 		}
 
 		if err := u.repo.CreateTask(task); err != nil {
@@ -2499,6 +2769,84 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 		PresentationTitle: presentationTitle,
 		Tasks:             createdTasks,
 	}, nil
+}
+
+// SplitTask decomposes one task into N new sub-tasks (inheriting same parent_id, project, epic, sprint)
+// then deletes the original task. The caller must be CEO, PM, or the task creator.
+func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskItem, requestingUserID uint, requestingUserRole string) ([]*domain.Task, error) {
+	if len(splits) < 2 {
+		return nil, &domain.ErrBadRequest{Msg: "split requires at least 2 items"}
+	}
+	for i, s := range splits {
+		if strings.TrimSpace(s.Title) == "" {
+			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("split item %d has empty title", i+1)}
+		}
+	}
+
+	// Load original task
+	orig, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	// Access control: CEO / PM / creator
+	role := strings.ToUpper(strings.TrimSpace(requestingUserRole))
+	if role != "CEO" && role != "PM" && role != "MANAGER" {
+		if orig.CreatedBy == nil || *orig.CreatedBy != requestingUserID {
+			return nil, &domain.ErrBadRequest{Msg: "only CEO, PM, or the task creator can split a task"}
+		}
+	}
+
+	// Determine slug for code generation
+	slug := "task"
+	if orig.ProjectID != nil {
+		if proj, err := u.repo.GetProjectByID(*orig.ProjectID, domain.CallerContext{Role: domain.RoleCEO}); err == nil && proj != nil {
+			slug = slugify(proj.Name)
+		}
+	}
+	maxSuffix, _ := u.repo.GetMaxTaskCodeSuffix(slug)
+
+	var created []*domain.Task
+	for i, item := range splits {
+		priority := strings.ToUpper(strings.TrimSpace(item.Priority))
+		if !map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}[priority] {
+			priority = orig.Priority
+			if priority == "" {
+				priority = "MEDIUM"
+			}
+		}
+		code := fmt.Sprintf("%s-%03d", slug, maxSuffix+1+i)
+		t := &domain.Task{
+			ID:               uuid.New(),
+			Code:             code,
+			Title:            strings.TrimSpace(item.Title),
+			Description:      orig.Description,
+			TaskType:         orig.TaskType,
+			Status:           "PENDING",
+			Priority:         priority,
+			EstimatedMinutes: item.EstimatedMinutes,
+			ProjectID:        orig.ProjectID,
+			ParentID:         orig.ParentID,   // same parent as the original
+			EpicID:           orig.EpicID,
+			SprintID:         orig.SprintID,
+			ResourceURLs:     orig.ResourceURLs,
+			CreatedBy:        &requestingUserID,
+		}
+		if item.AssigneeID != nil {
+			t.AssignedTo = item.AssigneeID
+		}
+		if err := u.repo.CreateTask(t); err != nil {
+			return nil, fmt.Errorf("failed to create split task %d: %w", i+1, err)
+		}
+		created = append(created, t)
+	}
+
+	// Delete the original task
+	if err := u.repo.DeleteTask(taskID); err != nil {
+		return nil, fmt.Errorf("split tasks created but failed to delete original: %w", err)
+	}
+
+	return created, nil
 }
 
 // --- Epic Operations (Hierarchy Dimension 1) ---
@@ -2679,7 +3027,7 @@ func truncToMonth(t time.Time) time.Time {
 
 // ExportTimelinePDF generates the 2-page client report via chromedp (same pattern as mims).
 func (u *sentinelUsecase) ExportTimelinePDF(projectID uuid.UUID, _ string, templateDir string) ([]byte, string, error) {
-	project, err := u.repo.GetProjectByID(projectID)
+	project, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO})
 	if err != nil {
 		return nil, "", fmt.Errorf("project not found: %w", err)
 	}
@@ -3063,3 +3411,159 @@ func coalesce(a, b *time.Time) *time.Time {
 	}
 	return b
 }
+
+// --- Internal B2B Outsource Usecase Methods ---
+
+func (u *sentinelUsecase) CreateB2BRequest(title, description string, estimatedMinutes int, requesterTeamID, targetTeamID, requesterUserID uint) (*domain.B2BRequest, error) {
+	if title == "" {
+		return nil, &domain.ErrBadRequest{Msg: "title is required"}
+	}
+	if estimatedMinutes <= 0 {
+		return nil, &domain.ErrBadRequest{Msg: "estimated_minutes must be greater than 0"}
+	}
+	if requesterTeamID == targetTeamID {
+		return nil, &domain.ErrBadRequest{Msg: "cannot send a B2B request to your own team"}
+	}
+	req := &domain.B2BRequest{
+		Title:            title,
+		Description:      description,
+		EstimatedMinutes: estimatedMinutes,
+		Status:           "PENDING",
+		RequesterTeamID:  requesterTeamID,
+		TargetTeamID:     targetTeamID,
+		RequesterUserID:  requesterUserID,
+	}
+	if err := u.repo.CreateB2BRequest(req); err != nil {
+		return nil, fmt.Errorf("create b2b request: %w", err)
+	}
+	return req, nil
+}
+
+func (u *sentinelUsecase) GetB2BRequests(callerTeamID uint, direction string) ([]domain.B2BRequest, error) {
+	if direction != "inbound" && direction != "outbound" {
+		direction = "inbound"
+	}
+	reqs, err := u.repo.GetB2BRequests(callerTeamID, direction)
+	if err != nil {
+		return nil, err
+	}
+
+	// Enrich team names via authRepo
+	teamCache := map[uint]string{}
+	getTeamName := func(id uint) string {
+		if name, ok := teamCache[id]; ok {
+			return name
+		}
+		teams, err2 := u.authRepo.GetAllTeams()
+		if err2 != nil {
+			return ""
+		}
+		for _, t := range teams {
+			teamCache[t.ID] = t.Name
+		}
+		return teamCache[id]
+	}
+
+	for i := range reqs {
+		reqs[i].RequesterTeamName = getTeamName(reqs[i].RequesterTeamID)
+		reqs[i].TargetTeamName = getTeamName(reqs[i].TargetTeamID)
+	}
+	return reqs, nil
+}
+
+func (u *sentinelUsecase) CounterOfferB2BRequest(id uuid.UUID, callerTeamID uint, proposedMinutes int, reason string) (*domain.B2BRequest, error) {
+	req, err := u.repo.GetB2BRequestByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("b2b request not found: %w", err)
+	}
+	if req.TargetTeamID != callerTeamID {
+		return nil, &domain.ErrBadRequest{Msg: "only the target team can counter-offer"}
+	}
+	if req.Status != "PENDING" && req.Status != "COUNTER_OFFERED" {
+		return nil, &domain.ErrBadRequest{Msg: "cannot counter-offer a request that is already accepted or rejected"}
+	}
+	if proposedMinutes <= 0 {
+		return nil, &domain.ErrBadRequest{Msg: "proposed_minutes must be greater than 0"}
+	}
+	req.Status = "COUNTER_OFFERED"
+	req.ProposedMinutes = proposedMinutes
+	req.NegotiationReason = reason
+	if err := u.repo.UpdateB2BRequest(req); err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+func (u *sentinelUsecase) RejectB2BRequest(id uuid.UUID, callerTeamID uint) (*domain.B2BRequest, error) {
+	req, err := u.repo.GetB2BRequestByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("b2b request not found: %w", err)
+	}
+	// Either team can reject
+	if req.RequesterTeamID != callerTeamID && req.TargetTeamID != callerTeamID {
+		return nil, &domain.ErrBadRequest{Msg: "not authorized to reject this request"}
+	}
+	if req.Status == "ACCEPTED" {
+		return nil, &domain.ErrBadRequest{Msg: "cannot reject an already accepted request"}
+	}
+	req.Status = "REJECTED"
+	if err := u.repo.UpdateB2BRequest(req); err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+// AcceptB2BRequest is called by the target team's PM.
+// It creates a Task in the first project of the target team and marks the request as ACCEPTED.
+func (u *sentinelUsecase) AcceptB2BRequest(id uuid.UUID, callerTeamID uint, accepterUserID uint) (*domain.Task, error) {
+	req, err := u.repo.GetB2BRequestByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("b2b request not found: %w", err)
+	}
+	if req.TargetTeamID != callerTeamID {
+		return nil, &domain.ErrBadRequest{Msg: "only the target team can accept this request"}
+	}
+	if req.Status != "PENDING" && req.Status != "COUNTER_OFFERED" {
+		return nil, &domain.ErrBadRequest{Msg: "request is not in a state that can be accepted"}
+	}
+
+	// Resolve the minutes to use (if counter-offered, use proposed; else original estimate)
+	minutes := req.EstimatedMinutes
+	if req.Status == "COUNTER_OFFERED" && req.ProposedMinutes > 0 {
+		minutes = req.ProposedMinutes
+	}
+
+	// Find the first project of the target team
+	project, err := u.repo.GetFirstProjectByTeamID(callerTeamID)
+	if err != nil {
+		return nil, fmt.Errorf("target team has no projects: %w", err)
+	}
+
+	// Create the task in that project
+	task, err := u.CreateTask(
+		req.Title,
+		req.Description,
+		"TASK",
+		accepterUserID,
+		nil,           // no due date
+		&project.ID,
+		nil,           // no parent
+		nil, nil,      // no start/end date
+		"MEDIUM",
+		0,             // no story points
+		nil, nil,      // no sprint/milestone
+		nil,           // no epic
+		&minutes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create task for b2b request: %w", err)
+	}
+
+	req.Status = "ACCEPTED"
+	req.CreatedTaskID = &task.ID
+	if err := u.repo.UpdateB2BRequest(req); err != nil {
+		return nil, fmt.Errorf("update b2b request: %w", err)
+	}
+	return task, nil
+}
+

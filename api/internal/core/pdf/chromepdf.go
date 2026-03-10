@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -41,6 +42,7 @@ func RunWithTimeout(ctx *context.Context, timeout time.Duration, tasks chromedp.
 // Mirrors mims-api-service/helpers/helper.go PrintToPDF exactly:
 //   - Navigate to about:blank
 //   - Inject HTML via page.SetDocumentContent (waits for EventLoadEventFired)
+//   - Waits for document.fonts.ready so external fonts (e.g. Google Fonts) are loaded
 //   - Optionally waits for div#success-pagejs (for pagedjs rendered pages)
 //   - Calls page.PrintToPDF with PrintBackground + PreferCSSPageSize + DisplayHeaderFooter
 func PrintToPDF(html string, res *[]byte, waitForPagedJS bool) chromedp.Tasks {
@@ -68,19 +70,43 @@ func PrintToPDF(html string, res *[]byte, waitForPagedJS bool) chromedp.Tasks {
 				return err
 			}
 
-			delay := 5
-			if waitForPagedJS {
-				delay = 10
-			}
-			// Wait for ready signal (e.g. fonts loaded then div#success-pagejs shown) or timeout
-			defer chromedp.Run(
-				ctx,
-				RunWithTimeout(&ctx, time.Duration(delay), chromedp.Tasks{
-					chromedp.WaitVisible("success-pagejs", chromedp.ByID),
-				}),
-			)
-
 			wg.Wait()
+			return nil
+		}),
+
+		// Wait for all fonts (including Google Fonts) to finish loading before printing.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			fontCtx, fontCancel := context.WithTimeout(ctx, 15*time.Second)
+			defer fontCancel()
+			// Evaluate document.fonts.ready as a Promise via Runtime.awaitPromise pattern
+			var ready bool
+			err := chromedp.Run(fontCtx, chromedp.Evaluate(
+				`document.fonts.ready.then(() => true)`,
+				&ready,
+				func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+					return p.WithAwaitPromise(true)
+				},
+			))
+			if err != nil {
+				// Non-fatal: if fonts.ready times out, still proceed with print
+				_ = err
+			}
+			// Extra buffer for rendering (layout, images)
+			time.Sleep(500 * time.Millisecond)
+			return nil
+		}),
+
+		// Only wait for Paged.js ready signal when requested (e.g. timeline report).
+		// Quotation HTML has no #success-pagejs, so skip to avoid timeout/failure.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			if waitForPagedJS {
+				delay := 10 * time.Second
+				timeoutCtx, timeoutCancel := context.WithTimeout(ctx, delay)
+				defer timeoutCancel()
+				if err := chromedp.Run(timeoutCtx, chromedp.WaitVisible("success-pagejs", chromedp.ByID)); err != nil {
+					return err
+				}
+			}
 			return nil
 		}),
 

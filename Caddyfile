@@ -1,0 +1,56 @@
+# =============================================================================
+# Sentinel Core — Reverse proxy (ใช้กับ deploy/docker-compose.yml)
+# =============================================================================
+# Service names ตรงกับ compose: backend (port 8080), frontend (port 3000)
+# เปลี่ยนโดเมนเป็นของ staging/production จริง
+# =============================================================================
+
+# --- Project: Sentinel (this repo) ---
+sentinel.how.co.th {
+    encode gzip
+    handle /api/* {
+        reverse_proxy backend:8080
+    }
+    handle {
+        reverse_proxy frontend:3000
+    }
+}
+
+# --- Project: E-market ---
+emarket.how.co.th {
+    encode gzip
+    handle /api/* {
+        reverse_proxy backend:8080
+    }
+    handle {
+        reverse_proxy frontend:3000
+    }
+}
+
+# --- Project: M-senko ---
+msenko.how.co.th {
+    encode gzip
+    handle /api/* {
+        reverse_proxy api:8080
+    }
+    handle {
+        reverse_proxy web:3000
+    }
+}
+
+# --- Project: EXAT ---
+exat.how.co.th {
+    encode gzip
+    handle /api/* {
+        reverse_proxy exat_backend:8080
+    }
+    handle /storages/* {
+        redir https://epms-api.exat.co.th{uri} permanent
+    }
+    handle /public/* {
+        redir https://epms-api.exat.co.th{uri} permanent
+    }
+    handle {
+        reverse_proxy exat_frontend:3000
+    }
+}

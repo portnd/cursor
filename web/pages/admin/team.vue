@@ -147,8 +147,10 @@
                     ]"
                   >
                     <option value="CEO" class="bg-gray-900">👑 CEO</option>
+                    <option value="MANAGER" class="bg-gray-900">🏢 MANAGER</option>
                     <option value="PM" class="bg-gray-900">📋 PM</option>
                     <option value="DEV" class="bg-gray-900">💻 DEV</option>
+                    <option value="SUPPORT" class="bg-gray-900">🎧 SUPPORT</option>
                   </select>
                   <button
                     v-if="member.id !== currentUser?.user_id && !deletingUserId && !resettingPasswordUserId"
@@ -267,6 +269,8 @@
                 >
                   <option value="DEV">💻 DEV</option>
                   <option value="PM">📋 PM</option>
+                  <option value="SUPPORT">🎧 SUPPORT</option>
+                  <option value="MANAGER">🏢 MANAGER</option>
                   <option value="CEO">👑 CEO</option>
                 </select>
               </div>
@@ -649,7 +653,7 @@ const importResult = ref<{
 } | null>(null)
 
 // Computed
-const isCEO = computed(() => currentUser.value?.role === 'CEO')
+const isCEO = computed(() => currentUser.value?.role === 'CEO' || currentUser.value?.role === 'MANAGER')
 
 const pmCount = computed(() => 
   teamMembers.value.filter(m => m.role === 'PM').length
@@ -666,7 +670,7 @@ const parsedImport = computed(() => {
     .map(l => l.trim())
     .filter(Boolean)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const roles = ['CEO', 'PM', 'DEV']
+  const roles = ['CEO', 'MANAGER', 'PM', 'DEV', 'SUPPORT']
   return lines.map(line => {
     const parts = line.split(',').map(p => p.trim())
     const email = parts[0] || ''
@@ -939,8 +943,10 @@ const exportImportResultsToExcel = () => {
 const getRoleIcon = (role: string) => {
   const icons: Record<string, string> = {
     'CEO': '👑',
+    'MANAGER': '🏢',
     'PM': '📋',
-    'DEV': '💻'
+    'DEV': '💻',
+    'SUPPORT': '🎧'
   }
   return icons[role] || '👤'
 }
@@ -952,6 +958,11 @@ const getRoleColor = (role: string) => {
       avatar: 'bg-purple-600 text-white',
       text: 'text-purple-400'
     },
+    'MANAGER': {
+      badge: 'bg-orange-700 text-orange-100',
+      avatar: 'bg-orange-600 text-white',
+      text: 'text-orange-400'
+    },
     'PM': {
       badge: 'bg-blue-700 text-blue-100',
       avatar: 'bg-blue-600 text-white',
@@ -961,6 +972,11 @@ const getRoleColor = (role: string) => {
       badge: 'bg-green-700 text-green-100',
       avatar: 'bg-green-600 text-white',
       text: 'text-green-400'
+    },
+    'SUPPORT': {
+      badge: 'bg-cyan-700 text-cyan-100',
+      avatar: 'bg-cyan-600 text-white',
+      text: 'text-cyan-400'
     }
   }
   return colors[role] || {

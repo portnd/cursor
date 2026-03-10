@@ -129,3 +129,120 @@ func (r *postgresRepository) UpdatePassword(userID uint, hashedPassword string) 
 	}
 	return nil
 }
+
+func (r *postgresRepository) ResetReworkRate(userID uint) error {
+	result := r.db.Exec("UPDATE users SET rework_reset_at = NOW(), updated_at = NOW() WHERE id = ?", userID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to reset rework rate: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// --- Team / Squad Management ---
+
+// CreateTeam inserts a new team
+func (r *postgresRepository) CreateTeam(team *domain.Team) error {
+	if err := r.db.Create(team).Error; err != nil {
+		return fmt.Errorf("failed to create team: %w", err)
+	}
+	return nil
+}
+
+// GetAllTeams returns all teams with their members preloaded
+func (r *postgresRepository) GetAllTeams() ([]domain.Team, error) {
+	var teams []domain.Team
+	if err := r.db.Preload("Users").Order("created_at DESC").Find(&teams).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch teams: %w", err)
+	}
+	return teams, nil
+}
+
+// GetTeamByID returns a single team by ID
+func (r *postgresRepository) GetTeamByID(id uint) (*domain.Team, error) {
+	var team domain.Team
+	if err := r.db.Preload("Users").First(&team, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("team not found")
+		}
+		return nil, fmt.Errorf("failed to find team: %w", err)
+	}
+	return &team, nil
+}
+
+// UpdateTeamName updates a team's name by ID
+func (r *postgresRepository) UpdateTeamName(teamID uint, name string) error {
+	result := r.db.Model(&domain.Team{}).Where("id = ?", teamID).Update("name", name)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update team name: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("team not found")
+	}
+	return nil
+}
+
+// DeleteTeam removes a team by ID (users' team_id is set to NULL by DB cascade)
+func (r *postgresRepository) DeleteTeam(teamID uint) error {
+	// Unassign all users from this team first
+	r.db.Model(&domain.User{}).Where("team_id = ?", teamID).Update("team_id", nil)
+	result := r.db.Delete(&domain.Team{}, teamID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete team: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("team not found")
+	}
+	return nil
+}
+
+// AssignUserToTeam sets or clears a user's team_id
+func (r *postgresRepository) AssignUserToTeam(userID uint, teamID *uint) error {
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("team_id", teamID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to assign user to team: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// --- Team Finance ---
+
+// UpdateTeamCapital updates capital_balance and optionally bonus_percentage atomically
+func (r *postgresRepository) UpdateTeamCapital(teamID uint, newBalance float64, bonusPct *float64) error {
+	updates := map[string]interface{}{
+		"capital_balance": newBalance,
+	}
+	if bonusPct != nil {
+		updates["bonus_percentage"] = *bonusPct
+	}
+	result := r.db.Model(&domain.Team{}).Where("id = ?", teamID).Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update team capital: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("team not found")
+	}
+	return nil
+}
+
+// CreateTeamTransaction inserts a new capital transaction record
+func (r *postgresRepository) CreateTeamTransaction(tx *domain.TeamTransaction) error {
+	if err := r.db.Create(tx).Error; err != nil {
+		return fmt.Errorf("failed to create team transaction: %w", err)
+	}
+	return nil
+}
+
+// GetTeamTransactions returns all transactions for a team ordered by newest first
+func (r *postgresRepository) GetTeamTransactions(teamID uint) ([]domain.TeamTransaction, error) {
+	var txs []domain.TeamTransaction
+	if err := r.db.Where("team_id = ?", teamID).Order("created_at DESC").Find(&txs).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch team transactions: %w", err)
+	}
+	return txs, nil
+}

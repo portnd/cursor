@@ -55,10 +55,15 @@ function usePerformanceApi() {
     return res
   }
 
+  async function resetReworkRate(userId: number): Promise<void> {
+    await fetchWithAuth(`/performance/users/${userId}/reset-rework`, { method: 'POST' })
+  }
+
   return {
     getPersonalKPIs,
     getTeamKPIs,
     getOverviewKPIs,
+    resetReworkRate,
   }
 }
 

@@ -1,8 +1,37 @@
 <template>
   <div class="kanban-board w-full min-w-0">
+
+    <!-- ── Active Sprint Blinder (DEV role only) ──────────────────────────── -->
+    <div v-if="activeSprint && isDev" class="relative overflow-hidden rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/60 via-gray-900/80 to-gray-900/60 px-6 py-5 mb-4 shadow-lg shadow-purple-500/10">
+      <div class="pointer-events-none absolute -top-10 -left-10 h-40 w-40 rounded-full bg-purple-600/10 blur-3xl" />
+      <div class="relative flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="shrink-0 w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center">
+            <svg class="w-4 h-4 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-purple-400">Active Sprint</span>
+              <span class="inline-flex h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+            </div>
+            <h3 class="text-sm font-bold text-white truncate">{{ activeSprint.name }}</h3>
+            <p v-if="activeSprint.goal" class="text-xs text-gray-400 mt-0.5 line-clamp-1">{{ activeSprint.goal }}</p>
+          </div>
+        </div>
+        <div v-if="activeSprint.end_date" class="shrink-0 text-right">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500">Sprint Ends</p>
+          <p class="text-sm font-bold text-amber-400 mt-0.5">{{ formatEndDate(activeSprint.end_date) }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">{{ getCountdown(activeSprint.end_date) }}</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Filter Bar (responsive: stack on narrow, wrap on wide) -->
+    <!-- Sprint selector is hidden for DEV role — they are locked to their active sprint -->
     <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-4 sm:mb-5 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
-      <div class="flex flex-wrap items-center gap-2 sm:gap-2">
+      <div v-if="!isDev" class="flex flex-wrap items-center gap-2 sm:gap-2">
         <label class="text-xs text-gray-400 uppercase tracking-wide font-medium w-14 sm:w-auto shrink-0">Sprint</label>
         <select v-model="filterSprint" class="input-select text-sm min-w-0 flex-1 sm:min-w-[160px] sm:flex-none max-w-full">
           <option value="">All Sprints</option>
@@ -10,6 +39,10 @@
         </select>
         <span v-if="sprints.length === 0" class="text-xs text-gray-500 w-full sm:w-auto">— No sprints yet</span>
         <span v-else-if="filterSprint" class="text-xs text-purple-400 truncate max-w-full">{{ sprintNameById(filterSprint) || 'Sprint' }}</span>
+      </div>
+      <div v-if="isDev && activeSprint" class="flex items-center gap-2">
+        <span class="text-xs text-gray-400 uppercase tracking-wide font-medium w-14 sm:w-auto shrink-0">Sprint</span>
+        <span class="text-sm font-semibold text-purple-300 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30">{{ activeSprint.name }}</span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <label class="text-xs text-gray-400 uppercase tracking-wide w-14 sm:w-auto shrink-0">Priority</label>
@@ -27,6 +60,15 @@
           <option value="none">None</option>
           <option value="priority">By Priority</option>
           <option value="assignee">By Assignee</option>
+        </select>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="text-xs text-gray-400 uppercase tracking-wide w-8 sm:w-auto shrink-0">Type</label>
+        <select v-model="filterType" class="input-select text-sm min-w-0 flex-1 sm:flex-none">
+          <option value="">All</option>
+          <option value="FEATURE">★ Feature</option>
+          <option value="TASK">📋 Task</option>
+          <option value="BUG">⚠ Bug</option>
         </select>
       </div>
       <div class="text-xs text-gray-500 sm:ml-auto shrink-0">
@@ -81,8 +123,13 @@
               @click="$emit('task-click', task)"
             >
               <div class="flex items-start justify-between gap-1 mb-2">
-                <span class="text-xs text-gray-500 font-mono">{{ taskDisplayCode(task) }}</span>
-                <span class="text-xs border rounded px-1" :class="priorityCls(task.priority)">{{ task.priority }}</span>
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="text-xs text-gray-500 font-mono shrink-0">{{ taskDisplayCode(task) }}</span>
+                  <span class="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full border" :class="taskTypeCls(task.task_type)">
+                    {{ taskTypeIcon(task.task_type) }} {{ task.task_type || 'TASK' }}
+                  </span>
+                </div>
+                <span class="text-xs border rounded px-1 shrink-0" :class="priorityCls(task.priority)">{{ task.priority }}</span>
               </div>
               <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate" :title="sprintNameById(task.sprint_id)">📌 {{ sprintNameById(task.sprint_id) }}</p>
               <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
@@ -112,8 +159,13 @@
                 @click="$emit('task-click', task)"
               >
                 <div class="flex items-start justify-between gap-1 mb-2">
-                  <span class="text-xs text-gray-500 font-mono">{{ taskDisplayCode(task) }}</span>
-                  <span class="text-xs border rounded px-1" :class="priorityCls(task.priority)">{{ task.priority }}</span>
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="text-xs text-gray-500 font-mono shrink-0">{{ taskDisplayCode(task) }}</span>
+                    <span class="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full border" :class="taskTypeCls(task.task_type)">
+                      {{ taskTypeIcon(task.task_type) }} {{ task.task_type || 'TASK' }}
+                    </span>
+                  </div>
+                  <span class="text-xs border rounded px-1 shrink-0" :class="priorityCls(task.priority)">{{ task.priority }}</span>
                 </div>
                 <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate">📌 {{ sprintNameById(task.sprint_id) }}</p>
                 <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
@@ -150,12 +202,26 @@
 import type { Task } from '~/core/modules/projects/infrastructure/projects-api'
 import type { Sprint } from '~/core/modules/projects/infrastructure/projects-api'
 
+interface ActiveSprintInfo {
+  id: string
+  name: string
+  goal: string
+  end_date: string | null
+  status: string
+}
+
 const props = defineProps<{
   tasks: Task[]
   sprints: Sprint[]
   /** Optional map taskId -> display code (e.g. 001, 002) from project backlog order */
   taskDisplayCodeMap?: Record<string, string>
+  /** Current user role — 'DEV' activates blinder mode */
+  userRole?: string
+  /** Active sprint info for the current user (from DevView or project page) */
+  activeSprint?: ActiveSprintInfo | null
 }>()
+
+const isDev = computed(() => props.userRole === 'DEV')
 
 const emit = defineEmits<{
   (e: 'task-click', task: Task): void
@@ -164,9 +230,23 @@ const emit = defineEmits<{
 
 const filterSprint = ref('')
 const filterPriority = ref('')
+const filterType = ref('')
 const swimLane = ref<'none' | 'priority' | 'assignee'>('none')
 const dragTask = ref<Task | null>(null)
 const dragOverCol = ref('')
+
+function formatEndDate(endDate: string) {
+  return new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function getCountdown(endDate: string) {
+  const diff = new Date(endDate).getTime() - Date.now()
+  if (diff < 0) return 'Sprint overdue'
+  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+  if (days === 0) return 'Ends today'
+  if (days === 1) return '1 day left'
+  return `${days} days left`
+}
 
 function sprintNameById(id: string) {
   return props.sprints.find((s) => s.id === id)?.name ?? ''
@@ -182,11 +262,25 @@ function priorityCls(p: string) {
   return priorityConfig[p] ?? 'text-gray-400 bg-gray-700 border-gray-600'
 }
 
+const taskTypeConfig: Record<string, string> = {
+  FEATURE: 'text-purple-300 bg-purple-500/15 border-purple-500/40',
+  TASK: 'text-blue-300 bg-blue-500/15 border-blue-500/30',
+  BUG: 'text-red-300 bg-red-500/15 border-red-500/30',
+}
+function taskTypeCls(type: string) {
+  return taskTypeConfig[type] ?? taskTypeConfig['TASK']
+}
+function taskTypeIcon(type: string) {
+  if (type === 'FEATURE') return '★'
+  if (type === 'BUG') return '⚠'
+  return '📋'
+}
+
 function taskDisplayCode(task: Task): string {
   if (props.taskDisplayCodeMap?.[task.id]) return props.taskDisplayCodeMap[task.id]
   if (!task.code) return '–'
   const suffix = task.code.split('-').pop()
-  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(3, '0') : task.code
+  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(4, '0') : task.code
 }
 function daysUntilDue(task: Task): number | null {
   if (!task.due_at) return null
@@ -204,8 +298,14 @@ const columns = [
 
 const filteredTasks = computed(() =>
   props.tasks.filter((t) => {
-    if (filterSprint.value && t.sprint_id !== filterSprint.value) return false
+    // DEV role is locked to active sprint — only show tasks from that sprint
+    if (isDev.value && props.activeSprint) {
+      if (t.sprint_id !== props.activeSprint.id) return false
+    } else if (filterSprint.value && t.sprint_id !== filterSprint.value) {
+      return false
+    }
     if (filterPriority.value && t.priority !== filterPriority.value) return false
+    if (filterType.value && (t.task_type || 'TASK') !== filterType.value) return false
     return true
   })
 )

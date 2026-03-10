@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { useProjectsApi } from '../infrastructure/projects-api'
-import type { Project, Sprint, Milestone, ProjectAnalytics } from '../infrastructure/projects-api'
+import type { Project, Sprint, Milestone, ProjectAnalytics, ProjectCapitalResponse, InjectProjectCapitalPayload, EditProjectCapitalPayload } from '../infrastructure/projects-api'
 
 export const useProjectsStore = defineStore('projects', {
   state: () => ({
@@ -9,6 +9,7 @@ export const useProjectsStore = defineStore('projects', {
     sprints: [] as Sprint[],
     milestones: [] as Milestone[],
     analytics: null as ProjectAnalytics | null,
+    projectCapital: null as ProjectCapitalResponse | null,
     loading: false,
     error: null as string | null,
   }),
@@ -138,6 +139,60 @@ export const useProjectsStore = defineStore('projects', {
     async fetchAnalytics(projectId: string) {
       const api = useProjectsApi()
       this.analytics = await api.getProjectAnalytics(projectId)
+    },
+
+    async fetchProjectCapital(projectId: string) {
+      const api = useProjectsApi()
+      this.projectCapital = await api.getProjectCapital(projectId)
+      if (this.currentProject && this.currentProject.id === projectId) {
+        this.currentProject.capital_balance = this.projectCapital.capital_balance
+        this.currentProject.bonus_percentage = this.projectCapital.bonus_percentage
+      }
+    },
+
+    async injectProjectCapital(projectId: string, payload: InjectProjectCapitalPayload) {
+      const api = useProjectsApi()
+      const project = await api.injectProjectCapital(projectId, payload)
+      this._syncProjectCapitalFields(projectId, project.capital_balance, project.bonus_percentage)
+      return project
+    },
+
+    async editProjectCapital(projectId: string, payload: EditProjectCapitalPayload) {
+      const api = useProjectsApi()
+      const project = await api.editProjectCapital(projectId, payload)
+      this._syncProjectCapitalFields(projectId, project.capital_balance, project.bonus_percentage)
+      return project
+    },
+
+    async closeProjectCycle(projectId: string) {
+      const api = useProjectsApi()
+      const resp = await api.closeProjectCycle(projectId)
+      this._syncProjectCapitalFields(projectId, resp.balance_after, undefined)
+      return resp
+    },
+
+    async deleteProjectTransaction(projectId: string, txId: number) {
+      const api = useProjectsApi()
+      await api.deleteProjectTransaction(projectId, txId)
+      if (this.projectCapital?.project_id === projectId) {
+        this.projectCapital.transactions = this.projectCapital.transactions.filter((t) => t.id !== txId)
+      }
+    },
+
+    _syncProjectCapitalFields(projectId: string, capitalBalance: number, bonusPct: number | undefined) {
+      const idx = this.projects.findIndex((p) => p.id === projectId)
+      if (idx !== -1) {
+        this.projects[idx].capital_balance = capitalBalance
+        if (bonusPct !== undefined) this.projects[idx].bonus_percentage = bonusPct
+      }
+      if (this.currentProject?.id === projectId) {
+        this.currentProject.capital_balance = capitalBalance
+        if (bonusPct !== undefined) this.currentProject.bonus_percentage = bonusPct
+      }
+      if (this.projectCapital?.project_id === projectId) {
+        this.projectCapital.capital_balance = capitalBalance
+        if (bonusPct !== undefined) this.projectCapital.bonus_percentage = bonusPct
+      }
     },
   },
 })

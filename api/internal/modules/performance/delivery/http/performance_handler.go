@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	perfDomain "github.com/portnd/the-sentinel-core/internal/modules/performance/domain"
@@ -98,4 +99,31 @@ func (h *Handler) GetOverview(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, overview)
+}
+
+// ResetReworkRate resets a developer's Rework Rate by setting rework_reset_at = NOW().
+// POST /api/v1/performance/users/:id/reset-rework (CEO only)
+func (h *Handler) ResetReworkRate(c *gin.Context) {
+	requesterRole := getRole(c)
+	if requesterRole != "CEO" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO can reset rework rate"})
+		return
+	}
+
+	devID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || devID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid user id"})
+		return
+	}
+
+	if err := h.usecase.ResetReworkRate(uint(devID), requesterRole); err != nil {
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rework rate reset successfully — counter starts from now"})
 }

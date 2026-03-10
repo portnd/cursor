@@ -1,336 +1,516 @@
 <template>
-  <div class="min-h-screen bg-gray-900 p-6">
+  <div class="min-h-screen bg-gray-900 text-gray-100">
+
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-[60vh]">
-      <div class="animate-spin text-6xl mb-4">⚙️</div>
+    <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-screen">
+      <div class="w-12 h-12 rounded-2xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center mb-4">
+        <svg class="w-6 h-6 text-purple-400 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+        </svg>
+      </div>
       <p class="text-sm text-gray-500">กำลังโหลด task...</p>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="max-w-4xl mx-auto">
-      <div class="bg-red-900/20 border border-red-500 rounded p-6 text-red-400">
-        <h2 class="text-xl font-bold mb-2">Failed to load task</h2>
-        <p>{{ error }}</p>
-        <button 
-          @click="goToDashboard"
-          class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-        >
-          ← Back to Dashboard
-        </button>
+    <div v-else-if="error" class="flex flex-col items-center justify-center min-h-screen px-6">
+      <div class="max-w-md w-full bg-red-900/20 border border-red-500/40 rounded-2xl p-8 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-red-900/40 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <h2 class="text-lg font-bold text-white mb-2">Failed to load task</h2>
+        <p class="text-sm text-red-300 mb-6">{{ error }}</p>
+        <button @click="goToDashboard" class="btn-primary px-6 py-2.5 text-sm">← Back</button>
       </div>
     </div>
 
-    <!-- Content: Enterprise Task Detail -->
-    <div v-else-if="task">
-      <!-- Header: minimal, professional -->
-      <div class="border-b border-gray-700/80 pb-5 mb-6">
-        <!-- Row 1: nav (left) + actions (right) -->
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <nav class="flex items-center gap-2 text-sm text-gray-500">
-            <NuxtLink :to="backTarget" class="hover:text-gray-300 transition-colors">← Back</NuxtLink>
-            <span class="text-gray-600">/</span>
-            <span class="text-gray-400 truncate">Task</span>
-          </nav>
-          <div class="flex flex-wrap items-center gap-2 shrink-0">
-            <span
-              :class="getStatusClass(task.status)"
-              class="px-3 py-1.5 text-xs font-medium rounded-full uppercase tracking-wide"
-            >
-              {{ getStatusLabel(task.status) }}
-            </span>
-            <template v-if="canEditOrDelete">
-              <button
-                @click="openEditModal"
-                class="px-3 py-1.5 text-sm font-medium text-gray-200 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                @click="openDeleteConfirmation"
-                class="px-3 py-1.5 text-sm font-medium text-red-300 bg-red-900/30 hover:bg-red-900/50 border border-red-800 rounded-lg transition-colors"
-              >
-                Delete
-              </button>
-            </template>
-            <NuxtLink
-              :to="backTarget"
-              class="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white rounded-lg transition-colors"
-            >
-              Back
-            </NuxtLink>
-          </div>
+    <!-- Main Content -->
+    <div v-else-if="task" class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+
+      <!-- ══ TOP BAR ══ -->
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <!-- Breadcrumb + nav -->
+        <div class="flex items-center gap-2 min-w-0">
+          <NuxtLink :to="backTarget" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-200 transition-colors group">
+            <svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Back
+          </NuxtLink>
+          <span class="text-gray-700">/</span>
+          <code class="text-xs font-mono px-2 py-0.5 bg-gray-800 border border-gray-700 rounded-md text-purple-400">{{ taskCodeDisplay(task) }}</code>
         </div>
-        <!-- Row 2: title + code + date + by (bottom-left) | Prev/Next (bottom-right) -->
-        <div class="mt-4 flex flex-wrap items-end justify-between gap-4">
-          <div class="min-w-0">
-            <h1 class="text-xl sm:text-2xl font-semibold text-white tracking-tight">{{ task.title }}</h1>
-            <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              <code class="font-mono text-gray-400">{{ taskCodeDisplay(task) }}</code>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- Prev / Next (sprint context) -->
+          <template v-if="inSprintContext">
+            <button
+              type="button"
+              @click="goToPrevTask"
+              :disabled="!prevTaskLink"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+              :class="prevTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              Prev
+            </button>
+            <button
+              type="button"
+              @click="goToNextTask"
+              :disabled="!nextTaskLink"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+              :class="nextTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
+            >
+              Next
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <span v-if="sprintNavMessage" class="text-xs text-amber-400">{{ sprintNavMessage }}</span>
+          </template>
+
+          <template v-if="canEditOrDelete">
+            <button
+              @click="openEditModal"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors border border-gray-600 hover:border-gray-500"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              Edit
+            </button>
+            <button
+              @click="openDeleteConfirmation"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-900/20 hover:bg-red-900/40 border border-red-800/60 hover:border-red-700 rounded-lg transition-colors"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              Delete
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- ══ PARENT CONTEXT ══ -->
+      <div
+        v-if="task.parent_task"
+        class="flex items-center gap-2 px-4 py-2.5 mb-4 rounded-xl border"
+        :class="{
+          'bg-purple-900/20 border-purple-700/40': task.parent_task.task_type === 'FEATURE',
+          'bg-blue-900/20 border-blue-700/40': task.parent_task.task_type === 'TASK',
+          'bg-red-900/20 border-red-700/40': task.parent_task.task_type === 'BUG',
+          'bg-gray-800/40 border-gray-700/40': !task.parent_task.task_type,
+        }"
+      >
+        <svg class="w-3.5 h-3.5 shrink-0" :class="{
+          'text-purple-400': task.parent_task.task_type === 'FEATURE',
+          'text-blue-400': task.parent_task.task_type === 'TASK',
+          'text-red-400': task.parent_task.task_type === 'BUG',
+          'text-gray-400': !task.parent_task.task_type,
+        }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        </svg>
+        <span class="text-xs" :class="{
+          'text-purple-400/70': task.parent_task.task_type === 'FEATURE',
+          'text-blue-400/70': task.parent_task.task_type === 'TASK',
+          'text-red-400/70': task.parent_task.task_type === 'BUG',
+          'text-gray-400/70': !task.parent_task.task_type,
+        }">Part of {{ task.parent_task.task_type === 'FEATURE' ? 'Feature' : task.parent_task.task_type === 'BUG' ? 'Bug' : 'Task' }}</span>
+        <svg class="w-3 h-3 shrink-0" :class="{
+          'text-purple-600': task.parent_task.task_type === 'FEATURE',
+          'text-blue-600': task.parent_task.task_type === 'TASK',
+          'text-red-600': task.parent_task.task_type === 'BUG',
+          'text-gray-600': !task.parent_task.task_type,
+        }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+        <NuxtLink
+          :to="`/task/${task.parent_task.id}`"
+          class="flex items-center gap-1.5 text-xs font-semibold transition-colors group"
+          :class="{
+            'text-purple-300 hover:text-purple-100': task.parent_task.task_type === 'FEATURE',
+            'text-blue-300 hover:text-blue-100': task.parent_task.task_type === 'TASK',
+            'text-red-300 hover:text-red-100': task.parent_task.task_type === 'BUG',
+            'text-gray-300 hover:text-gray-100': !task.parent_task.task_type,
+          }"
+        >
+          <span v-if="task.parent_task.task_type === 'FEATURE'" class="text-purple-500">★</span>
+          <span v-else-if="task.parent_task.task_type === 'BUG'" class="text-red-400">⚠</span>
+          <span v-else class="text-blue-400">📋</span>
+          <span class="group-hover:underline underline-offset-2">{{ task.parent_task.title }}</span>
+          <code
+            v-if="task.parent_task.code"
+            class="ml-1 font-mono text-[10px] px-1.5 py-0.5 rounded border"
+            :class="{
+              'bg-purple-900/40 border-purple-700/50 text-purple-400': task.parent_task.task_type === 'FEATURE',
+              'bg-blue-900/40 border-blue-700/50 text-blue-400': task.parent_task.task_type === 'TASK',
+              'bg-red-900/40 border-red-700/50 text-red-400': task.parent_task.task_type === 'BUG',
+              'bg-gray-800/60 border-gray-700/50 text-gray-400': !task.parent_task.task_type,
+            }"
+          >
+            {{ String(Number(task.parent_task.code.split('-').pop()) || 0).padStart(4, '0') }}
+          </code>
+        </NuxtLink>
+      </div>
+
+      <!-- ══ HERO TITLE SECTION ══ -->
+      <div class="bg-gradient-to-br from-gray-800/80 to-gray-800/40 border border-gray-700/60 rounded-2xl p-6 mb-6 backdrop-blur-sm">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <!-- Type + Status badges -->
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+              <span
+                v-if="task.task_type"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border"
+                :class="{
+                  'bg-purple-900/40 border-purple-600/50 text-purple-300': task.task_type === 'FEATURE',
+                  'bg-blue-900/40 border-blue-600/50 text-blue-300': task.task_type === 'TASK',
+                  'bg-red-900/40 border-red-600/50 text-red-300': task.task_type === 'BUG',
+                }"
+              >
+                <span v-if="task.task_type === 'FEATURE'" class="text-purple-300">★</span>
+                <span v-else-if="task.task_type === 'BUG'" class="text-red-300">⚠</span>
+                <span v-else class="text-blue-300">📋</span>
+                {{ task.task_type }}
+              </span>
+              <span :class="getStatusBadgeClass(task.status)" class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border">
+                {{ getStatusLabel(task.status) }}
+              </span>
+              <span
+                v-if="task.priority"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border"
+                :class="{
+                  'bg-red-900/30 border-red-700/50 text-red-300': task.priority === 'CRITICAL',
+                  'bg-orange-900/30 border-orange-700/50 text-orange-300': task.priority === 'HIGH',
+                  'bg-yellow-900/30 border-yellow-700/50 text-yellow-300': task.priority === 'MEDIUM',
+                  'bg-green-900/30 border-green-700/50 text-green-300': task.priority === 'LOW',
+                }"
+              >
+                <span v-if="task.priority === 'CRITICAL'">🔴</span>
+                <span v-else-if="task.priority === 'HIGH'">🟠</span>
+                <span v-else-if="task.priority === 'MEDIUM'">🟡</span>
+                <span v-else>🟢</span>
+                {{ task.priority }}
+              </span>
+            </div>
+
+            <!-- Title -->
+            <h1 class="text-2xl sm:text-3xl font-bold text-white leading-tight tracking-tight mb-2">{{ task.title }}</h1>
+
+            <!-- Meta row -->
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
               <span>Created {{ formatDate(task.created_at) }}</span>
-              <span v-if="creatorLabel" class="text-gray-500">by {{ creatorLabel }}</span>
+              <span v-if="creatorLabel">by <span class="text-gray-400">{{ creatorLabel }}</span></span>
+              <span v-if="task.story_points" class="flex items-center gap-1">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                {{ task.story_points }} SP
+              </span>
             </div>
           </div>
-          <div v-if="inSprintContext" class="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              aria-label="Task ก่อนหน้า"
-              :class="prevTaskLink
-                ? 'px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white rounded-lg transition-colors border border-gray-600 hover:border-gray-500 cursor-pointer'
-                : 'px-3 py-1.5 text-sm text-gray-600 rounded-lg border border-gray-700 cursor-pointer hover:border-gray-600'"
-              @click="goToPrevTask"
+
+          <!-- Due date pill -->
+          <div v-if="task.due_at" class="shrink-0">
+            <div
+              class="px-4 py-3 rounded-xl border text-center min-w-[110px]"
+              :class="{
+                'bg-red-900/30 border-red-700/60 text-red-300': getDeadlineUrgency(task) === 'overdue',
+                'bg-amber-900/30 border-amber-700/60 text-amber-300': getDeadlineUrgency(task) === 'urgent',
+                'bg-gray-800/60 border-gray-700/60 text-gray-300': getDeadlineUrgency(task) === 'normal',
+                'bg-green-900/30 border-green-700/60 text-green-300': task.status === 'COMPLETED',
+              }"
             >
-              ← Task ก่อนหน้า
-            </button>
-            <button
-              type="button"
-              aria-label="Task ถัดไป"
-              :class="nextTaskLink
-                ? 'px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white rounded-lg transition-colors border border-gray-600 hover:border-gray-500 cursor-pointer'
-                : 'px-3 py-1.5 text-sm text-gray-600 rounded-lg border border-gray-700 cursor-pointer hover:border-gray-600'"
-              @click="goToNextTask"
-            >
-              Task ถัดไป →
-            </button>
-            <span v-if="sprintNavMessage" class="text-xs text-amber-400 ml-1">{{ sprintNavMessage }}</span>
+              <p class="text-[10px] uppercase tracking-wider opacity-70 mb-0.5">Due</p>
+              <p class="text-sm font-semibold">{{ formatDate(task.due_at) }}</p>
+              <p v-if="task.status !== 'COMPLETED'" class="text-[11px] mt-0.5 opacity-80">{{ getDeadlineCountdown(task.due_at) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress bar (sub-tasks aggregated) -->
+        <div v-if="isParentTask" class="mt-5 pt-4 border-t border-gray-700/40">
+          <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
+            <span>Sub-task progress</span>
+            <span class="text-gray-400 font-medium">{{ subtaskAggregateProgress }}%</span>
+          </div>
+          <div class="h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
+            <div
+              class="h-full rounded-full transition-all duration-500"
+              :class="subtaskAggregateProgress === 100 ? 'bg-green-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'"
+              :style="{ width: subtaskAggregateProgress + '%' }"
+            />
           </div>
         </div>
       </div>
 
-      <!-- Main: two columns -->
+      <!-- ══ TWO-COLUMN LAYOUT ══ -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left: Description + Details -->
+
+        <!-- ── LEFT: Description ── -->
         <div class="lg:col-span-2 space-y-6">
-          <section class="bg-gray-800/50 border border-gray-700/80 rounded-xl p-5">
-            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</h2>
+
+          <!-- Description Card -->
+          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</h2>
+              </div>
               <div class="flex items-center gap-2">
                 <a
                   v-if="slideOpenInSlidesURL"
                   :href="slideOpenInSlidesURL"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                  class="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 px-2.5 py-1 rounded-lg bg-purple-900/20 border border-purple-700/40 hover:border-purple-600/60 transition-colors"
                 >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                  </svg>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                   Open in Slides
                 </a>
+                <template v-if="canEditOrDelete">
+                  <template v-if="!isEditingDescription">
+                    <button @click="startInlineEdit" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-400 px-2 py-1 rounded-lg hover:bg-blue-900/20 transition-colors">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      Edit
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button @click="saveInlineDescription" :disabled="isSavingDescription" class="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors">
+                      {{ isSavingDescription ? 'Saving…' : 'Save' }}
+                    </button>
+                    <button @click="cancelInlineEdit" class="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors">Cancel</button>
+                  </template>
+                </template>
+              </div>
+            </div>
+            <div class="p-5">
+              <RichTextEditor v-if="isEditingDescription" v-model="inlineDescriptionHtml" placeholder="Describe what needs to be done… (paste images with ⌘V)" />
+              <div v-else>
+                <RichTextEditor v-if="task.description && task.description.trim()" :model-value="task.description" :readonly="true" />
+                <p v-else class="text-gray-500 text-sm italic py-4 text-center">No description yet. Click Edit to add one.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub-tasks -->
+          <SubtaskList
+            :parent-task-id="task.id"
+            :project-id="task.project_id"
+            :subtasks="subtasks"
+            :can-edit="canEditOrDelete"
+            @refresh="fetchTask"
+          />
+
+          <!-- Discussion & Time Tracking -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Comments -->
+            <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                  <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Discussion</h2>
+                </div>
+                <span class="text-xs text-gray-600 bg-gray-700/60 px-2 py-0.5 rounded-full">{{ comments.length }}</span>
+              </div>
+              <div class="p-5">
+                <TaskComments :comments="comments" :loading="commentsLoading" @add-comment="handleAddComment" />
+              </div>
+            </div>
+
+            <!-- Time Tracking -->
+            <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div class="flex items-center gap-2 px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time Tracking</h2>
+              </div>
+              <div class="p-5">
+                <TimeLogger
+                  :time-logs="timeLogs"
+                  :estimated-minutes="isParentTask ? subtaskTotalEstimatedMinutes : (task.estimated_minutes || 0)"
+                  :loading="timeLogsLoading"
+                  @log-time="handleLogTime"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── RIGHT: Details Sidebar ── -->
+        <div class="lg:col-span-1 space-y-4">
+
+          <!-- Parent-task notice -->
+          <div v-if="isParentTask" class="flex items-start gap-3 p-4 bg-amber-900/20 border border-amber-700/40 rounded-2xl">
+            <svg class="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-xs text-amber-300 leading-relaxed">
+              Parent Task — assign resources and estimate time at the <strong>Sub-task</strong> level.
+            </p>
+          </div>
+
+          <!-- Details card -->
+          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden sticky top-4">
+            <div class="px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+              <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Details</h2>
+            </div>
+            <div class="divide-y divide-gray-700/40">
+
+              <!-- Assignee -->
+              <div class="px-5 py-3.5">
+                <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Assignee</p>
+                <template v-if="isParentTask">
+                  <span class="text-sm text-gray-500 italic">— via Sub-tasks —</span>
+                </template>
+                <template v-else>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <div v-if="task.assigned_to" class="flex items-center gap-2">
+                      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                        {{ (task.assigned_to_display_name || task.assigned_to_email || 'U').charAt(0).toUpperCase() }}
+                      </div>
+                      <span class="text-sm text-white">{{ task.assigned_to_display_name || task.assigned_to_email || `Dev #${task.assigned_to}` }}</span>
+                    </div>
+                    <span v-else class="text-sm text-gray-500">Unassigned</span>
+                    <button
+                      v-if="canEditOrDelete && !showAssignDropdown"
+                      type="button"
+                      @click="openAssignDropdown"
+                      class="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded-md bg-blue-900/20 border border-blue-800/40 hover:border-blue-700/60 transition-colors"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <template v-if="canEditOrDelete && showAssignDropdown">
+                    <select
+                      v-model="assignSelectedId"
+                      @change="confirmChangeAssignee"
+                      class="mt-2 block w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">— Select —</option>
+                      <option value="0">— Unassign —</option>
+                      <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name || u.email }} ({{ u.role }})</option>
+                    </select>
+                    <div class="flex items-center gap-2 mt-1.5">
+                      <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+                      <p v-if="assignError" class="text-xs text-red-400">{{ assignError }}</p>
+                    </div>
+                  </template>
+                </template>
+              </div>
+
+              <!-- Estimated Effort -->
+              <div class="px-5 py-3.5">
+                <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Estimated Effort</p>
+                <template v-if="isParentTask">
+                  <p class="text-sm font-semibold text-white">
+                    {{ subtaskTotalEstimatedMinutes }} <span class="text-gray-400 font-normal text-xs">min</span>
+                    <span class="text-gray-500 font-normal text-xs ml-1">({{ (subtaskTotalEstimatedMinutes / 60).toFixed(1) }}h)</span>
+                  </p>
+                  <p class="text-xs text-amber-400/80 mt-0.5">Roll-up from {{ subtasks.length }} sub-task{{ subtasks.length !== 1 ? 's' : '' }}</p>
+                </template>
+                <template v-else>
+                  <div v-if="!canEditOrDelete" class="text-sm font-semibold text-white">
+                    {{ task.estimated_minutes ?? 0 }} <span class="text-gray-400 font-normal text-xs">min</span>
+                    <span class="text-gray-500 font-normal text-xs ml-1">({{ ((task.estimated_minutes ?? 0) / 60).toFixed(1) }}h)</span>
+                  </div>
+                  <div v-else class="flex items-center gap-2">
+                    <input
+                      v-model.number="estimatedMinutesLocal"
+                      type="number" min="0" step="1"
+                      class="w-24 px-2.5 py-1.5 bg-gray-900 border border-gray-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="0"
+                      @blur="saveEstimatedMinutes"
+                    />
+                    <span class="text-xs text-gray-500">min</span>
+                    <button
+                      v-if="estimatedMinutesDirty"
+                      type="button"
+                      class="text-xs px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+                      :disabled="isSavingEstimate"
+                      @click="saveEstimatedMinutes"
+                    >
+                      {{ isSavingEstimate ? '…' : 'Save' }}
+                    </button>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Dates group -->
+              <div v-if="task.start_date || task.end_date || task.completed_at" class="px-5 py-3.5 space-y-3">
+                <div v-if="task.start_date">
+                  <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Start</p>
+                  <p class="text-sm text-gray-300">{{ formatDateTime(task.start_date) }}</p>
+                </div>
+                <div v-if="task.end_date">
+                  <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1">End</p>
+                  <p class="text-sm text-gray-300">{{ formatDateTime(task.end_date) }}</p>
+                </div>
+                <div v-if="task.completed_at">
+                  <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Completed</p>
+                  <p class="text-sm text-green-400">{{ formatDateTime(task.completed_at) }}</p>
+                  <p v-if="task.started_at" class="text-xs text-gray-500 mt-0.5">Duration: {{ calculateDuration(task.started_at, task.completed_at) }}</p>
+                </div>
+              </div>
+
+              <!-- Outsource to Team (PM/CEO only) -->
+              <div v-if="canEditOrDelete" class="px-5 py-3.5">
+                <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">B2B Outsource</p>
                 <button
-                  v-if="canEditOrDelete && !isEditingDescription"
-                  @click="startInlineEdit"
-                  class="text-xs text-gray-500 hover:text-blue-400 transition-colors flex items-center gap-1"
+                  @click="showOutsourceModal = true"
+                  class="w-full flex items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-2 text-xs font-semibold text-blue-300 transition-colors"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414A1 1 0 0014.414 13H17"/>
                   </svg>
-                  Edit
+                  Outsource to Team
                 </button>
-                <div v-if="isEditingDescription" class="flex items-center gap-2">
-                  <button
-                    @click="saveInlineDescription"
-                    :disabled="isSavingDescription"
-                    class="text-xs px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-                  >
-                    {{ isSavingDescription ? 'Saving...' : 'Save' }}
-                  </button>
-                  <button
-                    @click="cancelInlineEdit"
-                    class="text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
+
             </div>
-
-            <!-- Inline rich editor (edit mode) -->
-            <RichTextEditor
-              v-if="isEditingDescription"
-              v-model="inlineDescriptionHtml"
-              placeholder="Describe what needs to be done... (paste images with ⌘V)"
-            />
-
-            <!-- Read-only rich text view -->
-            <div v-else>
-              <RichTextEditor
-                v-if="task.description && task.description.trim()"
-                :model-value="task.description"
-                :readonly="true"
-              />
-              <p v-else class="text-gray-500 text-sm italic">No description. Click Edit to add one.</p>
-            </div>
-          </section>
-        </div>
-
-        <!-- Right: Key details card -->
-        <div class="lg:col-span-1">
-          <section class="bg-gray-800/50 border border-gray-700/80 rounded-xl p-5 sticky top-4">
-            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Details</h2>
-            <dl class="space-y-4">
-              <div>
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">Assignee</dt>
-                <dd v-if="task.assigned_to" class="text-sm font-medium text-white">Dev #{{ task.assigned_to }}</dd>
-                <dd v-else class="text-sm text-gray-500">Unassigned</dd>
-              </div>
-              <div v-if="task.priority">
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">Priority</dt>
-                <dd class="text-sm font-medium text-white">{{ task.priority }}</dd>
-              </div>
-              <div v-if="task.story_points != null">
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">Story points</dt>
-                <dd class="text-sm font-medium text-white">{{ task.story_points }}</dd>
-              </div>
-              <div v-if="task.due_at">
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">Due date</dt>
-                <dd class="text-sm font-medium text-white">{{ formatDateTime(task.due_at) }}</dd>
-                <div
-                  v-if="task.status !== 'COMPLETED' && task.due_at"
-                  :class="[
-                    'text-xs mt-0.5',
-                    getDeadlineUrgency(task) === 'overdue' ? 'text-red-400' :
-                    getDeadlineUrgency(task) === 'urgent' ? 'text-amber-400' : 'text-gray-500'
-                  ]"
-                >
-                  {{ getDeadlineCountdown(task.due_at) }}
-                </div>
-              </div>
-              <div v-if="task.start_date">
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">Start date</dt>
-                <dd class="text-sm text-gray-300">{{ formatDateTime(task.start_date) }}</dd>
-              </div>
-              <div v-if="task.end_date">
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">End date</dt>
-                <dd class="text-sm text-gray-300">{{ formatDateTime(task.end_date) }}</dd>
-              </div>
-              <div v-if="task.completed_at">
-                <dt class="text-xs text-gray-500 uppercase tracking-wider mb-1">Completed</dt>
-                <dd class="text-sm text-green-400">{{ formatDateTime(task.completed_at) }}</dd>
-                <dd v-if="task.started_at" class="text-xs text-gray-500 mt-0.5">
-                  Duration: {{ calculateDuration(task.started_at, task.completed_at) }}
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </div>
-      </div>
-
-      <!-- BOTTOM SECTION: Discussion & Time Tracking -->
-      <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Discussion / Comments -->
-        <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h2 class="text-sm font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
-            <span>💬</span> Discussion
-            <span class="ml-auto text-xs font-normal text-gray-500">{{ comments.length }} comments</span>
-          </h2>
-          <TaskComments
-            :comments="comments"
-            :loading="commentsLoading"
-            @add-comment="handleAddComment"
-          />
-        </div>
-
-        <!-- Time Tracking -->
-        <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 class="text-sm font-bold text-gray-400 uppercase flex items-center gap-2">
-              <span>⏱️</span> Time Tracking
-            </h2>
-            <button
-              v-if="canEditOrDelete"
-              type="button"
-              :disabled="isEstimating"
-              class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-600 hover:to-pink-600 text-white border border-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              @click="runAutoEstimate"
-            >
-              <span v-if="isEstimating" class="inline-block w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-              <span v-else>✨</span>
-              {{ isEstimating ? 'Estimating...' : 'Auto Estimate' }}
-            </button>
           </div>
-          <p v-if="estimateError" class="text-sm text-red-400 mb-3">{{ estimateError }}</p>
-          <TimeLogger
-            :time-logs="timeLogs"
-            :estimated-minutes="task.ai_estimated_minutes || 0"
-            :loading="timeLogsLoading"
-            @log-time="handleLogTime"
-          />
         </div>
       </div>
     </div>
 
-    <!-- Edit Task Modal -->
-    <div
-      v-if="showEditModal"
-      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      @click.self="closeEditModal"
-    >
-      <div class="bg-gray-800 border-2 border-blue-600 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-700">
-          <div>
-            <h2 class="text-2xl font-bold text-white flex items-center gap-3">
-              <span class="text-3xl">✏️</span>
-              <span>Edit Task</span>
-            </h2>
-            <div class="text-sm text-gray-400 mt-1">Update task details</div>
-          </div>
-          <button
-            @click="closeEditModal"
-            class="text-gray-400 hover:text-white transition-colors text-2xl"
-            :disabled="isUpdatingTask"
-          >
-            ✕
-          </button>
+    <!-- ══ EDIT MODAL ══ -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="closeEditModal">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-lg w-full shadow-2xl my-auto flex flex-col max-h-[90vh]">
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0 border-b border-gray-700/60">
+          <h2 class="text-base font-bold text-white">Edit Task</h2>
+          <button @click="closeEditModal" class="text-gray-500 hover:text-white transition-colors" :disabled="isUpdatingTask">✕</button>
         </div>
-
-        <!-- Error Message -->
-        <div v-if="editError" class="mb-4 p-4 bg-red-900/30 border border-red-600 rounded text-red-400 text-sm">
-          {{ editError }}
-        </div>
-
-        <!-- Form -->
-        <div class="space-y-5">
-          <!-- Title -->
+        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          <div v-if="editError" class="p-3 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-sm">{{ editError }}</div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">
-              <span class="flex items-center gap-2">
-                <span>📋</span>
-                <span>Title</span>
-              </span>
-            </label>
-            <input
-              v-model="editForm.title"
-              type="text"
-              placeholder="Enter task title..."
-              class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              :disabled="isUpdatingTask"
-            />
+            <label class="label">Type *</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" @click="editForm.task_type = 'FEATURE'" :class="editForm.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'" class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all" :disabled="isUpdatingTask"><span class="text-base">★</span> Feature</button>
+              <button type="button" @click="editForm.task_type = 'TASK'" :class="editForm.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'" class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all" :disabled="isUpdatingTask"><span class="text-base">📋</span> Task</button>
+              <button type="button" @click="editForm.task_type = 'BUG'" :class="editForm.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'" class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all" :disabled="isUpdatingTask"><span class="text-base">⚠</span> Bug</button>
+            </div>
+            <div v-if="editForm.task_type === 'FEATURE'" class="mt-2 flex items-start gap-2 p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-xl text-xs text-purple-300">
+              <span class="shrink-0 mt-0.5">★</span>
+              <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and Estimated Minutes are disabled.</span>
+            </div>
           </div>
-
-          <!-- Description -->
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">
-              <span class="flex items-center gap-2">
-                <span>📝</span>
-                <span>Description</span>
-              </span>
-            </label>
-            <RichTextEditor
-              v-model="editForm.description"
-              placeholder="Describe the task objectives and requirements... (paste images with ⌘V)"
-            />
+            <label class="label">Title *</label>
+            <input v-model="editForm.title" type="text" placeholder="Task title…" class="input-field w-full" :disabled="isUpdatingTask" />
           </div>
-
-          <!-- Priority & Story Points (same as Create Task) -->
-          <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Description</label>
+            <RichTextEditor v-model="editForm.description" placeholder="Describe the task objectives… (paste images with ⌘V)" />
+          </div>
+          <div>
+            <label class="label" :class="editForm.task_type === 'FEATURE' ? 'text-gray-500' : ''">
+              Estimated Effort (Minutes)
+              <span v-if="editForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
+            </label>
+            <template v-if="isParentTask && editForm.task_type !== 'FEATURE'">
+              <div class="flex items-center gap-3 px-4 py-3 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-300/80 text-sm">{{ subtaskTotalEstimatedMinutes }} min (roll-up)</div>
+            </template>
+            <template v-else>
+              <input v-model.number="editForm.estimated_minutes" type="number" min="0" step="1" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 60" />
+            </template>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
-              <select
-                v-model="editForm.priority"
-                class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                :disabled="isUpdatingTask"
-              >
+              <label class="label">Priority</label>
+              <select v-model="editForm.priority" class="input-field w-full" :disabled="isUpdatingTask">
                 <option value="CRITICAL">🔴 Critical</option>
                 <option value="HIGH">🟠 High</option>
                 <option value="MEDIUM">🟡 Medium</option>
@@ -338,164 +518,81 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-300 mb-2">Story Points</label>
-              <input
-                v-model.number="editForm.story_points"
-                type="number"
-                min="0"
-                class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                :disabled="isUpdatingTask"
-              />
+              <label class="label">Story Points</label>
+              <input v-model.number="editForm.story_points" type="number" min="0" class="input-field w-full" :disabled="isUpdatingTask" />
             </div>
           </div>
-
-          <!-- Sprint (same as Create Task) -->
           <div v-if="editSprints.length > 0">
-            <label class="block text-sm font-medium text-gray-300 mb-2">Sprint</label>
-            <select
-              v-model="editForm.sprint_id"
-              class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              :disabled="isUpdatingTask"
-            >
+            <label class="label">Sprint</label>
+            <select v-model="editForm.sprint_id" class="input-field w-full" :disabled="isUpdatingTask">
               <option value="">Backlog</option>
               <option v-for="s in editSprints" :key="s.id" :value="s.id">{{ s.name }}</option>
             </select>
           </div>
-
-          <!-- Due date / Start / End (same as Create Task) -->
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">
-              <span class="flex items-center gap-2"><span>📅</span>Due date</span>
-            </label>
-            <input
-              v-model="editForm.deadline"
-              type="datetime-local"
-              class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              :disabled="isUpdatingTask"
-            />
+            <label class="label">Due Date</label>
+            <input v-model="editForm.deadline" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm font-medium text-gray-300 mb-2">Start date</label>
-              <input
-                v-model="editForm.start_date"
-                type="datetime-local"
-                class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                :disabled="isUpdatingTask"
-              />
+              <label class="label">Start Date</label>
+              <input v-model="editForm.start_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-300 mb-2">End date</label>
-              <input
-                v-model="editForm.end_date"
-                type="datetime-local"
-                class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                :disabled="isUpdatingTask"
-              />
+              <label class="label">End Date</label>
+              <input v-model="editForm.end_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
             </div>
           </div>
         </div>
-
-        <!-- Actions -->
-        <div class="flex items-center gap-4 mt-6 pt-4 border-t-2 border-gray-700">
-          <button
-            @click="submitEdit"
-            :disabled="isUpdatingTask || !editForm.title.trim()"
-            class="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
-          >
-            <span v-if="isUpdatingTask" class="animate-spin">⚙️</span>
-            <span v-else>💾</span>
-            <span>{{ isUpdatingTask ? 'Updating...' : 'Update task' }}</span>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-700/60 shrink-0">
+          <button @click="submitEdit" :disabled="isUpdatingTask || !editForm.title.trim()" class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2">
+            <svg v-if="isUpdatingTask" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+            {{ isUpdatingTask ? 'Saving…' : 'Save Changes' }}
           </button>
-          
-          <button
-            @click="closeEditModal"
-            :disabled="isUpdatingTask"
-            class="px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-gray-300 font-medium rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
+          <button @click="closeEditModal" :disabled="isUpdatingTask" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded-xl transition-colors">Cancel</button>
         </div>
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div
-      v-if="showDeleteModal"
-      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      @click.self="closeDeleteModal"
-    >
-      <div class="bg-gray-800 border-2 border-red-600 rounded-lg p-6 max-w-lg w-full relative">
-        <!-- Close Button (X) -->
-        <button
-          @click="closeDeleteModal"
-          class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-          :disabled="isDeletingTask"
-          title="Close"
-        >
-          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
-
-        <!-- Header -->
-        <div class="flex items-center gap-3 mb-6">
-          <span class="text-4xl">🗑️</span>
+    <!-- ══ DELETE MODAL ══ -->
+    <div v-if="showDeleteModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeDeleteModal">
+      <div class="bg-gray-800 border border-red-900/60 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-10 h-10 rounded-xl bg-red-900/40 border border-red-700/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </div>
           <div>
-            <h2 class="text-2xl font-bold text-white">Delete task?</h2>
-            <div class="text-sm text-gray-400 mt-1">This action cannot be undone</div>
+            <h2 class="text-base font-bold text-white">Delete Task?</h2>
+            <p class="text-xs text-gray-500 mt-0.5">This action cannot be undone</p>
           </div>
-        </div>
-
-        <!-- Warning -->
-        <div class="mb-6 p-4 bg-red-900/30 border-2 border-red-600/50 rounded-lg">
-          <div class="text-sm text-red-300 leading-relaxed">
-            <p class="font-bold mb-2">⚠️ Critical Operation</p>
-            <p>Are you sure you want to <strong>permanently delete</strong> this task?</p>
-            <p class="mt-2">This will remove:</p>
-            <ul class="list-disc list-inside ml-2 mt-1">
-              <li>Task data</li>
-              <li>Comments and time logs</li>
-              <li>All appeals</li>
-              <li>Complete audit trail</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Task Info -->
-        <div class="mb-6 p-4 bg-gray-900 border border-gray-700 rounded">
-          <div class="text-xs text-gray-500 uppercase mb-1">Task to delete:</div>
-          <div class="font-bold text-white">{{ task?.title }}</div>
-          <div class="text-xs text-gray-400 mt-1">ID: {{ task?.id }}</div>
-        </div>
-
-        <!-- Error Message -->
-        <div v-if="deleteError" class="mb-4 p-4 bg-red-900/30 border border-red-600 rounded text-red-400 text-sm">
-          {{ deleteError }}
-        </div>
-
-        <!-- Actions -->
-        <div class="flex items-center gap-4">
-          <button
-            @click="confirmDelete"
-            :disabled="isDeletingTask"
-            class="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
-          >
-            <span v-if="isDeletingTask" class="animate-spin">⚙️</span>
-            <span v-else>💥</span>
-            <span>{{ isDeletingTask ? 'Deleting...' : 'Yes, Delete Forever' }}</span>
+          <button @click="closeDeleteModal" :disabled="isDeletingTask" class="ml-auto text-gray-500 hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-          
-          <button
-            @click="closeDeleteModal"
-            :disabled="isDeletingTask"
-            class="px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-gray-300 font-medium rounded-lg transition-colors"
-          >
-            Cancel
+        </div>
+        <div class="p-4 bg-gray-900/60 border border-gray-700/60 rounded-xl mb-4">
+          <p class="text-xs text-gray-500 mb-1">Task to delete</p>
+          <p class="text-sm font-semibold text-white">{{ task?.title }}</p>
+          <p class="text-xs text-gray-600 mt-0.5 font-mono">{{ task?.id }}</p>
+        </div>
+        <div v-if="deleteError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-sm">{{ deleteError }}</div>
+        <div class="flex gap-3">
+          <button @click="confirmDelete" :disabled="isDeletingTask" class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+            <svg v-if="isDeletingTask" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+            {{ isDeletingTask ? 'Deleting…' : 'Yes, Delete Forever' }}
           </button>
+          <button @click="closeDeleteModal" :disabled="isDeletingTask" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 text-sm font-medium rounded-xl transition-colors">Cancel</button>
         </div>
       </div>
     </div>
+
+    <!-- ══ OUTSOURCE MODAL ══ -->
+    <OutsourceRequestModal
+      v-model="showOutsourceModal"
+      :prefill-title="task?.title"
+      :prefill-description="task?.description"
+      :prefill-minutes="task?.estimated_minutes"
+      @created="onOutsourceCreated"
+    />
 
   </div>
 </template>
@@ -505,9 +602,12 @@ import { useAuthStore } from '~/core/modules/auth/store/auth-store'
 import TaskComments from '~/components/tasks/TaskComments.vue'
 import TimeLogger from '~/components/tasks/TimeLogger.vue'
 import RichTextEditor from '~/components/editor/RichTextEditor.vue'
+import SubtaskList from '~/components/tasks/SubtaskList.vue'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { TaskComment, TimeLog } from '~/core/modules/tasks/infrastructure/tasks-api'
+import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
+import OutsourceRequestModal from '~/components/b2b/OutsourceRequestModal.vue'
 
 definePageMeta({
   layout: 'default',
@@ -545,6 +645,17 @@ interface Submission {
   created_at: string
 }
 
+interface SubTask {
+  id: string
+  title: string
+  status: string
+  assigned_to: number | null
+  assigned_to_display_name?: string
+  assigned_to_email?: string
+  estimated_minutes: number
+  progress: number
+}
+
 interface Task {
   id: string
   code?: string // e.g. mims-hdmap-main-001
@@ -552,8 +663,20 @@ interface Task {
   title: string
   description: string
   resource_urls: any
-  ai_estimated_minutes: number
-  
+  estimated_minutes: number
+  task_type?: string // FEATURE, TASK, BUG
+
+  // Parent-child hierarchy
+  parent_id?: string | null
+  parent_task?: {
+    id: string
+    title: string
+    code?: string
+    task_type?: string
+    status?: string
+  } | null
+  sub_tasks?: SubTask[]
+
   // Time Negotiation
   negotiation_status: string // NONE, PENDING, APPROVED, REJECTED
   proposed_minutes: number
@@ -569,6 +692,8 @@ interface Task {
   completed_at: string | null
   status: string
   assigned_to: number | null
+  assigned_to_display_name?: string
+  assigned_to_email?: string
   created_by: number
   created_by_role?: string
   created_by_email?: string
@@ -581,6 +706,8 @@ const route = useRoute()
 const { fetchWithAuth, currentUser: authCurrentUser } = useAuth()
 const authStore = useAuthStore()
 const projectsApi = useProjectsApi()
+const tasksApi = useTasksApi()
+const { getTeams } = useTeamsApi()
 const { showSuccess, showError } = useNotification()
 
 // State
@@ -592,17 +719,32 @@ const error = ref('')
 const sprintTaskIds = ref<string[]>([])
 const sprintNavMessage = ref('')
 
+// Assignee change state
+const showAssignDropdown = ref(false)
+const assigneeUsers = ref<{ id: number; email: string; display_name: string; role: string }[]>([])
+const assignSelectedId = ref<number | ''>('')
+const assignLoading = ref(false)
+const assignError = ref('')
+
+// Outsource Modal State
+const showOutsourceModal = ref(false)
+const onOutsourceCreated = () => {
+  showSuccess('Outsource request sent to the target team!', 'B2B Request Sent')
+}
+
 // Edit Task State
 const showEditModal = ref(false)
 const editForm = ref({
   title: '',
   description: '',
+  task_type: 'TASK',
   deadline: '',
   priority: 'MEDIUM',
   story_points: 0,
   sprint_id: '',
   start_date: '',
-  end_date: ''
+  end_date: '',
+  estimated_minutes: 0
 })
 const editSprints = ref<{ id: string; name: string }[]>([])
 const isUpdatingTask = ref(false)
@@ -624,9 +766,33 @@ const timeLogs = ref<TimeLog[]>([])
 const commentsLoading = ref(false)
 const timeLogsLoading = ref(false)
 
-// AI Auto Estimate State
-const isEstimating = ref(false)
-const estimateError = ref('')
+// Estimated Effort (manual minutes for Costing Engine)
+const estimatedMinutesLocal = ref(0)
+const isSavingEstimate = ref(false)
+const estimatedMinutesDirty = computed(() =>
+  task.value != null && Number(estimatedMinutesLocal.value) !== (task.value.estimated_minutes ?? 0)
+)
+
+// Sub-tasks (child tasks for parent-child hierarchy)
+const subtasks = ref<SubTask[]>([])
+
+/** True when this task is a Parent (has sub-tasks) */
+const isParentTask = computed(() => subtasks.value.length > 0)
+
+/** Roll-up: sum of all sub-task estimated_minutes */
+const subtaskTotalEstimatedMinutes = computed(() =>
+  subtasks.value.reduce((sum, s) => sum + (s.estimated_minutes || 0), 0)
+)
+
+/** Roll-up: aggregate progress from sub-tasks */
+const subtaskAggregateProgress = computed(() => {
+  if (subtasks.value.length === 0) return task.value?.progress ?? 0
+  const total = subtasks.value.reduce((sum, s) => {
+    if (s.status === 'COMPLETED') return sum + 100
+    return sum + (s.progress || 0)
+  }, 0)
+  return Math.round(total / subtasks.value.length)
+})
 
 // Parsed slide resource URLs (for Google Slides imported tasks; images are now in description, only metadata for "Open in Slides")
 const slideResourceURLs = computed(() => {
@@ -700,6 +866,9 @@ const fetchTask = async () => {
 
     const response = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${taskId}`)
     task.value = response.data
+    estimatedMinutesLocal.value = task.value.estimated_minutes ?? 0
+    // Populate local subtasks from response (backend preloads SubTasks)
+    subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
 
     // Load sprint task order for Prev/Next when opened from sprint page
     // Use task.project_id (UUID) for API — from_project in URL may be project code (e.g. mims-hdmap), API requires UUID
@@ -727,33 +896,82 @@ const fetchTask = async () => {
   }
 }
 
-const runAutoEstimate = async () => {
-  if (!task.value) return
-  const taskIdOrCode = (route.params.id as string)?.trim?.() || task.value.id || task.value.code || ''
-  if (!taskIdOrCode) return
-  try {
-    isEstimating.value = true
-    estimateError.value = ''
-    const updated = await projectsApi.estimateTask(taskIdOrCode)
-    task.value = { ...task.value, ...updated }
-  } catch (err: any) {
-    const apiMsg = err?.data?.message ?? err?.data?.error ?? err?.message
-    estimateError.value = apiMsg || 'AI estimate failed.'
-  } finally {
-    isEstimating.value = false
+async function openAssignDropdown() {
+  showAssignDropdown.value = true
+  assignError.value = ''
+  assignSelectedId.value = ''
+  if (assigneeUsers.value.length === 0) {
+    try {
+      const role = (authCurrentUser.value?.role || '').toUpperCase()
+      if (role === 'PM') {
+        // PM: load only members in the same team
+        const userId = authCurrentUser.value?.user_id
+        const teams = await getTeams()
+        const myTeam = teams.find(t => t.users?.some(u => u.id === userId))
+        assigneeUsers.value = myTeam?.users?.filter(u => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)) ?? []
+      } else {
+        // CEO / MANAGER: see all users
+        const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
+        const users = res.data ?? []
+        assigneeUsers.value = users.filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+      }
+    } catch {
+      assignError.value = 'Failed to load users'
+    }
   }
 }
 
-const getStatusClass = (status: string) => {
-  const classes: Record<string, string> = {
-    'COMPLETED': 'bg-green-700 text-green-100 border border-green-500',
-    'IN_PROGRESS': 'bg-blue-700 text-blue-100 border border-blue-500',
-    'PENDING': 'bg-yellow-700 text-yellow-100 border border-yellow-500',
-    'BLOCKED': 'bg-red-700 text-red-100 border border-red-500',
-    'REVIEW_PENDING': 'bg-purple-900 text-purple-200 border border-purple-600' // 🚦 Quality Gate
+async function confirmChangeAssignee() {
+  const devId = assignSelectedId.value
+  if (devId === '' || !task.value) return
+  assignLoading.value = true
+  assignError.value = ''
+  try {
+    const taskId = (route.params.id as string)?.trim?.() || task.value.id
+    await tasksApi.assignTask(taskId, Number(devId))
+    showAssignDropdown.value = false
+    assignSelectedId.value = ''
+    showSuccess(devId === '0' ? 'Assignee removed.' : 'Assignee updated.', 'Done')
+    await fetchTask()
+  } catch (err: any) {
+    assignError.value = err?.data?.message ?? err?.message ?? 'Failed to assign'
+  } finally {
+    assignLoading.value = false
   }
-  return classes[status] || 'bg-gray-700 text-gray-100 border border-gray-500'
 }
+
+const saveEstimatedMinutes = async () => {
+  if (!task.value) return
+  const mins = Number(estimatedMinutesLocal.value)
+  if (mins < 0 || Number.isNaN(mins)) return
+  const taskId = (route.params.id as string)?.trim?.() || task.value.id
+  if (!taskId) return
+  try {
+    isSavingEstimate.value = true
+    const updated = await tasksApi.updateTask(taskId, { estimated_minutes: mins })
+    task.value = { ...task.value, ...updated }
+    estimatedMinutesLocal.value = updated.estimated_minutes ?? 0
+    showSuccess('Estimated effort updated.', 'Done')
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to update estimate')
+  } finally {
+    isSavingEstimate.value = false
+  }
+}
+
+const getStatusBadgeClass = (status: string) => {
+  const classes: Record<string, string> = {
+    'COMPLETED':      'bg-green-900/40 border-green-600/50 text-green-300',
+    'IN_PROGRESS':    'bg-blue-900/40 border-blue-600/50 text-blue-300',
+    'PENDING':        'bg-yellow-900/40 border-yellow-600/50 text-yellow-300',
+    'BLOCKED':        'bg-red-900/40 border-red-600/50 text-red-300',
+    'REVIEW_PENDING': 'bg-purple-900/40 border-purple-600/50 text-purple-300',
+    'ASSIGNED':       'bg-gray-700/60 border-gray-600/50 text-gray-300',
+  }
+  return classes[status] || 'bg-gray-700/60 border-gray-600/50 text-gray-300'
+}
+
+const getStatusClass = (status: string) => getStatusBadgeClass(status)
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
@@ -772,7 +990,7 @@ function taskCodeDisplay(t: Task | null): string {
   if (!t) return '–'
   if (t.code) {
     const suffix = t.code.split('-').pop()
-    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(3, '0')
+    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(4, '0')
     return t.code
   }
   return t.id.substring(0, 8) + '…'
@@ -867,18 +1085,18 @@ const toDatetimeLocal = (iso: string | null | undefined) => {
 // Edit Task Methods
 const openEditModal = async () => {
   if (!task.value) return
-  
-  // Pre-fill form with current values (same fields as Create Task)
+
   editForm.value.title = task.value.title
   editForm.value.description = task.value.description || ''
+  editForm.value.task_type = task.value.task_type || 'TASK'
   editForm.value.deadline = toDatetimeLocal(task.value.due_at)
   editForm.value.priority = task.value.priority || 'MEDIUM'
   editForm.value.story_points = task.value.story_points ?? 0
   editForm.value.sprint_id = task.value.sprint_id ?? ''
   editForm.value.start_date = toDatetimeLocal(task.value.start_date)
   editForm.value.end_date = toDatetimeLocal(task.value.end_date)
-  
-  // Load sprints for Sprint dropdown when task has project
+  editForm.value.estimated_minutes = task.value.estimated_minutes ?? 0
+
   editSprints.value = []
   if (task.value.project_id) {
     try {
@@ -888,7 +1106,7 @@ const openEditModal = async () => {
       // ignore
     }
   }
-  
+
   editError.value = ''
   showEditModal.value = true
 }
@@ -898,12 +1116,14 @@ const closeEditModal = () => {
   editForm.value = {
     title: '',
     description: '',
+    task_type: 'TASK',
     deadline: '',
     priority: 'MEDIUM',
     story_points: 0,
     sprint_id: '',
     start_date: '',
-    end_date: ''
+    end_date: '',
+    estimated_minutes: 0
   }
   editError.value = ''
 }
@@ -925,12 +1145,16 @@ const submitEdit = async () => {
     
     // Prepare request body (only send changed fields) — same fields as Create Task
     const body: Record<string, string | number> = {}
-    
+
     if (editForm.value.title !== task.value.title) {
       body.title = editForm.value.title
     }
     if (editForm.value.description !== (task.value.description || '')) {
       body.description = editForm.value.description
+    }
+    const currentType = task.value.task_type || 'TASK'
+    if (editForm.value.task_type && editForm.value.task_type !== currentType) {
+      body.task_type = editForm.value.task_type
     }
     if (editForm.value.priority && editForm.value.priority !== (task.value.priority || 'MEDIUM')) {
       body.priority = editForm.value.priority
@@ -952,6 +1176,11 @@ const submitEdit = async () => {
     const newEndStr = newEnd ? new Date(newEnd).toISOString() : ''
     if (newEnd && toDatetimeLocal(newEndStr) !== currentEnd) {
       body.end_date = newEndStr
+    }
+    const currentEst = task.value.estimated_minutes ?? 0
+    const newEst = Number(editForm.value.estimated_minutes) || 0
+    if (newEst !== currentEst) {
+      body.estimated_minutes = newEst
     }
     
     if (Object.keys(body).length === 0) {
@@ -1048,6 +1277,7 @@ const backTarget = computed(() => {
   const fromSprint = route.query.from_sprint as string
   const fromProject = route.query.from_project as string
   const fromTab = route.query.from_tab as string
+  const from = route.query.from as string
   if (fromSprint && fromProject) {
     return `/projects/sprint/${fromSprint}?project=${encodeURIComponent(fromProject)}`
   }
@@ -1055,13 +1285,21 @@ const backTarget = computed(() => {
     const tab = fromTab || 'backlog'
     return `/projects/${fromProject}?tab=${tab}`
   }
+  if (from === 'dashboard') {
+    const tab = fromTab || 'board'
+    return `/dashboard?tab=${tab}`
+  }
   const t = task.value
   if (!t) return '/dashboard'
+  // Sub-tasks: navigate back to parent task page after deletion
+  if (t.parent_id) return `/task/${t.parent_id}`
+  // Use project_id (UUID) first — always reliable
+  if (t.project_id) return `/projects/${t.project_id}`
+  // Fallback: try deriving project code from task code (only reliable for top-level tasks)
   if (t.code) {
     const projectCode = t.code.replace(/-[0-9]+$/, '')
     if (projectCode !== t.code) return `/projects/${projectCode}`
   }
-  if (t.project_id) return `/projects/${t.project_id}`
   return '/dashboard'
 })
 
@@ -1180,3 +1418,15 @@ onMounted(() => {
   fetchCommentsAndLogs()
 })
 </script>
+
+<style scoped>
+.label {
+  @apply block text-xs text-gray-400 mb-1.5 font-medium;
+}
+.input-field {
+  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+}
+.btn-primary {
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
+}
+</style>

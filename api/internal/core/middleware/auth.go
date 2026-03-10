@@ -88,7 +88,18 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	// Set user info in context for handlers to use
 	c.Set("user_id", userID)
 	c.Set("email", claims["email"])
-	c.Set("role", claims["role"]) // 👈 Extract role from JWT
+	c.Set("role", claims["role"]) // Extract role from JWT
+
+	// Extract team_id from JWT (optional — nil for CEO or unassigned users)
+	if rawTeamID, ok := claims["team_id"]; ok && rawTeamID != nil {
+		switch v := rawTeamID.(type) {
+		case float64:
+			teamID := uint(v)
+			c.Set("team_id", &teamID)
+		}
+	} else {
+		c.Set("team_id", (*uint)(nil))
+	}
 
 	c.Next()
 }

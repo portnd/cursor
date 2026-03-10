@@ -70,7 +70,7 @@ func (u *authUsecase) Register(req *domain.RegisterRequest) (*domain.AuthRespons
 	}
 
 	// Generate JWT token with role
-	token, err := u.generateJWT(user.ID, user.Email, user.Role)
+	token, err := u.generateJWT(user.ID, user.Email, user.Role, user.TeamID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -100,7 +100,7 @@ func (u *authUsecase) Login(req *domain.LoginRequest) (*domain.AuthResponse, err
 	}
 
 	// Generate JWT token with role
-	token, err := u.generateJWT(user.ID, user.Email, user.Role)
+	token, err := u.generateJWT(user.ID, user.Email, user.Role, user.TeamID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -113,16 +113,19 @@ func (u *authUsecase) Login(req *domain.LoginRequest) (*domain.AuthResponse, err
 }
 
 // generateJWT creates a JWT token with user claims
-// Token includes: user_id, email, role, issued_at, expires_at (24 hours)
+// Token includes: user_id, email, role, team_id, issued_at, expires_at (24 hours)
 // Algorithm: HS256 (HMAC with SHA-256)
-func (u *authUsecase) generateJWT(userID uint, email, role string) (string, error) {
+func (u *authUsecase) generateJWT(userID uint, email, role string, teamID *uint) (string, error) {
 	// Define JWT claims
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"email":   email,
-		"role":    role,                                      // 👈 Added role to JWT
-		"iat":     time.Now().Unix(),                        // Issued At
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),    // Expires in 24 hours
+		"role":    role,
+		"iat":     time.Now().Unix(),                     // Issued At
+		"exp":     time.Now().Add(24 * time.Hour).Unix(), // Expires in 24 hours
+	}
+	if teamID != nil {
+		claims["team_id"] = *teamID
 	}
 
 	// Create token with claims
@@ -178,8 +181,7 @@ func (u *authUsecase) ChangePassword(userID uint, currentPassword, newPassword s
 	return u.repo.UpdatePassword(userID, string(hashedPassword))
 }
 
-// GetTeamMembers retrieves all users (CEO only)
-// Business Rule: Only users with role 'CEO' can access this
+// GetTeamMembers retrieves all users (CEO, MANAGER, or PM — for team management and task assignment).
 func (u *authUsecase) GetTeamMembers(requestingUserID uint) ([]domain.User, error) {
 	// Get requesting user to check their role
 	requestingUser, err := u.repo.FindByID(requestingUserID)
@@ -187,9 +189,9 @@ func (u *authUsecase) GetTeamMembers(requestingUserID uint) ([]domain.User, erro
 		return nil, fmt.Errorf("unauthorized: user not found")
 	}
 
-	// Check if user is CEO
-	if requestingUser.Role != domain.RoleCEO {
-		return nil, fmt.Errorf("unauthorized: only CEO can view team members")
+	// CEO, MANAGER, and PM can list users (e.g. for task assignment)
+	if requestingUser.Role != domain.RoleCEO && requestingUser.Role != domain.RoleManager && requestingUser.Role != domain.RolePM {
+		return nil, fmt.Errorf("unauthorized: only CEO, MANAGER, or PM can view team members")
 	}
 
 	// Fetch all users
@@ -219,8 +221,8 @@ func (u *authUsecase) ChangeUserRole(requestingUserID uint, targetUserID uint, n
 	}
 
 	// Validate new role
-	if newRole != domain.RoleCEO && newRole != domain.RolePM && newRole != domain.RoleDEV {
-		return fmt.Errorf("invalid role: must be one of CEO, PM, or DEV")
+	if newRole != domain.RoleCEO && newRole != domain.RoleManager && newRole != domain.RolePM && newRole != domain.RoleDEV && newRole != domain.RoleSupport {
+		return fmt.Errorf("invalid role: must be one of CEO, MANAGER, PM, DEV, or SUPPORT")
 	}
 
 	// Optional: Prevent CEO from changing their own role
@@ -443,4 +445,64 @@ func generateTempPassword() (string, error) {
 		b[i] = charset[n.Int64()]
 	}
 	return string(b), nil
+}
+
+// GetAllTeams returns all teams (CEO only)
+func (u *authUsecase) GetAllTeams() ([]domain.Team, error) {
+	return u.repo.GetAllTeams()
+}
+
+// CreateTeam creates a new squad/team (CEO only)
+func (u *authUsecase) CreateTeam(name string) (*domain.Team, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("team name cannot be empty")
+	}
+	team := &domain.Team{Name: strings.TrimSpace(name)}
+	if err := u.repo.CreateTeam(team); err != nil {
+		return nil, fmt.Errorf("failed to create team: %w", err)
+	}
+	return team, nil
+}
+
+// UpdateTeam updates a team's name by ID (CEO only)
+func (u *authUsecase) UpdateTeam(teamID uint, name string) (*domain.Team, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("team name cannot be empty")
+	}
+	if _, err := u.repo.GetTeamByID(teamID); err != nil {
+		return nil, fmt.Errorf("team not found")
+	}
+	if err := u.repo.UpdateTeamName(teamID, name); err != nil {
+		return nil, fmt.Errorf("failed to update team: %w", err)
+	}
+	return u.repo.GetTeamByID(teamID)
+}
+
+// DeleteTeam removes a team by ID (CEO only)
+func (u *authUsecase) DeleteTeam(teamID uint) error {
+	if _, err := u.repo.GetTeamByID(teamID); err != nil {
+		return fmt.Errorf("team not found")
+	}
+	return u.repo.DeleteTeam(teamID)
+}
+
+// AssignUserToTeam assigns (or unassigns when teamID is nil) a user to a team (CEO only)
+func (u *authUsecase) AssignUserToTeam(requestingUserID uint, targetUserID uint, teamID *uint) error {
+	requester, err := u.repo.FindByID(requestingUserID)
+	if err != nil {
+		return fmt.Errorf("unauthorized: user not found")
+	}
+	if requester.Role != domain.RoleCEO {
+		return fmt.Errorf("unauthorized: only CEO can assign users to teams")
+	}
+	if _, err := u.repo.FindByID(targetUserID); err != nil {
+		return fmt.Errorf("target user not found")
+	}
+	if teamID != nil {
+		if _, err := u.repo.GetTeamByID(*teamID); err != nil {
+			return fmt.Errorf("team not found")
+		}
+	}
+	return u.repo.AssignUserToTeam(targetUserID, teamID)
 }

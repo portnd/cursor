@@ -66,6 +66,38 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Projects</span>
         </NuxtLink>
         <NuxtLink
+          to="/pulse"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-violet-600 to-indigo-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Daily Pulse' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Daily Pulse</span>
+        </NuxtLink>
+
+        <!-- Quick Log Time — Swarm/Pair Programming shortcut -->
+        <button
+          type="button"
+          @click="showQuickLog = true"
+          class="nav-link w-full text-purple-400 hover:bg-purple-700/20 hover:text-purple-300 border border-transparent hover:border-purple-600/30"
+          :title="sidebarCollapsed ? 'Quick Log Time' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Quick Log Time</span>
+        </button>
+        <NuxtLink
+          v-if="currentUser?.role === 'PM'"
+          to="/active-board"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Active Board' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Active Board</span>
+        </NuxtLink>
+        <NuxtLink
           v-if="currentUser?.role === 'CEO'"
           to="/accounting"
           class="nav-link"
@@ -105,6 +137,16 @@
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">AI Control Tower</span>
         </NuxtLink>
+        <NuxtLink
+          v-if="currentUser?.role === 'CEO'"
+          to="/admin/cost-config"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-amber-600 to-orange-600 shadow-lg shadow-amber-500/25"
+          :title="sidebarCollapsed ? 'Cost Configuration' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Cost Configuration</span>
+        </NuxtLink>
       </nav>
 
       <!-- User (link to Profile) + Logout -->
@@ -137,6 +179,9 @@
       <slot />
     </main>
   </div>
+
+  <!-- Quick Log Time Modal (globally accessible) -->
+  <TasksQuickLogTimeModal v-model="showQuickLog" />
 </template>
 
 <script setup lang="ts">
@@ -145,6 +190,7 @@ const { confirm } = useNotification()
 
 const SIDEBAR_COLLAPSED_KEY = 'sentinel-sidebar-collapsed'
 const sidebarCollapsed = ref(false)
+const showQuickLog = ref(false)
 
 onMounted(() => {
   if (import.meta.client) {
@@ -161,8 +207,10 @@ const userRole = computed(() => {
   const role = currentUser.value?.role || 'DEV'
   const roleMap: Record<string, string> = {
     'CEO': 'Chief Executive',
+    'MANAGER': 'Manager',
     'PM': 'Project Manager',
-    'DEV': 'Developer'
+    'DEV': 'Developer',
+    'SUPPORT': 'Support'
   }
   return roleMap[role] || role
 })

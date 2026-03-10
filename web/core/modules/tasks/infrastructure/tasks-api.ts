@@ -20,6 +20,25 @@ export interface TimeLog {
   logged_at: string
 }
 
+export interface GlobalActiveTask extends Task {
+  project_name: string
+  project_color: string
+}
+
+export interface UATPayload {
+  staging_url: string
+  test_credentials: string
+  release_notes: string
+}
+
+export interface FeatureRoadmapItem extends Task {
+  project_name: string
+  project_color: string
+  rollup_progress: number
+  child_tasks: Task[]
+  uat_payload?: UATPayload
+}
+
 function useTasksApi() {
   const { fetchWithAuth } = useAuth()
 
@@ -41,6 +60,7 @@ function useTasksApi() {
   async function createTask(payload: {
     title: string
     description?: string
+    task_type?: string
     project_id?: string
     parent_id?: string
     priority?: string
@@ -51,6 +71,7 @@ function useTasksApi() {
     start_date?: string
     end_date?: string
     due_date?: string
+    estimated_minutes?: number
   }): Promise<Task> {
     const data = await fetchWithAuth<{ data: Task }>('/sentinel/tasks', {
       method: 'POST',
@@ -73,6 +94,7 @@ function useTasksApi() {
     end_date: string
     progress: number
     status: string
+    estimated_minutes: number
   }>): Promise<Task> {
     const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${id}`, {
       method: 'PATCH',
@@ -141,6 +163,21 @@ function useTasksApi() {
     return data.data || { tasks: [], dependencies: [] }
   }
 
+  async function getGlobalActiveTasks(): Promise<GlobalActiveTask[]> {
+    const data = await fetchWithAuth<{ data: GlobalActiveTask[] }>('/sentinel/tasks/my-global-active')
+    return data.data || []
+  }
+
+  async function getTeamActiveTasks(): Promise<GlobalActiveTask[]> {
+    const data = await fetchWithAuth<{ data: GlobalActiveTask[] }>('/sentinel/tasks/team-active')
+    return data.data || []
+  }
+
+  async function getActiveFeatures(): Promise<FeatureRoadmapItem[]> {
+    const data = await fetchWithAuth<{ data: FeatureRoadmapItem[] }>('/sentinel/tasks/features')
+    return data.data || []
+  }
+
   async function previewGoogleSlides(payload: {
     presentation_url: string
     api_key?: string
@@ -170,16 +207,75 @@ function useTasksApi() {
     project_id: string
     sprint_id?: string
     epic_id?: string
+    parent_id?: string
     api_key?: string
     priority?: string
     story_points?: number
     slide_indices?: number[]
+    slides?: {
+      slide_index: number
+      title: string
+      assignee_id?: number | null
+      estimated_minutes: number
+      priority: string
+    }[]
   }): Promise<{ created_count: number; slide_count: number; presentation_title: string; tasks: Task[] }> {
     const data = await fetchWithAuth<{ data: { created_count: number; slide_count: number; presentation_title: string; tasks: Task[] } }>(
       '/sentinel/import/google-slides',
       { method: 'POST', body: payload, timeoutMs: 5 * 60 * 1000 }, // 5 min: download PPTX + slide images + create tasks
     )
     return data.data
+  }
+
+  async function splitTask(taskId: string, splits: {
+    title: string
+    estimated_minutes: number
+    assignee_id?: number | null
+    priority?: string
+  }[]): Promise<Task[]> {
+    const data = await fetchWithAuth<{ data: Task[] }>(
+      `/sentinel/tasks/${taskId}/split`,
+      { method: 'POST', body: { splits } }
+    )
+    return data.data ?? []
+  }
+
+  async function submitUAT(taskId: string, payload: UATPayload): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/submit-uat`, {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
+  async function approveTask(taskId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/approve`, { method: 'POST' })
+  }
+
+  async function rejectTask(taskId: string, reason: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/reject`, {
+      method: 'POST',
+      body: { reason },
+    })
+  }
+
+  async function markReadyForTest(taskId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/ready-for-test`, { method: 'POST' })
+  }
+
+  async function approveSubTask(taskId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/approve-sub`, { method: 'POST' })
+  }
+
+  async function rejectSubTask(taskId: string, reason: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/reject-sub`, {
+      method: 'POST',
+      body: { reason },
+    })
+  }
+
+  async function getTasksReadyForTest(): Promise<GlobalActiveTask[]> {
+    const res = await fetchWithAuth<{ data: GlobalActiveTask[] }>('/sentinel/tasks/ready-for-test')
+    return res.data ?? []
   }
 
   return {
@@ -197,8 +293,19 @@ function useTasksApi() {
     getTimeLogs,
     logTime,
     getGanttData,
+    getGlobalActiveTasks,
+    getTeamActiveTasks,
+    getActiveFeatures,
     previewGoogleSlides,
     importGoogleSlides,
+    splitTask,
+    submitUAT,
+    approveTask,
+    rejectTask,
+    markReadyForTest,
+    approveSubTask,
+    rejectSubTask,
+    getTasksReadyForTest,
   }
 }
 

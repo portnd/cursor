@@ -591,3 +591,100 @@ func getUserIDFromContext(c *gin.Context) uint {
 
 	return 0
 }
+
+// --- Team / Squad Management Handlers ---
+
+// GetTeams handles GET /auth/teams (CEO only)
+func (h *AuthHandler) GetTeams(c *gin.Context) {
+	teams, err := h.usecase.GetAllTeams()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch teams", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Teams retrieved successfully", "data": teams})
+}
+
+// CreateTeam handles POST /auth/teams (CEO only)
+func (h *AuthHandler) CreateTeam(c *gin.Context) {
+	var req domain.CreateTeamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	team, err := h.usecase.CreateTeam(req.Name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create team", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Team created successfully", "data": team})
+}
+
+// UpdateTeam handles PATCH /auth/teams/:id (CEO only)
+func (h *AuthHandler) UpdateTeam(c *gin.Context) {
+	idStr := c.Param("id")
+	var teamID uint
+	if _, err := fmt.Sscanf(idStr, "%d", &teamID); err != nil || teamID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
+		return
+	}
+	var req domain.UpdateTeamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	team, err := h.usecase.UpdateTeam(teamID, req.Name)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Team not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update team", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Team updated successfully", "data": team})
+}
+
+// DeleteTeam handles DELETE /auth/teams/:id (CEO only)
+func (h *AuthHandler) DeleteTeam(c *gin.Context) {
+	idStr := c.Param("id")
+	var teamID uint
+	if _, err := fmt.Sscanf(idStr, "%d", &teamID); err != nil || teamID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
+		return
+	}
+	if err := h.usecase.DeleteTeam(teamID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Team not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete team", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Team deleted successfully"})
+}
+
+// AssignUserToTeam handles PATCH /auth/users/:id/assign-team (CEO only)
+// Assigns (or unassigns when team_id is null) a user to a team.
+func (h *AuthHandler) AssignUserToTeam(c *gin.Context) {
+	idStr := c.Param("id")
+	var targetUserID uint
+	if _, err := fmt.Sscanf(idStr, "%d", &targetUserID); err != nil || targetUserID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	var req domain.AssignUserToTeamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	callerID := getUserIDFromContext(c)
+	if err := h.usecase.AssignUserToTeam(callerID, targetUserID, req.TeamID); err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "unauthorized") {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": "Failed to assign user", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "User team assignment updated successfully"})
+}
