@@ -558,7 +558,7 @@
                     </div>
                     <template v-for="(task, taskIdx) in getTasksForEpic(ep.id)" :key="task.id">
                       <div
-                        class="backlog-row backlog-subgrid group"
+                        class="backlog-row backlog-subgrid group [content-visibility:auto]"
                         :class="{ 'opacity-60': backlogDrag?.type === 'task' && backlogDrag?.id === task.id }"
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, ep.id, taskIdx)"
@@ -692,7 +692,7 @@
                     </div>
                     <template v-for="(task, taskIdx) in getUnassignedTasks()" :key="task.id">
                       <div
-                        class="backlog-row backlog-subgrid group"
+                        class="backlog-row backlog-subgrid group [content-visibility:auto]"
                         :class="{ 'opacity-60': backlogDrag?.type === 'task' && backlogDrag?.id === task.id }"
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, null, taskIdx)"
@@ -1608,10 +1608,11 @@ import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import KanbanBoard from '~/components/projects/KanbanBoard.vue'
 import GanttMilestoneRow from '~/components/projects/GanttMilestoneRow.vue'
 import MilestoneTimeline from '~/components/projects/MilestoneTimeline.vue'
-import ProjectAnalytics from '~/components/projects/ProjectAnalytics.vue'
-import QuotationBuilder from '~/core/modules/pricing/ui/QuotationBuilder.vue'
-import ProjectBackupPanel from '~/core/modules/projects/ui/ProjectBackupPanel.vue'
-import ProjectCapitalPanel from '~/core/modules/projects/ui/ProjectCapitalPanel.vue'
+// Lazy-load heavy tab panels (only load when tab is visited)
+const ProjectAnalytics = defineAsyncComponent(() => import('~/components/projects/ProjectAnalytics.vue'))
+const QuotationBuilder = defineAsyncComponent(() => import('~/core/modules/pricing/ui/QuotationBuilder.vue'))
+const ProjectBackupPanel = defineAsyncComponent(() => import('~/core/modules/projects/ui/ProjectBackupPanel.vue'))
+const ProjectCapitalPanel = defineAsyncComponent(() => import('~/core/modules/projects/ui/ProjectCapitalPanel.vue'))
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
@@ -2645,32 +2646,26 @@ async function onProjectRestored() {
   await loadAll()
 }
 
-// Load data
+// Load data — use combined details endpoint (1 round-trip) for fast initial load
 async function loadAll() {
   isLoading.value = true
   error.value = ''
   const idOrCode = route.params.id as string
   try {
-    const p = await projectsApi.getProject(idOrCode)
-    project.value = p
-    const [t, s, m, e] = await Promise.all([
-      tasksApi.getTasksByProject(p.id),
-      projectsApi.getSprints(p.id),
-      projectsApi.getMilestones(p.id),
-      projectsApi.getEpics(p.id),
-    ])
-    allTasks.value = t
-    sprints.value = s
-    milestones.value = m
-    epics.value = e
+    const details = await projectsApi.getProjectDetails(idOrCode)
+    project.value = details.project
+    allTasks.value = details.tasks
+    sprints.value = details.sprints
+    milestones.value = details.milestones
+    epics.value = details.epics
     // Default: collapse all epic groups and tasks (user expands to see). On refresh we keep collapsed; only restore when returning from task page.
-    e.forEach((ep) => { expandedEpicGroups.value[ep.id] = false })
+    details.epics.forEach((ep) => { expandedEpicGroups.value[ep.id] = false })
     expandedEpicGroups.value['__unassigned__'] = false
     expandedEpics.value = {}
     const expectReturn = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(BACKLOG_EXPECT_RETURN_KEY) : null
-    const shouldRestore = expectReturn === p.id
+    const shouldRestore = expectReturn === details.project.id
     if (shouldRestore && typeof sessionStorage !== 'undefined') sessionStorage.removeItem(BACKLOG_EXPECT_RETURN_KEY)
-    const savedScroll = shouldRestore ? restoreBacklogExpandedState(p.id) : null
+    const savedScroll = shouldRestore ? restoreBacklogExpandedState(details.project.id) : null
     if (savedScroll && activeTab.value === 'backlog') {
       nextTick(() => {
         const apply = () => {

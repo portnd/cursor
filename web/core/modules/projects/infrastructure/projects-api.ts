@@ -192,7 +192,13 @@ function useProjectsApi() {
   }
 
   async function getProject(idOrCode: string): Promise<Project> {
-    const data = await fetchWithAuth<{ data: Project }>(`/sentinel/projects/${idOrCode}`)
+    const data = await fetchWithAuth<{ data: Project }>(`/sentinel/projects/${encodeURIComponent(idOrCode)}`)
+    return data.data
+  }
+
+  /** Combined project + tasks + sprints + milestones + epics (1 round-trip, use for project page) */
+  async function getProjectDetails(idOrCode: string): Promise<{ project: Project; tasks: Task[]; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] }> {
+    const data = await fetchWithAuth<{ data: { project: Project; tasks: Task[]; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] } }>(`/sentinel/projects/${encodeURIComponent(idOrCode)}/details`)
     return data.data
   }
 
@@ -461,6 +467,7 @@ function useProjectsApi() {
   return {
     getProjects,
     getProject,
+    getProjectDetails,
     createProject,
     updateProject,
     deleteProject,

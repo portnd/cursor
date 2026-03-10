@@ -235,6 +235,15 @@ type TeamCapacityRow struct {
 
 func (Project) TableName() string { return "projects" }
 
+// ProjectDetailsResponse is the combined payload for GET /projects/:id/details (project page - 1 round-trip).
+type ProjectDetailsResponse struct {
+	Project   *Project   `json:"project"`
+	Tasks     []Task     `json:"tasks"`
+	Sprints   []Sprint   `json:"sprints"`
+	Milestones []Milestone `json:"milestones"`
+	Epics     []Epic     `json:"epics"`
+}
+
 // Task represents a work assignment
 type Task struct {
 	ID                 uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
@@ -533,7 +542,8 @@ type SentinelUsecase interface {
 	CreateProject(name, description, status string, ctx CallerContext) (*Project, error)
 	GetProjects(ctx CallerContext) ([]Project, error)
 	GetProjectDetails(id uuid.UUID, ctx CallerContext) (*Project, error)
-	GetProjectByIDOrCode(idOrCode string, ctx CallerContext) (*Project, error) // UUID or project code (e.g. mims-hdmap-main)
+	GetProjectByIDOrCode(idOrCode string, ctx CallerContext) (*Project, error)   // UUID or project code (e.g. mims-hdmap-main)
+	GetProjectDetailsPage(idOrCode string, ctx CallerContext) (*ProjectDetailsResponse, error) // Combined project + tasks + sprints + milestones + epics (1 round-trip)
 	UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*Project, error)
 	DeleteProject(id uuid.UUID) error
 	AssignProjectTeam(projectID uuid.UUID, teamID *uint, requesterRole string) (*Project, error) // CEO only

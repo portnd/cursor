@@ -239,6 +239,25 @@ func (h *SentinelHandler) GetProjects(c *gin.Context) {
 	})
 }
 
+// GetProjectDetails handles GET /sentinel/projects/:id/details — returns project + tasks + sprints + milestones + epics (1 round-trip).
+func (h *SentinelHandler) GetProjectDetails(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Project id or code is required"})
+		return
+	}
+	data, err := h.usecase.GetProjectDetailsPage(idStr, callerCtx(c))
+	if err != nil {
+		if err.Error() == "project not found" || contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Project details retrieved successfully", "data": data})
+}
+
 // GetProjectByID handles GET /sentinel/projects/:id (id may be UUID or project code e.g. mims-hdmap-main)
 func (h *SentinelHandler) GetProjectByID(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))

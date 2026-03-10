@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -119,6 +120,61 @@ func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string, ctx domain.Calle
 		return nil, errors.New("project not found")
 	}
 	return p, nil
+}
+
+// GetProjectDetailsPage returns project + tasks + sprints + milestones + epics in one call (1 round-trip vs 5).
+func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, ctx domain.CallerContext) (*domain.ProjectDetailsResponse, error) {
+	p, err := u.GetProjectByIDOrCode(idOrCode, ctx)
+	if err != nil || p == nil {
+		return nil, err
+	}
+	// Fetch all child data in parallel (4 queries → 1 DB round-trip per type; network already 1 round-trip).
+	type result struct {
+		tasks     []domain.Task
+		sprints   []domain.Sprint
+		milestones []domain.Milestone
+		epics     []domain.Epic
+	}
+	var res result
+	var errTasks, errSprints, errMilestones, errEpics error
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		res.tasks, errTasks = u.repo.GetTasksByProjectID(p.ID)
+	}()
+	go func() {
+		defer wg.Done()
+		res.sprints, errSprints = u.repo.GetSprintsByProjectID(p.ID)
+	}()
+	go func() {
+		defer wg.Done()
+		res.milestones, errMilestones = u.repo.GetMilestonesByProjectID(p.ID)
+	}()
+	go func() {
+		defer wg.Done()
+		res.epics, errEpics = u.repo.GetEpicsByProjectID(p.ID)
+	}()
+	wg.Wait()
+	if errTasks != nil {
+		return nil, fmt.Errorf("failed to load tasks: %w", errTasks)
+	}
+	if errSprints != nil {
+		return nil, fmt.Errorf("failed to load sprints: %w", errSprints)
+	}
+	if errMilestones != nil {
+		return nil, fmt.Errorf("failed to load milestones: %w", errMilestones)
+	}
+	if errEpics != nil {
+		return nil, fmt.Errorf("failed to load epics: %w", errEpics)
+	}
+	return &domain.ProjectDetailsResponse{
+		Project:    p,
+		Tasks:      res.tasks,
+		Sprints:    res.sprints,
+		Milestones: res.milestones,
+		Epics:      res.epics,
+	}, nil
 }
 
 // AssignProjectTeam sets or clears the team for a project (CEO or MANAGER only).

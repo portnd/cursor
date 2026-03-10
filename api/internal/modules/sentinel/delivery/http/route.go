@@ -23,6 +23,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/projects", handler.CreateProject)
 		sentinelGroup.POST("/projects/import-backup", backupHandler.ImportProjectFromBackup) // must be before /:id
 		sentinelGroup.GET("/projects", handler.GetProjects)
+		sentinelGroup.GET("/projects/:id/details", handler.GetProjectDetails) // Combined payload (1 round-trip) — must be before /:id
 		sentinelGroup.GET("/projects/:id", handler.GetProjectByID)
 		sentinelGroup.PATCH("/projects/:id", handler.UpdateProject)
 		sentinelGroup.DELETE("/projects/:id", handler.DeleteProject)
