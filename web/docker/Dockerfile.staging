@@ -30,7 +30,7 @@ RUN ls -la .output/server/index.mjs || echo "Build output not found!"
 # -----------------------------------------------------------------------------
 FROM node:20-alpine
 
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init wget
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

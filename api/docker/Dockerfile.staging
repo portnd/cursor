@@ -7,7 +7,7 @@
 
 FROM golang:1.23-alpine AS builder
 
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /build
 
@@ -16,8 +16,9 @@ RUN go mod download
 
 COPY . .
 
+ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w -X main.Version=$(git describe --tags --always --dirty) -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -a -installsuffix cgo \
     -o /app/main \
     ./cmd/server/main.go
@@ -29,7 +30,7 @@ RUN ls -lh /app/main
 # -----------------------------------------------------------------------------
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata wget
 
 ENV TZ=Asia/Bangkok
 ENV APP_ENV=staging
