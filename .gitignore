@@ -24,6 +24,7 @@ Thumbs.db
 .env.production
 .env.development
 .env.test
+deploy/.env
 
 # Go Backend (api/)
 api/bin/

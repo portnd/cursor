@@ -27,13 +27,13 @@ jobs:
         include:
           - service: backend
             context: ./api
-            dockerfile: ./api/docker/Dockerfile.prod
+            dockerfile: ./api/docker/Dockerfile.staging
             image_tag: sentinel-backend
             build_args: ""
 
           - service: frontend
             context: ./web
-            dockerfile: ./web/docker/Dockerfile.prod
+            dockerfile: ./web/docker/Dockerfile.staging
             image_tag: sentinel-frontend
             # Optional: add build-args if Nuxt needs env at build time (e.g. NUXT_PUBLIC_*)
             # build_args: NUXT_PUBLIC_API_BASE=${{ secrets.NUXT_PUBLIC_API_BASE }}
@@ -71,14 +71,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy docker-compose.yml to server
+      - name: Copy deploy folder to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
-          source: "deploy/docker-compose.yml"
-          target: "~/kg/deploy"
+          source: "deploy/*"
+          target: "~/kg"
           strip_components: 1
 
       - name: Deploy via SSH
@@ -88,7 +88,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
-            cd ~/kg/deploy
+            cd ~/kg
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 

@@ -1,20 +1,28 @@
+# =============================================================================
+# Sentinel Core — Staging (kg.how.co.th)
+# =============================================================================
+# รันบน server: cd ~/kg && docker compose pull && docker compose up -d
+# Images จาก GitHub Actions → ghcr.io/<owner>/sentinel-backend:staging, sentinel-frontend:staging
+# ใส่ .env ใน ~/kg (GHCR_IMAGE_PREFIX, POSTGRES_*, MONGO_*, REDIS_*, JWT_SECRET, ฯลฯ)
+# =============================================================================
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: ${PROJECT_NAME:-komgrip}_db
+    container_name: sentinel_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-komgrip}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-komgrip_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-komgrip_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - komgrip_network
+      - sentinel_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-komgrip} -d ${POSTGRES_DB:-komgrip_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,18 +30,18 @@ services:
 
   mongo:
     image: mongo:6-jammy
-    container_name: ${PROJECT_NAME:-komgrip}_mongo
+    container_name: sentinel_mongo
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-komgrip}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-komgrip_secret}
-      MONGO_INITDB_DATABASE: ${MONGO_DB:-komgrip_logs}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${MONGO_PORT}:27017"
     volumes:
       - mongo_data:/data/db
       - mongo_config:/data/configdb
     networks:
-      - komgrip_network
+      - sentinel_net
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -43,22 +51,18 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: ${PROJECT_NAME:-komgrip}_redis
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-komgrip_secret}
+    container_name: sentinel_redis
     command: >
       redis-server
       --maxmemory 128mb
       --maxmemory-policy allkeys-lru
-      --save 60 1
-      --loglevel warning
-      --requirepass ${REDIS_PASSWORD:-komgrip_secret}
+      --requirepass ${REDIS_PASSWORD}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT}:6379"
     volumes:
       - redis_data:/data
     networks:
-      - komgrip_network
+      - sentinel_net
     deploy:
       resources:
         limits:
@@ -70,39 +74,33 @@ services:
       retries: 5
     restart: unless-stopped
 
-  api:
-    build:
-      context: ./api
-      dockerfile: docker/Dockerfile.dev
-    container_name: ${PROJECT_NAME:-komgrip}_api
+  backend:
+    image: ${GHCR_IMAGE_PREFIX}/sentinel-backend:staging
+    container_name: sentinel_backend
+    env_file:
+      - .env
     environment:
-      APP_ENV: ${APP_ENV:-development}
-      APP_PORT: ${API_PORT:-8080}
+      APP_ENV: staging
+      APP_PORT: 8080
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-komgrip}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-komgrip_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-komgrip_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       MONGO_HOST: mongo
       MONGO_PORT: 27017
-      MONGO_USER: ${MONGO_USER:-komgrip}
-      MONGO_PASSWORD: ${MONGO_PASSWORD:-komgrip_secret}
-      MONGO_DB: ${MONGO_DB:-komgrip_logs}
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_DB: ${MONGO_DB}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-komgrip_secret}
-      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_change_in_production}
-      CHROME_PATH: /usr/bin/chromium
-      TIMELINE_PDF_PATH: /app/storages/timeline_pdf/
-      STORAGE_URL: ${STORAGE_URL:-https://kg.how.co.th}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      STORAGE_URL: ${STORAGE_URL}
     ports:
-      - "${API_PORT:-8080}:8080"
-    volumes:
-      - ./api:/app
-      - api_cache:/go/pkg/mod
-      - ./api/storages:/app/storages
+      - "${API_PORT}:8080"
     networks:
-      - komgrip_network
+      - sentinel_net
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,47 +108,43 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
-  web:
-    build:
-      context: ./web
-      dockerfile: docker/Dockerfile.dev
-    container_name: ${PROJECT_NAME:-komgrip}_web
+  frontend:
+    image: ${GHCR_IMAGE_PREFIX}/sentinel-frontend:staging
+    container_name: sentinel_frontend
     environment:
-      # Browser (client): use public domain kg.how.co.th (behind Caddy/reverse proxy)
-      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-https://kg.how.co.th/api/v1}
-      # SSR (server): web container calls API by service name
-      NUXT_PUBLIC_API_BASE_SERVER: ${NUXT_PUBLIC_API_BASE_SERVER:-http://api:8080/api/v1}
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
+      PORT: 3000
+      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE}
+      NUXT_PUBLIC_API_BASE_SERVER: http://backend:8080/api/v1
     ports:
-      - "${WEB_PORT:-3000}:3000"
-    volumes:
-      - ./web:/app
-      - web_node_modules:/app/node_modules
-      - web_nuxt:/app/.nuxt
+      - "${WEB_PORT}:3000"
     networks:
-      - komgrip_network
+      - sentinel_net
     depends_on:
-      - api
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
   mongo_data:
-    driver: local
   mongo_config:
-    driver: local
   redis_data:
-    driver: local
-  api_cache:
-    driver: local
-  web_node_modules:
-    driver: local
-  web_nuxt:
-    driver: local
 
 networks:
-  komgrip_network:
+  sentinel_net:
     driver: bridge

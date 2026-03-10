@@ -1,0 +1,53 @@
+# =============================================================================
+# Sentinel Frontend - STAGING DOCKERFILE
+# =============================================================================
+# Multi-stage build for staging (kg.how.co.th).
+# Same as prod: minimal image, SSR, healthcheck.
+# Optional: pass NUXT_PUBLIC_API_BASE at build via --build-arg.
+# =============================================================================
+
+FROM node:20-alpine AS builder
+
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /build
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+# Optional build-arg for API URL (bake into client bundle)
+ARG NUXT_PUBLIC_API_BASE
+ENV NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE:-https://kg.how.co.th/api/v1}
+ENV NODE_ENV=production
+RUN npm run build
+
+RUN ls -la .output/server/index.mjs || echo "Build output not found!"
+
+# -----------------------------------------------------------------------------
+# Final staging image
+# -----------------------------------------------------------------------------
+FROM node:20-alpine
+
+RUN apk add --no-cache dumb-init
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV NUXT_TELEMETRY_DISABLED=1
+
+WORKDIR /home/node/app
+
+COPY --from=builder --chown=node:node /build/.output ./.output
+COPY --from=builder --chown=node:node /build/package.json ./package.json
+
+USER node
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", ".output/server/index.mjs"]

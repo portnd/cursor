@@ -1,0 +1,53 @@
+# =============================================================================
+# Sentinel Backend - STAGING DOCKERFILE
+# =============================================================================
+# Multi-stage build for staging (kg.how.co.th).
+# Same as prod: minimal image, non-root user, healthcheck.
+# =============================================================================
+
+FROM golang:1.23-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w -X main.Version=$(git describe --tags --always --dirty) -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -a -installsuffix cgo \
+    -o /app/main \
+    ./cmd/server/main.go
+
+RUN ls -lh /app/main
+
+# -----------------------------------------------------------------------------
+# Final staging image
+# -----------------------------------------------------------------------------
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates tzdata
+
+ENV TZ=Asia/Bangkok
+ENV APP_ENV=staging
+
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+WORKDIR /home/appuser/app
+
+COPY --from=builder /app/main .
+
+RUN chown -R appuser:appuser /home/appuser/app
+
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+CMD ["./main"]
