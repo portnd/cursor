@@ -2,9 +2,9 @@
 # Sentinel Core — Staging (kg.how.co.th)
 # =============================================================================
 # รันบน server: cd ~/kg && docker compose pull && docker compose up -d
-# Images จาก GitHub Actions → ghcr.io/<owner>/sentinel-backend:staging, sentinel-frontend:staging
-# ใส่ .env ใน ~/kg (GHCR_IMAGE_PREFIX, POSTGRES_*, MONGO_*, REDIS_*, JWT_SECRET, ฯลฯ)
 # =============================================================================
+
+name: sentinel-staging
 
 services:
   postgres:
@@ -16,7 +16,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -36,14 +36,14 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
       MONGO_INITDB_DATABASE: ${MONGO_DB}
     ports:
-      - "${MONGO_PORT}:27017"
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
       - mongo_config:/data/configdb
     networks:
       - sentinel_net
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,7 +58,7 @@ services:
       --maxmemory-policy allkeys-lru
       --requirepass ${REDIS_PASSWORD}
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -68,7 +68,7 @@ services:
         limits:
           memory: 256M
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD}\" ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -98,7 +98,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       STORAGE_URL: ${STORAGE_URL}
     ports:
-      - "${API_PORT}:8080"
+      - "${API_PORT:-8080}:8080"
     networks:
       - sentinel_net
     depends_on:
@@ -113,7 +113,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
 
   frontend:
@@ -125,7 +125,7 @@ services:
       NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE}
       NUXT_PUBLIC_API_BASE_SERVER: http://backend:8080/api/v1
     ports:
-      - "${WEB_PORT}:3000"
+      - "${WEB_PORT:-3000}:3000"
     networks:
       - sentinel_net
     depends_on:
