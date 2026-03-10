@@ -1,0 +1,15 @@
+# =============================================================================
+# Sentinel Staging — kg.how.co.th (ใช้ใน deploy docker-compose)
+# =============================================================================
+# Caddy อยู่ network เดียวกับ backend/frontend จึงใช้ชื่อ service ได้
+# =============================================================================
+
+kg.how.co.th {
+    encode gzip
+    handle /api/* {
+        reverse_proxy backend:8080
+    }
+    handle {
+        reverse_proxy frontend:3000
+    }
+}
