@@ -11,4 +11,7 @@ func RegisterRoutes(router *gin.Engine, db *gorm.DB, mongoClient *mongo.Client, 
 	handler := NewHealthHandler(db, mongoClient, redisClient)
 
 	router.GET("/health", handler.Check)
+	router.HEAD("/health", handler.Check)
+	router.GET("/live", handler.Live)
+	router.HEAD("/live", handler.Live)
 }

@@ -77,3 +77,8 @@ func (h *HealthHandler) Check(c *gin.Context) {
 		Services:  services,
 	})
 }
+
+// Live returns 200 if the process is up. Use for Docker/K8s liveness (no DB checks).
+func (h *HealthHandler) Live(c *gin.Context) {
+	c.Status(http.StatusOK)
+}
