@@ -76,8 +76,8 @@ jobs:
           key: ${{ secrets.KEY }}
           script: |
             set -e
-            # DEPLOY_PATH: directory on server that contains docker-compose (e.g. ~/sentinel/deploy)
-            cd ${{ secrets.DEPLOY_PATH || '~/sentinel/deploy' }}
+            # DEPLOY_PATH: directory on server that contains docker-compose (e.g. ~/kg/deploy)
+            cd ${{ secrets.DEPLOY_PATH || '~/kg/deploy' }}
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 

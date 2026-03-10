@@ -6,7 +6,7 @@
 # =============================================================================
 
 # --- Project: Sentinel (this repo) ---
-sentinel.how.co.th {
+kg.how.co.th {
     encode gzip
     handle /api/* {
         reverse_proxy backend:8080
