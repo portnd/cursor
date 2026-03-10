@@ -75,11 +75,8 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
-          mkdir -p ~/kg/deploy
+            mkdir -p ~/kg/deploy
             cd ~/kg/deploy
-            set -e
-            # DEPLOY_PATH: directory on server that contains docker-compose (e.g. ~/kg/deploy)
-            cd ${{ secrets.DEPLOY_PATH || '~/kg/deploy' }}
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
