@@ -119,9 +119,9 @@ services:
       NODE_ENV: production
       PORT: 3000
       # Browser: public API URL (ถ้ามี reverse proxy ใช้ https://your-domain.com/api/v1)
-      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8080/api/v1}
+      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://kg.how.co.th/api/}
       # SSR: web container เรียก backend โดยตรง
-      NUXT_PUBLIC_API_BASE_SERVER: http://backend:8080/api/v1
+      NUXT_PUBLIC_API_BASE_SERVER: http://backend:8080/api/
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
