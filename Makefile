@@ -1,4 +1,4 @@
-.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker backup-db restore-db
+.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker backup-db restore-db up-api dev-local
 
 PROJECT_NAME ?= komgrip
 
@@ -17,6 +17,8 @@ help:
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make up              - Start all services (detached)"
+	@echo "  make up-api          - Start only API + DB (no web). Then run: cd web && npm run dev"
+	@echo "  make dev-local       - Start API+DB and print instructions to run web on host (port 3000)"
 	@echo "  make run             - Start all services in terminal (see logs, Ctrl+C to stop)"
 	@echo "  make down            - Stop all services"
 	@echo "  make restart         - Restart all services"
@@ -61,10 +63,28 @@ up: ensure-go-sum wait-docker
 	docker-compose up -d
 	@echo "✅ Services started. Use 'make logs' to view logs."
 
+# Start only API + DB (no web container). Use when Docker port forward fails — run web on host.
+up-api: ensure-go-sum wait-docker
+	@echo "🚀 Starting API + DB only (no web container)..."
+	docker-compose up -d postgres mongo redis api
+	@echo "✅ API at http://localhost:8080. Run web on host: cd web && npm run dev"
+	@echo "   Then open http://localhost:3000"
+
+# Print dev-local instructions and start API+DB.
+dev-local: up-api
+	@echo ""
+	@echo "📌 เปิดเว็บที่เครื่องคุณ:"
+	@echo "   Terminal อีกอันหนึ่ง:  cd web && npm run dev"
+	@echo "   เปิดใน browser:  http://localhost:3000"
+	@echo "   ถ้า localhost:3000 เปิดไม่ได้ (ถูก Cursor ใช้):"
+	@echo "     • ใช้ IP เครื่องแทน  เช่น  http://192.168.x.x:3000  (ดูที่ Nuxt แสดงเมื่อรัน dev)"
+	@echo "     • หรือรัน  cd web && npm run dev:local  แล้วเปิด  http://localhost:3001"
+	@echo ""
+
 # Run all services in foreground (logs in terminal). Ctrl+C to stop.
 run: ensure-go-sum wait-docker
 	@echo "🚀 Starting all services (logs in terminal, Ctrl+C to stop)..."
-	docker-compose up
+	docker-compose up -d
 
 down:
 	@echo "🛑 Stopping $(PROJECT_NAME) services..."

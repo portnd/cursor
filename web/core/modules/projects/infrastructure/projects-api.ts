@@ -346,13 +346,15 @@ function useProjectsApi() {
 
   // --- Timeline Views (Matrix Dimension) ---
 
-  async function getEpicTimelineData(projectId: string): Promise<EpicTimelineData> {
-    const data = await fetchWithAuth<{ data: EpicTimelineData }>(`/sentinel/projects/${projectId}/timeline/epic-view`)
+  /** projectIdOrCode: UUID or project code (e.g. mims-hd-map) — both work for parallel load. */
+  async function getEpicTimelineData(projectIdOrCode: string): Promise<EpicTimelineData> {
+    const data = await fetchWithAuth<{ data: EpicTimelineData }>(`/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/timeline/epic-view`)
     return data.data || { epics: [] }
   }
 
-  async function getSprintTimelineData(projectId: string): Promise<SprintTimelineData> {
-    const data = await fetchWithAuth<{ data: SprintTimelineData }>(`/sentinel/projects/${projectId}/timeline/sprint-view`)
+  /** projectIdOrCode: UUID or project code (e.g. mims-hd-map) — both work for parallel load. */
+  async function getSprintTimelineData(projectIdOrCode: string): Promise<SprintTimelineData> {
+    const data = await fetchWithAuth<{ data: SprintTimelineData }>(`/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/timeline/sprint-view`)
     return data.data || { sprints: [] }
   }
 

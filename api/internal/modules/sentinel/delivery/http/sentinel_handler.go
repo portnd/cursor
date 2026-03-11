@@ -2606,14 +2606,23 @@ func (h *SentinelHandler) DeleteEpic(c *gin.Context) {
 
 // --- Timeline View Handlers (Matrix Dimension) ---
 
-// GetEpicTimeline handles GET /sentinel/projects/:id/timeline/epic-view
+// GetEpicTimeline handles GET /sentinel/projects/:id/timeline/epic-view — :id may be UUID or project code (e.g. mims-hd-map).
 func (h *SentinelHandler) GetEpicTimeline(c *gin.Context) {
-	projectID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id must be a valid UUID"})
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id or code is required"})
 		return
 	}
-	data, err := h.usecase.GetEpicTimelineData(projectID)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
+	if err != nil || project == nil {
+		if err != nil && (err.Error() == "project not found" || contains(err.Error(), "not found")) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project", "message": err.Error()})
+		return
+	}
+	data, err := h.usecase.GetEpicTimelineData(project.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve epic timeline", "message": err.Error()})
 		return
@@ -2621,14 +2630,23 @@ func (h *SentinelHandler) GetEpicTimeline(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Epic timeline retrieved successfully", "data": data})
 }
 
-// GetSprintTimeline handles GET /sentinel/projects/:id/timeline/sprint-view
+// GetSprintTimeline handles GET /sentinel/projects/:id/timeline/sprint-view — :id may be UUID or project code (e.g. mims-hd-map).
 func (h *SentinelHandler) GetSprintTimeline(c *gin.Context) {
-	projectID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id must be a valid UUID"})
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id or code is required"})
 		return
 	}
-	data, err := h.usecase.GetSprintTimelineData(projectID)
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
+	if err != nil || project == nil {
+		if err != nil && (err.Error() == "project not found" || contains(err.Error(), "not found")) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project", "message": err.Error()})
+		return
+	}
+	data, err := h.usecase.GetSprintTimelineData(project.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve sprint timeline", "message": err.Error()})
 		return

@@ -41,6 +41,14 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    server: {
+      hmr: {
+        protocol: 'ws',
+        host: 'localhost',
+        port: 24678,
+        clientPort: 24678
+      }
+    },
     plugins: [
       {
         name: 'suppress-empty-nuxt-path-404',

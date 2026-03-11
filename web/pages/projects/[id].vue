@@ -558,7 +558,7 @@
                     </div>
                     <template v-for="(task, taskIdx) in getTasksForEpic(ep.id)" :key="task.id">
                       <div
-                        class="backlog-row backlog-subgrid group [content-visibility:auto]"
+                        class="backlog-row backlog-subgrid group"
                         :class="{ 'opacity-60': backlogDrag?.type === 'task' && backlogDrag?.id === task.id }"
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, ep.id, taskIdx)"
@@ -692,7 +692,7 @@
                     </div>
                     <template v-for="(task, taskIdx) in getUnassignedTasks()" :key="task.id">
                       <div
-                        class="backlog-row backlog-subgrid group [content-visibility:auto]"
+                        class="backlog-row backlog-subgrid group"
                         :class="{ 'opacity-60': backlogDrag?.type === 'task' && backlogDrag?.id === task.id }"
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, null, taskIdx)"
@@ -2646,13 +2646,25 @@ async function onProjectRestored() {
   await loadAll()
 }
 
-// Load data — use combined details endpoint (1 round-trip) for fast initial load
+// Load data — use combined details endpoint (1 round-trip) for fast initial load.
+// When tab=timeline: run details + timeline API in parallel for faster perceived load.
 async function loadAll() {
   isLoading.value = true
   error.value = ''
   const idOrCode = route.params.id as string
+  const isTimelineTab = activeTab.value === 'timeline'
+  let timelineOk = false
   try {
-    const details = await projectsApi.getProjectDetails(idOrCode)
+    // When timeline tab: fetch details and timeline in parallel (both support id/code)
+    const detailsPromise = projectsApi.getProjectDetails(idOrCode)
+    const timelinePromise =
+      isTimelineTab
+        ? (timelineMode.value === 'epic'
+            ? projectsApi.getEpicTimelineData(idOrCode)
+            : projectsApi.getSprintTimelineData(idOrCode))
+        : null
+
+    const details = await detailsPromise
     project.value = details.project
     allTasks.value = details.tasks
     sprints.value = details.sprints
@@ -2683,12 +2695,27 @@ async function loadAll() {
         })
       })
     }
+
+    // Apply timeline data if we fetched in parallel
+    if (timelinePromise) {
+      try {
+        const data = await timelinePromise
+        if (timelineMode.value === 'epic') epicTimelineData.value = data as typeof epicTimelineData.value
+        else sprintTimelineData.value = data as typeof sprintTimelineData.value
+        timelineOk = true
+        nextTick(() => buildMatrixGanttRows())
+        nextTick(() => setTimeout(scrollTimelineToToday, 200))
+      } catch (e) {
+        console.error('Failed to load timeline:', e)
+      }
+    }
   } catch (e: any) {
     error.value = e.message || 'Failed to load project'
   } finally {
     isLoading.value = false
   }
-  if (activeTab.value === 'timeline') {
+  // When timeline tab but we didn't get timeline data (no parallel or parallel failed): load now
+  if (activeTab.value === 'timeline' && !timelineOk && project.value) {
     if (timelineMode.value === 'epic') await loadEpicTimeline()
     else if (timelineMode.value === 'sprint') await loadSprintTimeline()
   }
@@ -3799,63 +3826,111 @@ onMounted(loadAll)
   grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto auto auto;
 }
 
-/* Single grid wrapper: แถวขยายถึงขอบซ้าย–ขวาของตาราง, padding อยู่ที่เซลล์แรก/สุดท้าย */
+/* ตาราง backlog: ใช้ grid คอลัมน์ชัดเจน (ไม่ใช้ subgrid) ให้ทุก browser แสดงตรงกัน */
 .backlog-table-grid {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto auto auto;
+  grid-template-columns: 2.5rem 4.25rem minmax(14rem, 2fr) 3rem minmax(5rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 4.5rem;
   column-gap: 0.75rem;
   row-gap: 0;
   padding: 0;
+  align-items: center;
 }
 @media (min-width: 640px) {
-  .backlog-table-grid { column-gap: 1rem; }
+  .backlog-table-grid {
+    column-gap: 1rem;
+    grid-template-columns: 2.5rem 4.5rem minmax(16rem, 2.2fr) 3.5rem minmax(5.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 5rem;
+  }
 }
+/* แถวหัวตารางและแถวข้อมูลใช้ grid เดียวกับ parent (แต่ละแถวเป็น grid row ใน .backlog-table-grid) */
 .backlog-subgrid {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: subgrid;
+  grid-template-columns: 2.5rem 4.25rem minmax(14rem, 2fr) 3rem minmax(5rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 4.5rem;
   align-items: center;
   column-gap: 0.75rem;
   row-gap: 0;
 }
 @media (min-width: 640px) {
-  .backlog-subgrid { column-gap: 1rem; }
+  .backlog-subgrid {
+    column-gap: 1rem;
+    grid-template-columns: 2.5rem 4.5rem minmax(16rem, 2.2fr) 3.5rem minmax(5.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 5rem;
+  }
 }
-/* ขยายแถวถึงขอบตาราง โดยให้เนื้อหาชิดในด้วย padding เซลล์แรก/สุดท้าย
-   และให้ตำแหน่งเนื้อหาตรงกับ header Epic (px-3 / sm:px-4) */
+/* เซลล์ทุกคอลัมน์: padding สม่ำเสมอ ให้ข้อมูลชิดกับ header และไม่ชิดขอบ */
+.backlog-subgrid > div {
+  min-width: 0;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
 .backlog-subgrid > div:first-child {
-  padding-left: 0.75rem; /* ~px-3 */
+  padding-left: 0.75rem;
+  padding-right: 0.25rem;
 }
 .backlog-subgrid > div:last-child {
+  padding-left: 0.25rem;
   padding-right: 1rem;
-  margin-left: 0.5rem;
+  margin-left: 0;
 }
 @media (min-width: 640px) {
-  .backlog-subgrid > div:first-child { padding-left: 1rem; } /* ~sm:px-4 */
-  .backlog-subgrid > div:last-child { padding-right: 1.25rem; margin-left: 0.75rem; }
+  .backlog-subgrid > div:first-child {
+    padding-left: 1rem;
+    padding-right: 0.375rem;
+  }
+  .backlog-subgrid > div:last-child {
+    padding-right: 1.25rem;
+    margin-left: 0;
+  }
 }
 
-/* Backlog table header: จัดเรียงหัวตาราง + space สวยงาม */
+/* หัวตาราง: ความสูงและระยะชิดเนื้อหาให้ตรงกับแถวข้อมูล */
 .backlog-table-header {
   font-size: 0.6875rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: rgba(30, 41, 59, 0.5);
-  color: rgb(203 213 225);
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(75, 85, 99, 0.8);
+  font-weight: 600;
+  background: rgba(30, 41, 59, 0.6);
+  color: rgb(148 163 184);
+  padding: 0.875rem 0;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.9);
 }
+.backlog-table-header > div {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+/* หัวคอลัมน์ ID ชิดขวา, Task ชิดซ้าย (ให้ชื่อ task ทุกแถวเริ่มที่ตำแหน่งเดียวกัน) */
+.backlog-table-header > div:nth-child(2) {
+  justify-content: flex-end;
+}
+.backlog-table-header > div:nth-child(3) {
+  justify-content: flex-start;
+}
+/* ช่อง ID ในแถวข้อมูล: จัดตัวเลขชิดขวา */
+.backlog-subgrid > div:nth-child(2) {
+  justify-content: flex-end;
+}
+/* ช่องชื่อ Task: ชิดซ้าย ให้ชื่อ task หลักและ sub-task เริ่มที่ตำแหน่งเดียวกัน */
+.backlog-subgrid > div:nth-child(3) {
+  justify-content: flex-start;
+}
+/* ช่อง Epic: ขยายแล้วจัดเนื้อหาชิดขวา */
+.backlog-table-header > div:nth-child(6),
+.backlog-subgrid > div:nth-child(6) {
+  justify-content: flex-end;
+}
+
+/* แถวข้อมูล: padding แนวตั้งพอดี อ่านง่าย */
 .backlog-row {
-  padding: 0.75rem 0;
+  padding: 0.625rem 0;
   border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+  min-width: 0;
 }
 .backlog-row:hover {
-  background: rgba(55, 65, 81, 0.3);
+  background: rgba(55, 65, 81, 0.25);
 }
-/* Sub-task rows: space สมดุลกับแถวหลัก */
+/* Sub-task rows: ระยะห่างสมดุลกับแถวหลัก */
 .backlog-sub-row {
-  padding-top: 0.625rem;
-  padding-bottom: 0.625rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .card {
