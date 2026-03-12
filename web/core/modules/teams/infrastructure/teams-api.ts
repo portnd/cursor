@@ -113,6 +113,15 @@ export function useTeamsApi() {
       method: 'POST',
     }).then(r => r.data)
 
+  const getTeamsFeatureEnabled = (): Promise<boolean> =>
+    fetchWithAuth<{ data: { enabled: boolean } }>('/auth/settings/teams-feature').then(r => r.data?.enabled ?? true)
+
+  const setTeamsFeatureEnabled = (enabled: boolean): Promise<void> =>
+    fetchWithAuth<void>('/auth/settings/teams-feature', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    })
+
   return {
     getTeams,
     createTeam,
@@ -124,5 +133,7 @@ export function useTeamsApi() {
     injectCapital,
     editCapital,
     closeCycle,
+    getTeamsFeatureEnabled,
+    setTeamsFeatureEnabled,
   }
 }

@@ -246,3 +246,32 @@ func (r *postgresRepository) GetTeamTransactions(teamID uint) ([]domain.TeamTran
 	}
 	return txs, nil
 }
+
+// appSettingRow is the DB row for app_settings (key-value)
+type appSettingRow struct {
+	Key   string `gorm:"column:key;primaryKey"`
+	Value string `gorm:"column:value;not null"`
+}
+
+func (appSettingRow) TableName() string { return "app_settings" }
+
+// GetAppSetting returns the value for a setting key, or empty string if not found
+func (r *postgresRepository) GetAppSetting(key string) (string, error) {
+	var row appSettingRow
+	err := r.db.Where("key = ?", key).First(&row).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get app setting: %w", err)
+	}
+	return row.Value, nil
+}
+
+// SetAppSetting upserts a setting key-value
+func (r *postgresRepository) SetAppSetting(key, value string) error {
+	return r.db.Exec(
+		"INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+		key, value,
+	).Error
+}

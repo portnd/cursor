@@ -100,7 +100,11 @@
           'bg-gray-800/40 border-gray-700/40': !task.parent_task.task_type,
         }"
       >
-        <svg class="w-3.5 h-3.5 shrink-0" :class="{
+        <NuxtLink
+          :to="`/task/${task.parent_task.id}`"
+          class="flex items-center gap-2 shrink-0 transition-opacity hover:opacity-100 opacity-90"
+        >
+          <svg class="w-3.5 h-3.5 shrink-0" :class="{
           'text-purple-400': task.parent_task.task_type === 'FEATURE',
           'text-blue-400': task.parent_task.task_type === 'TASK',
           'text-red-400': task.parent_task.task_type === 'BUG',
@@ -108,12 +112,12 @@
         }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
         </svg>
-        <span class="text-xs" :class="{
-          'text-purple-400/70': task.parent_task.task_type === 'FEATURE',
-          'text-blue-400/70': task.parent_task.task_type === 'TASK',
-          'text-red-400/70': task.parent_task.task_type === 'BUG',
-          'text-gray-400/70': !task.parent_task.task_type,
-        }">Part of {{ task.parent_task.task_type === 'FEATURE' ? 'Feature' : task.parent_task.task_type === 'BUG' ? 'Bug' : 'Task' }}</span>
+        <span class="text-xs cursor-pointer hover:underline underline-offset-1" :class="{
+          'text-purple-400/70 hover:text-purple-400': task.parent_task.task_type === 'FEATURE',
+          'text-blue-400/70 hover:text-blue-400': task.parent_task.task_type === 'TASK',
+          'text-red-400/70 hover:text-red-400': task.parent_task.task_type === 'BUG',
+          'text-gray-400/70 hover:text-gray-400': !task.parent_task.task_type,
+        }">Part of {{ task.parent_task.parent_id ? 'Sub-task' : (task.parent_task.task_type === 'FEATURE' ? 'Feature' : task.parent_task.task_type === 'BUG' ? 'Bug' : 'Task') }}</span>
         <svg class="w-3 h-3 shrink-0" :class="{
           'text-purple-600': task.parent_task.task_type === 'FEATURE',
           'text-blue-600': task.parent_task.task_type === 'TASK',
@@ -122,6 +126,7 @@
         }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
         </svg>
+        </NuxtLink>
         <NuxtLink
           :to="`/task/${task.parent_task.id}`"
           class="flex items-center gap-1.5 text-xs font-semibold transition-colors group"
@@ -674,6 +679,7 @@ interface Task {
     code?: string
     task_type?: string
     status?: string
+    parent_id?: string | null  // set when parent is itself a sub-task
   } | null
   sub_tasks?: SubTask[]
 
@@ -985,15 +991,14 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status
 }
 
-/** Display task id as 001, 002, … (suffix from code) or short id fallback */
+/** Display task id as A001 / B001 / C001: top-level = A, sub-task = B, sub-task of sub-task = C */
 function taskCodeDisplay(t: Task | null): string {
   if (!t) return '–'
-  if (t.code) {
-    const suffix = t.code.split('-').pop()
-    if (suffix && /^\d+$/.test(suffix)) return String(Number(suffix)).padStart(4, '0')
-    return t.code
-  }
-  return t.id.substring(0, 8) + '…'
+  const suffix = t.code ? t.code.split('-').pop() : ''
+  const num = (suffix && /^\d+$/.test(suffix)) ? String(Number(suffix)).padStart(3, '0') : (suffix || t.id.slice(0, 4))
+  if (!t.parent_id) return 'A' + num
+  if (t.parent_task?.parent_id) return 'C' + num
+  return 'B' + num
 }
 
 const formatDate = (dateString: string) => {

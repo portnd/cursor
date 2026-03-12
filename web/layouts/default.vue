@@ -39,15 +39,6 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Dashboard</span>
         </NuxtLink>
         <NuxtLink
-          to="/tasks"
-          class="nav-link"
-          active-class="bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
-          :title="sidebarCollapsed ? 'Tasks Inbox' : undefined"
-        >
-          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">Tasks Inbox</span>
-        </NuxtLink>
-        <NuxtLink
           to="/create"
           class="nav-link"
           active-class="bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
@@ -96,16 +87,6 @@
         >
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Active Board</span>
-        </NuxtLink>
-        <NuxtLink
-          v-if="currentUser?.role === 'CEO'"
-          to="/accounting"
-          class="nav-link"
-          active-class="bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
-          :title="sidebarCollapsed ? 'บัญชี' : undefined"
-        >
-          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">บัญชี</span>
         </NuxtLink>
         <NuxtLink
           v-if="currentUser?.role === 'CEO'"

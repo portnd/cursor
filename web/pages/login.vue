@@ -43,7 +43,7 @@
               v-model="email"
               type="email"
               required
-              placeholder="developer@sentinel.com"
+              placeholder="mail@komgrip.com"
               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
             />
           </div>
@@ -77,13 +77,6 @@
             <span v-else>Signing In...</span>
           </button>
         </form>
-
-        <!-- Quick Login Hint -->
-        <div class="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-          <p class="text-xs text-purple-400 font-medium">🔑 Test Credentials:</p>
-          <p class="text-xs text-gray-400 mt-1">Email: <code class="text-purple-300">ceo@sentinel.com</code></p>
-          <p class="text-xs text-gray-400">Password: <code class="text-purple-300">password123</code></p>
-        </div>
       </div>
 
       <!-- Footer -->

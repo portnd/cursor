@@ -688,3 +688,36 @@ func (h *AuthHandler) AssignUserToTeam(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User team assignment updated successfully"})
 }
+
+// GetTeamsFeature handles GET /auth/settings/teams-feature (any authenticated user)
+func (h *AuthHandler) GetTeamsFeature(c *gin.Context) {
+	enabled, err := h.usecase.GetTeamsFeatureEnabled()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get setting", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": domain.TeamsFeatureSettingResponse{Enabled: enabled}})
+}
+
+// SetTeamsFeature handles PUT /auth/settings/teams-feature (CEO/MANAGER only)
+func (h *AuthHandler) SetTeamsFeature(c *gin.Context) {
+	var req domain.SetTeamsFeatureRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	callerID := getUserIDFromContext(c)
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if err := h.usecase.SetTeamsFeatureEnabled(callerID, req.Enabled); err != nil {
+		if strings.Contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update setting", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Teams feature updated", "data": domain.TeamsFeatureSettingResponse{Enabled: req.Enabled}})
+}

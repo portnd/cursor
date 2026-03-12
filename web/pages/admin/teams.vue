@@ -20,17 +20,49 @@
           <h1 class="text-2xl font-bold text-white">Internal Venture Capital</h1>
           <p class="text-sm text-gray-400 mt-1">Inject capital into squads, monitor burn rate & distribute milestone bonuses</p>
         </div>
-        <button
-          @click="showCreateTeamModal = true"
-          class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-lg shadow-lg transition-all"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          New Team
-        </button>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="teamsStore.teamsFeatureEnabled"
+            type="button"
+            @click="confirmDisableFeatureTeam"
+            :disabled="isDisablingFeature"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-700 hover:bg-red-900/40 border border-gray-600 hover:border-red-600/50 text-gray-300 hover:text-red-400 font-medium rounded-lg transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            {{ isDisablingFeature ? 'Disabling...' : 'Disable feature team' }}
+          </button>
+          <button
+            v-else
+            type="button"
+            @click="enableFeatureTeam"
+            :disabled="isEnablingFeature"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-400 font-medium rounded-lg transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {{ isEnablingFeature ? 'Enabling...' : 'Enable feature team' }}
+          </button>
+          <button
+            v-if="teamsStore.teamsFeatureEnabled"
+            @click="showCreateTeamModal = true"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-lg shadow-lg transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Team
+          </button>
+        </div>
       </div>
 
-      <!-- Metrics -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <!-- Feature disabled banner -->
+      <div
+        v-if="!teamsStore.teamsFeatureEnabled"
+        class="mb-6 p-4 bg-amber-900/20 border border-amber-600/40 rounded-xl text-amber-200"
+      >
+        <p class="font-medium">Feature team is disabled</p>
+        <p class="text-sm text-amber-200/80 mt-0.5">การมองเห็นทีม (Squads) ถูกปิดทั้งหมด — ไม่แสดงใน Dashboard, Projects และหน้าอื่นๆ กด "Enable feature team" เพื่อเปิดใช้กลับ</p>
+      </div>
+
+      <!-- Metrics (only when feature enabled) -->
+      <div v-if="teamsStore.teamsFeatureEnabled" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <div class="text-2xl font-bold text-purple-400">{{ teamsStore.teams.length }}</div>
           <div class="text-xs text-gray-500 uppercase mt-1">Total Teams</div>
@@ -49,19 +81,19 @@
         </div>
       </div>
 
-      <!-- Loading -->
-      <div v-if="teamsStore.loading" class="text-center py-16 text-gray-500">
+      <!-- Loading (only when feature enabled) -->
+      <div v-if="teamsStore.teamsFeatureEnabled && teamsStore.loading" class="text-center py-16 text-gray-500">
         <div class="animate-spin text-4xl mb-4">⚙️</div>
         Loading teams...
       </div>
 
       <!-- Error -->
-      <div v-else-if="teamsStore.error" class="p-4 bg-red-900/20 border border-red-600 rounded-lg text-red-400 mb-6">
+      <div v-else-if="teamsStore.teamsFeatureEnabled && teamsStore.error" class="p-4 bg-red-900/20 border border-red-600 rounded-lg text-red-400 mb-6">
         {{ teamsStore.error }}
       </div>
 
-      <!-- Teams List -->
-      <div v-else class="space-y-6">
+      <!-- Teams List (only when feature enabled) -->
+      <div v-else-if="teamsStore.teamsFeatureEnabled" class="space-y-6">
         <div
           v-for="team in teamsStore.teams"
           :key="team.id"
@@ -314,6 +346,32 @@
               Cancel
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disable feature team confirm -->
+    <div
+      v-if="showDisableFeatureConfirm"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      @click.self="showDisableFeatureConfirm = false"
+    >
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <h2 class="text-lg font-bold text-white mb-3">Disable feature team</h2>
+        <p class="text-gray-400 text-sm mb-5">
+          ยกเลิกการมองเห็นเป็นทีมออกทั้งหมด — ลิงก์ Squads ใน Dashboard, คอลัมน์ทีมใน Projects และส่วนที่เกี่ยวกับทีมจะไม่แสดงจนกว่าจะกด Enable อีกครั้ง
+        </p>
+        <div class="flex gap-3">
+          <button
+            @click="doDisableFeatureTeam"
+            :disabled="isDisablingFeature"
+            class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+          >
+            {{ isDisablingFeature ? 'Disabling...' : 'Disable' }}
+          </button>
+          <button @click="showDisableFeatureConfirm = false" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">
+            Cancel
+          </button>
         </div>
       </div>
     </div>
@@ -577,6 +635,10 @@ const createTeamError = ref('')
 
 const teamToDelete = ref<Team | null>(null)
 
+const isDisablingFeature = ref(false)
+const isEnablingFeature = ref(false)
+const showDisableFeatureConfirm = ref(false)
+
 // Inject Capital modal state
 const injectModal = reactive({
   open: false,
@@ -718,6 +780,33 @@ async function confirmDeleteTeam() {
   teamToDelete.value = null
 }
 
+function confirmDisableFeatureTeam() {
+  showDisableFeatureConfirm.value = true
+}
+
+async function doDisableFeatureTeam() {
+  showDisableFeatureConfirm.value = false
+  isDisablingFeature.value = true
+  try {
+    await teamsStore.setTeamsFeatureEnabled(false)
+  } finally {
+    isDisablingFeature.value = false
+  }
+}
+
+async function enableFeatureTeam() {
+  isEnablingFeature.value = true
+  try {
+    await teamsStore.setTeamsFeatureEnabled(true)
+    await teamsStore.fetchTeams()
+    for (const team of teamsStore.teams) {
+      teamsStore.fetchTeamCost(team.id)
+    }
+  } finally {
+    isEnablingFeature.value = false
+  }
+}
+
 async function addMemberToTeam(teamId: number) {
   const userId = addMemberUserID.value[teamId]
   if (!userId) return
@@ -839,10 +928,14 @@ async function confirmEditCapital() {
 }
 
 onMounted(async () => {
-  await Promise.all([teamsStore.fetchTeams(), loadAllUsers()])
-  // Auto-load financials for all teams
-  for (const team of teamsStore.teams) {
-    teamsStore.fetchTeamCost(team.id)
+  await teamsStore.fetchTeamsFeatureEnabled()
+  if (teamsStore.teamsFeatureEnabled) {
+    await Promise.all([teamsStore.fetchTeams(), loadAllUsers()])
+    for (const team of teamsStore.teams) {
+      teamsStore.fetchTeamCost(team.id)
+    }
+  } else {
+    await loadAllUsers()
   }
 })
 </script>

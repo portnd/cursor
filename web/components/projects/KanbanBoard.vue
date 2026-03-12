@@ -135,7 +135,7 @@
               <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
               <div class="flex items-center justify-between text-xs text-gray-500">
                 <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
-                <span v-if="task.assigned_to" class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ task.assigned_to }}</span></span>
+                <span v-if="assigneeLabel(task)" class="flex items-center gap-1" :title="assigneeLabel(task)"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ assigneeInitial(task) }}</span></span>
                 <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
                   {{ daysUntilDue(task)! < 0 ? Math.abs(daysUntilDue(task)!) + 'd overdue' : daysUntilDue(task) + 'd left' }}
                 </span>
@@ -171,7 +171,7 @@
                 <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
                 <div class="flex items-center justify-between text-xs text-gray-500">
                   <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
-                  <span v-if="task.assigned_to" class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ task.assigned_to }}</span></span>
+                  <span v-if="assigneeLabel(task)" class="flex items-center gap-1" :title="assigneeLabel(task)"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ assigneeInitial(task) }}</span></span>
                   <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
                     {{ daysUntilDue(task)! < 0 ? Math.abs(daysUntilDue(task)!) + 'd overdue' : daysUntilDue(task) + 'd left' }}
                   </span>
@@ -288,6 +288,21 @@ function daysUntilDue(task: Task): number | null {
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
+/** Show assignee name: display_name, or email local part (e.g. sirin.s@komgrip.com → sirin), or Dev #id */
+function assigneeLabel(task: Task): string {
+  if (!task.assigned_to && !task.assigned_to_display_name && !task.assigned_to_email) return ''
+  if (task.assigned_to_display_name) return task.assigned_to_display_name
+  if (task.assigned_to_email) {
+    const local = task.assigned_to_email.split('@')[0] || ''
+    return local.split('.')[0] || local || task.assigned_to_email
+  }
+  return task.assigned_to != null ? `Dev #${task.assigned_to}` : ''
+}
+function assigneeInitial(task: Task): string {
+  const label = assigneeLabel(task)
+  return label ? label.charAt(0).toUpperCase() : '?'
+}
+
 const columns = [
   { status: 'PENDING', label: 'Backlog', icon: '📋', headerClass: 'text-gray-300', wipLimit: 0 },
   { status: 'IN_PROGRESS', label: 'In Progress', icon: '⚡', headerClass: 'text-blue-400', wipLimit: 5 },
@@ -346,11 +361,11 @@ function getLanes(status: string) {
       .filter((l) => l.tasks.length > 0)
   }
   if (swimLane.value === 'assignee') {
-    const assignees = [...new Set(tasks.map((t) => t.assigned_to ?? 'Unassigned'))]
-    return assignees.map((a) => ({
-      key: String(a),
-      label: a === 'Unassigned' ? 'Unassigned' : `Dev #${a}`,
-      tasks: tasks.filter((t) => (t.assigned_to ?? 'Unassigned') === a),
+    const assigneeKeys = [...new Set(tasks.map((t) => assigneeLabel(t) || 'Unassigned'))]
+    return assigneeKeys.map((key) => ({
+      key,
+      label: key,
+      tasks: tasks.filter((t) => (assigneeLabel(t) || 'Unassigned') === key),
     }))
   }
   return []

@@ -279,12 +279,21 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 		return nil, errors.New("story_points cannot be negative")
 	}
 
-	// Sub-tasks (have a parent_id) inherit dates from their parent — clear any provided dates
+	// Sub-tasks (have a parent_id) inherit from parent: dates, and project/epic/sprint when not provided (allows nesting level C → D)
 	if parentID != nil {
 		parent, err := u.repo.GetTaskByID(*parentID)
 		if err == nil && parent != nil {
 			startDate = parent.StartDate
 			endDate = parent.EndDate
+			if projectID == nil && parent.ProjectID != nil {
+				projectID = parent.ProjectID
+			}
+			if epicID == nil && parent.EpicID != nil {
+				epicID = parent.EpicID
+			}
+			if sprintID == nil && parent.SprintID != nil {
+				sprintID = parent.SprintID
+			}
 		} else {
 			startDate = nil
 			endDate = nil

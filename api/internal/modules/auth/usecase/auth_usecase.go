@@ -447,9 +447,43 @@ func generateTempPassword() (string, error) {
 	return string(b), nil
 }
 
-// GetAllTeams returns all teams (CEO only)
+const teamsFeatureEnabledKey = "teams_feature_enabled"
+
+// GetAllTeams returns all teams; returns empty list when teams feature is disabled
 func (u *authUsecase) GetAllTeams() ([]domain.Team, error) {
+	enabled, err := u.repo.GetAppSetting(teamsFeatureEnabledKey)
+	if err != nil {
+		return nil, err
+	}
+	if enabled != "true" {
+		return []domain.Team{}, nil
+	}
 	return u.repo.GetAllTeams()
+}
+
+// GetTeamsFeatureEnabled returns whether the teams (squads) feature is enabled
+func (u *authUsecase) GetTeamsFeatureEnabled() (bool, error) {
+	val, err := u.repo.GetAppSetting(teamsFeatureEnabledKey)
+	if err != nil {
+		return true, err
+	}
+	return val != "false", nil
+}
+
+// SetTeamsFeatureEnabled enables or disables the teams feature (CEO only)
+func (u *authUsecase) SetTeamsFeatureEnabled(requestingUserID uint, enabled bool) error {
+	requester, err := u.repo.FindByID(requestingUserID)
+	if err != nil {
+		return fmt.Errorf("unauthorized: user not found")
+	}
+	if requester.Role != domain.RoleCEO && requester.Role != domain.RoleManager {
+		return fmt.Errorf("unauthorized: only CEO or MANAGER can change teams feature")
+	}
+	value := "true"
+	if !enabled {
+		value = "false"
+	}
+	return u.repo.SetAppSetting(teamsFeatureEnabledKey, value)
 }
 
 // CreateTeam creates a new squad/team (CEO only)

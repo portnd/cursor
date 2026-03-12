@@ -201,6 +201,16 @@ type AssignUserToTeamRequest struct {
 	TeamID *uint `json:"team_id"` // null = remove from team
 }
 
+// TeamsFeatureSettingResponse is the response for GET /auth/settings/teams-feature
+type TeamsFeatureSettingResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SetTeamsFeatureRequest is the request body for PUT /auth/settings/teams-feature (CEO only)
+type SetTeamsFeatureRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // Usecase defines the authentication business logic interface
 // This follows the Dependency Inversion Principle (Hexagonal Architecture)
 type Usecase interface {
@@ -222,6 +232,8 @@ type Usecase interface {
 	ResetUserPassword(requestingUserID uint, targetUserID uint) (tempPassword string, err error)
 	// Squad / Team management (CEO only)
 	GetAllTeams() ([]Team, error)
+	GetTeamsFeatureEnabled() (bool, error)
+	SetTeamsFeatureEnabled(requestingUserID uint, enabled bool) error
 	CreateTeam(name string) (*Team, error)
 	UpdateTeam(teamID uint, name string) (*Team, error)
 	DeleteTeam(teamID uint) error
@@ -253,6 +265,9 @@ type Repository interface {
 	UpdateTeamCapital(teamID uint, newBalance float64, bonusPct *float64) error
 	CreateTeamTransaction(tx *TeamTransaction) error
 	GetTeamTransactions(teamID uint) ([]TeamTransaction, error)
+	// App settings (feature flags)
+	GetAppSetting(key string) (string, error)
+	SetAppSetting(key, value string) error
 }
 
 // TeamFinanceUsecase defines the business logic for the Internal VC model

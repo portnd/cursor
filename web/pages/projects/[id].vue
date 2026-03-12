@@ -583,15 +583,17 @@
                           :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                           :title="task.task_type"
                         >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                        <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(task.id)">{{ task.title }}</span>
-                        <button type="button" @click.stop="openEditTaskTitle(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="แก้ไขชื่อ task">✎</button>
-                        <button type="button" @click.stop="duplicateTask(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="Duplicate task">⎘</button>
+                        <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                        <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
+                          <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
+                        </span>
                       </div>
                       <div class="flex items-center justify-center shrink-0">
                         <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
                       </div>
                       <div class="flex items-center min-w-0">
-                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(task.priority)">
+                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(task.priority)">
                           <option value="CRITICAL">🔴 CRITICAL</option>
                           <option value="HIGH">🟠 HIGH</option>
                           <option value="MEDIUM">🟡 MEDIUM</option>
@@ -611,50 +613,91 @@
                         </select>
                       </div>
                       <div class="flex items-center shrink-0">
-                        <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ').substring(0,6) }}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ') }}</span>
                       </div>
-                      <div class="flex items-center justify-end w-min shrink-0 opacity-0 group-hover:opacity-100">
+                      <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
                         <button @click="openCreateTaskModal(task.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                       </div>
                     </div>
-                    <!-- Sub-tasks (inherit Epic from parent; ย้าย parent = ย้ายทั้งกลุ่ม) -->
+                    <!-- Sub-tasks B (inherit Epic from parent); C = sub-tasks of B -->
                     <template v-if="expandedEpics[task.id]">
-                      <div v-for="sub in getSubTasks(task.id)" :key="sub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/30 bg-gray-900/30 hover:bg-gray-700/20 transition-colors">
-                        <div class="flex items-center"></div>
-                        <div class="flex items-center min-w-0 pl-6">
-                          <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
+                      <template v-for="sub in getSubTasks(task.id)" :key="sub.id">
+                        <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
+                          <div class="flex items-center pl-6">
+                            <button v-if="getSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
+                          </div>
+                          <div class="flex items-center min-w-0 pl-6">
+                            <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
+                          </div>
+                          <div class="flex items-center gap-1 min-w-0">
+                            <span class="text-gray-600 shrink-0">↳</span>
+                            <span
+                              class="shrink-0 text-xs font-bold"
+                              :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                              :title="sub.task_type"
+                            >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
+                            <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                          </div>
+                          <div class="flex items-center justify-center shrink-0">
+                            <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
+                          </div>
+                          <div class="flex items-center min-w-0">
+                            <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(sub.priority)">
+                              <option value="CRITICAL">🔴 CRITICAL</option>
+                              <option value="HIGH">🟠 HIGH</option>
+                              <option value="MEDIUM">🟡 MEDIUM</option>
+                              <option value="LOW">🟢 LOW</option>
+                            </select>
+                          </div>
+                          <div class="flex items-center justify-center min-w-0 w-full">
+                            <span class="text-xs text-gray-500 italic">Inherits</span>
+                          </div>
+                          <div class="flex items-center justify-center min-w-0 w-full">
+                            <span class="text-xs text-gray-500 italic">Inherits</span>
+                          </div>
+                          <div class="flex items-center shrink-0">
+                            <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ') }}</span>
+                          </div>
+                          <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
+                            <button type="button" @click.stop="openCreateTaskModal(sub.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
+                          </div>
                         </div>
-                        <div class="flex items-center gap-1 min-w-0">
-                          <span class="text-gray-600 shrink-0">↳</span>
-                          <span
-                            class="shrink-0 text-xs font-bold"
-                            :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
-                            :title="sub.task_type"
-                          >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                          <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
-                        </div>
-                        <div class="flex items-center justify-center shrink-0">
-                          <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
-                        </div>
-                        <div class="flex items-center min-w-0">
-                          <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(sub.priority)">
-                            <option value="CRITICAL">🔴 CRITICAL</option>
-                            <option value="HIGH">🟠 HIGH</option>
-                            <option value="MEDIUM">🟡 MEDIUM</option>
-                            <option value="LOW">🟢 LOW</option>
-                          </select>
-                        </div>
-                        <div class="flex items-center">
-                          <span class="text-xs text-gray-500 italic">Inherits</span>
-                        </div>
-                        <div class="flex items-center">
-                          <span class="text-xs text-gray-500 italic">Inherits</span>
-                        </div>
-                        <div class="flex items-center shrink-0">
-                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ').substring(0,6) }}</span>
-                        </div>
-                        <div class="flex items-center w-min shrink-0"></div>
-                      </div>
+                        <!-- Level C: sub-tasks of B -->
+                        <template v-if="expandedEpics[sub.id]">
+                          <div v-for="subsub in getSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                            <div class="flex items-center"></div>
+                            <div class="flex items-center min-w-0 pl-10">
+                              <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(subsub)">{{ taskDisplayCode(subsub) }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 min-w-0">
+                              <span class="text-gray-600 shrink-0">↳↳</span>
+                              <span
+                                class="shrink-0 text-xs font-bold"
+                                :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                                :title="subsub.task_type"
+                              >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
+                              <span class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="navigateToTask(subsub.id)">{{ subsub.title }}</span>
+                            </div>
+                            <div class="flex items-center justify-center shrink-0">
+                              <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
+                            </div>
+                            <div class="flex items-center min-w-0">
+                              <select :value="subsub.priority" @change="updateTaskField(subsub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(subsub.priority)">
+                                <option value="CRITICAL">🔴 CRITICAL</option>
+                                <option value="HIGH">🟠 HIGH</option>
+                                <option value="MEDIUM">🟡 MEDIUM</option>
+                                <option value="LOW">🟢 LOW</option>
+                              </select>
+                            </div>
+                            <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center shrink-0">
+                              <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ subsub.status.replace('_',' ') }}</span>
+                            </div>
+                            <div class="flex items-center w-min shrink-0"></div>
+                          </div>
+                        </template>
+                      </template>
                     </template>
                     </template>
                   </div>
@@ -717,15 +760,17 @@
                             :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                             :title="task.task_type"
                           >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                          <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(task.id)">{{ task.title }}</span>
-                          <button type="button" @click.stop="openEditTaskTitle(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="แก้ไขชื่อ task">✎</button>
-                          <button type="button" @click.stop="duplicateTask(task)" class="shrink-0 p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity" title="Duplicate task">⎘</button>
+                          <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                          <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
+                            <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
+                          </span>
                         </div>
                         <div class="flex items-center justify-center shrink-0">
                           <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
                         </div>
                         <div class="flex items-center min-w-0">
-                          <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(task.priority)">
+                          <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(task.priority)">
                             <option value="CRITICAL">🔴 CRITICAL</option>
                             <option value="HIGH">🟠 HIGH</option>
                             <option value="MEDIUM">🟡 MEDIUM</option>
@@ -745,49 +790,86 @@
                           </select>
                         </div>
                         <div class="flex items-center shrink-0">
-                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ').substring(0,6) }}</span>
+                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ') }}</span>
                         </div>
-                        <div class="flex items-center justify-end w-min shrink-0 opacity-0 group-hover:opacity-100">
+                        <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
                           <button @click="openCreateTaskModal(task.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                         </div>
                       </div>
                       <template v-if="expandedEpics[task.id]">
-                        <div v-for="sub in getSubTasks(task.id)" :key="sub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/30 bg-gray-900/30 hover:bg-gray-700/20 transition-colors">
-                          <div class="flex items-center"></div>
-                          <div class="flex items-center min-w-0 pl-6">
-                            <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
+                        <template v-for="sub in getSubTasks(task.id)" :key="sub.id">
+                          <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
+                            <div class="flex items-center pl-6">
+                              <button v-if="getSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
+                            </div>
+                            <div class="flex items-center min-w-0 pl-6">
+                              <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 min-w-0">
+                              <span class="text-gray-600 shrink-0">↳</span>
+                              <span
+                                class="shrink-0 text-xs font-bold"
+                                :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                                :title="sub.task_type"
+                              >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
+                              <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                            </div>
+                            <div class="flex items-center justify-center shrink-0">
+                              <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
+                            </div>
+                            <div class="flex items-center min-w-0">
+                              <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(sub.priority)">
+                                <option value="CRITICAL">🔴 CRITICAL</option>
+                                <option value="HIGH">🟠 HIGH</option>
+                                <option value="MEDIUM">🟡 MEDIUM</option>
+                                <option value="LOW">🟢 LOW</option>
+                              </select>
+                            </div>
+                            <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center shrink-0">
+                              <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ') }}</span>
+                            </div>
+                            <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
+                              <button type="button" @click.stop="openCreateTaskModal(sub.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
+                            </div>
                           </div>
-                          <div class="flex items-center gap-1 min-w-0">
-                            <span class="text-gray-600 shrink-0">↳</span>
-                            <span
-                              class="shrink-0 text-xs font-bold"
-                              :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
-                              :title="sub.task_type"
-                            >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                            <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 truncate block min-w-0" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
-                          </div>
-                          <div class="flex items-center justify-center shrink-0">
-                            <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
-                          </div>
-                          <div class="flex items-center min-w-0">
-                            <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-0" :class="priorityTextClass(sub.priority)">
-                              <option value="CRITICAL">🔴 CRITICAL</option>
-                              <option value="HIGH">🟠 HIGH</option>
-                              <option value="MEDIUM">🟡 MEDIUM</option>
-                              <option value="LOW">🟢 LOW</option>
-                            </select>
-                          </div>
-                          <div class="flex items-center">
-                            <span class="text-xs text-gray-500 italic">Inherits</span>
-                          </div>
-                          <div class="flex items-center">
-                            <span class="text-xs text-gray-500 italic">Inherits</span>
-                          </div>
-                          <div class="flex items-center shrink-0">
-                            <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ').substring(0,6) }}</span>
-                          </div>
-                          <div class="flex items-center w-min shrink-0"></div>
-                        </div>
+                          <!-- Level C: sub-tasks of B (Unassigned) -->
+                          <template v-if="expandedEpics[sub.id]">
+                            <div v-for="subsub in getSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                              <div class="flex items-center"></div>
+                              <div class="flex items-center min-w-0 pl-10">
+                                <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(subsub)">{{ taskDisplayCode(subsub) }}</span>
+                              </div>
+                              <div class="flex items-center gap-1 min-w-0">
+                                <span class="text-gray-600 shrink-0">↳↳</span>
+                                <span
+                                  class="shrink-0 text-xs font-bold"
+                                  :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
+                                  :title="subsub.task_type"
+                                >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
+                                <span class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="navigateToTask(subsub.id)">{{ subsub.title }}</span>
+                              </div>
+                              <div class="flex items-center justify-center shrink-0">
+                                <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
+                              </div>
+                              <div class="flex items-center min-w-0">
+                                <select :value="subsub.priority" @change="updateTaskField(subsub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(subsub.priority)">
+                                  <option value="CRITICAL">🔴 CRITICAL</option>
+                                  <option value="HIGH">🟠 HIGH</option>
+                                  <option value="MEDIUM">🟡 MEDIUM</option>
+                                  <option value="LOW">🟢 LOW</option>
+                                </select>
+                              </div>
+                              <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                              <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                              <div class="flex items-center shrink-0">
+                                <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ subsub.status.replace('_',' ') }}</span>
+                              </div>
+                              <div class="flex items-center w-min shrink-0"></div>
+                            </div>
+                          </template>
+                        </template>
                       </template>
                     </template>
                   </div>
@@ -2468,26 +2550,45 @@ function getSubTasks(parentId: string) {
   return allTasks.value.filter((t) => t.parent_id === parentId)
 }
 
-/** Backlog display order: epics (with tasks + subs) then unassigned (tasks + subs). Used to assign 001, 002, 003. */
+/** Push task and all descendants in display order (so A001, B001, C001… are assigned correctly). */
+function pushTaskAndDescendants(list: Task[], task: Task) {
+  list.push(task)
+  getSubTasks(task.id).forEach((child) => pushTaskAndDescendants(list, child))
+}
+
+/** Backlog display order: epics (with tasks + all subs including C) then unassigned. Used for A001/B001/C001. */
 const allTasksInBacklogOrder = computed(() => {
   const list: typeof allTasks.value = []
   epics.value.forEach((ep) => {
-    getTasksForEpic(ep.id).forEach((t) => {
-      list.push(t)
-      list.push(...getSubTasks(t.id))
-    })
+    getTasksForEpic(ep.id).forEach((t) => pushTaskAndDescendants(list, t))
   })
-  getUnassignedTasks().forEach((t) => {
-    list.push(t)
-    list.push(...getSubTasks(t.id))
-  })
+  getUnassignedTasks().forEach((t) => pushTaskAndDescendants(list, t))
   return list
 })
 
+/** Code suffix as 3 digits for A/B/C prefix (matches task detail page: A084, B084, C084). */
+function codeSuffix3(code: string | undefined): string {
+  if (!code) return '???'
+  const suffix = code.split('-').pop()
+  return (suffix && /^\d+$/.test(suffix)) ? String(Number(suffix)).padStart(3, '0') : (suffix || '???')
+}
+
+/** Top-level: A084. Sub-tasks: B084. Sub-tasks of B: C084. Uses task.code suffix so backlog and task page match. */
 const taskDisplayCodeMap = computed(() => {
   const m: Record<string, string> = {}
-  allTasksInBacklogOrder.value.forEach((t, i) => {
-    m[t.id] = String(i + 1).padStart(4, '0')
+  const byId = Object.fromEntries(allTasks.value.map((t) => [t.id, t]))
+  allTasksInBacklogOrder.value.forEach((t) => {
+    const num = codeSuffix3(t.code)
+    if (!t.parent_id) {
+      m[t.id] = 'A' + num
+    } else {
+      const parent = byId[t.parent_id]
+      if (parent && parent.parent_id) {
+        m[t.id] = 'C' + num
+      } else {
+        m[t.id] = 'B' + num
+      }
+    }
   })
   return m
 })
@@ -3829,7 +3930,7 @@ onMounted(loadAll)
 /* ตาราง backlog: ใช้ grid คอลัมน์ชัดเจน (ไม่ใช้ subgrid) ให้ทุก browser แสดงตรงกัน */
 .backlog-table-grid {
   display: grid;
-  grid-template-columns: 2.5rem 4.25rem minmax(14rem, 2fr) 3rem minmax(5rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 4.5rem;
+  grid-template-columns: 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
   column-gap: 0.75rem;
   row-gap: 0;
   padding: 0;
@@ -3838,14 +3939,14 @@ onMounted(loadAll)
 @media (min-width: 640px) {
   .backlog-table-grid {
     column-gap: 1rem;
-    grid-template-columns: 2.5rem 4.5rem minmax(16rem, 2.2fr) 3.5rem minmax(5.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 5rem;
+    grid-template-columns: 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
   }
 }
 /* แถวหัวตารางและแถวข้อมูลใช้ grid เดียวกับ parent (แต่ละแถวเป็น grid row ใน .backlog-table-grid) */
 .backlog-subgrid {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 2.5rem 4.25rem minmax(14rem, 2fr) 3rem minmax(5rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 4.5rem;
+  grid-template-columns: 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
   align-items: center;
   column-gap: 0.75rem;
   row-gap: 0;
@@ -3853,7 +3954,7 @@ onMounted(loadAll)
 @media (min-width: 640px) {
   .backlog-subgrid {
     column-gap: 1rem;
-    grid-template-columns: 2.5rem 4.5rem minmax(16rem, 2.2fr) 3.5rem minmax(5.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 5rem;
+    grid-template-columns: 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
   }
 }
 /* เซลล์ทุกคอลัมน์: padding สม่ำเสมอ ให้ข้อมูลชิดกับ header และไม่ชิดขอบ */
@@ -3868,7 +3969,7 @@ onMounted(loadAll)
 }
 .backlog-subgrid > div:last-child {
   padding-left: 0.25rem;
-  padding-right: 1rem;
+  padding-right: 0.5rem;
   margin-left: 0;
 }
 @media (min-width: 640px) {
@@ -3877,7 +3978,7 @@ onMounted(loadAll)
     padding-right: 0.375rem;
   }
   .backlog-subgrid > div:last-child {
-    padding-right: 1.25rem;
+    padding-right: 0.5rem;
     margin-left: 0;
   }
 }
@@ -3897,35 +3998,47 @@ onMounted(loadAll)
   padding-top: 0;
   padding-bottom: 0;
 }
-/* หัวคอลัมน์ ID ชิดขวา, Task ชิดซ้าย (ให้ชื่อ task ทุกแถวเริ่มที่ตำแหน่งเดียวกัน) */
+/* หัวคอลัมน์ ID ชิดขวา */
 .backlog-table-header > div:nth-child(2) {
   justify-content: flex-end;
-}
-.backlog-table-header > div:nth-child(3) {
-  justify-content: flex-start;
 }
 /* ช่อง ID ในแถวข้อมูล: จัดตัวเลขชิดขวา */
 .backlog-subgrid > div:nth-child(2) {
   justify-content: flex-end;
 }
-/* ช่องชื่อ Task: ชิดซ้าย ให้ชื่อ task หลักและ sub-task เริ่มที่ตำแหน่งเดียวกัน */
+/* ช่องชื่อ Task: ชิดซ้าย (ยกเว้นหัวตาราง) */
 .backlog-subgrid > div:nth-child(3) {
   justify-content: flex-start;
 }
-/* ช่อง Epic: ขยายแล้วจัดเนื้อหาชิดขวา */
-.backlog-table-header > div:nth-child(6),
-.backlog-subgrid > div:nth-child(6) {
+/* ช่อง Epic ในแถวระดับ A: จัดเนื้อหาชิดขวา */
+.backlog-row.backlog-subgrid > div:nth-child(6) {
   justify-content: flex-end;
+}
+/* แถว sub-row (B/C): คอลัมน์ Epic และ Sprint จัดข้อความ Inherits ตรงกลาง */
+.backlog-sub-row > div:nth-child(6),
+.backlog-sub-row > div:nth-child(7) {
+  justify-content: center;
+}
+/* คอลัมน์ Status (คอลัมน์ที่ 8): จัด badge ตรงกลาง */
+.backlog-subgrid > div:nth-child(8) {
+  justify-content: center;
+}
+/* หัวคอลัมน์ Task และ Epic อยู่ตรงกลาง (ต้องอยู่หลัง rule ทั่วไปเพื่อ override) */
+.backlog-table-header.backlog-subgrid > div:nth-child(3),
+.backlog-table-header.backlog-subgrid > div:nth-child(6) {
+  justify-content: center;
+  text-align: center;
 }
 
 /* แถวข้อมูล: padding แนวตั้งพอดี อ่านง่าย */
 .backlog-row {
   padding: 0.625rem 0;
-  border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+  border-bottom: 1px solid rgba(55, 65, 81, 0.55);
   min-width: 0;
+  background: rgba(31, 41, 55, 0.55);
 }
 .backlog-row:hover {
-  background: rgba(55, 65, 81, 0.25);
+  background: rgba(55, 65, 81, 0.6);
 }
 /* Sub-task rows: ระยะห่างสมดุลกับแถวหลัก */
 .backlog-sub-row {

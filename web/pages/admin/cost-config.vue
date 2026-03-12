@@ -368,8 +368,8 @@
             </div>
           </div>
 
-          <!-- ── VC Finance Summary ── -->
-          <div class="rounded-2xl border border-yellow-700/30 bg-gradient-to-br from-yellow-900/15 to-amber-900/10 overflow-hidden">
+          <!-- ── VC Finance Summary (hidden when teams feature disabled) ── -->
+          <div v-if="teamsStore.teamsFeatureEnabled" class="rounded-2xl border border-yellow-700/30 bg-gradient-to-br from-yellow-900/15 to-amber-900/10 overflow-hidden">
             <div class="px-5 py-4 border-b border-yellow-700/20 flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-7 h-7 rounded-lg bg-yellow-500/15 border border-yellow-500/30 flex items-center justify-center flex-shrink-0">
@@ -1517,11 +1517,13 @@ function vcRunwayBarWidth(months: number): string {
 
 onMounted(async () => {
   if (!isCEO.value) return
+  await teamsStore.fetchTeamsFeatureEnabled()
   await Promise.all([fetchTeam(), loadSalaries(), loadConfig(), loadMandayRate()])
-  // Load all team finance data for the VC summary panel
-  if (teamsStore.teams.length === 0) await teamsStore.fetchTeams()
-  for (const team of teamsStore.teams) {
-    teamsStore.fetchTeamCost(team.id)
+  if (teamsStore.teamsFeatureEnabled) {
+    if (teamsStore.teams.length === 0) await teamsStore.fetchTeams()
+    for (const team of teamsStore.teams) {
+      teamsStore.fetchTeamCost(team.id)
+    }
   }
 })
 </script>

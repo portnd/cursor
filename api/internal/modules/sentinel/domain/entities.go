@@ -64,6 +64,10 @@ type Project struct {
 	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 	Tasks       []Task    `json:"tasks,omitempty" gorm:"foreignKey:ProjectID"`
+	// Task counts for list view (populated by repo, not stored)
+	TaskTotal    int `json:"task_total" gorm:"-"`
+	TaskCompleted int `json:"task_completed" gorm:"-"`
+	TaskOverdue   int `json:"task_overdue" gorm:"-"`
 }
 
 // ProjectTransactionType defines the type of a project capital transaction

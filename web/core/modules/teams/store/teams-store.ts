@@ -15,6 +15,8 @@ export const useTeamsStore = defineStore('teams', {
     loading: false,
     costLoading: {} as Record<number, boolean>,
     error: null as string | null,
+    /** When false, teams/squads feature is disabled and team UI should be hidden */
+    teamsFeatureEnabled: true,
   }),
 
   getters: {
@@ -38,6 +40,25 @@ export const useTeamsStore = defineStore('teams', {
         this.error = e instanceof Error ? e.message : 'Failed to fetch teams'
       } finally {
         this.loading = false
+      }
+    },
+
+    async fetchTeamsFeatureEnabled() {
+      try {
+        const api = useTeamsApi()
+        this.teamsFeatureEnabled = await api.getTeamsFeatureEnabled()
+      } catch (_e) {
+        this.teamsFeatureEnabled = true
+      }
+    },
+
+    async setTeamsFeatureEnabled(enabled: boolean) {
+      const api = useTeamsApi()
+      await api.setTeamsFeatureEnabled(enabled)
+      this.teamsFeatureEnabled = enabled
+      if (!enabled) {
+        this.teams = []
+        this.teamCosts = {}
       }
     },
 

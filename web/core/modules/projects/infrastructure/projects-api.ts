@@ -16,6 +16,10 @@ export interface Project {
   created_at: string
   updated_at: string
   tasks?: Task[]
+  /** Task counts from list API (so cards show correct numbers without loading full tasks) */
+  task_total?: number
+  task_completed?: number
+  task_overdue?: number
 }
 
 export interface ProjectTransaction {

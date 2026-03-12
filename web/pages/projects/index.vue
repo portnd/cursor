@@ -146,8 +146,8 @@
           {{ project.description || 'No description provided.' }}
         </p>
 
-        <!-- Team Badge + CEO Assign Dropdown -->
-        <div class="mb-4">
+        <!-- Team Badge + CEO Assign Dropdown (hidden when teams feature disabled) -->
+        <div v-if="teamsStore.teamsFeatureEnabled" class="mb-4">
           <!-- Current Team Badge (all roles) -->
           <div v-if="project.team_id" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 mb-2">
             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v1h-3zM4.75 12.094A5.973 5.973 0 004 15v1H1v-1a3 3 0 013.75-2.906z"/></svg>
@@ -199,15 +199,6 @@
               :style="{ width: progressPct(project) + '%' }"
             ></div>
           </div>
-        </div>
-
-        <!-- Capital Balance -->
-        <div v-if="project.capital_balance != null && project.capital_balance > 0" class="mb-4 flex items-center justify-between px-3 py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
-          <div class="flex items-center gap-1.5 text-xs text-emerald-400">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span class="font-medium">Capital</span>
-          </div>
-          <span class="text-xs font-bold text-emerald-300">฿{{ Math.round(project.capital_balance).toLocaleString('th-TH') }}</span>
         </div>
 
         <!-- Footer -->
@@ -466,6 +457,12 @@ function statusClass(status: string) {
 }
 
 function getTaskCount(project: Project, type: 'total' | 'done' | 'overdue') {
+  // Prefer counts from list API (populated by backend)
+  if (project.task_total !== undefined) {
+    if (type === 'total') return project.task_total
+    if (type === 'done') return project.task_completed ?? 0
+    if (type === 'overdue') return project.task_overdue ?? 0
+  }
   const tasks = project.tasks || []
   if (type === 'total') return tasks.length
   if (type === 'done') return tasks.filter((t) => t.status === 'COMPLETED').length
@@ -649,7 +646,9 @@ async function assignTeam(project: Project, teamId: number | null) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadProjects(), teamsStore.fetchTeams()])
+  await teamsStore.fetchTeamsFeatureEnabled()
+  await loadProjects()
+  if (teamsStore.teamsFeatureEnabled) await teamsStore.fetchTeams()
 })
 </script>
 

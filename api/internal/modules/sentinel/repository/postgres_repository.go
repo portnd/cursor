@@ -39,7 +39,43 @@ func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.
 	err := teamScope(r.db, ctx).
 		Order("created_at desc").
 		Find(&projects).Error
-	return projects, err
+	if err != nil || len(projects) == 0 {
+		return projects, err
+	}
+	projectIDs := make([]uuid.UUID, len(projects))
+	for i := range projects {
+		projectIDs[i] = projects[i].ID
+	}
+	var countRows []struct {
+		ProjectID uuid.UUID
+		Total     int
+		Completed int
+		Overdue   int
+	}
+	err = r.db.Raw(`
+		SELECT project_id,
+			COUNT(*)::int AS total,
+			COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed,
+			COUNT(*) FILTER (WHERE status != 'COMPLETED' AND due_at IS NOT NULL AND due_at < NOW())::int AS overdue
+		FROM tasks
+		WHERE project_id IN ?
+		GROUP BY project_id
+	`, projectIDs).Scan(&countRows).Error
+	if err != nil {
+		return projects, err
+	}
+	countByID := make(map[uuid.UUID]struct{ Total, Completed, Overdue int })
+	for _, row := range countRows {
+		countByID[row.ProjectID] = struct{ Total, Completed, Overdue int }{row.Total, row.Completed, row.Overdue}
+	}
+	for i := range projects {
+		if c, ok := countByID[projects[i].ID]; ok {
+			projects[i].TaskTotal = c.Total
+			projects[i].TaskCompleted = c.Completed
+			projects[i].TaskOverdue = c.Overdue
+		}
+	}
+	return projects, nil
 }
 
 func (r *postgresRepository) GetProjectByID(id uuid.UUID, ctx domain.CallerContext) (*domain.Project, error) {
@@ -76,9 +112,30 @@ func (r *postgresRepository) UpdateProject(p *domain.Project) error {
 }
 
 func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.Task, error) {
-	var tasks []domain.Task
-	err := r.db.Where("project_id = ?", projectID).Order("created_at desc").Find(&tasks).Error
-	return tasks, err
+	type taskRow struct {
+		domain.Task
+		DisplayName string `gorm:"column:assigned_to_display_name"`
+		Email       string `gorm:"column:assigned_to_email"`
+	}
+	var rows []taskRow
+	err := r.db.Table("tasks").
+		Select(`tasks.*,
+			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(u.email, '') AS assigned_to_email`).
+		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
+		Where("tasks.project_id = ?", projectID).
+		Order("tasks.created_at desc").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	tasks := make([]domain.Task, len(rows))
+	for i := range rows {
+		tasks[i] = rows[i].Task
+		tasks[i].AssignedToDisplayName = rows[i].DisplayName
+		tasks[i].AssignedToEmail = rows[i].Email
+	}
+	return tasks, nil
 }
 
 // DeleteProjectPlan removes all tasks, sprints, milestones, and epics for a project (for "clear plan" / reset before AI plan).
@@ -128,7 +185,7 @@ func (r *postgresRepository) GetTaskByID(id uuid.UUID) (*domain.Task, error) {
 	}).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order")
 	}).Preload("ParentTask", func(db *gorm.DB) *gorm.DB {
-		return db.Select("id, title, status, task_type, project_id")
+		return db.Select("id, title, status, task_type, project_id, parent_id")
 	}).First(&task, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -144,7 +201,7 @@ func (r *postgresRepository) GetTaskByCode(code string) (*domain.Task, error) {
 	}).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order")
 	}).Preload("ParentTask", func(db *gorm.DB) *gorm.DB {
-		return db.Select("id, title, status, task_type, project_id")
+		return db.Select("id, title, status, task_type, project_id, parent_id")
 	}).First(&task, "code = ?", code).Error
 	if err != nil {
 		return nil, err
