@@ -30,10 +30,14 @@ RUN ls -lh /app/main
 # -----------------------------------------------------------------------------
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates tzdata wget
+# Runtime deps + Chromium for PDF export (cost report, quotation, timeline)
+RUN apk --no-cache add ca-certificates tzdata wget && \
+    apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.19/community \
+    chromium nss freetype harfbuzz ttf-freefont
 
 ENV TZ=Asia/Bangkok
 ENV APP_ENV=staging
+ENV CHROME_PATH=/usr/bin/chromium
 
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
