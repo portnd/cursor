@@ -450,7 +450,23 @@ func (r *postgresRepository) UpdateTask(task *domain.Task) error {
 }
 
 func (r *postgresRepository) DeleteTask(id uuid.UUID) error {
-	return r.db.Delete(&domain.Task{}, "id = ?", id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Delete in dependency order to avoid FK violations (works even if DB has no ON DELETE CASCADE)
+		// 1. Appeals reference submissions; delete appeals for submissions of this task
+		if err := tx.Exec("DELETE FROM appeals WHERE submission_id IN (SELECT id FROM submissions WHERE task_id = ?)", id).Error; err != nil {
+			return err
+		}
+		// 2. Submissions reference tasks
+		if err := tx.Exec("DELETE FROM submissions WHERE task_id = ?", id).Error; err != nil {
+			return err
+		}
+		// 3. Task dependencies reference tasks (predecessor_id, successor_id)
+		if err := tx.Exec("DELETE FROM task_dependencies WHERE predecessor_id = ? OR successor_id = ?", id, id).Error; err != nil {
+			return err
+		}
+		// 4. Delete the task
+		return tx.Delete(&domain.Task{}, "id = ?", id).Error
+	})
 }
 
 // GetAllTaskDependencies returns all task dependencies for Gantt chart rendering
