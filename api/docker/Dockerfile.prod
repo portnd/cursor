@@ -73,8 +73,9 @@ RUN addgroup -g 1000 appuser && \
 # Set working directory
 WORKDIR /home/appuser/app
 
-# Copy binary from builder stage
+# Copy binary and timeline PDF template from builder stage
 COPY --from=builder /app/main .
+COPY --from=builder /build/templates ./templates
 
 # Copy .env file if it exists (optional)
 # COPY .env .env
