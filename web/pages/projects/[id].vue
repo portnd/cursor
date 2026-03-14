@@ -484,6 +484,22 @@
               <span class="text-xs text-gray-500">{{ allTasks.filter(t => !t.parent_id).length }} tasks</span>
             </div>
             <div class="flex items-center gap-2">
+              <!-- Selection toolbar when items selected -->
+              <template v-if="backlogSelectedCount > 0">
+                <span class="text-xs text-gray-400">{{ backlogSelectedCount }} selected</span>
+                <button type="button" @click="clearBacklogSelection" class="px-3 py-2 text-xs font-medium text-gray-400 hover:text-white rounded-lg border border-gray-600 hover:bg-gray-700/60 transition-colors">
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  @click="bulkDeleteSelectedBacklogTasks"
+                  :disabled="isBulkDeletingBacklog"
+                  class="px-3 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <span v-if="isBulkDeletingBacklog" class="w-3.5 h-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Delete selected
+                </button>
+              </template>
               <!-- Expand / Collapse all (enterprise toolbar) -->
               <div class="flex items-center rounded-lg border border-gray-600/60 bg-gray-800/50 overflow-hidden">
                 <button
@@ -546,6 +562,15 @@
                 <template v-if="expandedEpicGroups[ep.id]">
                   <div class="backlog-table-grid">
                     <div class="backlog-table-header backlog-subgrid">
+                      <div class="flex items-center justify-center shrink-0">
+                        <input
+                          type="checkbox"
+                          :checked="backlogSelectAllChecked"
+                          :indeterminate.prop="backlogSelectAllIndeterminate"
+                          class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                          @change="backlogSelectAllChecked = ($event.target as HTMLInputElement).checked"
+                        />
+                      </div>
                       <div class="flex items-center justify-center shrink-0"></div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">ID</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Task</div>
@@ -563,8 +588,17 @@
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, ep.id, taskIdx)"
                       >
-                      <div class="flex items-center gap-3 shrink-0">
-                        <span
+                        <div class="flex items-center justify-center shrink-0">
+                          <input
+                            type="checkbox"
+                            :checked="isBacklogTaskSelected(task.id)"
+                            class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                            @change="toggleBacklogTaskSelection(task.id)"
+                            @click.stop
+                          />
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                          <span
                           class="text-gray-500 cursor-grab select-none text-xs"
                           title="ลากเพื่อเรียงลำดับ"
                           draggable="true"
@@ -623,6 +657,15 @@
                     <template v-if="expandedEpics[task.id]">
                       <template v-for="sub in getSubTasks(task.id)" :key="sub.id">
                         <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
+                          <div class="flex items-center justify-center shrink-0">
+                            <input
+                              type="checkbox"
+                              :checked="isBacklogTaskSelected(sub.id)"
+                              class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                              @change="toggleBacklogTaskSelection(sub.id)"
+                              @click.stop
+                            />
+                          </div>
                           <div class="flex items-center pl-6">
                             <button v-if="getSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
                           </div>
@@ -665,6 +708,15 @@
                         <!-- Level C: sub-tasks of B -->
                         <template v-if="expandedEpics[sub.id]">
                           <div v-for="subsub in getSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                            <div class="flex items-center justify-center shrink-0">
+                              <input
+                                type="checkbox"
+                                :checked="isBacklogTaskSelected(subsub.id)"
+                                class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                                @change="toggleBacklogTaskSelection(subsub.id)"
+                                @click.stop
+                              />
+                            </div>
                             <div class="flex items-center"></div>
                             <div class="flex items-center min-w-0 pl-10">
                               <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(subsub)">{{ taskDisplayCode(subsub) }}</span>
@@ -723,6 +775,15 @@
                 <template v-if="expandedEpicGroups['__unassigned__'] !== false">
                   <div class="backlog-table-grid">
                     <div class="backlog-table-header backlog-subgrid">
+                      <div class="flex items-center justify-center shrink-0">
+                        <input
+                          type="checkbox"
+                          :checked="backlogSelectAllChecked"
+                          :indeterminate.prop="backlogSelectAllIndeterminate"
+                          class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                          @change="backlogSelectAllChecked = ($event.target as HTMLInputElement).checked"
+                        />
+                      </div>
                       <div class="flex items-center justify-center shrink-0"></div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">ID</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Task</div>
@@ -740,6 +801,15 @@
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, null, taskIdx)"
                       >
+                        <div class="flex items-center justify-center shrink-0">
+                          <input
+                            type="checkbox"
+                            :checked="isBacklogTaskSelected(task.id)"
+                            class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                            @change="toggleBacklogTaskSelection(task.id)"
+                            @click.stop
+                          />
+                        </div>
                         <div class="flex items-center gap-3 shrink-0">
                           <span
                             class="text-gray-500 cursor-grab select-none text-xs"
@@ -799,6 +869,15 @@
                       <template v-if="expandedEpics[task.id]">
                         <template v-for="sub in getSubTasks(task.id)" :key="sub.id">
                           <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
+                            <div class="flex items-center justify-center shrink-0">
+                              <input
+                                type="checkbox"
+                                :checked="isBacklogTaskSelected(sub.id)"
+                                class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                                @change="toggleBacklogTaskSelection(sub.id)"
+                                @click.stop
+                              />
+                            </div>
                             <div class="flex items-center pl-6">
                               <button v-if="getSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
                             </div>
@@ -837,6 +916,15 @@
                           <!-- Level C: sub-tasks of B (Unassigned) -->
                           <template v-if="expandedEpics[sub.id]">
                             <div v-for="subsub in getSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                              <div class="flex items-center justify-center shrink-0">
+                                <input
+                                  type="checkbox"
+                                  :checked="isBacklogTaskSelected(subsub.id)"
+                                  class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                                  @change="toggleBacklogTaskSelection(subsub.id)"
+                                  @click.stop
+                                />
+                              </div>
                               <div class="flex items-center"></div>
                               <div class="flex items-center min-w-0 pl-10">
                                 <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(subsub)">{{ taskDisplayCode(subsub) }}</span>
@@ -1705,7 +1793,7 @@ const route = useRoute()
 const router = useRouter()
 const { currentUser } = useAuth()
 const projectsApi = useProjectsApi()
-const { showError, confirm } = useNotification()
+const { showError, showSuccess, confirm } = useNotification()
 const tasksApi = useTasksApi()
 
 const tabs = [
@@ -2540,6 +2628,91 @@ const overdueCount = computed(() => {
   return allTasks.value.filter((t) => t.status !== 'COMPLETED' && t.due_at && new Date(t.due_at).getTime() < now).length
 })
 const epicTasks = computed(() => allTasks.value.filter((t) => !t.parent_id))
+
+/** Backlog multi-select: task IDs selected for bulk delete */
+const backlogSelectedTaskIds = ref<Set<string>>(new Set())
+const backlogSelectedCount = computed(() => backlogSelectedTaskIds.value.size)
+const allBacklogTopLevelIds = computed(() => new Set(allTasks.value.filter((t) => !t.parent_id).map((t) => t.id)))
+function isBacklogTaskSelected(id: string) {
+  return backlogSelectedTaskIds.value.has(id)
+}
+function toggleBacklogTaskSelection(id: string) {
+  const next = new Set(backlogSelectedTaskIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  backlogSelectedTaskIds.value = next
+}
+function selectAllBacklogTopLevel() {
+  backlogSelectedTaskIds.value = new Set(allBacklogTopLevelIds.value)
+}
+function clearBacklogSelection() {
+  backlogSelectedTaskIds.value = new Set()
+}
+const backlogSelectAllChecked = computed({
+  get() {
+    const top = allBacklogTopLevelIds.value
+    if (top.size === 0) return false
+    const sel = backlogSelectedTaskIds.value
+    return [...top].every((id) => sel.has(id))
+  },
+  set(v: boolean) {
+    if (v) selectAllBacklogTopLevel()
+    else clearBacklogSelection()
+  },
+})
+const backlogSelectAllIndeterminate = computed(() => {
+  const top = allBacklogTopLevelIds.value
+  if (top.size === 0) return false
+  const sel = backlogSelectedTaskIds.value
+  const selected = [...top].filter((id) => sel.has(id))
+  return selected.length > 0 && selected.length < top.size
+})
+
+const isBulkDeletingBacklog = ref(false)
+async function bulkDeleteSelectedBacklogTasks() {
+  const ids = [...backlogSelectedTaskIds.value]
+  if (ids.length === 0) return
+  const ok = await confirm({
+    title: 'ลบ tasks ที่เลือก',
+    message: `ต้องการลบ ${ids.length} รายการใช่หรือไม่? (ถ้ามี sub-task ต้องลบ sub-task ก่อน)`,
+    confirmLabel: 'ลบ',
+    cancelLabel: 'ยกเลิก',
+    variant: 'danger',
+  })
+  if (!ok) return
+  isBulkDeletingBacklog.value = true
+  const byId = Object.fromEntries(allTasks.value.map((t) => [t.id, t]))
+  const remaining = new Set(ids)
+  const toDelete: string[] = []
+  while (remaining.size > 0) {
+    const leaves = [...remaining].filter((id) => ![...remaining].some((oid) => byId[oid]?.parent_id === id))
+    if (leaves.length === 0) break
+    leaves.forEach((id) => {
+      toDelete.push(id)
+      remaining.delete(id)
+    })
+  }
+  let deleted = 0
+  const errors: string[] = []
+  for (const id of toDelete) {
+    try {
+      await tasksApi.deleteTask(id)
+      deleted++
+    } catch (e: any) {
+      const msg = e?.data?.message || e?.message || 'ลบไม่สำเร็จ'
+      errors.push(`${byId[id]?.code || id}: ${msg}`)
+    }
+  }
+  isBulkDeletingBacklog.value = false
+  clearBacklogSelection()
+  await loadAll()
+  if (errors.length > 0) {
+    showError(errors.slice(0, 5).join('; ') + (errors.length > 5 ? ` และอีก ${errors.length - 5} รายการ` : ''), 'ลบบางรายการไม่สำเร็จ')
+  }
+  if (deleted > 0) {
+    showSuccess(`ลบแล้ว ${deleted} รายการ`, 'ลบสำเร็จ')
+  }
+}
 const recentTasks = computed(() =>
   [...allTasks.value]
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
@@ -3930,7 +4103,7 @@ onMounted(loadAll)
 /* ตาราง backlog: ใช้ grid คอลัมน์ชัดเจน (ไม่ใช้ subgrid) ให้ทุก browser แสดงตรงกัน */
 .backlog-table-grid {
   display: grid;
-  grid-template-columns: 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
+  grid-template-columns: 2rem 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
   column-gap: 0.75rem;
   row-gap: 0;
   padding: 0;
@@ -3939,14 +4112,14 @@ onMounted(loadAll)
 @media (min-width: 640px) {
   .backlog-table-grid {
     column-gap: 1rem;
-    grid-template-columns: 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
+    grid-template-columns: 2rem 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
   }
 }
 /* แถวหัวตารางและแถวข้อมูลใช้ grid เดียวกับ parent (แต่ละแถวเป็น grid row ใน .backlog-table-grid) */
 .backlog-subgrid {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
+  grid-template-columns: 2rem 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
   align-items: center;
   column-gap: 0.75rem;
   row-gap: 0;
@@ -3954,7 +4127,7 @@ onMounted(loadAll)
 @media (min-width: 640px) {
   .backlog-subgrid {
     column-gap: 1rem;
-    grid-template-columns: 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
+    grid-template-columns: 2rem 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
   }
 }
 /* เซลล์ทุกคอลัมน์: padding สม่ำเสมอ ให้ข้อมูลชิดกับ header และไม่ชิดขอบ */
@@ -3999,33 +4172,33 @@ onMounted(loadAll)
   padding-bottom: 0;
 }
 /* หัวคอลัมน์ ID ชิดขวา */
-.backlog-table-header > div:nth-child(2) {
+.backlog-table-header > div:nth-child(3) {
   justify-content: flex-end;
 }
 /* ช่อง ID ในแถวข้อมูล: จัดตัวเลขชิดขวา */
-.backlog-subgrid > div:nth-child(2) {
+.backlog-subgrid > div:nth-child(3) {
   justify-content: flex-end;
 }
 /* ช่องชื่อ Task: ชิดซ้าย (ยกเว้นหัวตาราง) */
-.backlog-subgrid > div:nth-child(3) {
+.backlog-subgrid > div:nth-child(4) {
   justify-content: flex-start;
 }
 /* ช่อง Epic ในแถวระดับ A: จัดเนื้อหาชิดขวา */
-.backlog-row.backlog-subgrid > div:nth-child(6) {
+.backlog-row.backlog-subgrid > div:nth-child(7) {
   justify-content: flex-end;
 }
 /* แถว sub-row (B/C): คอลัมน์ Epic และ Sprint จัดข้อความ Inherits ตรงกลาง */
-.backlog-sub-row > div:nth-child(6),
-.backlog-sub-row > div:nth-child(7) {
+.backlog-sub-row > div:nth-child(7),
+.backlog-sub-row > div:nth-child(8) {
   justify-content: center;
 }
-/* คอลัมน์ Status (คอลัมน์ที่ 8): จัด badge ตรงกลาง */
-.backlog-subgrid > div:nth-child(8) {
+/* คอลัมน์ Status (คอลัมน์ที่ 9): จัด badge ตรงกลาง */
+.backlog-subgrid > div:nth-child(9) {
   justify-content: center;
 }
 /* หัวคอลัมน์ Task และ Epic อยู่ตรงกลาง (ต้องอยู่หลัง rule ทั่วไปเพื่อ override) */
-.backlog-table-header.backlog-subgrid > div:nth-child(3),
-.backlog-table-header.backlog-subgrid > div:nth-child(6) {
+.backlog-table-header.backlog-subgrid > div:nth-child(4),
+.backlog-table-header.backlog-subgrid > div:nth-child(7) {
   justify-content: center;
   text-align: center;
 }
