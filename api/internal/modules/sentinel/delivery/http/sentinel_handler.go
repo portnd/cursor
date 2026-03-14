@@ -1597,6 +1597,15 @@ func (h *SentinelHandler) DeleteTask(c *gin.Context) {
 			return
 		}
 
+		// Task has sub-tasks: must delete sub-tasks first
+		if contains(err.Error(), "task_has_sub_tasks") || contains(err.Error(), "violates foreign key constraint \"fk_tasks_sub_tasks\"") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Cannot delete task",
+				"message": "มี sub task ไม่สามารถลบได้ หากต้องการลบ ต้องลบ sub task ก่อน",
+			})
+			return
+		}
+
 		// Generic error
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to delete task",

@@ -1240,8 +1240,13 @@ const confirmDelete = async () => {
     goToDashboard()
   } catch (err: any) {
     console.error('Failed to delete task:', err)
-    showError(err.data?.message || err.message || 'Failed to delete task')
-    deleteError.value = err.data?.message || err.message || 'Failed to delete task'
+    const raw = err.data?.message || err.message || ''
+    const isSubTasksBlock = raw.includes('fk_tasks_sub_tasks') || raw.includes('23503') || raw.includes('sub-tasks')
+    const message = isSubTasksBlock
+      ? 'มี sub task ไม่สามารถลบได้ หากต้องการลบ ต้องลบ sub task ก่อน'
+      : (raw || 'Failed to delete task')
+    showError(message)
+    deleteError.value = message
   } finally {
     isDeletingTask.value = false
   }

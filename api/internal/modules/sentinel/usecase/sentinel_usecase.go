@@ -1086,7 +1086,16 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 		return fmt.Errorf("unauthorized: only the task creator, CEO, or PM can delete this task")
 	}
 
-	// 3️⃣ Delete from database
+	// 3️⃣ Cannot delete if task has sub-tasks (FK constraint)
+	childCount, err := u.repo.CountChildTasks(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to check sub-tasks: %w", err)
+	}
+	if childCount > 0 {
+		return fmt.Errorf("task_has_sub_tasks: cannot delete task with sub-tasks, delete sub-tasks first")
+	}
+
+	// 4️⃣ Delete from database
 	if err := u.repo.DeleteTask(taskID); err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
 	}
