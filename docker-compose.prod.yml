@@ -133,6 +133,8 @@ services:
       REDIS_PASS: ${REDIS_PASSWORD:-CHANGE_THIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:-CHANGE_THIS_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://yourdomain.com}
+      # PDF export (cost report, quotation, timeline) — chromedp uses Chromium
+      CHROME_PATH: /usr/bin/chromium
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:

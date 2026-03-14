@@ -53,7 +53,13 @@ FROM alpine:latest
 # Install runtime dependencies
 # - ca-certificates: For HTTPS requests
 # - tzdata: For timezone support
-RUN apk --no-cache add ca-certificates tzdata
+# - chromium + deps: For PDF export (pricing cost report, quotation, timeline)
+RUN apk --no-cache add ca-certificates tzdata && \
+    apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.19/community \
+    chromium nss freetype harfbuzz ttf-freefont
+
+# PDF export: chromedp uses this path (avoids "google-chrome: executable not found")
+ENV CHROME_PATH=/usr/bin/chromium
 
 # Set timezone (optional, change as needed)
 ENV TZ=Asia/Bangkok
