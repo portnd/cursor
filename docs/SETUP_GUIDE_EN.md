@@ -65,7 +65,6 @@ This project uses these ports:
 - **3000** - Nuxt (Frontend)
 - **8080** - Go API (Backend)
 - **5432** - PostgreSQL
-- **27017** - MongoDB
 - **6379** - Redis
 
 ```bash
@@ -73,7 +72,6 @@ This project uses these ports:
 lsof -i :3000
 lsof -i :8080
 lsof -i :5432
-lsof -i :27017
 lsof -i :6379
 ```
 
@@ -224,7 +222,6 @@ docker-compose up -d
 
 1. **Download Docker Images:**
    - ⏳ PostgreSQL 15
-   - ⏳ MongoDB 6
    - ⏳ Redis 7
    - ⏳ Node 18 (for Web)
    - ⏳ Go 1.23 (for API)
@@ -235,7 +232,6 @@ docker-compose up -d
 
 3. **Start Services:**
    - ✅ PostgreSQL
-   - ✅ MongoDB
    - ✅ Redis
    - ✅ API (Go)
    - ✅ Web (Nuxt)
@@ -271,7 +267,6 @@ docker-compose ps
 NAME            STATUS
 komgrip_api     Up X minutes
 komgrip_db      Up X minutes (healthy)
-komgrip_mongo   Up X minutes (healthy)
 komgrip_redis   Up X minutes (healthy)
 komgrip_web     Up X minutes
 ```
@@ -292,7 +287,6 @@ curl http://localhost:8080/health
   "timestamp": "2026-01-22T10:00:00Z",
   "services": {
     "postgres": "UP",
-    "mongodb": "UP",
     "redis": "UP"
   }
 }
@@ -313,7 +307,7 @@ open http://localhost:3000
 - ✅ Beautiful page with gradient background (purple-black)
 - ✅ Text "🛡️ KOMGRIP"
 - ✅ "God-Tier Starter Kit"
-- ✅ Status boxes showing databases (Postgres, Mongo, Redis) in green "UP"
+- ✅ Status boxes showing databases (Postgres, Redis) in green "UP"
 - ✅ 6 feature cards
 - ✅ Tech stack badges at bottom
 
@@ -325,12 +319,6 @@ make shell-db
 # In psql shell type:
 \l
 \q
-
-# Enter MongoDB
-make shell-mongo
-# In mongosh shell type:
-show dbs
-exit
 
 # Enter Redis
 make shell-redis
@@ -387,8 +375,6 @@ komgrip_db | [Warning] Health check failed
 ```bash
 # 1. View logs for that service
 docker-compose logs postgres
-# or
-docker-compose logs mongo
 # or
 docker-compose logs redis
 
@@ -503,9 +489,6 @@ make ps
 # PostgreSQL
 make shell-db
 
-# MongoDB
-make shell-mongo
-
 # Redis
 make shell-redis
 ```
@@ -531,7 +514,6 @@ docker-compose logs -f web
 
 # Database logs
 docker-compose logs -f postgres
-docker-compose logs -f mongo
 docker-compose logs -f redis
 ```
 
@@ -595,7 +577,7 @@ Use this checklist to verify everything is ready:
 - [ ] Docker Desktop installed
 - [ ] Git installed
 - [ ] Make installed (optional)
-- [ ] Ports 3000, 8080, 5432, 27017, 6379 available
+- [ ] Ports 3000, 8080, 5432, 6379 available
 
 ### Clone and Setup
 - [ ] Repository cloned successfully

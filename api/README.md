@@ -16,7 +16,7 @@ api/
 │   │   ├── config/                 # Configuration management
 │   │   │   └── config.go           # Environment loader
 │   │   └── database/               # Database connections
-│   │       └── database.go         # Postgres, Mongo, Redis init
+│   │       └── database.go         # Postgres, Redis init
 │   └── modules/                    # Business modules (Hexagonal)
 │       └── health/                 # Health check module
 │           └── delivery/
@@ -42,7 +42,7 @@ Each module follows this structure:
 internal/modules/{feature}/
 ├── domain/           # Business entities & interfaces (Pure Go, no dependencies)
 ├── usecase/          # Business logic implementation
-├── repository/       # Data persistence adapters (Postgres, Mongo, Redis)
+├── repository/       # Data persistence adapters (Postgres, Redis)
 └── delivery/         # HTTP handlers, gRPC, CLI, etc.
 ```
 
@@ -50,7 +50,7 @@ internal/modules/{feature}/
 ```
 Delivery → Usecase → Repository → Database
    ↓          ↓           ↓
-  Gin      Business    GORM/Mongo
+  Gin      Business    GORM
           Logic
 ```
 
@@ -84,7 +84,6 @@ curl http://localhost:8080/health
   "timestamp": "2026-01-22T10:30:00+07:00",
   "services": {
     "postgres": "UP",
-    "mongodb": "UP",
     "redis": "UP"
   }
 }
@@ -119,7 +118,6 @@ cp .env.example .env
 - `APP_ENV`: `development` or `production`
 - `APP_PORT`: API server port (default: `8080`)
 - `POSTGRES_*`: PostgreSQL connection details
-- `MONGO_*`: MongoDB connection details
 - `REDIS_*`: Redis connection details
 - `JWT_SECRET`: Secret for JWT signing (change in production!)
 
@@ -131,7 +129,6 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `gin-gonic/gin` | HTTP framework | https://gin-gonic.com |
 | `gorm.io/gorm` | ORM for PostgreSQL | https://gorm.io |
-| `mongo-driver` | MongoDB client | https://pkg.go.dev/go.mongodb.org/mongo-driver |
 | `go-redis/v9` | Redis client | https://redis.uptrace.dev |
 | `gin-contrib/cors` | CORS middleware | https://github.com/gin-contrib/cors |
 | `godotenv` | .env loader | https://github.com/joho/godotenv |
@@ -189,18 +186,6 @@ make shell-db
 \dt          # List tables
 \d users     # Describe table
 SELECT * FROM users LIMIT 10;
-```
-
-### MongoDB (Logs/Audits)
-
-```bash
-# Access MongoDB shell
-make shell-mongo
-
-# Inside mongosh
-show dbs
-use komgrip_logs
-db.audit_logs.find().limit(10)
 ```
 
 ### Redis (Cache)

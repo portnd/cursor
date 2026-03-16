@@ -93,11 +93,6 @@ POSTGRES_USER=komgrip_prod
 POSTGRES_PASSWORD=<32-char-random-string>
 POSTGRES_DB=komgrip_prod_db
 
-# MongoDB
-MONGO_USER=komgrip_admin
-MONGO_PASSWORD=<32-char-random-string>
-MONGO_DB=komgrip_logs_prod
-
 # Redis
 REDIS_PASSWORD=<32-char-random-string>
 ```
@@ -235,7 +230,6 @@ curl https://api.yourdomain.com/health
 #   "timestamp": "2026-01-23T15:00:00Z",
 #   "services": {
 #     "postgres": "UP",
-#     "mongodb": "UP",
 #     "redis": "UP"
 #   }
 # }
@@ -251,9 +245,6 @@ curl https://yourdomain.com
 ```bash
 # Test PostgreSQL
 docker exec komgrip_db_prod psql -U komgrip_prod -d komgrip_prod_db -c "SELECT 1;"
-
-# Test MongoDB
-docker exec komgrip_mongo_prod mongosh --eval "db.runCommand({ping: 1})"
 
 # Test Redis
 docker exec komgrip_redis_prod redis-cli -a YOUR_REDIS_PASSWORD ping
@@ -307,9 +298,6 @@ docker system prune -a
 ```bash
 # Backup PostgreSQL
 docker exec komgrip_db_prod pg_dump -U komgrip_prod komgrip_prod_db > backup_$(date +%Y%m%d).sql
-
-# Backup MongoDB
-docker exec komgrip_mongo_prod mongodump --out=/backup
 
 # Automate with cron
 0 2 * * * /path/to/backup-script.sh

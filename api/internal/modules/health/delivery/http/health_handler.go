@@ -7,21 +7,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"gorm.io/gorm"
 )
 
 type HealthHandler struct {
 	db          *gorm.DB
-	mongoClient *mongo.Client
 	redisClient *redis.Client
 }
 
-func NewHealthHandler(db *gorm.DB, mongoClient *mongo.Client, redisClient *redis.Client) *HealthHandler {
+func NewHealthHandler(db *gorm.DB, redisClient *redis.Client) *HealthHandler {
 	return &HealthHandler{
 		db:          db,
-		mongoClient: mongoClient,
 		redisClient: redisClient,
 	}
 }
@@ -45,12 +41,6 @@ func (h *HealthHandler) Check(c *gin.Context) {
 		postgresStatus = "DOWN"
 	}
 	services["postgres"] = postgresStatus
-
-	mongoStatus := "UP"
-	if err := h.mongoClient.Ping(ctx, readpref.Primary()); err != nil {
-		mongoStatus = "DOWN"
-	}
-	services["mongodb"] = mongoStatus
 
 	redisStatus := "UP"
 	if err := h.redisClient.Ping(ctx).Err(); err != nil {

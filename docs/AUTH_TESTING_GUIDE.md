@@ -28,7 +28,6 @@ curl http://localhost:8080/health
   "status": "UP",
   "services": {
     "postgres": "UP",
-    "mongodb": "UP",
     "redis": "UP"
   }
 }

@@ -117,7 +117,6 @@ make ps              # Show service status
 
 # Database Access
 make shell-db        # PostgreSQL shell
-make shell-mongo     # MongoDB shell
 make shell-redis     # Redis CLI
 
 # Container Access
@@ -150,7 +149,6 @@ docker-compose exec api sh              # Enter container
 | **Backend API** | http://localhost:8080 | Go REST API |
 | **Health Check** | http://localhost:8080/health | API health status |
 | **PostgreSQL** | localhost:5432 | Primary database |
-| **MongoDB** | localhost:27017 | Secondary database (logs) |
 | **Redis** | localhost:6379 | Cache database |
 
 ---

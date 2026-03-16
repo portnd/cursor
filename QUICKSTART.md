@@ -17,7 +17,7 @@ Get your God-Tier application running in 3 minutes.
 # or
 make init
 
-# 2. Start all services (Postgres, Mongo, Redis, API, Web)
+# 2. Start all services (Postgres, Redis, API, Web)
 make up
 
 # 3. Wait 30 seconds for services to initialize, then test
@@ -31,7 +31,6 @@ curl http://localhost:8080/health
   "timestamp": "2026-01-22T10:30:00+07:00",
   "services": {
     "postgres": "UP",
-    "mongodb": "UP",
     "redis": "UP"
   }
 }
@@ -71,7 +70,6 @@ make restart
 
 # Access database shells
 make shell-db        # PostgreSQL
-make shell-mongo     # MongoDB
 make shell-redis     # Redis
 
 # Access container shells
@@ -135,13 +133,6 @@ komgrip-starter/
 - **Database:** komgrip_db
 - **Use for:** Users, transactions, core business data
 
-### MongoDB (Secondary)
-- **Host:** localhost:27017
-- **User:** komgrip
-- **Password:** komgrip_secret
-- **Database:** komgrip_logs
-- **Use for:** Audit logs, system logs, analytics
-
 ### Redis (Cache)
 - **Host:** localhost:6379
 - **Password:** komgrip_secret
@@ -163,11 +154,7 @@ curl http://localhost:8080/health
 make shell-db
 # Inside psql: \l (list databases)
 
-# 4. Test MongoDB
-make shell-mongo
-# Inside mongosh: show dbs
-
-# 5. Test Redis
+# 4. Test Redis
 make shell-redis
 # Inside redis-cli: PING
 ```
@@ -182,7 +169,6 @@ make shell-redis
 lsof -i :8080    # API port
 lsof -i :3000    # Web port
 lsof -i :5432    # Postgres
-lsof -i :27017   # MongoDB
 lsof -i :6379    # Redis
 
 # Force cleanup and restart
@@ -195,7 +181,6 @@ make up
 ```bash
 # Check individual service logs
 docker-compose logs postgres
-docker-compose logs mongo
 docker-compose logs redis
 
 # Restart specific service

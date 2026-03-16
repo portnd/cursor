@@ -28,7 +28,7 @@ This document describes what the system does, its structure, key files, and data
 
 ### Tech stack
 
-- **Backend:** Go 1.23, Gin, GORM, PostgreSQL (primary), MongoDB (logs/audit), Redis (cache/sessions).
+- **Backend:** Go 1.23, Gin, GORM, PostgreSQL (primary), Redis (cache/sessions).
 - **Frontend:** Nuxt 3 (Vue 3, TypeScript), TailwindCSS, dark mode by default, Pinia.
 - **Run:** Docker; web on **port 3000**, API port from env (e.g. 8080).
 
@@ -68,10 +68,10 @@ sentinel-core/
 
 | Path | Purpose |
 |------|--------|
-| `api/cmd/server/main.go` | Load config, init Postgres/Mongo/Redis, AutoMigrate entities, wire all modules, register routes, run server. |
+| `api/cmd/server/main.go` | Load config, init Postgres/Redis, AutoMigrate entities, wire all modules, register routes, run server. |
 | `api/cmd/migrate/main.go` | Migration runner. |
 | `api/internal/core/config/config.go` | Env/config (DB, JWT, Groq/Gemini API keys, Google API key, etc.). |
-| `api/internal/core/database/database.go` | Postgres, Mongo, Redis init. |
+| `api/internal/core/database/database.go` | Postgres, Redis init. |
 | `api/internal/core/middleware/auth.go` | JWT auth middleware. |
 | `api/internal/core/pdf/chromepdf.go` | Timeline PDF export (chromedp). |
 
@@ -85,7 +85,7 @@ Each module follows: **handlers (delivery)** → **usecases** → **repositories
 | **sentinel** | `domain/entities.go` | `usecase/sentinel_usecase.go` | `repository/postgres_repository.go` + `gemini_service.go` / `groq_service.go` / `noop_ai_service.go`, `ai_usage_tracker.go` | `delivery/http/sentinel_handler.go`, `route.go` |
 | **finance** | `domain/entity.go` | `usecase/finance_usecase.go` | `repository/postgres_repo.go` | `delivery/http/finance_handler.go`, `route.go` |
 | **performance** | `domain/entities.go` | `usecase/performance_usecase.go` | `repository/postgres_repo.go` | `delivery/http/performance_handler.go`, `route.go` |
-| **health** | – | – | – | `delivery/http/health_handler.go`, `route.go` (checks Postgres, Mongo, Redis) |
+| **health** | – | – | – | `delivery/http/health_handler.go`, `route.go` (checks Postgres, Redis) |
 
 ### 3.3 API route prefixes (all under `/api/v1` unless noted)
 

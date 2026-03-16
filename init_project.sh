@@ -79,11 +79,6 @@ POSTGRES_PASSWORD=komgrip_secret
 POSTGRES_DB=komgrip_db
 POSTGRES_PORT=5432
 
-MONGO_USER=komgrip
-MONGO_PASSWORD=komgrip_secret
-MONGO_DB=komgrip_logs
-MONGO_PORT=27017
-
 REDIS_PASSWORD=komgrip_secret
 REDIS_PORT=6379
 
@@ -109,12 +104,6 @@ POSTGRES_PORT=5432
 POSTGRES_USER=komgrip
 POSTGRES_PASSWORD=komgrip_secret
 POSTGRES_DB=komgrip_db
-
-MONGO_HOST=localhost
-MONGO_PORT=27017
-MONGO_USER=komgrip
-MONGO_PASSWORD=komgrip_secret
-MONGO_DB=komgrip_logs
 
 REDIS_HOST=localhost
 REDIS_PORT=6379

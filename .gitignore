@@ -86,13 +86,11 @@ docker-compose.override.yml
 *.sqlite3
 data/
 pgdata/
-mongodata/
 redisdata/
 
 # Backups
 backups/
 backup_postgres.sql
-mongo_dump.archive
 *.bak
 *.backup
 *.old

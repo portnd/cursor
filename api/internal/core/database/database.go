@@ -9,9 +9,6 @@ import (
 
 	"github.com/portnd/the-sentinel-core/internal/core/config"
 	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -63,31 +60,6 @@ func InitPostgres(cfg *config.Config) (*gorm.DB, error) {
 	}
 
 	return db, nil
-}
-
-func InitMongo(cfg *config.Config) (*mongo.Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	clientOptions := options.Client().
-		ApplyURI(cfg.MongoURI).
-		SetMaxPoolSize(20).
-		SetMinPoolSize(2).
-		SetMaxConnIdleTime(5 * time.Minute)
-
-	client, err := mongo.Connect(ctx, clientOptions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to mongodb: %w", err)
-	}
-
-	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer pingCancel()
-
-	if err := client.Ping(pingCtx, readpref.Primary()); err != nil {
-		return nil, fmt.Errorf("failed to ping mongodb: %w", err)
-	}
-
-	return client, nil
 }
 
 func InitRedis(cfg *config.Config) (*redis.Client, error) {

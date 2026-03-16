@@ -19,13 +19,6 @@ type Config struct {
 	PostgresDB       string
 	PostgresDSN      string
 
-	MongoHost     string
-	MongoPort     string
-	MongoUser     string
-	MongoPassword string
-	MongoDB       string
-	MongoURI      string
-
 	RedisHost     string
 	RedisPort     string
 	RedisPassword string
@@ -56,12 +49,6 @@ func Load() (*Config, error) {
 		PostgresPassword: getEnv("POSTGRES_PASSWORD", "komgrip_secret"),
 		PostgresDB:       getEnv("POSTGRES_DB", "komgrip_db"),
 
-		MongoHost:     getEnv("MONGO_HOST", "localhost"),
-		MongoPort:     getEnv("MONGO_PORT", "27017"),
-		MongoUser:     getEnv("MONGO_USER", "komgrip"),
-		MongoPassword: getEnv("MONGO_PASSWORD", "komgrip_secret"),
-		MongoDB:       getEnv("MONGO_DB", "komgrip_logs"),
-
 		RedisHost:     getEnv("REDIS_HOST", "localhost"),
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", "komgrip_secret"),
@@ -84,15 +71,6 @@ func Load() (*Config, error) {
 		cfg.PostgresPassword,
 		cfg.PostgresDB,
 		cfg.PostgresPort,
-	)
-
-	cfg.MongoURI = fmt.Sprintf(
-		"mongodb://%s:%s@%s:%s/%s?authSource=admin",
-		cfg.MongoUser,
-		cfg.MongoPassword,
-		cfg.MongoHost,
-		cfg.MongoPort,
-		cfg.MongoDB,
 	)
 
 	cfg.RedisAddr = fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)

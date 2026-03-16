@@ -1,4 +1,4 @@
-.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-mongo shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker backup-db restore-db up-api dev-local
+.PHONY: help ensure-go-sum up down restart logs clean init shell-db shell-redis shell-api shell-web ps migrate-up migrate-down test-api test-web build wait-docker backup-db restore-db up-api dev-local
 
 PROJECT_NAME ?= komgrip
 
@@ -32,7 +32,6 @@ help:
 	@echo ""
 	@echo "Shell access:"
 	@echo "  make shell-db        - PostgreSQL shell (psql)"
-	@echo "  make shell-mongo     - MongoDB shell (mongosh)"
 	@echo "  make shell-redis     - Redis CLI"
 	@echo "  make shell-api       - API container shell"
 	@echo "  make shell-web       - Web container shell"
@@ -66,7 +65,7 @@ up: ensure-go-sum wait-docker
 # Start only API + DB (no web container). Use when Docker port forward fails — run web on host.
 up-api: ensure-go-sum wait-docker
 	@echo "🚀 Starting API + DB only (no web container)..."
-	docker-compose up -d postgres mongo redis api
+	docker-compose up -d postgres redis api
 	@echo "✅ API at http://localhost:8080. Run web on host: cd web && npm run dev"
 	@echo "   Then open http://localhost:3000"
 
@@ -148,10 +147,6 @@ ps:
 shell-db:
 	@echo "🐘 Connecting to PostgreSQL..."
 	docker-compose exec postgres psql -U $${POSTGRES_USER:-komgrip} -d $${POSTGRES_DB:-komgrip_db}
-
-shell-mongo:
-	@echo "🍃 Connecting to MongoDB..."
-	docker-compose exec mongo mongosh -u $${MONGO_USER:-komgrip} -p $${MONGO_PASSWORD:-komgrip_secret} --authenticationDatabase admin
 
 shell-redis:
 	@echo "⚡ Connecting to Redis..."

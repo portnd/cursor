@@ -43,15 +43,15 @@ Complete architectural documentation for the God-Tier Starter Kit.
 └─────────────────────────────┬────────────────────────────────┘
                               │
                  ┌────────────┼────────────┐
-                 │            │            │
-                 ▼            ▼            ▼
-         ┌──────────┐  ┌──────────┐  ┌──────────┐
-         │PostgreSQL│  │ MongoDB  │  │  Redis   │
-         │   (15)   │  │   (6)    │  │   (7)    │
-         │  PRIMARY │  │LOGS/AUDIT│  │  CACHE   │
-         │   ACID   │  │ SCHEMA-  │  │  128MB   │
-         │  TXNS    │  │   LESS   │  │   LRU    │
-         └──────────┘  └──────────┘  └──────────┘
+                 │            │
+                 ▼            ▼
+         ┌──────────┐  ┌──────────┐
+         │PostgreSQL│  │  Redis   │
+         │   (15)   │  │   (7)    │
+         │  PRIMARY │  │  CACHE   │
+         │   ACID   │  │  128MB   │
+         │  TXNS    │  │   LRU    │
+         └──────────┘  └──────────┘
 ```
 
 ---
@@ -70,8 +70,7 @@ internal/modules/{feature}/
 │   └── feature_usecase.go   # Implements domain.Usecase
 │
 ├── repository/          # Adapter: Database
-│   ├── postgres_repository.go   # Implements domain.Repository
-│   └── mongo_repository.go      # Alternative implementation
+│   └── postgres_repository.go   # Implements domain.Repository
 │
 └── delivery/            # Adapter: External interfaces
     ├── http/            # HTTP/REST adapter
@@ -120,7 +119,6 @@ pages/                  # File-based routing (Nuxt)
 | Database | Use Case | Data Examples | Constraints |
 | :--- | :--- | :--- | :--- |
 | **PostgreSQL** | Core business data requiring ACID | Users, Wallets, Transactions, Orders, Payments | Must use transactions, enforce foreign keys |
-| **MongoDB** | Logs, audits, analytics | System logs, Audit trails, User activities, Analytics events | No foreign keys, TTL indexes recommended |
 | **Redis** | High-speed cache | Sessions, Rate limiting, OTP codes, Temporary tokens | **128MB limit**, LRU eviction, Always set TTL |
 
 ### Decision Tree
@@ -129,8 +127,6 @@ pages/                  # File-based routing (Nuxt)
 New data entity?
     │
     ├─ Need ACID guarantees? ────────────────────→ PostgreSQL
-    │
-    ├─ Frequent writes, flexible schema? ─────────→ MongoDB
     │
     └─ Temporary data (< 1 hour)? ────────────────→ Redis
 ```
@@ -233,7 +229,6 @@ Load Balancer (Nginx/Caddy)
 | Go API | 2-4 cores | 2-4 GB | Efficient, low memory |
 | Nuxt SSR | 2-4 cores | 2-4 GB | Node.js memory |
 | PostgreSQL | 4-8 cores | 8-16 GB | CPU for queries, RAM for cache |
-| MongoDB | 2-4 cores | 4-8 GB | Document processing |
 | Redis | 1-2 cores | 256 MB | Memory-focused, **128MB limit** |
 
 ---
@@ -244,7 +239,6 @@ Load Balancer (Nginx/Caddy)
 ```
 Docker Compose (Local)
 ├── PostgreSQL (port 5432)
-├── MongoDB (port 27017)
 ├── Redis (port 6379)
 ├── API (port 8080) ← Hot reload with Air
 └── Web (port 3000) ← Hot reload with Nuxt HMR
@@ -258,7 +252,6 @@ Cloud Provider (AWS/GCP/Azure)
 │   └── Auto-scaling groups
 ├── Managed Databases
 │   ├── RDS (PostgreSQL)
-│   ├── DocumentDB / Atlas (MongoDB)
 │   └── ElastiCache (Redis)
 ├── CDN (CloudFront/CloudFlare)
 ├── Load Balancer (ALB/NLB)
@@ -374,7 +367,7 @@ GitHub Actions / GitLab CI
 4. **Type Safety:** Strict TypeScript mode
 
 ### Database
-1. **Right Tool for the Job:** Use PostgreSQL for ACID, Mongo for logs, Redis for cache
+1. **Right Tool for the Job:** Use PostgreSQL for ACID, Redis for cache
 2. **Transactions:** Always use for multi-step operations
 3. **Migrations:** Never manually alter schema
 4. **Indexes:** Add for frequently queried columns

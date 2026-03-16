@@ -32,7 +32,6 @@ make clean       # ลบทุกอย่าง (containers + volumes)
 
 ```bash
 make shell-db     # PostgreSQL shell (psql)
-make shell-mongo  # MongoDB shell (mongosh)
 make shell-redis  # Redis CLI
 ```
 
@@ -82,8 +81,6 @@ lsof -i :8080
 ### 3. Database ไม่ healthy
 ```bash
 docker-compose restart postgres
-# หรือ
-docker-compose restart mongo
 # หรือ
 docker-compose restart redis
 ```
@@ -136,7 +133,6 @@ curl http://localhost:8080/health
   "status": "UP",
   "services": {
     "postgres": "UP",
-    "mongodb": "UP",
     "redis": "UP"
   }
 }
@@ -150,7 +146,6 @@ make ps
 **ต้องเห็น:**
 - ✅ `komgrip_api` - Up
 - ✅ `komgrip_db` - Up (healthy)
-- ✅ `komgrip_mongo` - Up (healthy)
 - ✅ `komgrip_redis` - Up (healthy)
 - ✅ `komgrip_web` - Up
 
@@ -191,7 +186,6 @@ WEB_PORT=3000
 DB_HOST=postgres
 DB_USER=komgrip
 DB_PASS=<generated>
-MONGO_URI=mongodb://mongo:27017
 REDIS_ADDR=redis:6379
 JWT_SECRET=<generated>
 ```

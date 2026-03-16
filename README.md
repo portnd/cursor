@@ -40,7 +40,6 @@
 | **Backend** | Go 1.23 (Gin Framework) | REST API, Business Logic | Modular Monolith + Hexagonal Architecture |
 | **Frontend** | Nuxt 3 (Vue 3 + TypeScript) | SSR/SPA Web Application | Feature-Sliced Design (FSD) |
 | **Primary DB** | PostgreSQL 15 | Core Business Data (ACID) | Users, Wallets, Transactions |
-| **Secondary DB** | MongoDB 6 | Logs, Audits, Unstructured Data | System logs, audit trails |
 | **Cache** | Redis 7 | Sessions, Rate Limiting, Cache | **128MB Memory Limit** |
 | **Styling** | TailwindCSS 3 | Utility-first CSS | Mobile-first responsive design |
 | **DevOps** | Docker Compose | Local development environment | Health checks enabled |
@@ -72,11 +71,6 @@ komgrip-starter/
 │   │       │   ├── usecase/
 │   │       │   ├── repository/
 │   │       │   └── delivery/
-│   │       └── audit/                  # Audit logs (MongoDB)
-│   │           ├── domain/
-│   │           ├── usecase/
-│   │           ├── repository/
-│   │           └── delivery/
 │   ├── migrations/                     # SQL migration files
 │   ├── go.mod
 │   ├── go.sum
@@ -171,7 +165,7 @@ The script will:
 ### 2. Start All Services
 
 ```bash
-# Start all services (PostgreSQL, MongoDB, Redis, API, Web)
+# Start all services (PostgreSQL, Redis, API, Web)
 make up
 
 # View logs
@@ -203,7 +197,6 @@ make clean             # Stop and DELETE all volumes (DESTRUCTIVE)
 
 # Shell access
 make shell-db          # PostgreSQL shell (psql)
-make shell-mongo       # MongoDB shell (mongosh)
 make shell-redis       # Redis CLI
 make shell-api         # API container shell
 make shell-web         # Web container shell
@@ -259,7 +252,6 @@ npm run type-check
 | Database | Use Case | Data Type | ACID Compliance |
 | :--- | :--- | :--- | :--- |
 | **PostgreSQL** | Core business data | Users, Wallets, Transactions, Orders | ✅ Required |
-| **MongoDB** | System logs & audits | Audit trails, error logs, analytics | ❌ Not required |
 | **Redis** | High-speed cache | Sessions, rate limiting, temp data | ❌ Not required |
 
 ### Redis Memory Management
@@ -278,13 +270,6 @@ npm run type-check
 - Use **transactions** for multi-step operations
 - Add **indexes** on frequently queried columns
 - Use **migrations** for schema changes (never manual ALTER)
-
-### MongoDB Best Practices
-
-- Use for **write-heavy** operations (logs, audits)
-- Schema-less but use **struct validation** in Go
-- Add **TTL indexes** for auto-expiring documents
-- Avoid complex joins (denormalize data)
 
 ---
 
@@ -327,7 +312,7 @@ docker-compose exec web npm run test:e2e
 - [ ] Generate strong JWT secrets
 - [ ] Enable HTTPS (reverse proxy: Nginx/Caddy)
 - [ ] Set `APP_ENV=production`
-- [ ] Enable database backups (PostgreSQL + MongoDB)
+- [ ] Enable database backups (PostgreSQL)
 - [ ] Configure Redis persistence (AOF/RDB)
 - [ ] Set resource limits in `docker-compose.yml`
 - [ ] Enable monitoring (Prometheus + Grafana)

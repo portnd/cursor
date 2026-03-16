@@ -53,13 +53,6 @@ func main() {
 	}
 	log.Println("✅ PostgreSQL connected")
 
-	log.Println("🔌 Connecting to MongoDB...")
-	mongoClient, err := database.InitMongo(cfg)
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to MongoDB: %v", err)
-	}
-	log.Println("✅ MongoDB connected")
-
 	log.Println("🔌 Connecting to Redis...")
 	redisClient, err := database.InitRedis(cfg)
 	if err != nil {
@@ -188,7 +181,7 @@ func main() {
 	}))
 
 	// Register module routes
-	healthHttp.RegisterRoutes(router, db, mongoClient, redisClient)
+	healthHttp.RegisterRoutes(router, db, redisClient)
 
 	// API v1 Group - Uniform Interface for all endpoints
 	apiGroup := router.Group("/api/v1")

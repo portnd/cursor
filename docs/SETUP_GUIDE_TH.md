@@ -65,7 +65,6 @@ make --version
 - **3000** - Nuxt (Frontend)
 - **8080** - Go API (Backend)
 - **5432** - PostgreSQL
-- **27017** - MongoDB
 - **6379** - Redis
 
 ```bash
@@ -73,7 +72,6 @@ make --version
 lsof -i :3000
 lsof -i :8080
 lsof -i :5432
-lsof -i :27017
 lsof -i :6379
 ```
 
@@ -224,7 +222,6 @@ docker-compose up -d
 
 1. **ดาวน์โหลด Docker Images:**
    - ⏳ PostgreSQL 15
-   - ⏳ MongoDB 6
    - ⏳ Redis 7
    - ⏳ Node 18 (สำหรับ Web)
    - ⏳ Go 1.23 (สำหรับ API)
@@ -235,7 +232,6 @@ docker-compose up -d
 
 3. **Start Services:**
    - ✅ PostgreSQL
-   - ✅ MongoDB
    - ✅ Redis
    - ✅ API (Go)
    - ✅ Web (Nuxt)
@@ -271,7 +267,6 @@ docker-compose ps
 NAME            STATUS
 komgrip_api     Up X minutes
 komgrip_db      Up X minutes (healthy)
-komgrip_mongo   Up X minutes (healthy)
 komgrip_redis   Up X minutes (healthy)
 komgrip_web     Up X minutes
 ```
@@ -292,7 +287,6 @@ curl http://localhost:8080/health
   "timestamp": "2026-01-22T10:00:00Z",
   "services": {
     "postgres": "UP",
-    "mongodb": "UP",
     "redis": "UP"
   }
 }
@@ -313,7 +307,7 @@ open http://localhost:3000
 - ✅ หน้าจอสวยงามพื้นหลัง gradient (ม่วง-ดำ)
 - ✅ ข้อความ "🛡️ KOMGRIP"
 - ✅ "God-Tier Starter Kit"
-- ✅ กล่องแสดงสถานะ database (Postgres, Mongo, Redis) เป็นสีเขียว "UP"
+- ✅ กล่องแสดงสถานะ database (Postgres, Redis) เป็นสีเขียว "UP"
 - ✅ Feature cards 6 อัน
 - ✅ Tech stack badges ด้านล่าง
 
@@ -325,12 +319,6 @@ make shell-db
 # ใน psql shell พิมพ์:
 \l
 \q
-
-# เข้าไปใน MongoDB
-make shell-mongo
-# ใน mongosh shell พิมพ์:
-show dbs
-exit
 
 # เข้าไปใน Redis
 make shell-redis
@@ -387,8 +375,6 @@ komgrip_db | [Warning] Health check failed
 ```bash
 # 1. ดู logs ของ service นั้น
 docker-compose logs postgres
-# หรือ
-docker-compose logs mongo
 # หรือ
 docker-compose logs redis
 
@@ -503,9 +489,6 @@ make ps
 # PostgreSQL
 make shell-db
 
-# MongoDB
-make shell-mongo
-
 # Redis
 make shell-redis
 ```
@@ -531,7 +514,6 @@ docker-compose logs -f web
 
 # Logs ของ Database
 docker-compose logs -f postgres
-docker-compose logs -f mongo
 docker-compose logs -f redis
 ```
 
@@ -595,7 +577,7 @@ make test-web
 - [ ] ติดตั้ง Docker Desktop แล้ว
 - [ ] ติดตั้ง Git แล้ว
 - [ ] ติดตั้ง Make แล้ว (optional)
-- [ ] Port 3000, 8080, 5432, 27017, 6379 ว่าง
+- [ ] Port 3000, 8080, 5432, 6379 ว่าง
 
 ### Clone และตั้งค่า
 - [ ] Clone repository สำเร็จ
