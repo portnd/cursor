@@ -83,7 +83,7 @@
     </div>
 
     <!-- Kanban Columns: horizontal scroll on small screens, grid on large -->
-    <div class="flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto lg:overflow-visible pb-2 -mx-1 px-1 lg:mx-0 lg:px-0 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+    <div class="flex lg:grid lg:grid-cols-6 gap-3 overflow-x-auto lg:overflow-visible pb-2 -mx-1 px-1 lg:mx-0 lg:px-0 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
       <div
         v-for="col in columns"
         :key="col.status"
@@ -306,7 +306,8 @@ function assigneeInitial(task: Task): string {
 const columns = [
   { status: 'PENDING', label: 'Backlog', icon: '📋', headerClass: 'text-gray-300', wipLimit: 0 },
   { status: 'IN_PROGRESS', label: 'In Progress', icon: '⚡', headerClass: 'text-blue-400', wipLimit: 5 },
-  { status: 'REVIEW_PENDING', label: 'In Review', icon: '🔍', headerClass: 'text-yellow-400', wipLimit: 3 },
+  { status: 'READY_FOR_TEST', label: 'Ready for Test', icon: '🧪', headerClass: 'text-cyan-400', wipLimit: 3 },
+  { status: 'READY_FOR_UAT', label: 'Ready for UAT', icon: '🔬', headerClass: 'text-amber-400', wipLimit: 0 },
   { status: 'COMPLETED', label: 'Done', icon: '✅', headerClass: 'text-green-400', wipLimit: 0 },
   { status: 'BLOCKED', label: 'Blocked', icon: '🚫', headerClass: 'text-red-400', wipLimit: 0 },
 ]
@@ -325,14 +326,41 @@ const filteredTasks = computed(() =>
   })
 )
 
-const COLUMN_STATUSES = ['PENDING', 'IN_PROGRESS', 'REVIEW_PENDING', 'COMPLETED', 'BLOCKED'] as const
+const COLUMN_STATUSES = ['PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'READY_FOR_UAT', 'COMPLETED', 'BLOCKED'] as const
+
+/** Maps a task to a kanban column key.
+ *  - READY_FOR_UAT → dedicated UAT column (FEATURE tasks awaiting formal UAT approval)
+ *  - REVIEW_PENDING + FEATURE → same UAT column (feature UAT in progress)
+ *  - REVIEW_PENDING + TASK/BUG → Ready for Test (legacy sub-task handover flow)
+ */
+function bucketForTask(t: Task): string {
+  if (t.status === 'READY_FOR_UAT') return 'READY_FOR_UAT'
+  if (t.status === 'REVIEW_PENDING') {
+    return t.task_type === 'FEATURE' ? 'READY_FOR_UAT' : 'READY_FOR_TEST'
+  }
+  if (t.status === 'READY_FOR_TEST') return 'READY_FOR_TEST'
+  if (COLUMN_STATUSES.includes(t.status as (typeof COLUMN_STATUSES)[number])) return t.status
+  return 'PENDING'
+}
+
+/** Drop target status for API:
+ *  - READY_FOR_TEST column: FEATURE → REVIEW_PENDING, others → READY_FOR_TEST
+ *  - READY_FOR_UAT column: sets READY_FOR_UAT directly
+ */
+function resolvedStatusForColumn(colStatus: string, task: Task): string {
+  if (colStatus === 'READY_FOR_TEST') {
+    return task.task_type === 'FEATURE' ? 'REVIEW_PENDING' : 'READY_FOR_TEST'
+  }
+  if (colStatus === 'READY_FOR_UAT') return 'READY_FOR_UAT'
+  return colStatus
+}
 
 const tasksByCol = computed(() => {
   const map: Record<string, Task[]> = {}
   for (const col of columns) map[col.status] = []
   for (const t of filteredTasks.value) {
-    const status = t.status && COLUMN_STATUSES.includes(t.status as any) ? t.status : 'PENDING'
-    if (map[status]) map[status].push(t)
+    const key = bucketForTask(t)
+    if (map[key]) map[key].push(t)
   }
   return map
 })
@@ -388,11 +416,16 @@ function onDragLeave() {
   dragOverCol.value = ''
 }
 
-function onDrop(e: DragEvent, newStatus: string) {
+function onDrop(e: DragEvent, colStatus: string) {
   dragOverCol.value = ''
   const task = dragTask.value
-  if (!task || task.status === newStatus) return
-  emit('status-change', task.id, newStatus)
+  if (!task) return
+  const target = resolvedStatusForColumn(colStatus, task)
+  if (task.status === target) {
+    dragTask.value = null
+    return
+  }
+  emit('status-change', task.id, target)
   dragTask.value = null
 }
 </script>

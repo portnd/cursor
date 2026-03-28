@@ -7,7 +7,7 @@
         <span class="text-xs bg-gray-700 text-gray-400 rounded-full px-2 py-0.5">{{ subtasks.length }}</span>
       </div>
       <button
-        v-if="canEdit && !showAddForm"
+        v-if="canEdit && !showAddForm && !isMaxDepth"
         type="button"
         @click="openAddForm"
         class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 border border-blue-600/40 rounded-lg transition-colors"
@@ -17,6 +17,10 @@
         </svg>
         Add Sub-task
       </button>
+      <span
+        v-else-if="isMaxDepth"
+        class="text-xs text-gray-600 italic"
+      >Max depth (Level C)</span>
     </div>
 
     <!-- Roll-up summary bar -->
@@ -76,9 +80,9 @@
           {{ statusLabel(sub.status) }}
         </span>
 
-        <!-- Split button (PM/CEO only, visible on hover) -->
+        <!-- Split button (PM/CEO only, visible on hover — hidden at max depth because split creates children) -->
         <button
-          v-if="canEdit"
+          v-if="canEdit && !isMaxDepth"
           type="button"
           @click.stop="openSplitModal(sub)"
           title="Duplicate & Split this sub-task"
@@ -260,6 +264,7 @@
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useAuth } from '~/composables/useAuth'
 
 interface SubTask {
@@ -292,6 +297,8 @@ const props = defineProps<{
   projectId?: string | null
   subtasks: SubTask[]
   canEdit: boolean
+  /** true when this task is already at level C (parent itself has a parent) — blocks adding more sub-tasks */
+  isMaxDepth?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -302,6 +309,7 @@ const emit = defineEmits<{
 const { fetchWithAuth, currentUser } = useAuth()
 const tasksApi = useTasksApi()
 const { getTeams } = useTeamsApi()
+const teamsStore = useTeamsStore()
 
 // ── Add form ──────────────────────────────────────────────
 const showAddForm = ref(false)
@@ -346,12 +354,20 @@ async function loadAssignees() {
   try {
     const role = (currentUser.value?.role || '').toUpperCase()
     if (role === 'PM') {
-      const userId = currentUser.value?.user_id
-      const teams = await getTeams()
-      const myTeam = teams.find((t) => t.users?.some((u) => u.id === userId))
-      assigneeOptions.value = (myTeam?.users ?? [])
-        .filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
-        .map((u) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
+      await teamsStore.fetchTeamsFeatureEnabled()
+      if (teamsStore.teamsFeatureEnabled) {
+        const userId = currentUser.value?.user_id
+        const teams = await getTeams()
+        const myTeam = teams.find((t) => t.users?.some((u) => u.id === userId))
+        assigneeOptions.value = (myTeam?.users ?? [])
+          .filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+          .map((u) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
+      } else {
+        const res = await fetchWithAuth<{ data: AssigneeOption[] }>('/auth/users')
+        assigneeOptions.value = (res.data ?? []).filter((u) =>
+          ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
+        )
+      }
     } else {
       const res = await fetchWithAuth<{ data: AssigneeOption[] }>('/auth/users')
       assigneeOptions.value = (res.data ?? []).filter((u) =>
@@ -477,6 +493,7 @@ async function submitSplit() {
 function statusDotClass(status: string): string {
   const map: Record<string, string> = {
     COMPLETED: 'bg-green-500', IN_PROGRESS: 'bg-blue-500',
+    READY_FOR_TEST: 'bg-cyan-500',
     REVIEW_PENDING: 'bg-purple-500', BLOCKED: 'bg-red-500', PENDING: 'bg-yellow-500',
   }
   return map[status] ?? 'bg-gray-500'
@@ -486,6 +503,7 @@ function statusBadgeClass(status: string): string {
   const map: Record<string, string> = {
     COMPLETED: 'bg-green-900/50 text-green-300 border border-green-700',
     IN_PROGRESS: 'bg-blue-900/50 text-blue-300 border border-blue-700',
+    READY_FOR_TEST: 'bg-cyan-900/50 text-cyan-300 border border-cyan-700',
     REVIEW_PENDING: 'bg-purple-900/50 text-purple-300 border border-purple-700',
     BLOCKED: 'bg-red-900/50 text-red-300 border border-red-700',
     PENDING: 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/50',
@@ -496,6 +514,7 @@ function statusBadgeClass(status: string): string {
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
     COMPLETED: 'Done', IN_PROGRESS: 'In Progress',
+    READY_FOR_TEST: 'Ready for Test',
     REVIEW_PENDING: 'Review', BLOCKED: 'Blocked', PENDING: 'Pending',
   }
   return map[status] ?? status

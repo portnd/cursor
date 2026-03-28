@@ -181,7 +181,7 @@ const formatMinutes = (mins: number) => {
 const memberStats = computed(() => {
   return props.teamMembers.map(member => {
     const activeTasks = tasks.value.filter(
-      t => t.assigned_to === member.id && ['IN_PROGRESS', 'PENDING', 'REVIEW_PENDING'].includes(t.status)
+      t => t.assigned_to === member.id && ['IN_PROGRESS', 'PENDING', 'READY_FOR_TEST', 'REVIEW_PENDING'].includes(t.status)
     )
     const totalActiveMins = activeTasks.reduce((s, t) => s + (t.estimated_minutes || 0), 0)
     const workloadPct = availableMinutesPerMonth.value > 0

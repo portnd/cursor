@@ -106,18 +106,20 @@
           <!-- Top row: project + priority + status -->
           <div class="flex items-center justify-between gap-3 mb-3">
             <div class="flex items-center gap-2 min-w-0">
-              <!-- Project pill -->
-              <span
-                class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none shrink-0"
+              <!-- Project pill → links to project Kanban board -->
+              <NuxtLink
+                :to="`/projects/${feature.project_code || feature.project_id}?tab=board`"
+                class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none shrink-0 hover:opacity-80 transition-opacity"
                 :style="{
                   borderColor: feature.project_color || '#6366f1',
                   color: feature.project_color || '#6366f1',
                   backgroundColor: (feature.project_color || '#6366f1') + '18'
                 }"
+                @click.stop
               >
                 <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: feature.project_color || '#6366f1' }"/>
                 {{ feature.project_name || 'Unknown Project' }}
-              </span>
+              </NuxtLink>
 
               <!-- FEATURE badge -->
               <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-400 bg-violet-500/10 shrink-0">

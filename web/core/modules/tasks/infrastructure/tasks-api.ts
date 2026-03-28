@@ -34,6 +34,7 @@ export interface UATPayload {
 export interface FeatureRoadmapItem extends Task {
   project_name: string
   project_color: string
+  project_code: string
   rollup_progress: number
   child_tasks: Task[]
   uat_payload?: UATPayload
@@ -262,6 +263,15 @@ function useTasksApi() {
     await fetchWithAuth(`/sentinel/tasks/${taskId}/ready-for-test`, { method: 'POST' })
   }
 
+  /** PM first-stage approval: READY_FOR_TEST → READY_FOR_UAT, attaches test evidence for CEO. */
+  async function pmApproveSubTask(taskId: string, testUrl: string, testSteps: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/tasks/${taskId}/pm-approve-sub`, {
+      method: 'POST',
+      body: { test_url: testUrl, test_steps: testSteps },
+    })
+  }
+
+  /** CEO final approval: READY_FOR_UAT → COMPLETED. */
   async function approveSubTask(taskId: string): Promise<void> {
     await fetchWithAuth(`/sentinel/tasks/${taskId}/approve-sub`, { method: 'POST' })
   }
@@ -275,6 +285,12 @@ function useTasksApi() {
 
   async function getTasksReadyForTest(): Promise<GlobalActiveTask[]> {
     const res = await fetchWithAuth<{ data: GlobalActiveTask[] }>('/sentinel/tasks/ready-for-test')
+    return res.data ?? []
+  }
+
+  /** CEO: fetch TASK/BUG tasks in READY_FOR_UAT awaiting final approval. */
+  async function getTasksReadyForCEOApproval(): Promise<GlobalActiveTask[]> {
+    const res = await fetchWithAuth<{ data: GlobalActiveTask[] }>('/sentinel/tasks/ceo-approval-queue')
     return res.data ?? []
   }
 
@@ -303,9 +319,11 @@ function useTasksApi() {
     approveTask,
     rejectTask,
     markReadyForTest,
+    pmApproveSubTask,
     approveSubTask,
     rejectSubTask,
     getTasksReadyForTest,
+    getTasksReadyForCEOApproval,
   }
 }
 

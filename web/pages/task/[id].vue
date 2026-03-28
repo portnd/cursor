@@ -245,6 +245,89 @@
         </div>
       </div>
 
+      <!-- PM step: READY_FOR_TEST — submit test evidence to CEO -->
+      <section
+        v-if="showPMUATActions"
+        class="mb-6 rounded-2xl border border-cyan-500/35 bg-cyan-950/20 px-5 py-4"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400 mb-1">Awaiting your test approval</p>
+            <p class="text-sm text-gray-400">
+              This sub-task is in <span class="text-cyan-300 font-medium">Ready for Test</span>. Approve to submit test evidence to CEO, or reject to send it back to the developer.
+            </p>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+            <button
+              type="button"
+              :disabled="uatActionLoading || uatApproveSubmitting"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/25 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
+              @click="openUATApproveConfirm"
+            >
+              <span>✅</span>
+              APPROVE
+            </button>
+            <button
+              type="button"
+              :disabled="uatActionLoading"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35 text-red-400 text-sm font-semibold hover:bg-red-500/25 hover:border-red-400/50 transition-colors disabled:opacity-50"
+              @click="openUATRejectModal"
+            >
+              <span>❌</span>
+              REJECT
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CEO step: READY_FOR_UAT — final approval -->
+      <section
+        v-else-if="showCEOUATActions"
+        class="mb-6 rounded-2xl border border-amber-500/35 bg-amber-950/20 px-5 py-4"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-1">CEO Final Approval Required</p>
+            <p class="text-sm text-gray-400">
+              PM has tested this task and submitted evidence. Review the test details below and give your <span class="text-amber-300 font-medium">final approval</span> or reject it back to the PM.
+            </p>
+            <!-- Display PM test evidence from uat_payload -->
+            <template v-if="uatPayloadData">
+              <div class="mt-3 space-y-2">
+                <div v-if="uatPayloadData.test_url" class="flex items-center gap-2">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 w-20 shrink-0">Test URL</span>
+                  <a :href="uatPayloadData.test_url" target="_blank" rel="noopener" class="text-xs text-blue-400 hover:text-blue-300 underline truncate max-w-xs">{{ uatPayloadData.test_url }}</a>
+                </div>
+                <div v-if="uatPayloadData.test_steps" class="flex items-start gap-2">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 w-20 shrink-0 mt-0.5">Test Steps</span>
+                  <pre class="text-xs text-gray-300 whitespace-pre-wrap break-words max-w-lg">{{ uatPayloadData.test_steps }}</pre>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+            <button
+              type="button"
+              :disabled="uatActionLoading || uatApproveSubmitting"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/25 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
+              @click="openUATApproveConfirm"
+            >
+              <span>✅</span>
+              FINAL APPROVE
+            </button>
+            <button
+              type="button"
+              :disabled="uatActionLoading"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35 text-red-400 text-sm font-semibold hover:bg-red-500/25 hover:border-red-400/50 transition-colors disabled:opacity-50"
+              @click="openUATRejectModal"
+            >
+              <span>❌</span>
+              REJECT
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- ══ TWO-COLUMN LAYOUT ══ -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -300,6 +383,7 @@
             :project-id="task.project_id"
             :subtasks="subtasks"
             :can-edit="canEditOrDelete"
+            :is-max-depth="!!(task.parent_task?.parent_id)"
             @refresh="fetchTask"
           />
 
@@ -354,6 +438,19 @@
               <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Details</h2>
             </div>
             <div class="divide-y divide-gray-700/40">
+
+              <!-- Project board link -->
+              <div v-if="task.project_id" class="px-5 py-3.5">
+                <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Project</p>
+                <NuxtLink
+                  :to="`/projects/${task.project_id}?tab=board`"
+                  class="inline-flex items-center gap-1.5 text-sm text-violet-400 hover:text-violet-300 transition-colors group"
+                >
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+                  <span class="group-hover:underline">View on project board</span>
+                  <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </NuxtLink>
+              </div>
 
               <!-- Assignee -->
               <div class="px-5 py-3.5">
@@ -590,6 +687,180 @@
       </div>
     </div>
 
+    <!-- ══ PM APPROVE: Test Evidence Form (READY_FOR_TEST → READY_FOR_UAT) ══ -->
+    <Teleport to="body">
+      <div
+        v-if="uatApproveConfirmOpen && showPMUATActions"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        @click.self="!uatApproveSubmitting && closeUATApproveConfirm()"
+      >
+        <div class="w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-gray-900 shadow-2xl p-6">
+          <div class="flex items-start gap-3 mb-5">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span class="text-lg" aria-hidden="true">🧪</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-white">Submit Test Evidence to CEO</h3>
+              <p class="text-xs text-gray-500 truncate max-w-[320px]">{{ task?.title }}</p>
+              <p class="text-xs text-amber-400/80 mt-1">Task will be forwarded to CEO for final approval — not marked as Done yet.</p>
+            </div>
+          </div>
+          <!-- Test URL -->
+          <div class="mb-4">
+            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              Test / Staging URL <span class="text-red-400">*</span>
+            </label>
+            <input
+              ref="uatTestUrlRef"
+              v-model="uatTestUrl"
+              type="url"
+              placeholder="https://staging.example.com/feature-xyz"
+              :disabled="uatApproveSubmitting"
+              class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-50"
+            />
+            <p v-if="uatTestUrl.length > 0 && !uatTestUrl.startsWith('http')" class="text-[11px] text-red-400 mt-1">
+              URL must start with http:// or https://
+            </p>
+          </div>
+          <!-- Test Steps -->
+          <div class="mb-5">
+            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              Test Steps for CEO <span class="text-red-400">*</span>
+            </label>
+            <textarea
+              v-model="uatTestSteps"
+              rows="6"
+              placeholder="Describe step-by-step how the CEO should test this feature:&#10;1. Navigate to...&#10;2. Click on...&#10;3. Verify that..."
+              :disabled="uatApproveSubmitting"
+              class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 resize-none disabled:opacity-50"
+            />
+            <div class="flex items-center justify-between mt-1">
+              <p v-if="uatTestSteps.length > 0 && uatTestSteps.length < 20" class="text-[11px] text-red-400">
+                At least {{ 20 - uatTestSteps.length }} more character(s) required
+              </p>
+              <span class="text-[11px] text-gray-600 ml-auto">{{ uatTestSteps.length }} chars</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              :disabled="uatApproveSubmitting"
+              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-colors disabled:opacity-50"
+              @click="closeUATApproveConfirm"
+            >Cancel</button>
+            <button
+              type="button"
+              :disabled="uatApproveSubmitting || !isUATApproveFormValid"
+              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+              @click="submitUATApprove"
+            >
+              <svg v-if="uatApproveSubmitting" class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <span v-if="uatApproveSubmitting">Submitting…</span>
+              <span v-else>✅ Submit to CEO</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ══ CEO FINAL APPROVE CONFIRM (READY_FOR_UAT → COMPLETED) ══ -->
+    <Teleport to="body">
+      <div
+        v-if="uatApproveConfirmOpen && showCEOUATActions"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        @click.self="closeUATApproveConfirm"
+      >
+        <div class="w-full max-w-md rounded-2xl border border-amber-500/30 bg-gray-900 shadow-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+              <span class="text-lg" aria-hidden="true">👑</span>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Final Approval — Mark as Done?</h3>
+              <p class="text-xs text-gray-500 truncate max-w-[280px]">{{ task?.title }}</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mb-4">
+            This marks the task as <span class="text-emerald-400 font-medium">COMPLETED</span>. Continue only if you have verified the test evidence.
+          </p>
+          <div class="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              :disabled="uatApproveSubmitting"
+              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-colors disabled:opacity-50"
+              @click="closeUATApproveConfirm"
+            >Cancel</button>
+            <button
+              type="button"
+              :disabled="uatApproveSubmitting"
+              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-400 text-xs font-bold hover:bg-amber-500/25 transition-colors disabled:opacity-50"
+              @click="submitUATApprove"
+            >
+              <svg v-if="uatApproveSubmitting" class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <span v-if="uatApproveSubmitting">Approving…</span>
+              <span v-else>👑 Yes, Final Approve</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ══ UAT REJECT MODAL (ready-for-test → IN_PROGRESS) ══ -->
+    <Teleport to="body">
+      <div
+        v-if="uatRejectModalOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        @click.self="closeUATRejectModal"
+      >
+        <div class="w-full max-w-md rounded-2xl border border-red-500/30 bg-gray-900 shadow-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Reject sub-task</h3>
+              <p class="text-xs text-gray-500 truncate max-w-[280px]">{{ task?.title }}</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">Explain what failed so the developer can fix it. This will be logged as a comment.</p>
+          <textarea
+            ref="uatRejectTextareaRef"
+            v-model="uatRejectReason"
+            rows="4"
+            placeholder="Describe the issue (min. 10 characters)…"
+            class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none focus:ring-1 focus:ring-red-500/30 resize-none"
+          />
+          <p v-if="uatRejectReason.length > 0 && uatRejectReason.length < 10" class="text-[11px] text-red-400 mt-1">
+            At least {{ 10 - uatRejectReason.length }} more character(s) required
+          </p>
+          <div class="flex items-center justify-end gap-3 mt-4">
+            <button
+              type="button"
+              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-colors"
+              @click="closeUATRejectModal"
+            >Cancel</button>
+            <button
+              type="button"
+              :disabled="uatRejectReason.length < 10 || uatRejectSubmitting"
+              class="px-4 py-2 rounded-lg bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold hover:bg-red-500/25 transition-colors disabled:opacity-50"
+              @click="submitUATReject"
+            >
+              <span v-if="uatRejectSubmitting">Rejecting…</span>
+              <span v-else>Confirm reject</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- ══ OUTSOURCE MODAL ══ -->
     <OutsourceRequestModal
       v-model="showOutsourceModal"
@@ -612,6 +883,7 @@ import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { TaskComment, TimeLog } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import OutsourceRequestModal from '~/components/b2b/OutsourceRequestModal.vue'
 
 definePageMeta({
@@ -714,6 +986,7 @@ const authStore = useAuthStore()
 const projectsApi = useProjectsApi()
 const tasksApi = useTasksApi()
 const { getTeams } = useTeamsApi()
+const teamsStore = useTeamsStore()
 const { showSuccess, showError } = useNotification()
 
 // State
@@ -731,6 +1004,20 @@ const assigneeUsers = ref<{ id: number; email: string; display_name: string; rol
 const assignSelectedId = ref<number | ''>('')
 const assignLoading = ref(false)
 const assignError = ref('')
+
+// Continuous UAT: approve / reject on this page
+const uatActionLoading = ref(false)
+const uatActionType = ref<'approve' | 'reject' | null>(null)
+const uatApproveConfirmOpen = ref(false)
+const uatApproveSubmitting = ref(false)
+const uatRejectModalOpen = ref(false)
+const uatRejectReason = ref('')
+const uatRejectSubmitting = ref(false)
+const uatRejectTextareaRef = ref<HTMLTextAreaElement | null>(null)
+// PM test evidence form
+const uatTestUrl = ref('')
+const uatTestSteps = ref('')
+const uatTestUrlRef = ref<HTMLInputElement | null>(null)
 
 // Outsource Modal State
 const showOutsourceModal = ref(false)
@@ -847,6 +1134,45 @@ const canEditOrDelete = computed(() => {
   return creatorId === userId && !Number.isNaN(userId)
 })
 
+const currentRole = computed(() => (effectiveUser.value?.role || '').trim().toUpperCase())
+
+/** PM/MANAGER step: task is READY_FOR_TEST and viewer is PM or MANAGER */
+const showPMUATActions = computed(() => {
+  if (!task.value) return false
+  const role = currentRole.value
+  if (role !== 'PM' && role !== 'MANAGER') return false
+  if (task.value.status !== 'READY_FOR_TEST') return false
+  const t = task.value.task_type
+  return t === 'TASK' || t === 'BUG'
+})
+
+/** CEO/MANAGER step: task is READY_FOR_UAT (PM already tested) and viewer is CEO or MANAGER */
+const showCEOUATActions = computed(() => {
+  if (!task.value) return false
+  const role = currentRole.value
+  if (role !== 'CEO' && role !== 'MANAGER') return false
+  if (task.value.status !== 'READY_FOR_UAT') return false
+  const t = task.value.task_type
+  return t === 'TASK' || t === 'BUG'
+})
+
+/** Parsed UAT payload (test URL + steps stored by PM when they submitted) */
+const uatPayloadData = computed<{ test_url?: string; test_steps?: string } | null>(() => {
+  const raw = task.value?.uat_payload
+  if (!raw) return null
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return parsed as { test_url?: string; test_steps?: string }
+  } catch {
+    return null
+  }
+})
+
+/** Validation for PM's test evidence form */
+const isUATApproveFormValid = computed(() =>
+  uatTestUrl.value.startsWith('http') && uatTestSteps.value.trim().length >= 20
+)
+
 const creatorLabel = computed(() => {
   if (!task.value) return ''
   const role = task.value.created_by_role
@@ -910,13 +1236,18 @@ async function openAssignDropdown() {
     try {
       const role = (authCurrentUser.value?.role || '').toUpperCase()
       if (role === 'PM') {
-        // PM: load only members in the same team
-        const userId = authCurrentUser.value?.user_id
-        const teams = await getTeams()
-        const myTeam = teams.find(t => t.users?.some(u => u.id === userId))
-        assigneeUsers.value = myTeam?.users?.filter(u => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)) ?? []
+        await teamsStore.fetchTeamsFeatureEnabled()
+        if (teamsStore.teamsFeatureEnabled) {
+          const userId = authCurrentUser.value?.user_id
+          const teams = await getTeams()
+          const myTeam = teams.find(t => t.users?.some(u => u.id === userId))
+          assigneeUsers.value = myTeam?.users?.filter(u => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)) ?? []
+        } else {
+          const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
+          const users = res.data ?? []
+          assigneeUsers.value = users.filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+        }
       } else {
-        // CEO / MANAGER: see all users
         const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
         const users = res.data ?? []
         assigneeUsers.value = users.filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
@@ -946,6 +1277,80 @@ async function confirmChangeAssignee() {
   }
 }
 
+function openUATApproveConfirm() {
+  if (!task.value || uatApproveSubmitting.value) return
+  if (uatRejectModalOpen.value) closeUATRejectModal()
+  uatTestUrl.value = ''
+  uatTestSteps.value = ''
+  uatApproveConfirmOpen.value = true
+  if (showPMUATActions.value) {
+    nextTick(() => uatTestUrlRef.value?.focus())
+  }
+}
+
+function closeUATApproveConfirm() {
+  if (uatApproveSubmitting.value) return
+  uatApproveConfirmOpen.value = false
+  uatTestUrl.value = ''
+  uatTestSteps.value = ''
+}
+
+async function submitUATApprove() {
+  if (!task.value) return
+  uatApproveSubmitting.value = true
+  try {
+    if (showPMUATActions.value) {
+      // PM: submit test evidence → READY_FOR_UAT
+      await tasksApi.pmApproveSubTask(task.value.id, uatTestUrl.value.trim(), uatTestSteps.value.trim())
+      uatApproveConfirmOpen.value = false
+      showSuccess('Test evidence submitted. Task forwarded to CEO for final approval.', 'Submitted')
+    } else {
+      // CEO: final approval → COMPLETED
+      await tasksApi.approveSubTask(task.value.id)
+      uatApproveConfirmOpen.value = false
+      showSuccess('Task approved and marked as completed.', 'Done ✅')
+    }
+    await fetchTask()
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to approve')
+  } finally {
+    uatApproveSubmitting.value = false
+  }
+}
+
+function openUATRejectModal() {
+  if (uatApproveConfirmOpen.value) closeUATApproveConfirm()
+  uatRejectReason.value = ''
+  uatRejectModalOpen.value = true
+  nextTick(() => uatRejectTextareaRef.value?.focus())
+}
+
+
+
+function closeUATRejectModal() {
+  uatRejectModalOpen.value = false
+  uatRejectReason.value = ''
+}
+
+async function submitUATReject() {
+  if (!task.value || uatRejectReason.value.length < 10) return
+  uatRejectSubmitting.value = true
+  uatActionLoading.value = true
+  uatActionType.value = 'reject'
+  try {
+    await tasksApi.rejectSubTask(task.value.id, uatRejectReason.value)
+    closeUATRejectModal()
+    showSuccess('Sub-task rejected and returned to in progress.', 'Done')
+    await fetchTask()
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to reject')
+  } finally {
+    uatRejectSubmitting.value = false
+    uatActionLoading.value = false
+    uatActionType.value = null
+  }
+}
+
 const saveEstimatedMinutes = async () => {
   if (!task.value) return
   const mins = Number(estimatedMinutesLocal.value)
@@ -972,6 +1377,7 @@ const getStatusBadgeClass = (status: string) => {
     'PENDING':        'bg-yellow-900/40 border-yellow-600/50 text-yellow-300',
     'BLOCKED':        'bg-red-900/40 border-red-600/50 text-red-300',
     'REVIEW_PENDING': 'bg-purple-900/40 border-purple-600/50 text-purple-300',
+    'READY_FOR_TEST': 'bg-cyan-900/40 border-cyan-600/50 text-cyan-300',
     'ASSIGNED':       'bg-gray-700/60 border-gray-600/50 text-gray-300',
   }
   return classes[status] || 'bg-gray-700/60 border-gray-600/50 text-gray-300'
@@ -986,6 +1392,7 @@ const getStatusLabel = (status: string) => {
     'PENDING': '⏳ PENDING',
     'BLOCKED': '🚫 BLOCKED',
     'REVIEW_PENDING': '⏳ WAITING FOR APPROVAL', // 🚦 Quality Gate
+    'READY_FOR_TEST': '🧪 READY FOR TEST',
     'ASSIGNED': '📌 ASSIGNED'
   }
   return labels[status] || status

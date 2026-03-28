@@ -56,8 +56,8 @@
     <!-- ── Main Content ───────────────────────────────────────────────────────── -->
     <main v-else class="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
 
-      <!-- ── Handover Approval Queue ───────────────────────────────────────────── -->
-      <ApprovalQueueBoard />
+      <!-- ── CEO UAT Approval Queue (sub-tasks PM has tested, awaiting CEO final approval) ── -->
+      <CeoUATApprovalQueue />
 
       <!-- ── Section label helper ──────────────────────────────────────────────── -->
 
@@ -151,8 +151,8 @@
         </div>
       </section>
 
-      <!-- ── Project Capital Overview ────────────────────────────────────────── -->
-      <section>
+      <!-- ── Project Capital Overview (only when teams feature is enabled) ───── -->
+      <section v-if="teamsStore.teamsFeatureEnabled">
         <div class="flex items-center justify-between mb-4">
           <h2 class="section-label" style="margin-bottom:0">Project Capital</h2>
           <div class="flex items-center gap-2 text-xs text-gray-500">
@@ -235,9 +235,11 @@ import { useFinanceApi } from '~/core/modules/finance/finance-api'
 import type { FinanceSummary } from '~/core/modules/finance/finance-api'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import type { ProjectCapitalResponse } from '~/core/modules/projects/infrastructure/projects-api'
-import ApprovalQueueBoard from '~/components/dashboard/ApprovalQueueBoard.vue'
+import CeoUATApprovalQueue from '~/components/dashboard/CeoUATApprovalQueue.vue'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 
 const performanceStore = usePerformanceStore()
+const teamsStore = useTeamsStore()
 const financeApi = useFinanceApi()
 const { currentUser } = useAuth()
 const { getProjects, getProjectCapital } = useProjectsApi()
@@ -308,6 +310,7 @@ async function refresh() {
     await Promise.all([
       performanceStore.fetchAll(currentUser.value?.role ?? 'CEO'),
       financeApi.getSummary().then(s => { financeSummary.value = s }),
+      teamsStore.fetchTeamsFeatureEnabled(),
       loadProjectCapitals(),
     ])
     lastUpdated.value = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })

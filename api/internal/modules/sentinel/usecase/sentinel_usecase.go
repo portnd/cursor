@@ -279,10 +279,15 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 		return nil, errors.New("story_points cannot be negative")
 	}
 
-	// Sub-tasks (have a parent_id) inherit from parent: dates, and project/epic/sprint when not provided (allows nesting level C → D)
+	// Sub-tasks (have a parent_id) inherit from parent: dates, and project/epic/sprint when not provided.
+	// Max nesting depth is 2 levels (A → B → C). Level C tasks cannot have children.
 	if parentID != nil {
 		parent, err := u.repo.GetTaskByID(*parentID)
 		if err == nil && parent != nil {
+			// Reject if the parent itself already has a parent (would create level D)
+			if parent.ParentID != nil {
+				return nil, &domain.ErrBadRequest{Msg: "cannot create sub-tasks beyond level C — maximum nesting depth is 2 levels"}
+			}
 			startDate = parent.StartDate
 			endDate = parent.EndDate
 			if projectID == nil && parent.ProjectID != nil {
@@ -1239,10 +1244,17 @@ func (u *sentinelUsecase) MarkReadyForTest(taskID uuid.UUID, devID uint) error {
 	return nil
 }
 
-// ApproveSubTask moves a READY_FOR_TEST task to COMPLETED (PM/CEO action, Continuous UAT lane).
-func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string) error {
-	if pmRole != "CEO" && pmRole != "PM" && pmRole != "MANAGER" {
-		return fmt.Errorf("access denied: only PM, CEO or MANAGER can approve sub-tasks (your role: %s)", pmRole)
+// PMApproveSubTask is the PM's first-stage approval: READY_FOR_TEST → READY_FOR_UAT.
+// The PM must provide a test URL and detailed test steps that the CEO will follow to do the final UAT.
+func (u *sentinelUsecase) PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error {
+	if pmRole != "PM" && pmRole != "MANAGER" {
+		return fmt.Errorf("access denied: only PM or MANAGER can submit for CEO approval (your role: %s)", pmRole)
+	}
+	if strings.TrimSpace(testURL) == "" {
+		return &domain.ErrBadRequest{Msg: "test_url is required"}
+	}
+	if len(strings.TrimSpace(testSteps)) < 20 {
+		return &domain.ErrBadRequest{Msg: "test_steps must be at least 20 characters"}
 	}
 
 	task, err := u.repo.GetTaskByID(taskID)
@@ -1254,6 +1266,30 @@ func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole
 	}
 	if task.Status != "READY_FOR_TEST" {
 		return fmt.Errorf("task is not in READY_FOR_TEST status (current: %s)", task.Status)
+	}
+
+	payload := fmt.Sprintf(`{"test_url":%q,"test_steps":%q}`, strings.TrimSpace(testURL), strings.TrimSpace(testSteps))
+	if err := u.repo.SetTaskReadyForUAT(taskID, []byte(payload)); err != nil {
+		return fmt.Errorf("failed to submit for CEO approval: %w", err)
+	}
+	return nil
+}
+
+// ApproveSubTask is the CEO's final approval: READY_FOR_UAT → COMPLETED.
+func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRole string) error {
+	if ceoRole != "CEO" && ceoRole != "MANAGER" {
+		return fmt.Errorf("access denied: only CEO or MANAGER can give final approval (your role: %s)", ceoRole)
+	}
+
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return errors.New("task not found")
+	}
+	if task.Status != "READY_FOR_UAT" {
+		return fmt.Errorf("task is not in READY_FOR_UAT status (current: %s) — PM must submit test evidence first", task.Status)
 	}
 
 	if err := u.repo.ApproveTask(taskID); err != nil {
@@ -1289,7 +1325,8 @@ func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole
 	return nil
 }
 
-// RejectSubTask moves a READY_FOR_TEST task back to IN_PROGRESS and logs the rejection reason (PM/CEO action).
+// RejectSubTask returns a task to IN_PROGRESS with a reason log.
+// Accepts READY_FOR_TEST (PM rejecting dev work) or READY_FOR_UAT (CEO rejecting PM evidence).
 func (u *sentinelUsecase) RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error {
 	if pmRole != "CEO" && pmRole != "PM" && pmRole != "MANAGER" {
 		return fmt.Errorf("access denied: only PM, CEO or MANAGER can reject sub-tasks (your role: %s)", pmRole)
@@ -1305,8 +1342,8 @@ func (u *sentinelUsecase) RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole 
 	if task == nil {
 		return errors.New("task not found")
 	}
-	if task.Status != "READY_FOR_TEST" {
-		return fmt.Errorf("task is not in READY_FOR_TEST status (current: %s)", task.Status)
+	if task.Status != "READY_FOR_TEST" && task.Status != "READY_FOR_UAT" {
+		return fmt.Errorf("task must be in READY_FOR_TEST or READY_FOR_UAT status to be rejected (current: %s)", task.Status)
 	}
 
 	return u.repo.RejectTask(taskID, pmUserID, reason)
@@ -1322,6 +1359,18 @@ func (u *sentinelUsecase) GetTasksReadyForTest(callerTeamID *uint, callerRole st
 		teamID = *callerTeamID
 	}
 	return u.repo.GetTasksReadyForTest(teamID)
+}
+
+// GetTasksReadyForCEOApproval returns TASK/BUG items in READY_FOR_UAT status awaiting CEO final approval.
+func (u *sentinelUsecase) GetTasksReadyForCEOApproval(callerTeamID *uint, callerRole string) ([]domain.GlobalActiveTask, error) {
+	if callerRole != "CEO" && callerRole != "MANAGER" {
+		return nil, fmt.Errorf("access denied: only CEO or MANAGER can view the CEO approval queue (your role: %s)", callerRole)
+	}
+	var teamID uint
+	if callerTeamID != nil {
+		teamID = *callerTeamID
+	}
+	return u.repo.GetTasksReadyForCEOApproval(teamID)
 }
 
 // --- System Configuration Management ---
@@ -1711,7 +1760,7 @@ func (u *sentinelUsecase) GetProjectAnalytics(projectID uuid.UUID) (*domain.Proj
 
 func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string) error {
 	validStatuses := map[string]bool{
-		"PENDING": true, "IN_PROGRESS": true, "REVIEW_PENDING": true, "COMPLETED": true, "BLOCKED": true,
+		"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true, "REVIEW_PENDING": true, "COMPLETED": true, "BLOCKED": true,
 	}
 	if !validStatuses[status] {
 		return fmt.Errorf("invalid status: %s", status)

@@ -502,6 +502,7 @@ function taskCodeSuffix(code: string | undefined): string {
 function taskStatusBadge(status: string) {
   if (status === 'COMPLETED') return 'bg-green-500/20 text-green-400'
   if (status === 'IN_PROGRESS') return 'bg-blue-500/20 text-blue-400'
+  if (status === 'READY_FOR_TEST') return 'bg-cyan-500/20 text-cyan-400'
   if (status === 'REVIEW_PENDING') return 'bg-yellow-500/20 text-yellow-400'
   if (status === 'BLOCKED') return 'bg-red-500/20 text-red-400'
   return 'bg-gray-700 text-gray-400'

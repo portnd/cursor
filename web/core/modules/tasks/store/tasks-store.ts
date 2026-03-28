@@ -3,7 +3,7 @@ import { useTasksApi } from '../infrastructure/tasks-api'
 import type { Task } from '../../projects/infrastructure/projects-api'
 import type { TaskComment, TimeLog } from '../infrastructure/tasks-api'
 
-const TASK_STATUSES = ['PENDING', 'IN_PROGRESS', 'REVIEW_PENDING', 'COMPLETED', 'BLOCKED'] as const
+const TASK_STATUSES = ['PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'REVIEW_PENDING', 'COMPLETED', 'BLOCKED'] as const
 type TaskStatus = typeof TASK_STATUSES[number]
 
 export const useTasksStore = defineStore('tasks', {

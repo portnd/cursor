@@ -462,7 +462,9 @@ type SentinelRepository interface {
 	RejectTask(taskID uuid.UUID, rejectorID uint, reason string) error // Return task to IN_PROGRESS with comment
 
 	// Continuous UAT: sub-task level testing queue
-	GetTasksReadyForTest(teamID uint) ([]GlobalActiveTask, error) // All TASK/BUG in READY_FOR_TEST status, scoped to team
+	GetTasksReadyForTest(teamID uint) ([]GlobalActiveTask, error)           // All TASK/BUG in READY_FOR_TEST status, scoped to team
+	SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error           // PM approves: READY_FOR_TEST → READY_FOR_UAT with test evidence
+	GetTasksReadyForCEOApproval(teamID uint) ([]GlobalActiveTask, error)   // All TASK/BUG in READY_FOR_UAT status for CEO final approval
 
 	// Sprints
 	CreateSprint(sprint *Sprint) error
@@ -598,9 +600,11 @@ type SentinelUsecase interface {
 
 	// Continuous UAT: sub-task level testing queue (READY_FOR_TEST lane)
 	MarkReadyForTest(taskID uuid.UUID, devID uint) error                                       // Dev marks TASK/BUG as ready for PM to test
-	ApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string) error                        // PM approves READY_FOR_TEST → COMPLETED
-	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error          // PM rejects READY_FOR_TEST → IN_PROGRESS
-	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                 // PM/CEO: fetch all READY_FOR_TEST tasks for team
+	PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error // PM approves READY_FOR_TEST → READY_FOR_UAT with test evidence
+	ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRole string) error                                   // CEO final approves READY_FOR_UAT → COMPLETED
+	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error                      // PM/CEO rejects → IN_PROGRESS
+	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                 // PM/CEO: fetch READY_FOR_TEST tasks for team
+	GetTasksReadyForCEOApproval(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)          // CEO: fetch READY_FOR_UAT tasks awaiting final approval
 
 	// Sprints
 	CreateSprint(projectID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*Sprint, error)
@@ -759,6 +763,7 @@ type FeatureRoadmapItem struct {
 	Task
 	ProjectName    string `json:"project_name"`
 	ProjectColor   string `json:"project_color"`
+	ProjectCode    string `json:"project_code"`    // URL slug (e.g. mims-hd-map); empty for legacy
 	RollupProgress int    `json:"rollup_progress"` // 0-100 percentage of completed child tasks
 	ChildTasks     []Task `json:"child_tasks"`
 }

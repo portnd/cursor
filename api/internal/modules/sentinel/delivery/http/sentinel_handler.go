@@ -1777,9 +1777,10 @@ func (h *SentinelHandler) MarkReadyForTest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Task marked as READY_FOR_TEST"})
 }
 
-// ApproveSubTask moves a READY_FOR_TEST task to COMPLETED (PM/CEO action, Continuous UAT).
-// POST /api/v1/sentinel/tasks/:id/approve-sub
-func (h *SentinelHandler) ApproveSubTask(c *gin.Context) {
+// PMApproveSubTask is the PM's first-stage approval: READY_FOR_TEST → READY_FOR_UAT.
+// The PM must supply a test URL and detailed test steps for the CEO to follow.
+// POST /api/v1/sentinel/tasks/:id/pm-approve-sub
+func (h *SentinelHandler) PMApproveSubTask(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
@@ -1791,11 +1792,22 @@ func (h *SentinelHandler) ApproveSubTask(c *gin.Context) {
 		return
 	}
 	pmRole := getUserRoleFromContext(c)
-	if pmRole == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+
+	var req struct {
+		TestURL   string `json:"test_url"`
+		TestSteps string `json:"test_steps"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid request body"})
 		return
 	}
-	if err := h.usecase.ApproveSubTask(task.ID, pmID, pmRole); err != nil {
+
+	if err := h.usecase.PMApproveSubTask(task.ID, pmID, pmRole, req.TestURL, req.TestSteps); err != nil {
+		var badReq *domain.ErrBadRequest
+		if errors.As(err, &badReq) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": badReq.Msg})
+			return
+		}
 		if contains(err.Error(), "access denied") {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
 			return
@@ -1805,6 +1817,43 @@ func (h *SentinelHandler) ApproveSubTask(c *gin.Context) {
 			return
 		}
 		if contains(err.Error(), "READY_FOR_TEST") || contains(err.Error(), "current status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to submit for CEO approval", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Test evidence submitted — task forwarded to CEO for final approval"})
+}
+
+// ApproveSubTask is the CEO's final approval: READY_FOR_UAT → COMPLETED.
+// POST /api/v1/sentinel/tasks/:id/approve-sub
+func (h *SentinelHandler) ApproveSubTask(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	ceoID := getUserIDFromContext(c)
+	if ceoID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	ceoRole := getUserRoleFromContext(c)
+	if ceoRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	if err := h.usecase.ApproveSubTask(task.ID, ceoID, ceoRole); err != nil {
+		if contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "READY_FOR_UAT") || contains(err.Error(), "current status") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status", "message": err.Error()})
 			return
 		}
@@ -1876,6 +1925,26 @@ func (h *SentinelHandler) GetTasksReadyForTest(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch test queue", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": tasks})
+}
+
+// GetTasksReadyForCEOApproval returns TASK/BUG in READY_FOR_UAT status awaiting CEO final approval.
+// GET /api/v1/sentinel/tasks/ceo-approval-queue
+func (h *SentinelHandler) GetTasksReadyForCEOApproval(c *gin.Context) {
+	ctx := callerCtx(c)
+	if ctx.Role == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	tasks, err := h.usecase.GetTasksReadyForCEOApproval(ctx.TeamID, ctx.Role)
+	if err != nil {
+		if contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch CEO approval queue", "message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": tasks})

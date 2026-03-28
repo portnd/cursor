@@ -1123,18 +1123,18 @@
           <div v-else class="text-center py-20 text-gray-500 text-sm">Failed to load analytics.</div>
         </div>
 
-        <!-- TAB: Capital (Internal VC — per-project capital tracking) -->
-        <div v-if="activeTab === 'capital'">
+        <!-- TAB: Capital (Internal VC — per-project capital tracking) — CEO only -->
+        <div v-if="activeTab === 'capital' && isProjectCeo">
           <ProjectCapitalPanel :project-id="project.id" :team-id="project.team_id" />
         </div>
 
-        <!-- TAB: Costing & Quotation -->
-        <div v-if="activeTab === 'costing'">
+        <!-- TAB: Costing & Quotation — CEO only -->
+        <div v-if="activeTab === 'costing' && isProjectCeo">
           <QuotationBuilder :project-id="project.id" />
         </div>
 
-        <!-- TAB: Backup & Restore -->
-        <div v-if="activeTab === 'backup'">
+        <!-- TAB: Backup & Restore — CEO only -->
+        <div v-if="activeTab === 'backup' && isProjectCeo">
           <ProjectBackupPanel :project-id="project.id" @restored="onProjectRestored" />
         </div>
       </div>
@@ -1786,6 +1786,7 @@ const ProjectCapitalPanel = defineAsyncComponent(() => import('~/core/modules/pr
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -1795,8 +1796,12 @@ const { currentUser } = useAuth()
 const projectsApi = useProjectsApi()
 const { showError, showSuccess, confirm } = useNotification()
 const tasksApi = useTasksApi()
+const teamsStore = useTeamsStore()
 
-const tabs = [
+/** Capital / Costing / Backup — CEO only (not MANAGER/PM/DEV). */
+const CEO_ONLY_PROJECT_TAB_IDS = new Set(['capital', 'costing', 'backup'])
+
+const allProjectTabs = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'board', label: 'Board', icon: '🗂' },
   { id: 'timeline', label: 'Timeline', icon: '📅' },
@@ -1808,7 +1813,36 @@ const tabs = [
   { id: 'backup', label: 'Backup', icon: '🗄' },
 ]
 
-const activeTab = ref((route.query.tab as string) || 'overview')
+const isProjectCeo = computed(() => currentUser.value?.role?.toUpperCase() === 'CEO')
+
+const tabs = computed(() => {
+  if (isProjectCeo.value) return allProjectTabs
+  return allProjectTabs.filter(t => !CEO_ONLY_PROJECT_TAB_IDS.has(t.id))
+})
+
+const activeTab = ref('overview')
+
+watch(
+  () => [String(route.query.tab || ''), currentUser.value?.role ?? ''] as const,
+  ([tabFromRoute, role]) => {
+    const raw = tabFromRoute || 'overview'
+    const roleUpper = role ? String(role).toUpperCase() : ''
+    // Until auth hydrates, do not rewrite CEO-only URLs (would bounce CEOs to overview).
+    if (!roleUpper && CEO_ONLY_PROJECT_TAB_IDS.has(raw)) {
+      if (activeTab.value !== raw) activeTab.value = raw
+      return
+    }
+    const ceo = roleUpper === 'CEO'
+    const next = CEO_ONLY_PROJECT_TAB_IDS.has(raw) && !ceo ? 'overview' : raw
+    if (activeTab.value !== next) {
+      activeTab.value = next
+    }
+    if (raw !== next) {
+      router.replace({ query: { ...route.query, tab: next } })
+    }
+  },
+  { immediate: true }
+)
 
 watch(activeTab, async (tab) => {
   router.replace({ query: { tab } })
@@ -2804,6 +2838,7 @@ function statusClass(status: string) {
 function taskStatusBadge(status: string) {
   if (status === 'COMPLETED') return 'bg-green-500/20 text-green-400'
   if (status === 'IN_PROGRESS') return 'bg-blue-500/20 text-blue-400'
+  if (status === 'READY_FOR_TEST') return 'bg-cyan-500/20 text-cyan-400'
   if (status === 'REVIEW_PENDING') return 'bg-yellow-500/20 text-yellow-400'
   if (status === 'BLOCKED') return 'bg-red-500/20 text-red-400'
   return 'bg-gray-700 text-gray-400'
@@ -3658,13 +3693,21 @@ async function loadBacklogImportAssignees() {
     const { fetchWithAuth: fw } = useAuth()
     const role = (currentUser.value?.role || '').toUpperCase()
     if (role === 'PM') {
-      const { getTeams } = useTeamsApi()
-      const teams = await getTeams()
-      const userId = currentUser.value?.user_id
-      const myTeam = teams.find((t: any) => t.users?.some((u: any) => u.id === userId))
-      backlogImportAssignees.value = (myTeam?.users ?? [])
-        .filter((u: any) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
-        .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
+      await teamsStore.fetchTeamsFeatureEnabled()
+      if (teamsStore.teamsFeatureEnabled) {
+        const { getTeams } = useTeamsApi()
+        const teams = await getTeams()
+        const userId = currentUser.value?.user_id
+        const myTeam = teams.find((t: any) => t.users?.some((u: any) => u.id === userId))
+        backlogImportAssignees.value = (myTeam?.users ?? [])
+          .filter((u: any) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+          .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
+      } else {
+        const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
+        backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>
+          ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
+        )
+      }
     } else {
       const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
       backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>

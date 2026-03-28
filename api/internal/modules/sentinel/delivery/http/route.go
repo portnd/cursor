@@ -56,10 +56,12 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/tasks/:id/approve", handler.ApproveTask)      // Approve task after review (PM/CEO only)
 		sentinelGroup.POST("/tasks/:id/reject", handler.RejectTask)        // Reject task and return to IN_PROGRESS (PM/CEO/MANAGER)
 
-		// Continuous UAT: sub-task testing lane (READY_FOR_TEST)
+		// Continuous UAT: sub-task testing lane
 		sentinelGroup.POST("/tasks/:id/ready-for-test", handler.MarkReadyForTest)
-		sentinelGroup.POST("/tasks/:id/approve-sub", handler.ApproveSubTask)
+		sentinelGroup.POST("/tasks/:id/pm-approve-sub", handler.PMApproveSubTask)   // PM: READY_FOR_TEST → READY_FOR_UAT (with test evidence)
+		sentinelGroup.POST("/tasks/:id/approve-sub", handler.ApproveSubTask)        // CEO: READY_FOR_UAT → COMPLETED (final approval)
 		sentinelGroup.POST("/tasks/:id/reject-sub", handler.RejectSubTask)
+		sentinelGroup.GET("/tasks/ceo-approval-queue", handler.GetTasksReadyForCEOApproval) // CEO: tasks awaiting final approval
 
 		// Task Dependencies (Gantt links)
 		sentinelGroup.POST("/tasks/dependencies", handler.CreateDependency)

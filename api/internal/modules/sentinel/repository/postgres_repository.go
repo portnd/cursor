@@ -344,10 +344,11 @@ func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoa
 		domain.Task
 		ProjectName  string `gorm:"column:project_name"`
 		ProjectColor string `gorm:"column:project_color"`
+		ProjectCode  string `gorm:"column:project_code"`
 	}
 	var features []featureRow
 	q := r.db.Table("tasks").
-		Select("tasks.*, projects.name AS project_name, projects.color AS project_color").
+		Select("tasks.*, projects.name AS project_name, projects.color AS project_color, projects.code AS project_code").
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Where("tasks.task_type = ?", "FEATURE").
 		Order("tasks.created_at DESC")
@@ -398,11 +399,12 @@ func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoa
 			rollup = int(float64(completed) / float64(len(kids)) * 100)
 		}
 		results = append(results, domain.FeatureRoadmapItem{
-			Task:         f.Task,
-			ProjectName:  f.ProjectName,
-			ProjectColor: f.ProjectColor,
+			Task:           f.Task,
+			ProjectName:    f.ProjectName,
+			ProjectColor:   f.ProjectColor,
+			ProjectCode:    f.ProjectCode,
 			RollupProgress: rollup,
-			ChildTasks:   kids,
+			ChildTasks:     kids,
 		})
 	}
 	return results, nil
@@ -750,6 +752,44 @@ func (r *postgresRepository) GetTasksReadyForTest(teamID uint) ([]domain.GlobalA
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
 		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_TEST", []string{"TASK", "BUG"}).
+		Order("tasks.created_at DESC")
+	if teamID != 0 {
+		q = q.Where("projects.team_id = ?", teamID)
+	}
+	err := q.Scan(&results).Error
+	return results, err
+}
+
+// SetTaskReadyForUAT transitions a task to READY_FOR_UAT and saves the PM test evidence payload.
+func (r *postgresRepository) SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error {
+	result := r.db.Exec(`
+		UPDATE tasks
+		SET status = 'READY_FOR_UAT',
+		    uat_payload = ?,
+		    updated_at = NOW()
+		WHERE id = ?
+	`, uatPayload, taskID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("task not found")
+	}
+	return nil
+}
+
+// GetTasksReadyForCEOApproval returns TASK/BUG items in READY_FOR_UAT status awaiting CEO final approval.
+func (r *postgresRepository) GetTasksReadyForCEOApproval(teamID uint) ([]domain.GlobalActiveTask, error) {
+	var results []domain.GlobalActiveTask
+	q := r.db.Table("tasks").
+		Select(`tasks.*,
+			projects.name AS project_name,
+			projects.color AS project_color,
+			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(u.email, '') AS assigned_to_email`).
+		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
+		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_UAT", []string{"TASK", "BUG"}).
 		Order("tasks.created_at DESC")
 	if teamID != 0 {
 		q = q.Where("projects.team_id = ?", teamID)

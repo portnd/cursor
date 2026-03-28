@@ -39,8 +39,8 @@
       </div>
     </div>
 
-    <!-- ── Squad P&L (Global Board only) ───────────────────────────────────────── -->
-    <div v-if="activeView === 'board'" class="max-w-screen-xl mx-auto px-6 pt-6">
+    <!-- ── Squad P&L (Global Board only; hidden when feature team is disabled) ── -->
+    <div v-if="activeView === 'board' && teamsStore.teamsFeatureEnabled" class="max-w-screen-xl mx-auto px-6 pt-6">
       <TeamFinancialWidget
         :team-member-ids="myTeamMemberIds"
         :completed-task-ids="[]"
@@ -228,10 +228,15 @@
 
             <div class="mt-4 flex gap-3">
               <button
-                @click.stop="openSubmitModal(task)"
-                class="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all"
+                @click.stop="markReadyForTest(task)"
+                :disabled="markingReadyId === task.id"
+                class="rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Submit work
+                <svg v-if="markingReadyId === task.id" class="inline mr-1.5 h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                {{ markingReadyId === task.id ? 'Submitting…' : 'Ready for Test' }}
               </button>
               <NuxtLink
                 :to="`/task/${task.code || task.id}?from=dashboard&from_tab=${activeView}`"
@@ -368,10 +373,15 @@
                   >{{ getDeadlineCountdown(task.due_at) }}</span>
                 </div>
                 <button
-                  @click.stop="openSubmitModal(task)"
-                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-3 py-1 text-xs font-semibold text-white transition-all"
+                  @click.stop="markReadyForTest(task)"
+                  :disabled="markingReadyId === task.id"
+                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 px-3 py-1 text-xs font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Submit work
+                  <svg v-if="markingReadyId === task.id" class="inline mr-1 h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  {{ markingReadyId === task.id ? 'Submitting…' : 'Ready for Test' }}
                 </button>
               </div>
               <p v-if="boardInProgress.length === 0" class="text-center text-xs text-gray-600 py-6">Nothing in progress</p>
@@ -431,80 +441,6 @@
     <!-- ── Daily Check-in (forced) ────────────────────────────────────────────── -->
     <DailyCheckinModal :forced="true" />
 
-    <!-- ── Submit Work Modal ──────────────────────────────────────────────────── -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div
-          v-if="showSubmitModal"
-          class="fixed inset-0 z-50 flex items-center justify-center p-4"
-          @keydown.escape="closeSubmitModal"
-        >
-          <div class="fixed inset-0 bg-black/70 backdrop-blur-sm" @click="closeSubmitModal"/>
-          <div
-            class="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border-2 border-purple-500/40 bg-gray-800 shadow-2xl"
-            @click.stop
-          >
-            <div class="sticky top-0 z-10 flex items-start justify-between border-b border-gray-700 bg-gray-800 px-6 py-4">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                  </svg>
-                </div>
-                <div>
-                  <h2 class="text-sm font-bold text-white">Hand over mission</h2>
-                  <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">{{ selectedTask?.title }}</p>
-                </div>
-              </div>
-              <button @click="closeSubmitModal" class="rounded-lg p-2 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <form class="p-6 space-y-4" @submit.prevent="submitWork">
-              <div v-if="submitError" class="rounded-lg border border-red-500/30 bg-red-900/20 px-4 py-3 text-sm text-red-400">
-                {{ submitError }}
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1.5">
-                  Pull Request / Commit URL <span class="text-red-400">*</span>
-                </label>
-                <input
-                  v-model="submitForm.referenceUrl"
-                  type="url"
-                  placeholder="https://github.com/org/repo/pull/123"
-                  class="input-field"
-                />
-                <p class="text-xs text-gray-600 mt-1">GitHub PR, GitLab MR, or direct commit URL</p>
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1.5">Note <span class="text-gray-600">(optional)</span></label>
-                <textarea
-                  v-model="submitForm.note"
-                  rows="4"
-                  placeholder="What was changed and why? Any known issues?"
-                  class="input-field resize-none"
-                />
-              </div>
-              <div class="flex gap-3 pt-2">
-                <button type="button" @click="closeSubmitModal" :disabled="isSubmitting" class="btn-ghost flex-1">Cancel</button>
-                <button
-                  type="submit"
-                  :disabled="isSubmitting || !submitForm.referenceUrl"
-                  class="btn-primary flex-1"
-                >
-                  <svg v-if="isSubmitting" class="mr-2 h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  {{ isSubmitting ? 'Sending…' : 'Hand Over for Review' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
     <!-- ── Success Toast ─────────────────────────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="toast">
@@ -525,6 +461,7 @@ import { usePerformanceStore } from '~/core/modules/performance/performance-stor
 import DailyCheckinModal from '~/core/modules/pulse/ui/DailyCheckinModal.vue'
 import GlobalKanbanBoard from '~/components/tasks/GlobalKanbanBoard.vue'
 import TeamFinancialWidget from '~/components/dashboard/TeamFinancialWidget.vue'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import type { ProjectCapitalResponse } from '~/core/modules/projects/infrastructure/projects-api'
@@ -553,6 +490,7 @@ interface ActiveSprint {
 
 const { fetchWithAuth, currentUser } = useAuth()
 const performanceStore = usePerformanceStore()
+const teamsStore = useTeamsStore()
 const { getTeams } = useTeamsApi()
 const { getProjects, getProjectCapital } = useProjectsApi()
 
@@ -617,12 +555,7 @@ const primaryActiveSprint = computed(() => activeSprints.value[0] ?? null)
 
 const showSuccess = ref(false)
 const successMessage = ref('')
-const submitError = ref('')
-
-const showSubmitModal = ref(false)
-const isSubmitting = ref(false)
-const selectedTask = ref<Task | null>(null)
-const submitForm = ref({ referenceUrl: '', note: '' })
+const markingReadyId = ref<string | null>(null)
 
 function pctColor(pct: number): string {
   if (pct >= 80) return 'text-emerald-400'
@@ -771,40 +704,22 @@ function getDeadlineCountdown(dueAt: string) {
   return 'Due soon!'
 }
 
-const openSubmitModal = (task: Task) => {
-  selectedTask.value = task
-  submitForm.value = { referenceUrl: '', note: '' }
-  submitError.value = ''
-  showSubmitModal.value = true
-}
-
-const closeSubmitModal = () => {
-  if (!isSubmitting.value) {
-    showSubmitModal.value = false
-    selectedTask.value = null
-    submitForm.value = { referenceUrl: '', note: '' }
-  }
-}
-
-const submitWork = async () => {
-  if (!selectedTask.value || !submitForm.value.referenceUrl) return
-  isSubmitting.value = true
-  submitError.value = ''
+const markReadyForTest = async (task: Task) => {
+  markingReadyId.value = task.id
   try {
-    await fetchWithAuth(`/sentinel/tasks/${selectedTask.value.id}/submit`, {
-      method: 'POST',
-      body: { reference_url: submitForm.value.referenceUrl, note: submitForm.value.note },
-    })
-    showSubmitModal.value = false
-    selectedTask.value = null
-    successMessage.value = 'Handed over — awaiting PM review'
+    await fetchWithAuth(`/sentinel/tasks/${task.id}/ready-for-test`, { method: 'POST' })
+    myTasks.value = myTasks.value.map(t =>
+      t.id === task.id ? { ...t, status: 'READY_FOR_TEST' } : t
+    )
+    successMessage.value = 'Marked as Ready for Test — awaiting PM approval'
     showSuccess.value = true
     setTimeout(() => { showSuccess.value = false }, 3000)
-    await fetchTasks()
   } catch (err: any) {
-    submitError.value = err.data?.message || err.message || 'Failed to submit handover'
+    successMessage.value = err.data?.message || err.message || 'Failed to mark ready for test'
+    showSuccess.value = true
+    setTimeout(() => { showSuccess.value = false }, 4000)
   } finally {
-    isSubmitting.value = false
+    markingReadyId.value = null
   }
 }
 
@@ -812,9 +727,12 @@ const goToTask = (task: { id: string; code?: string }) => {
   navigateTo(`/task/${task?.code || task?.id}?from=dashboard&from_tab=${activeView.value}`)
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchTasks()
-  fetchSquadFinancials()
+  await teamsStore.fetchTeamsFeatureEnabled()
+  if (teamsStore.teamsFeatureEnabled) {
+    fetchSquadFinancials()
+  }
   performanceStore.fetchAll('DEV')
 })
 </script>

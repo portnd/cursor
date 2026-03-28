@@ -142,7 +142,7 @@ export interface Task {
   title: string
   description: string
   task_type: 'FEATURE' | 'TASK' | 'BUG'
-  status: 'PENDING' | 'IN_PROGRESS' | 'REVIEW_PENDING' | 'COMPLETED' | 'BLOCKED'
+  status: 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_TEST' | 'REVIEW_PENDING' | 'COMPLETED' | 'BLOCKED'
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
   story_points: number
   progress: number
