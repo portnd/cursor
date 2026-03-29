@@ -1138,7 +1138,7 @@
 
         <!-- TAB: Costing & Quotation — CEO only -->
         <div v-if="activeTab === 'costing' && isProjectCeo">
-          <QuotationBuilder :project-id="project.id" />
+          <QuotationBuilder :project-id="project.id" :project-name="project.name" />
         </div>
 
         <!-- TAB: Backup & Restore — CEO only -->

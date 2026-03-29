@@ -117,6 +117,13 @@ type QuotationRequest struct {
 	// EpicIDs optionally restricts cost calculation to tasks belonging to specific epics.
 	// Ignored when TaskIDs is provided.
 	EpicIDs []string `json:"epic_ids"`
+	// CustomerView controls which PDF template to use.
+	// When true, the customer-facing template is used: no mandays, no internal cost breakdowns,
+	// risk buffer and profit margin are absorbed into the total without disclosure.
+	CustomerView bool `json:"customer_view"`
+	// ProjectName is the human-readable project name shown in the customer PDF header.
+	// Falls back to ProjectID when empty.
+	ProjectName string `json:"project_name"`
 }
 
 // TaskCostLine is one task row in the quotation breakdown.

@@ -229,13 +229,19 @@ func (u *costingUsecase) CalculateQuotation(projectID string, req *domain.Quotat
 }
 
 // ExportQuotationPDF calculates the quotation and renders it to a PDF via chromedp.
+// When req.CustomerView is true the customer-facing template is used (no mandays, no margin disclosure).
 func (u *costingUsecase) ExportQuotationPDF(projectID string, req *domain.QuotationRequest) ([]byte, error) {
 	result, err := u.CalculateQuotation(projectID, req)
 	if err != nil {
 		return nil, err
 	}
 
-	html := buildQuotationHTML(result, req)
+	var html string
+	if req.CustomerView {
+		html = buildCustomerQuotationHTML(result, req)
+	} else {
+		html = buildQuotationHTML(result, req)
+	}
 
 	ctx, cancel := chromepdf.NewChromedpContext(context.Background())
 	defer cancel()
@@ -805,6 +811,158 @@ func buildQuotationHTML(r *domain.QuotationResponse, req *domain.QuotationReques
 		formatTHB(r.RiskAmount),
 		req.ProfitMarginPct*100,
 		formatTHB(r.ProfitAmount),
+		formatTHB(totalBeforeVAT),
+		formatTHB(r.VAT),
+		formatTHB(r.GrandTotal),
+		now,
+	)
+	return html
+}
+
+// buildCustomerQuotationHTML produces a customer-facing A4 PDF.
+// It omits internal cost parameters: no mandays column, no risk/profit margin line items.
+// Risk buffer and profit margin are silently absorbed into the grand total.
+func buildCustomerQuotationHTML(r *domain.QuotationResponse, req *domain.QuotationRequest) string {
+	now := time.Now().Format("02 January 2006")
+
+	projectLabel := req.ProjectName
+	if projectLabel == "" {
+		projectLabel = r.ProjectID
+	}
+
+	var taskRows strings.Builder
+	for i, t := range r.Tasks {
+		taskRows.WriteString(fmt.Sprintf(`
+		<tr class="%s">
+			<td class="num">%d</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td class="right cost">%s</td>
+		</tr>`,
+			rowClass(i),
+			i+1,
+			escapeHTML(t.EpicTitle),
+			escapeHTML(t.Title),
+			formatTHB(t.Cost),
+		))
+	}
+
+	totalBeforeVAT := r.Subtotal + r.RiskAmount + r.ProfitAmount
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=block" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { size: A4; margin: 18mm 15mm; }
+  body { font-family: 'Sarabun', sans-serif; font-size: 10pt; color: #1a2035; background: #fff; }
+
+  /* ── Header ── */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 3px solid #1e3a5f; }
+  .brand-block { display: flex; flex-direction: column; gap: 4px; }
+  .company-name { font-size: 20pt; font-weight: 800; color: #1e3a5f; letter-spacing: 1px; text-transform: uppercase; }
+  .company-tagline { font-size: 8.5pt; color: #4a6fa5; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  .doc-meta { text-align: right; font-size: 9pt; color: #4b5563; line-height: 1.7; }
+  .doc-meta .doc-title { font-size: 12pt; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .doc-meta strong { color: #1a2035; }
+
+  /* ── Section headings ── */
+  h2 { font-size: 10pt; font-weight: 700; color: #1e3a5f; margin-bottom: 10px; margin-top: 22px;
+       border-bottom: 1.5px solid #c7d8ed; padding-bottom: 5px; text-transform: uppercase; letter-spacing: 0.8px; }
+
+  /* ── Table ── */
+  table { width: 100%%; border-collapse: collapse; margin-bottom: 22px; font-size: 9pt; }
+  thead tr { background: #1e3a5f; }
+  th { color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.4px; }
+  th.right, td.right { text-align: right; }
+  th.num, td.num { text-align: center; width: 28px; }
+  td { padding: 6px 10px; border-bottom: 1px solid #dde8f4; vertical-align: top; color: #1a2035; }
+  tr.alt td { background: #f5f9ff; }
+  tr:last-child td { border-bottom: none; }
+  td.cost { font-weight: 600; color: #1e3a5f; }
+
+  /* ── Summary box ── */
+  .summary-wrap { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+  .summary-box { width: 360px; border: 1px solid #c7d8ed; border-radius: 6px; overflow: hidden; }
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 9.5pt; border-bottom: 1px solid #dde8f4; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row:nth-child(odd) { background: #f5f9ff; }
+  .summary-row.subtotal-before-vat { background: #e8f0fa; border-top: 1.5px solid #4a6fa5; border-bottom: 1.5px solid #4a6fa5; }
+  .summary-row.subtotal-before-vat .summary-label { font-weight: 700; color: #1e3a5f; }
+  .summary-row.subtotal-before-vat .summary-amount { font-weight: 700; color: #1e3a5f; }
+  .summary-row.grand-total { background: #1e3a5f; border-bottom: none; }
+  .summary-row.grand-total .summary-label { color: #fff; font-weight: 700; font-size: 11pt; }
+  .summary-row.grand-total .summary-amount { color: #fff; font-weight: 800; font-size: 11pt; }
+  .summary-label { color: #374151; }
+  .summary-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ── Validity notice ── */
+  .validity-note { margin-top: 18px; padding: 10px 14px; background: #f0f5fb; border: 1px solid #c7d8ed;
+    border-radius: 6px; font-size: 8.5pt; color: #4b5563; line-height: 1.6; }
+  .validity-note strong { color: #1e3a5f; }
+
+  /* ── Footer ── */
+  .footer { margin-top: 28px; font-size: 7.5pt; color: #9ca3af; text-align: center; border-top: 1px solid #dde8f4; padding-top: 10px; }
+  .footer strong { color: #4a6fa5; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand-block">
+    <div class="company-name">Komgrip Technologies</div>
+    <div class="company-tagline">Software Engineering &amp; Digital Solutions</div>
+  </div>
+  <div class="doc-meta">
+    <div class="doc-title">Project Quotation</div>
+    <div><strong>Date:</strong> %s</div>
+    <div><strong>Project:</strong> %s</div>
+    <div><strong>Currency:</strong> %s</div>
+  </div>
+</div>
+
+<h2>Scope of Work</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="num">#</th>
+      <th>Epic</th>
+      <th>Task / Deliverable</th>
+      <th class="right">Amount (%s)</th>
+    </tr>
+  </thead>
+  <tbody>
+    %s
+  </tbody>
+</table>
+
+<div class="summary-wrap">
+  <div class="summary-box">
+    <div class="summary-row subtotal-before-vat"><span class="summary-label">Total (before VAT)</span><span class="summary-amount">%s</span></div>
+    <div class="summary-row"><span class="summary-label">VAT (7%%)</span><span class="summary-amount">+ %s</span></div>
+    <div class="summary-row grand-total"><span class="summary-label">Grand Total</span><span class="summary-amount">%s</span></div>
+  </div>
+</div>
+
+<div class="validity-note">
+  <strong>Validity:</strong> This quotation is valid for 30 days from the date of issue.<br/>
+  Prices are quoted in Thai Baht (THB) and inclusive of VAT at 7%%.
+</div>
+
+<div class="footer">
+  Prepared by <strong>Komgrip Technologies</strong> · %s
+</div>
+</body>
+</html>`,
+		now,
+		escapeHTML(projectLabel),
+		r.Currency,
+		r.Currency,
+		taskRows.String(),
 		formatTHB(totalBeforeVAT),
 		formatTHB(r.VAT),
 		formatTHB(r.GrandTotal),

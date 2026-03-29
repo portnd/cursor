@@ -149,6 +149,22 @@
         </svg>
         {{ store.exporting ? 'Generating PDF…' : 'Export PDF Quotation' }}
       </button>
+
+      <button
+        v-if="store.hasResult"
+        :disabled="exportingCustomer"
+        class="btn-primary"
+        @click="exportCustomerPDF"
+      >
+        <svg v-if="exportingCustomer" class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+        </svg>
+        <svg v-else class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        {{ exportingCustomer ? 'Generating PDF…' : 'Export PDF for Customer' }}
+      </button>
     </div>
 
     <!-- ── Results ───────────────────────────────────────────────────────── -->
@@ -494,6 +510,7 @@ import type { Epic, Task } from '~/core/modules/projects/infrastructure/projects
 
 const props = defineProps<{
   projectId: string
+  projectName?: string
 }>()
 
 const { } = useAuth()
@@ -501,6 +518,8 @@ const store = useCostingStore()
 const projectsApi = useProjectsApi()
 const tasksApi = useTasksApi()
 const pricingApi = usePricingApi()
+
+const exportingCustomer = ref(false)
 
 // ── Form state ──────────────────────────────────────────────────────────────
 
@@ -777,6 +796,61 @@ async function exportPDF() {
     store.error = e?.message ?? 'PDF export failed'
   } finally {
     store.exporting = false
+  }
+}
+
+async function exportCustomerPDF() {
+  const { token, apiBase } = useAuth()
+  if (!token.value) { store.error = 'Not authenticated'; return }
+
+  const tab = window.open('', '_blank')
+
+  exportingCustomer.value = true
+  store.error = null
+  try {
+    const url = `${apiBase.value}/sentinel/projects/${props.projectId}/quotation/export`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.value}`,
+      },
+      body: JSON.stringify({
+        ...form,
+        task_ids: [...selectedTaskIds.value],
+        customer_view: true,
+        project_name: props.projectName ?? '',
+      }),
+      signal: AbortSignal.timeout(120_000),
+    })
+
+    if (!response.ok) {
+      tab?.close()
+      let msg = `PDF generation failed (${response.status})`
+      try { const j = await response.json(); msg = j.error || j.message || msg } catch {}
+      throw new Error(msg)
+    }
+
+    const blob = await response.blob()
+    const objectUrl = URL.createObjectURL(blob)
+
+    if (tab) {
+      tab.location.href = objectUrl
+    } else {
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (e: any) {
+    tab?.close()
+    store.error = e?.message ?? 'Customer PDF export failed'
+  } finally {
+    exportingCustomer.value = false
   }
 }
 
