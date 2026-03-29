@@ -6,12 +6,8 @@ import (
 )
 
 // RegisterRoutes registers all Sentinel module routes
-func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, projectFinanceUsecase domain.ProjectFinanceUsecase, googleAPIKey ...string) {
-	key := ""
-	if len(googleAPIKey) > 0 {
-		key = googleAPIKey[0]
-	}
-	handler := NewSentinelHandler(usecase, key)
+func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, projectFinanceUsecase domain.ProjectFinanceUsecase, googleAPIKey, canvaAccessToken string) {
+	handler := NewSentinelHandler(usecase, googleAPIKey, canvaAccessToken)
 	financeHandler := NewProjectFinanceHandler(projectFinanceUsecase)
 	b2bHandler := NewB2BHandler(usecase)
 	backupHandler := NewProjectBackupHandler(usecase)
@@ -28,38 +24,39 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.PATCH("/projects/:id", handler.UpdateProject)
 		sentinelGroup.DELETE("/projects/:id", handler.DeleteProject)
 		sentinelGroup.POST("/projects/:id/ai-schedule", handler.ScheduleProjectWithAI) // AI Agent: estimate + schedule existing tasks (CEO/PM)
-		sentinelGroup.POST("/projects/:id/ai-plan", handler.GenerateProjectPlan)         // (Optional) generate new epics/sprints/milestones/tasks from scratch
-		sentinelGroup.POST("/projects/:id/clear-plan", handler.ClearProjectPlan)        // Clear plan: remove all tasks, sprints, milestones, epics (CEO/PM)
-		sentinelGroup.PATCH("/projects/:id/assign-team", handler.AssignProjectTeam)     // Squad Model: assign project to team (CEO only)
+		sentinelGroup.POST("/projects/:id/ai-plan", handler.GenerateProjectPlan)       // (Optional) generate new epics/sprints/milestones/tasks from scratch
+		sentinelGroup.POST("/projects/:id/clear-plan", handler.ClearProjectPlan)       // Clear plan: remove all tasks, sprints, milestones, epics (CEO/PM)
+		sentinelGroup.PATCH("/projects/:id/assign-team", handler.AssignProjectTeam)    // Squad Model: assign project to team (CEO only)
+		sentinelGroup.PATCH("/projects/:id/pm-owners", handler.AssignProjectPmOwners)  // No-squads mode: CEO/MANAGER assigns one or more PMs per project
 
 		// Task Management
-		sentinelGroup.POST("/tasks", handler.CreateTask)                   // Create new task (CEO/PM)
-		sentinelGroup.GET("/tasks/my", handler.GetMyTasks)                 // Get my assigned tasks (DEV)
-		sentinelGroup.GET("/tasks/my-global-active", handler.GetGlobalActiveTasks) // Get TASK/BUG in active sprints across ALL projects (DEV Board)
-		sentinelGroup.GET("/tasks/team-active", handler.GetTeamActiveTasks)         // All ACTIVE-sprint TASK/BUG items in caller's team (cross-dev Quick Log Time)
-		sentinelGroup.GET("/tasks/features", handler.GetActiveFeatures)             // FEATURE items for PM/CEO Roadmap Board (must be before /:id)
-		sentinelGroup.GET("/tasks/unassigned", handler.GetUnassignedTasks) // Get unassigned tasks (CEO/PM)
-		sentinelGroup.GET("/tasks/approvals", handler.GetApprovals)        // Get approvals inbox (CEO/PM only)
-		sentinelGroup.GET("/tasks/gantt", handler.GetGantt)                // Get all tasks + dependencies for Gantt chart
-		sentinelGroup.GET("/tasks/ready-for-test", handler.GetTasksReadyForTest) // Continuous UAT queue (must be before /:id)
-		sentinelGroup.GET("/tasks", handler.GetAllTasks)                    // Get all tasks (ADMIN/PM overview)
-		sentinelGroup.GET("/tasks/:id", handler.GetTaskByID)                // Get single task with submission history
-		sentinelGroup.PATCH("/tasks/:id", handler.UpdateTask)                      // Update task (Creator or CEO only, triggers AI re-estimation)
+		sentinelGroup.POST("/tasks", handler.CreateTask)                                    // Create new task (CEO/PM)
+		sentinelGroup.GET("/tasks/my", handler.GetMyTasks)                                  // Get my assigned tasks (DEV)
+		sentinelGroup.GET("/tasks/my-global-active", handler.GetGlobalActiveTasks)          // Get TASK/BUG in active sprints across ALL projects (DEV Board)
+		sentinelGroup.GET("/tasks/team-active", handler.GetTeamActiveTasks)                 // All ACTIVE-sprint TASK/BUG items in caller's team (cross-dev Quick Log Time)
+		sentinelGroup.GET("/tasks/features", handler.GetActiveFeatures)                     // FEATURE items for PM/CEO Roadmap Board (must be before /:id)
+		sentinelGroup.GET("/tasks/unassigned", handler.GetUnassignedTasks)                  // Get unassigned tasks (CEO/PM)
+		sentinelGroup.GET("/tasks/approvals", handler.GetApprovals)                         // Get approvals inbox (CEO/PM only)
+		sentinelGroup.GET("/tasks/gantt", handler.GetGantt)                                 // Get all tasks + dependencies for Gantt chart
+		sentinelGroup.GET("/tasks/ready-for-test", handler.GetTasksReadyForTest)            // Continuous UAT queue (must be before /:id)
+		sentinelGroup.GET("/tasks", handler.GetAllTasks)                                    // Get all tasks (ADMIN/PM overview)
+		sentinelGroup.GET("/tasks/:id", handler.GetTaskByID)                                // Get single task with submission history
+		sentinelGroup.PATCH("/tasks/:id", handler.UpdateTask)                               // Update task (Creator or CEO only, triggers AI re-estimation)
 		sentinelGroup.PATCH("/tasks/:id/slide-resources", handler.UpdateTaskSlideResources) // Update task resource_urls (slide images/annotations)
-		sentinelGroup.POST("/tasks/:id/estimate", handler.EstimateTask)                // AI estimate time (Creator/CEO/PM)
-		sentinelGroup.DELETE("/tasks/:id", handler.DeleteTask)                     // Delete task (Creator or CEO only)
-		sentinelGroup.POST("/tasks/:id/split", handler.SplitTask)                   // Split task into N sub-tasks (PM/CEO/Creator)
-		sentinelGroup.POST("/tasks/:id/assign", handler.AssignTask)        // Assign task to developer (PM)
-		sentinelGroup.POST("/tasks/:id/submit", handler.SubmitWork)        // Handover: Dev submits PR/Commit URL for review
-		sentinelGroup.POST("/tasks/:id/submit-uat", handler.SubmitUAT)     // UAT: Dev submits staging URL + release notes for FEATURE review
-		sentinelGroup.POST("/tasks/:id/negotiate", handler.NegotiateTime)  // Developer negotiates AI time estimate
-		sentinelGroup.POST("/tasks/:id/approve", handler.ApproveTask)      // Approve task after review (PM/CEO only)
-		sentinelGroup.POST("/tasks/:id/reject", handler.RejectTask)        // Reject task and return to IN_PROGRESS (PM/CEO/MANAGER)
+		sentinelGroup.POST("/tasks/:id/estimate", handler.EstimateTask)                     // AI estimate time (Creator/CEO/PM)
+		sentinelGroup.DELETE("/tasks/:id", handler.DeleteTask)                              // Delete task (Creator or CEO only)
+		sentinelGroup.POST("/tasks/:id/split", handler.SplitTask)                           // Split task into N sub-tasks (PM/CEO/Creator)
+		sentinelGroup.POST("/tasks/:id/assign", handler.AssignTask)                         // Assign task to developer (PM)
+		sentinelGroup.POST("/tasks/:id/submit", handler.SubmitWork)                         // Handover: Dev submits PR/Commit URL for review
+		sentinelGroup.POST("/tasks/:id/submit-uat", handler.SubmitUAT)                      // UAT: Dev submits staging URL + release notes for FEATURE review
+		sentinelGroup.POST("/tasks/:id/negotiate", handler.NegotiateTime)                   // Developer negotiates AI time estimate
+		sentinelGroup.POST("/tasks/:id/approve", handler.ApproveTask)                       // Approve task after review (PM/CEO only)
+		sentinelGroup.POST("/tasks/:id/reject", handler.RejectTask)                         // Reject task and return to IN_PROGRESS (PM/CEO/MANAGER)
 
 		// Continuous UAT: sub-task testing lane
 		sentinelGroup.POST("/tasks/:id/ready-for-test", handler.MarkReadyForTest)
-		sentinelGroup.POST("/tasks/:id/pm-approve-sub", handler.PMApproveSubTask)   // PM: READY_FOR_TEST → READY_FOR_UAT (with test evidence)
-		sentinelGroup.POST("/tasks/:id/approve-sub", handler.ApproveSubTask)        // CEO: READY_FOR_UAT → COMPLETED (final approval)
+		sentinelGroup.POST("/tasks/:id/pm-approve-sub", handler.PMApproveSubTask) // PM: READY_FOR_TEST → READY_FOR_UAT (with test evidence)
+		sentinelGroup.POST("/tasks/:id/approve-sub", handler.ApproveSubTask)      // CEO: READY_FOR_UAT → COMPLETED (final approval)
 		sentinelGroup.POST("/tasks/:id/reject-sub", handler.RejectSubTask)
 		sentinelGroup.GET("/tasks/ceo-approval-queue", handler.GetTasksReadyForCEOApproval) // CEO: tasks awaiting final approval
 
@@ -112,9 +109,21 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/import/google-slides/preview", handler.PreviewGoogleSlides)
 		sentinelGroup.POST("/import/google-slides", handler.ImportGoogleSlides)
 
+		// Google Sheets Import
+		sentinelGroup.POST("/import/google-sheets/preview", handler.PreviewGoogleSheets)
+		sentinelGroup.POST("/import/google-sheets", handler.ImportGoogleSheets)
+
+		// Canva Import
+		sentinelGroup.POST("/import/canva/preview", handler.PreviewCanva)
+		sentinelGroup.POST("/import/canva", handler.ImportCanva)
+
+		// PPTX File Upload Import (multipart)
+		sentinelGroup.POST("/import/pptx/preview", handler.PreviewPPTX)
+		sentinelGroup.POST("/import/pptx", handler.ImportPPTX)
+
 		// Epic Management (Hierarchy Dimension 1)
 		sentinelGroup.POST("/epics", handler.CreateEpic)
-		sentinelGroup.GET("/epics", handler.GetEpicsByProject)   // ?project_id=UUID
+		sentinelGroup.GET("/epics", handler.GetEpicsByProject) // ?project_id=UUID
 		sentinelGroup.PATCH("/epics/:id", handler.UpdateEpic)
 		sentinelGroup.DELETE("/epics/:id", handler.DeleteEpic)
 
@@ -124,10 +133,10 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.GET("/projects/:id/timeline/export-pdf", handler.ExportTimelinePDF)
 
 		// Internal B2B Outsource Requests
-		sentinelGroup.POST("/b2b/requests", b2bHandler.CreateB2BRequest)                 // PM/CEO creates outsource request
-		sentinelGroup.GET("/b2b/requests", b2bHandler.GetB2BRequests)                    // ?direction=inbound|outbound
-		sentinelGroup.PATCH("/b2b/requests/:id", b2bHandler.UpdateB2BRequest)            // Counter-offer or Reject
-		sentinelGroup.POST("/b2b/requests/:id/accept", b2bHandler.AcceptB2BRequest)      // Accept → creates Task
+		sentinelGroup.POST("/b2b/requests", b2bHandler.CreateB2BRequest)            // PM/CEO creates outsource request
+		sentinelGroup.GET("/b2b/requests", b2bHandler.GetB2BRequests)               // ?direction=inbound|outbound
+		sentinelGroup.PATCH("/b2b/requests/:id", b2bHandler.UpdateB2BRequest)       // Counter-offer or Reject
+		sentinelGroup.POST("/b2b/requests/:id/accept", b2bHandler.AcceptB2BRequest) // Accept → creates Task
 
 		// Project Backups (Disaster Recovery)
 		sentinelGroup.GET("/projects/:id/backups", backupHandler.ListProjectBackups)
@@ -140,9 +149,9 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 	// Admin/CEO Configuration Management
 	adminGroup := router.Group("/admin")
 	{
-		adminGroup.GET("/config", handler.GetSystemConfig)        // Get current AI config
-		adminGroup.PUT("/config", handler.UpdateSystemConfig)     // Update AI config (CEO only)
-		adminGroup.GET("/models", handler.GetAvailableModels)     // Get available Gemini models
-		adminGroup.GET("/ai-usage", handler.GetAIUsage)           // Approximate Gemini quota usage
+		adminGroup.GET("/config", handler.GetSystemConfig)    // Get current AI config
+		adminGroup.PUT("/config", handler.UpdateSystemConfig) // Update AI config (CEO only)
+		adminGroup.GET("/models", handler.GetAvailableModels) // Get available Gemini models
+		adminGroup.GET("/ai-usage", handler.GetAIUsage)       // Approximate Gemini quota usage
 	}
 }

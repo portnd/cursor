@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"path"
 	"regexp"
 	"sort"
@@ -54,10 +56,26 @@ func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIServi
 
 // --- Project Operations ---
 
+const appSettingTeamsFeature = "teams_feature_enabled"
+
+func (u *sentinelUsecase) isTeamsFeatureDisabled() bool {
+	val, err := u.authRepo.GetAppSetting(appSettingTeamsFeature)
+	if err != nil {
+		return false
+	}
+	return val == "false"
+}
+
+func (u *sentinelUsecase) withCallerScope(ctx domain.CallerContext) domain.CallerContext {
+	ctx.TeamsFeatureDisabled = u.isTeamsFeatureDisabled()
+	return ctx
+}
+
 // projectNameEnglishOnly matches letters, digits, spaces, hyphens, underscores (English only)
 var projectNameEnglishOnly = regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
 
 func (u *sentinelUsecase) CreateProject(name, description, status string, ctx domain.CallerContext) (*domain.Project, error) {
+	ctx = u.withCallerScope(ctx)
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("project name is required")
@@ -85,10 +103,16 @@ func (u *sentinelUsecase) CreateProject(name, description, status string, ctx do
 	if err := u.repo.CreateProject(p); err != nil {
 		return nil, fmt.Errorf("failed to create project: %w", err)
 	}
+	if ctx.TeamsFeatureDisabled && ctx.Role == domain.RolePM && ctx.UserID != 0 {
+		if err := u.repo.ReplaceProjectPmAssignments(p.ID, []uint{ctx.UserID}); err != nil {
+			return nil, fmt.Errorf("failed to register creating PM as project owner: %w", err)
+		}
+	}
 	return p, nil
 }
 
 func (u *sentinelUsecase) GetProjects(ctx domain.CallerContext) ([]domain.Project, error) {
+	ctx = u.withCallerScope(ctx)
 	return u.repo.GetAllProjects(ctx)
 }
 
@@ -109,6 +133,7 @@ func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string, ctx domain.Calle
 	if idOrCode == "" {
 		return nil, errors.New("project id or code is required")
 	}
+	ctx = u.withCallerScope(ctx)
 	if id, err := uuid.Parse(idOrCode); err == nil {
 		return u.GetProjectDetails(id, ctx)
 	}
@@ -186,6 +211,43 @@ func (u *sentinelUsecase) AssignProjectTeam(projectID uuid.UUID, teamID *uint, r
 		return nil, fmt.Errorf("failed to assign team: %w", err)
 	}
 	ceoCtx := domain.CallerContext{Role: domain.RoleCEO}
+	return u.repo.GetProjectByID(projectID, ceoCtx)
+}
+
+// AssignProjectPmOwners sets which PM users own a project when squads are disabled (replaces the whole list).
+func (u *sentinelUsecase) AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*domain.Project, error) {
+	if requesterRole != domain.RoleCEO && requesterRole != domain.RoleManager {
+		return nil, fmt.Errorf("unauthorized: only CEO or MANAGER can assign project PM owners")
+	}
+	if !u.isTeamsFeatureDisabled() {
+		return nil, &domain.ErrBadRequest{Msg: "project PM owners can only be edited when the teams feature is disabled"}
+	}
+	ceoCtx := domain.CallerContext{Role: domain.RoleCEO}
+	if _, err := u.repo.GetProjectByID(projectID, ceoCtx); err != nil {
+		return nil, fmt.Errorf("project not found: %w", err)
+	}
+	seen := make(map[uint]struct{})
+	var clean []uint
+	for _, id := range pmUserIDs {
+		if id == 0 {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		uu, err := u.authRepo.FindByID(id)
+		if err != nil || uu == nil {
+			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d not found", id)}
+		}
+		if uu.Role != authDomain.RolePM {
+			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d must have role PM (current role: %s)", id, uu.Role)}
+		}
+		clean = append(clean, id)
+	}
+	if err := u.repo.ReplaceProjectPmAssignments(projectID, clean); err != nil {
+		return nil, fmt.Errorf("failed to save PM assignments: %w", err)
+	}
 	return u.repo.GetProjectByID(projectID, ceoCtx)
 }
 
@@ -1807,24 +1869,28 @@ type pptxImageEntry struct {
 }
 
 var (
+	spreadsheetIDRegex  = regexp.MustCompile(`/spreadsheets/d/([a-zA-Z0-9-_]+)`)
+	spreadsheetGIDRegex = regexp.MustCompile(`[#?&]gid=(\d+)`)
 	presentationIDRegex = regexp.MustCompile(`/presentation/d/([a-zA-Z0-9_-]+)`)
 	pptxSlideNumRegex   = regexp.MustCompile(`slide(\d+)\.xml$`)
 	pptxTitlePhRe       = regexp.MustCompile(`<p:ph[^>]*type="(?:title|ctrTitle)"`)
 	pptxSystemPhRe      = regexp.MustCompile(`<p:ph[^>]*type="(?:dt|ftr|sldNum|hdr)"`)
 	pptxNotesBodyPhRe   = regexp.MustCompile(`<p:ph(?:[^>]*idx="1"|[^>]*type="body")`)
 	pptxATextRe         = regexp.MustCompile(`<a:t(?:\s[^>]*)?>([^<]*)</a:t>`)
-	pptxNotesRelRe      = regexp.MustCompile(`Type="[^"]*notesSlide"[^>]*Target="([^"]+)"`)
-	pptxImageRelRe       = regexp.MustCompile(`Type="[^"]*image"[^>]*Target="([^"]+)"`)
-	pptxSlideLayoutRelRe = regexp.MustCompile(`Type="[^"]*slideLayout"[^>]*Target="([^"]+)"`)
+	pptxRelationshipTagRe = regexp.MustCompile(`(?i)<Relationship\s+([^>]+)/\s*>`)
+	pptxRelTypeDq         = regexp.MustCompile(`(?i)\bType\s*=\s*"([^"]*)"`)
+	pptxRelTypeSq         = regexp.MustCompile(`(?i)\bType\s*=\s*'([^']*)'`)
+	pptxRelTargetDq       = regexp.MustCompile(`(?i)\bTarget\s*=\s*"([^"]*)"`)
+	pptxRelTargetSq       = regexp.MustCompile(`(?i)\bTarget\s*=\s*'([^']*)'`)
 	pptxDocTitleRe    = regexp.MustCompile(`<dc:title>([^<]*)</dc:title>`)
 	pptxSldIdRe       = regexp.MustCompile(`<p:sldId[^>]*id="(\d+)"`)
 	pptxSldShowAttrRe = regexp.MustCompile(`<p:sld\s*([^>]+)>`) // opening tag of slide: check for show="0" or show="false" (hidden)
 )
 
 const (
-	pptxMaxImageBytes     = 2 * 1024 * 1024 // 2MB max per image — เก็บรูปใหญ่ให้ครบเหมือนต้นฉบับ
-	pptxMinImageBytes     = 256              // skip tiny icons/bullets
-	pptxMaxImagesPerSlide = 30               // เก็บได้หลายรูปต่อหน้า (รูปฝัง + รูป export)
+	pptxMaxImageBytes     = 12 * 1024 * 1024 // cap per embedded file (design exports can be large)
+	pptxMinImageBytes     = 256               // skip tiny icons/bullets
+	pptxMaxImagesPerSlide = 30                // เก็บได้หลายรูปต่อหน้า (รูปฝัง + รูป export)
 )
 
 func pptxMimeType(ext string) string {
@@ -1837,20 +1903,76 @@ func pptxMimeType(ext string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".svg":
+		return "image/svg+xml"
 	default:
-		return "" // EMF, WMF, SVG etc. — skip
+		return "" // EMF, WMF, etc. — skip (no lightweight decoder)
 	}
+}
+
+func normalizeZipEntryName(name string) string {
+	return path.Clean(strings.ReplaceAll(strings.TrimSpace(name), "\\", "/"))
+}
+
+// pptxRelAttr reads Type or Target from a Relationship attribute fragment; order-independent.
+func pptxRelAttr(attrs, key string) string {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "type":
+		if m := pptxRelTypeDq.FindStringSubmatch(attrs); len(m) > 1 {
+			return m[1]
+		}
+		if m := pptxRelTypeSq.FindStringSubmatch(attrs); len(m) > 1 {
+			return m[1]
+		}
+	case "target":
+		if m := pptxRelTargetDq.FindStringSubmatch(attrs); len(m) > 1 {
+			return m[1]
+		}
+		if m := pptxRelTargetSq.FindStringSubmatch(attrs); len(m) > 1 {
+			return m[1]
+		}
+	}
+	return ""
+}
+
+func isPPTXImageRelationshipType(typ string) bool {
+	t := strings.ToLower(strings.TrimSpace(typ))
+	return strings.Contains(t, "relationships/image") || strings.HasSuffix(t, "/image")
+}
+
+// pptxFirstRelationshipTargetByTypeContains returns Target for the first Relationship whose Type contains hint (e.g. notesSlide, slideLayout).
+func pptxFirstRelationshipTargetByTypeContains(relsData []byte, typeHint string) string {
+	h := strings.ToLower(typeHint)
+	for _, m := range pptxRelationshipTagRe.FindAllStringSubmatch(string(relsData), -1) {
+		if len(m) < 2 {
+			continue
+		}
+		typ := pptxRelAttr(m[1], "Type")
+		if typ == "" || !strings.Contains(strings.ToLower(typ), h) {
+			continue
+		}
+		if tgt := pptxRelAttr(m[1], "Target"); tgt != "" {
+			return tgt
+		}
+	}
+	return ""
 }
 
 // extractImagesFromRels reads a _rels file and extracts all image targets from relDir.
 // relDir is the directory containing the .rels file (e.g. ppt/slides for slide1.xml.rels).
 func extractImagesFromRels(zr *zip.Reader, relDir string, relsData []byte) []pptxImageEntry {
-	matches := pptxImageRelRe.FindAllStringSubmatch(string(relsData), -1)
 	seen := make(map[string]bool)
 	var entries []pptxImageEntry
 
-	for _, m := range matches {
-		target := m[1]
+	for _, m := range pptxRelationshipTagRe.FindAllStringSubmatch(string(relsData), -1) {
+		if len(m) < 2 {
+			continue
+		}
+		typ := pptxRelAttr(m[1], "Type")
+		target := pptxRelAttr(m[1], "Target")
+		if target == "" || !isPPTXImageRelationshipType(typ) {
+			continue
+		}
 		mediaPath := path.Clean(relDir + "/" + target)
 		if seen[mediaPath] {
 			continue
@@ -1896,8 +2018,7 @@ func extractSlideImages(zr *zip.Reader, slideFile string) []string {
 
 	// Fallback: if slide has no images, try the slide layout (title slides often have only layout art)
 	if len(entries) == 0 {
-		if layoutMatches := pptxSlideLayoutRelRe.FindStringSubmatch(string(relsData)); len(layoutMatches) > 1 {
-			layoutTarget := layoutMatches[1]
+		if layoutTarget := pptxFirstRelationshipTargetByTypeContains(relsData, "slideLayout"); layoutTarget != "" {
 			layoutPath := path.Clean(dir + "/" + layoutTarget)
 			layoutDir := path.Dir(layoutPath)
 			layoutBase := path.Base(layoutPath)
@@ -1972,19 +2093,30 @@ var xmlEntities = strings.NewReplacer(
 
 func pptxUnescapeXML(s string) string { return xmlEntities.Replace(s) }
 
+// readZipEntry reads a zip member by logical path. Matching is case-insensitive so PPTX from
+// macOS/Canva (mixed-case paths like PPT/Media/...) still resolves on Linux/Docker.
 func readZipEntry(r *zip.Reader, name string) []byte {
+	want := normalizeZipEntryName(name)
+	var match *zip.File
 	for _, f := range r.File {
-		if f.Name == name {
-			rc, err := f.Open()
-			if err != nil {
-				return nil
-			}
-			defer rc.Close()
-			data, _ := io.ReadAll(rc)
-			return data
+		if strings.EqualFold(normalizeZipEntryName(f.Name), want) {
+			match = f
+			break
 		}
 	}
-	return nil
+	if match == nil {
+		return nil
+	}
+	rc, err := match.Open()
+	if err != nil {
+		return nil
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 func pptxSlideFiles(r *zip.Reader) []string {
@@ -2118,13 +2250,12 @@ func findNotesFileInZip(r *zip.Reader, slideFile string) string {
 	if relsData == nil {
 		return ""
 	}
-	m := pptxNotesRelRe.FindStringSubmatch(string(relsData))
-	if len(m) < 2 {
+	notesTarget := pptxFirstRelationshipTargetByTypeContains(relsData, "notesSlide")
+	if notesTarget == "" {
 		return ""
 	}
 	// Target is relative to the slide directory, e.g. "../notesSlides/notesSlide1.xml"
-	notesPath := path.Clean(dir + "/" + m[1])
-	return notesPath
+	return path.Clean(dir + "/" + notesTarget)
 }
 
 func downloadAndParsePPTX(presentationID string) (*pptxPresentation, error) {
@@ -2536,7 +2667,12 @@ func getSlidesListOnly(presentationID, apiKey string) (title string, slides []do
 			if t == "" {
 				t = fmt.Sprintf("Slide %d", s.Index)
 			}
-			slides = append(slides, domain.PreviewSlideItem{Index: s.Index, Title: t, Hidden: s.Hidden})
+			slides = append(slides, domain.PreviewSlideItem{
+				Index:              s.Index,
+				Title:              t,
+				SuggestedTaskTitle: suggestedTaskTitleFromSlideText(s.Body, s.Index),
+				Hidden:             s.Hidden,
+			})
 		}
 	}
 	if apiKeyProvided {
@@ -2552,7 +2688,13 @@ func getSlidesListOnly(presentationID, apiKey string) (title string, slides []do
 					if t == "" {
 						t = fmt.Sprintf("Slide %d", i+1)
 					}
-					slides = append(slides, domain.PreviewSlideItem{Index: i + 1, Title: t, Hidden: false})
+					body := extractAPISlideBody(slide)
+					slides = append(slides, domain.PreviewSlideItem{
+						Index:              i + 1,
+						Title:              t,
+						SuggestedTaskTitle: suggestedTaskTitleFromSlideText(body, i+1),
+						Hidden:             false,
+					})
 				}
 			} else {
 				importMode = "pptx_with_api"
@@ -2801,8 +2943,8 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 			htmlParts = append(htmlParts, "<p>"+html.EscapeString(slide.Body)+"</p>")
 		}
 		for _, imgSrc := range slide.Images {
-			// imgSrc is either data URL (base64) or https URL; safe to use in src
-			htmlParts = append(htmlParts, "<p><img src=\""+html.EscapeString(imgSrc)+"\" alt=\"Slide\" /></p>")
+			// Block-level <img> — not inside <p> (TipTap/ProseMirror block image cannot nest in paragraph).
+			htmlParts = append(htmlParts, "<img src=\""+html.EscapeString(imgSrc)+"\" class=\"editor-image\" alt=\"Slide\" />")
 		}
 		if slide.Notes != "" {
 			htmlParts = append(htmlParts, "<p><em>Speaker Notes:</em> "+html.EscapeString(slide.Notes)+"</p>")
@@ -2840,8 +2982,8 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 
 		projectIDCopy := projectUUID
 
-		// Apply per-slide triage overrides when provided, else fall back to request-level defaults.
-		taskTitle := fmt.Sprintf("Slide %d: %s", slide.Index, slide.Title)
+		// Apply per-slide triage overrides when provided; default task title from slide body text, not placeholder title.
+		taskTitle := suggestedTaskTitleFromSlideText(slide.Body, slide.Index)
 		taskPriority := priority
 		taskEstimatedMinutes := 0
 		var taskAssigneeID *uint
@@ -2891,6 +3033,357 @@ func (u *sentinelUsecase) ImportFromGoogleSlides(req *domain.ImportGoogleSlidesR
 		SlideCount:        len(slides),
 		PresentationTitle: presentationTitle,
 		Tasks:             createdTasks,
+	}, nil
+}
+
+var thaiMonthAbbrevToMonth = map[string]time.Month{
+	"ม.ค.": time.January, "ก.พ.": time.February, "มี.ค.": time.March, "เม.ย.": time.April,
+	"พ.ค.": time.May, "มิ.ย.": time.June, "ก.ค.": time.July, "ส.ค.": time.August,
+	"ก.ย.": time.September, "ต.ค.": time.October, "พ.ย.": time.November, "ธ.ค.": time.December,
+}
+
+var validSheetImportStatuses = map[string]bool{
+	"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true, "READY_FOR_UAT": true, "COMPLETED": true, "CANCELLED": true,
+}
+
+func sheetCSVCell(row []string, col int) string {
+	if col < 0 || col >= len(row) {
+		return ""
+	}
+	return strings.TrimSpace(strings.ReplaceAll(row[col], "\u200b", ""))
+}
+
+func sheetTitleFromContentDisposition(cd string) string {
+	cd = strings.TrimSpace(cd)
+	if cd == "" {
+		return ""
+	}
+	if m := regexp.MustCompile(`filename\*=UTF-8''([^;\s]+)`).FindStringSubmatch(cd); len(m) > 1 {
+		if dec, err := url.PathUnescape(strings.Trim(m[1], `"`)); err == nil {
+			return strings.TrimSuffix(strings.TrimSpace(dec), ".csv")
+		}
+		return strings.TrimSuffix(strings.TrimSpace(m[1]), ".csv")
+	}
+	if m := regexp.MustCompile(`filename="([^"]+)"`).FindStringSubmatch(cd); len(m) > 1 {
+		return strings.TrimSuffix(m[1], ".csv")
+	}
+	return ""
+}
+
+func parseGoogleSheetURL(raw string) (sheetID, gid string, err error) {
+	u := strings.TrimSpace(raw)
+	if u == "" {
+		return "", "", errors.New("empty sheet URL")
+	}
+	m := spreadsheetIDRegex.FindStringSubmatch(u)
+	if len(m) < 2 {
+		return "", "", errors.New("invalid Google Sheets URL: missing spreadsheet id")
+	}
+	sheetID = m[1]
+	gid = "0"
+	if gm := spreadsheetGIDRegex.FindStringSubmatch(u); len(gm) > 1 {
+		gid = gm[1]
+	}
+	return sheetID, gid, nil
+}
+
+func fetchGoogleSheetCSVRecords(sheetID, gid string) (records [][]string, sheetTitle string, err error) {
+	exportURL := fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/export?format=csv&gid=%s", sheetID, gid)
+	client := &http.Client{Timeout: 60 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, exportURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Sentinel/1.0)")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to download sheet CSV: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 20<<20))
+	if err != nil {
+		return nil, "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("Google Sheets returned HTTP %d: ensure the spreadsheet is shared as \"Anyone with the link can view\"", resp.StatusCode)
+	}
+	sheetTitle = sheetTitleFromContentDisposition(resp.Header.Get("Content-Disposition"))
+	r := csv.NewReader(bytes.NewReader(body))
+	r.LazyQuotes = true
+	r.FieldsPerRecord = -1
+	records, err = r.ReadAll()
+	if err != nil {
+		return nil, sheetTitle, fmt.Errorf("invalid CSV: %w", err)
+	}
+	return records, sheetTitle, nil
+}
+
+func parseThaiBuddhistShortDate(s string) (time.Time, bool) {
+	parts := strings.Fields(strings.TrimSpace(s))
+	if len(parts) < 3 {
+		return time.Time{}, false
+	}
+	day, err1 := strconv.Atoi(parts[0])
+	month, ok := thaiMonthAbbrevToMonth[parts[1]]
+	yearBE, err2 := strconv.Atoi(parts[2])
+	if err1 != nil || err2 != nil || !ok {
+		return time.Time{}, false
+	}
+	if day < 1 || day > 31 {
+		return time.Time{}, false
+	}
+	yearCE := yearBE - 543
+	if yearCE < 1900 || yearCE > 2100 {
+		return time.Time{}, false
+	}
+	return time.Date(yearCE, month, day, 0, 0, 0, 0, time.UTC), true
+}
+
+func parseSlashSheetDate(s string) (time.Time, bool) {
+	parts := strings.Split(strings.TrimSpace(s), "/")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	d, err1 := strconv.Atoi(parts[0])
+	m, err2 := strconv.Atoi(parts[1])
+	y, err3 := strconv.Atoi(parts[2])
+	if err1 != nil || err2 != nil || err3 != nil || d < 1 || m < 1 || m > 12 {
+		return time.Time{}, false
+	}
+	if y < 100 {
+		y += 2000
+	}
+	if y < 1900 || y > 2100 {
+		return time.Time{}, false
+	}
+	return time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.UTC), true
+}
+
+func parseSheetDueRaw(s string) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\u200b", ""))
+	if s == "" {
+		return ""
+	}
+	if t, ok := parseThaiBuddhistShortDate(s); ok {
+		return t.Format("2006-01-02")
+	}
+	if t, ok := parseSlashSheetDate(s); ok {
+		return t.Format("2006-01-02")
+	}
+	return ""
+}
+
+func mapKGSheetStatus(raw string) string {
+	raw = strings.TrimSpace(strings.ReplaceAll(raw, "\u200b", ""))
+	if raw == "" {
+		return "PENDING"
+	}
+	if idx := strings.IndexAny(raw, "\n\r"); idx >= 0 {
+		raw = strings.TrimSpace(raw[:idx])
+	}
+	switch raw {
+	case "แก้ไขแล้ว", "นำขึ้น Prod แล้ว":
+		return "COMPLETED"
+	case "ยังไม่แก้":
+		return "PENDING"
+	case "กำลังแก้ไข", "แก้แล้วแต่ไม่ถูกต้อง", "แก้ไขอีกครั้ง":
+		return "IN_PROGRESS"
+	case "ทดสอบอีกครั้ง":
+		return "READY_FOR_TEST"
+	case "รอนำขึ้น Prod":
+		return "READY_FOR_UAT"
+	default:
+		return "PENDING"
+	}
+}
+
+func (u *sentinelUsecase) PreviewGoogleSheets(req *domain.PreviewGoogleSheetsRequest) (*domain.PreviewGoogleSheetsResult, error) {
+	if req == nil || strings.TrimSpace(req.SheetURL) == "" {
+		return nil, errors.New("sheet_url is required")
+	}
+	sheetID, gid, err := parseGoogleSheetURL(req.SheetURL)
+	if err != nil {
+		return nil, err
+	}
+	records, sheetTitle, err := fetchGoogleSheetCSVRecords(sheetID, gid)
+	if err != nil {
+		return nil, err
+	}
+	if len(records) < 2 {
+		return nil, errors.New("sheet has no data rows (only header or empty)")
+	}
+	if sheetTitle == "" {
+		sheetTitle = "Google Sheet"
+	}
+	var rows []domain.SheetRowPreviewItem
+	for i := 1; i < len(records); i++ {
+		row := records[i]
+		title := sheetCSVCell(row, 1)
+		if title == "" {
+			continue
+		}
+		dueRaw := sheetCSVCell(row, 0)
+		statusRaw := sheetCSVCell(row, 5)
+		notes := sheetCSVCell(row, 10)
+		dueStr := parseSheetDueRaw(dueRaw)
+		rawFirst := statusRaw
+		if idx := strings.IndexAny(rawFirst, "\n\r"); idx >= 0 {
+			rawFirst = strings.TrimSpace(rawFirst[:idx])
+		}
+		rows = append(rows, domain.SheetRowPreviewItem{
+			RowIndex:  i + 1,
+			Title:     title,
+			DueDate:   dueStr,
+			Status:    mapKGSheetStatus(statusRaw),
+			RawStatus: rawFirst,
+			Notes:     notes,
+		})
+	}
+	if len(rows) == 0 {
+		return nil, errors.New("no importable rows: column B (รายละเอียด) is empty for all data rows")
+	}
+	return &domain.PreviewGoogleSheetsResult{
+		SheetTitle: sheetTitle,
+		SheetID:    sheetID,
+		Rows:       rows,
+	}, nil
+}
+
+func (u *sentinelUsecase) ImportFromGoogleSheets(req *domain.ImportGoogleSheetsRequest, creatorID uint) (*domain.ImportGoogleSheetsResult, error) {
+	if req == nil {
+		return nil, errors.New("request is required")
+	}
+	if len(req.Rows) == 0 {
+		return nil, errors.New("at least one row is required to import")
+	}
+	_, _, err := parseGoogleSheetURL(req.SheetURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var sprintUUID *uuid.UUID
+	if req.SprintID != "" {
+		parsed, err := uuid.Parse(req.SprintID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid sprint_id: %w", err)
+		}
+		sprintUUID = &parsed
+	}
+	var epicUUID *uuid.UUID
+	if req.EpicID != "" {
+		parsed, err := uuid.Parse(req.EpicID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid epic_id: %w", err)
+		}
+		epicUUID = &parsed
+	}
+	projectUUID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid project_id: %w", err)
+	}
+	var parentUUID *uuid.UUID
+	if req.ParentID != "" {
+		parsed, err := uuid.Parse(req.ParentID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parent_id: %w", err)
+		}
+		parentUUID = &parsed
+	}
+
+	if parentUUID != nil {
+		parent, err := u.repo.GetTaskByID(*parentUUID)
+		if err != nil || parent == nil {
+			return nil, errors.New("parent task not found")
+		}
+		if parent.ParentID != nil {
+			return nil, &domain.ErrBadRequest{Msg: "cannot attach sheet import under a nested sub-task"}
+		}
+		if parent.ProjectID == nil || *parent.ProjectID != projectUUID {
+			return nil, &domain.ErrBadRequest{Msg: "parent task must belong to the same project"}
+		}
+	}
+
+	slug := "task"
+	if proj, err := u.repo.GetProjectByID(projectUUID, domain.CallerContext{Role: domain.RoleCEO}); err == nil && proj != nil {
+		slug = slugify(proj.Name)
+	}
+	maxSuffix, err := u.repo.GetMaxTaskCodeSuffix(slug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next task code: %w", err)
+	}
+
+	var created []*domain.Task
+	for i, tr := range req.Rows {
+		title := strings.TrimSpace(tr.Title)
+		if title == "" {
+			return nil, fmt.Errorf("row %d: title is required", tr.RowIndex)
+		}
+		estMins := tr.EstimatedMinutes
+		if estMins < 0 {
+			return nil, fmt.Errorf("row %d: estimated_minutes cannot be negative", tr.RowIndex)
+		}
+		priority := strings.ToUpper(strings.TrimSpace(tr.Priority))
+		if priority == "" {
+			priority = "MEDIUM"
+		}
+		if !validPriorities[priority] {
+			return nil, fmt.Errorf("row %d: invalid priority %q", tr.RowIndex, tr.Priority)
+		}
+		st := strings.ToUpper(strings.TrimSpace(tr.Status))
+		if st == "" {
+			st = "PENDING"
+		}
+		if !validSheetImportStatuses[st] {
+			return nil, fmt.Errorf("row %d: invalid status %q", tr.RowIndex, tr.Status)
+		}
+
+		desc := strings.TrimSpace(tr.Notes)
+		if desc != "" {
+			desc = "<p>" + html.EscapeString(desc) + "</p>"
+		}
+
+		var duePtr *time.Time
+		if ds := strings.TrimSpace(tr.DueDate); ds != "" {
+			t, err := time.Parse("2006-01-02", ds)
+			if err != nil {
+				return nil, fmt.Errorf("row %d: invalid due_date %q (use YYYY-MM-DD)", tr.RowIndex, tr.DueDate)
+			}
+			duePtr = &t
+		}
+
+		projectIDCopy := projectUUID
+		task := &domain.Task{
+			ID:               uuid.New(),
+			Code:             fmt.Sprintf("%s-%03d", slug, maxSuffix+1+i),
+			Title:            title,
+			Description:      desc,
+			TaskType:         string(domain.TaskTypeBug),
+			CreatedBy:        &creatorID,
+			Status:           st,
+			Priority:         priority,
+			StoryPoints:      0,
+			EstimatedMinutes: estMins,
+			DueAt:            duePtr,
+			SprintID:         sprintUUID,
+			EpicID:           epicUUID,
+			ProjectID:        &projectIDCopy,
+			ParentID:         parentUUID,
+		}
+
+		if err := u.repo.CreateTask(task); err != nil {
+			return nil, fmt.Errorf("failed to create task for sheet row %d: %w", tr.RowIndex, err)
+		}
+		created = append(created, task)
+	}
+
+	titleOut := strings.TrimSpace(req.SheetTitle)
+	if titleOut == "" {
+		titleOut = "Google Sheet"
+	}
+	return &domain.ImportGoogleSheetsResult{
+		CreatedCount: len(created),
+		SheetTitle:   titleOut,
+		Tasks:        created,
 	}, nil
 }
 

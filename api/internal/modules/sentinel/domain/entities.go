@@ -59,15 +59,32 @@ type Project struct {
 	TeamID   *uint  `json:"team_id" gorm:"index"`
 	TeamName string `json:"team_name" gorm:"-"` // populated via JOIN, not stored
 	// Internal VC — Project Capital
-	CapitalBalance  float64 `json:"capital_balance" gorm:"column:capital_balance;type:decimal(15,2);default:0"`
-	BonusPercentage float64 `json:"bonus_percentage" gorm:"type:decimal(5,2);default:0"`
-	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
-	Tasks       []Task    `json:"tasks,omitempty" gorm:"foreignKey:ProjectID"`
+	CapitalBalance  float64   `json:"capital_balance" gorm:"column:capital_balance;type:decimal(15,2);default:0"`
+	BonusPercentage float64   `json:"bonus_percentage" gorm:"type:decimal(5,2);default:0"`
+	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	Tasks           []Task    `json:"tasks,omitempty" gorm:"foreignKey:ProjectID"`
 	// Task counts for list view (populated by repo, not stored)
-	TaskTotal    int `json:"task_total" gorm:"-"`
+	TaskTotal     int `json:"task_total" gorm:"-"`
 	TaskCompleted int `json:"task_completed" gorm:"-"`
 	TaskOverdue   int `json:"task_overdue" gorm:"-"`
+	// When teams feature is off, CEO assigns PM owners here (multiple allowed); populated by repo only
+	PmOwners []ProjectPmOwner `json:"pm_owners,omitempty" gorm:"-"`
+}
+
+// ProjectPmAssignment links a project to PM users (used when squads/teams feature is disabled).
+type ProjectPmAssignment struct {
+	ProjectID uuid.UUID `json:"project_id" gorm:"type:uuid;primaryKey"`
+	UserID    uint      `json:"user_id" gorm:"primaryKey"`
+}
+
+func (ProjectPmAssignment) TableName() string { return "project_pm_assignments" }
+
+// ProjectPmOwner is returned on project payloads for display and CEO editing.
+type ProjectPmOwner struct {
+	UserID      uint   `json:"user_id"`
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name,omitempty"`
 }
 
 // ProjectTransactionType defines the type of a project capital transaction
@@ -94,15 +111,15 @@ func (ProjectTransaction) TableName() string { return "project_transactions" }
 
 // ProjectCapitalResponse is the response DTO for GetProjectCapital
 type ProjectCapitalResponse struct {
-	ProjectID        uuid.UUID `json:"project_id"`
-	ProjectName      string    `json:"project_name"`
-	TeamID           *uint     `json:"team_id"`
+	ProjectID   uuid.UUID `json:"project_id"`
+	ProjectName string    `json:"project_name"`
+	TeamID      *uint     `json:"team_id"`
 	// Burn rate = team's full monthly cost (entire team, not split by project)
-	TeamMonthlyCost  float64   `json:"team_monthly_cost"`
-	CapitalBalance   float64   `json:"capital_balance"`
-	BonusPercentage  float64   `json:"bonus_percentage"`
-	RunwayMonths     float64   `json:"runway_months"`
-	Transactions     []ProjectTransaction `json:"transactions,omitempty"`
+	TeamMonthlyCost float64              `json:"team_monthly_cost"`
+	CapitalBalance  float64              `json:"capital_balance"`
+	BonusPercentage float64              `json:"bonus_percentage"`
+	RunwayMonths    float64              `json:"runway_months"`
+	Transactions    []ProjectTransaction `json:"transactions,omitempty"`
 }
 
 // InjectProjectCapitalRequest is the DTO for injecting capital into a project
@@ -204,20 +221,20 @@ func (TimeLog) TableName() string { return "time_logs" }
 
 // ProjectAnalytics holds computed analytics for a project
 type ProjectAnalytics struct {
-	ProjectID       uuid.UUID          `json:"project_id"`
-	TotalTasks      int                `json:"total_tasks"`
-	CompletedTasks  int                `json:"completed_tasks"`
-	TotalStoryPoints int               `json:"total_story_points"`
-	CompletedSP     int                `json:"completed_story_points"`
-	TotalLoggedMinutes int             `json:"total_logged_minutes"`
-	AvgCycleTimeDays   float64         `json:"avg_cycle_time_days"`
-	Burndown        []BurndownPoint    `json:"burndown"`
-	Velocity        []VelocityPoint    `json:"velocity"`
-	TeamCapacity    []TeamCapacityRow  `json:"team_capacity"`
+	ProjectID          uuid.UUID         `json:"project_id"`
+	TotalTasks         int               `json:"total_tasks"`
+	CompletedTasks     int               `json:"completed_tasks"`
+	TotalStoryPoints   int               `json:"total_story_points"`
+	CompletedSP        int               `json:"completed_story_points"`
+	TotalLoggedMinutes int               `json:"total_logged_minutes"`
+	AvgCycleTimeDays   float64           `json:"avg_cycle_time_days"`
+	Burndown           []BurndownPoint   `json:"burndown"`
+	Velocity           []VelocityPoint   `json:"velocity"`
+	TeamCapacity       []TeamCapacityRow `json:"team_capacity"`
 }
 
 type BurndownPoint struct {
-	Day       string `json:"day"`
+	Day       string  `json:"day"`
 	Ideal     float64 `json:"ideal"`
 	Remaining float64 `json:"remaining"`
 }
@@ -229,32 +246,32 @@ type VelocityPoint struct {
 }
 
 type TeamCapacityRow struct {
-	UserID          uint    `json:"user_id"`
-	UserEmail       string  `json:"user_email"`
-	AssignedTasks   int     `json:"assigned_tasks"`
-	EstimatedHours  float64 `json:"estimated_hours"`
-	LoggedHours     float64 `json:"logged_hours"`
-	Utilization     float64 `json:"utilization_pct"`
+	UserID         uint    `json:"user_id"`
+	UserEmail      string  `json:"user_email"`
+	AssignedTasks  int     `json:"assigned_tasks"`
+	EstimatedHours float64 `json:"estimated_hours"`
+	LoggedHours    float64 `json:"logged_hours"`
+	Utilization    float64 `json:"utilization_pct"`
 }
 
 func (Project) TableName() string { return "projects" }
 
 // ProjectDetailsResponse is the combined payload for GET /projects/:id/details (project page - 1 round-trip).
 type ProjectDetailsResponse struct {
-	Project   *Project   `json:"project"`
-	Tasks     []Task     `json:"tasks"`
-	Sprints   []Sprint   `json:"sprints"`
+	Project    *Project    `json:"project"`
+	Tasks      []Task      `json:"tasks"`
+	Sprints    []Sprint    `json:"sprints"`
 	Milestones []Milestone `json:"milestones"`
-	Epics     []Epic     `json:"epics"`
+	Epics      []Epic      `json:"epics"`
 }
 
 // Task represents a work assignment
 type Task struct {
-	ID                 uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Code               string         `json:"code" gorm:"type:varchar(64);uniqueIndex"` // e.g. mims-hdmap-main-001 (empty for legacy tasks)
-	Title              string         `json:"title" gorm:"not null"`
-	Description        string         `json:"description"`
-	ResourceURLs       datatypes.JSON `json:"resource_urls" gorm:"type:jsonb;default:'{}'"`
+	ID               uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Code             string         `json:"code" gorm:"type:varchar(64);uniqueIndex"` // e.g. mims-hdmap-main-001 (empty for legacy tasks)
+	Title            string         `json:"title" gorm:"not null"`
+	Description      string         `json:"description"`
+	ResourceURLs     datatypes.JSON `json:"resource_urls" gorm:"type:jsonb;default:'{}'"`
 	EstimatedMinutes int            `json:"estimated_minutes"`
 
 	// Project: every task belongs to a project
@@ -276,13 +293,13 @@ type Task struct {
 	StoryPoints int    `json:"story_points" gorm:"default:0"`
 
 	// WBS / Gantt: sub-tasks and planned dates
-	ParentID   *uuid.UUID `json:"parent_id" gorm:"type:uuid;index"`              // For sub-tasks (Work Breakdown Structure)
+	ParentID   *uuid.UUID `json:"parent_id" gorm:"type:uuid;index"`                               // For sub-tasks (Work Breakdown Structure)
 	ParentTask *Task      `json:"parent_task,omitempty" gorm:"foreignKey:ParentID;references:ID"` // Loaded on demand
-	SortOrder  int        `json:"sort_order" gorm:"default:0"`                   // Order within epic (backlog drag-and-drop)
-	StartDate  *time.Time `json:"start_date"`                                     // Planned start date
-	EndDate    *time.Time `json:"end_date"`                                       // Planned end date
-	Progress   int        `json:"progress" gorm:"default:0"`                      // 0 to 100%
-	SubTasks   []Task     `json:"sub_tasks,omitempty" gorm:"foreignKey:ParentID"` // Has many sub-tasks
+	SortOrder  int        `json:"sort_order" gorm:"default:0"`                                    // Order within epic (backlog drag-and-drop)
+	StartDate  *time.Time `json:"start_date"`                                                     // Planned start date
+	EndDate    *time.Time `json:"end_date"`                                                       // Planned end date
+	Progress   int        `json:"progress" gorm:"default:0"`                                      // 0 to 100%
+	SubTasks   []Task     `json:"sub_tasks,omitempty" gorm:"foreignKey:ParentID"`                 // Has many sub-tasks
 
 	// Time Negotiation System
 	NegotiationStatus string `json:"negotiation_status" gorm:"default:'NONE'"` // NONE, PENDING, APPROVED, REJECTED
@@ -306,7 +323,7 @@ type Task struct {
 	UATPayload datatypes.JSON `json:"uat_payload,omitempty" gorm:"type:jsonb"`
 
 	// Relationships (uint to match User ID)
-	AssignedTo   *uint `json:"assigned_to"`   // Developer assigned to this task
+	AssignedTo   *uint `json:"assigned_to"`                 // Developer assigned to this task
 	AssignedByID *uint `json:"assigned_by_id" gorm:"index"` // PM/CEO who assigned the task (for PM-scoped leaderboard)
 	CreatedBy    *uint `json:"created_by"`
 
@@ -382,10 +399,10 @@ func (Appeal) TableName() string { return "appeals" }
 
 // SystemConfig represents dynamic AI configuration (singleton pattern)
 type SystemConfig struct {
-	ID               uint    `json:"-" gorm:"primaryKey"`
-	ActiveModel      string  `json:"active_model" gorm:"default:'gemini-2.5-flash-lite'"`
-	Temperature      float32 `json:"temperature" gorm:"default:0.4"` // 0.0 (Stable) to 1.0 (Creative)
-	CursorAssistance int     `json:"cursor_assistance" gorm:"default:80"` // 0 to 100% (AI assistance level)
+	ID               uint      `json:"-" gorm:"primaryKey"`
+	ActiveModel      string    `json:"active_model" gorm:"default:'gemini-2.5-flash-lite'"`
+	Temperature      float32   `json:"temperature" gorm:"default:0.4"`      // 0.0 (Stable) to 1.0 (Creative)
+	CursorAssistance int       `json:"cursor_assistance" gorm:"default:80"` // 0 to 100% (AI assistance level)
 	UpdatedAt        time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
@@ -393,8 +410,10 @@ func (SystemConfig) TableName() string { return "system_configs" }
 
 // CallerContext carries the authenticated user's role and team for data-isolation enforcement.
 type CallerContext struct {
-	Role   string
-	TeamID *uint
+	Role                 string
+	TeamID               *uint
+	UserID               uint
+	TeamsFeatureDisabled bool // true when app setting teams_feature_enabled is "false"
 }
 
 // Role constants for CallerContext (mirrors auth/domain constants)
@@ -424,8 +443,9 @@ type SentinelRepository interface {
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
 	UpdateProject(p *Project) error
 	DeleteProject(id uuid.UUID) error
-	DeleteProjectPlan(projectID uuid.UUID) error // Remove all tasks, sprints, milestones, epics for the project
+	DeleteProjectPlan(projectID uuid.UUID) error               // Remove all tasks, sprints, milestones, epics for the project
 	AssignProjectTeam(projectID uuid.UUID, teamID *uint) error // Squad Model: assign/unassign team
+	ReplaceProjectPmAssignments(projectID uuid.UUID, userIDs []uint) error
 
 	CreateTask(task *Task) error
 	GetTaskByID(id uuid.UUID) (*Task, error)
@@ -433,8 +453,8 @@ type SentinelRepository interface {
 	CountTasksForCode(projectID *uuid.UUID) (int, error)
 	GetMaxTaskCodeSuffix(prefix string) (int, error) // max numeric suffix for code like "prefix-001"; used for globally unique codes
 	GetTasksByAssignee(userID uint) ([]Task, error)
-	GetActiveSprintTasksByAssignee(userID uint) ([]Task, error)   // Only tasks in ACTIVE sprint (for DEV role)
-	GetActiveSprintsForUser(userID uint) ([]Sprint, error)        // ACTIVE sprints that have tasks assigned to user
+	GetActiveSprintTasksByAssignee(userID uint) ([]Task, error)         // Only tasks in ACTIVE sprint (for DEV role)
+	GetActiveSprintsForUser(userID uint) ([]Sprint, error)              // ACTIVE sprints that have tasks assigned to user
 	GetGlobalActiveTasksByUser(userID uint) ([]GlobalActiveTask, error) // Tasks across ALL projects in ACTIVE sprints
 	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-dev time logging)
 	GetUnassignedTasks() ([]Task, error)
@@ -458,13 +478,13 @@ type SentinelRepository interface {
 	UpdateAppeal(appeal *Appeal) error
 
 	// Human Quality Gate
-	ApproveTask(id uuid.UUID) error // Mark task as COMPLETED and set CompletedAt
+	ApproveTask(id uuid.UUID) error                                    // Mark task as COMPLETED and set CompletedAt
 	RejectTask(taskID uuid.UUID, rejectorID uint, reason string) error // Return task to IN_PROGRESS with comment
 
 	// Continuous UAT: sub-task level testing queue
-	GetTasksReadyForTest(teamID uint) ([]GlobalActiveTask, error)           // All TASK/BUG in READY_FOR_TEST status, scoped to team
-	SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error           // PM approves: READY_FOR_TEST → READY_FOR_UAT with test evidence
-	GetTasksReadyForCEOApproval(teamID uint) ([]GlobalActiveTask, error)   // All TASK/BUG in READY_FOR_UAT status for CEO final approval
+	GetTasksReadyForTest(teamID uint) ([]GlobalActiveTask, error)        // All TASK/BUG in READY_FOR_TEST status, scoped to team
+	SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error        // PM approves: READY_FOR_TEST → READY_FOR_UAT with test evidence
+	GetTasksReadyForCEOApproval(teamID uint) ([]GlobalActiveTask, error) // All TASK/BUG in READY_FOR_UAT status for CEO final approval
 
 	// Sprints
 	CreateSprint(sprint *Sprint) error
@@ -489,8 +509,8 @@ type SentinelRepository interface {
 	CreateTimeLog(t *TimeLog) error
 	GetTimeLogsByTaskID(taskID uuid.UUID) ([]TimeLog, error)
 	GetTotalLoggedMinutes(taskID uuid.UUID) (int, error)
-	CountChildTasks(parentID uuid.UUID) (int, error) // Leaf-node guard: returns number of direct children
-	GetChildTasksByParentID(parentID uuid.UUID) ([]Task, error) // For UAT roll-up: fetch all direct children of a feature
+	CountChildTasks(parentID uuid.UUID) (int, error)             // Leaf-node guard: returns number of direct children
+	GetChildTasksByParentID(parentID uuid.UUID) ([]Task, error)  // For UAT roll-up: fetch all direct children of a feature
 	GetActiveFeatures(teamID uint) ([]FeatureRoadmapItem, error) // Feature Roadmap Board (PM/CEO)
 
 	// Analytics
@@ -536,10 +556,11 @@ type SentinelRepository interface {
 	GetProjectBackupByID(id uuid.UUID) (*ProjectBackup, error)
 	DeleteProjectBackup(id uuid.UUID, projectID uuid.UUID) error
 }
+
 // GanttData is the payload for GET /sentinel/tasks/gantt (all tasks + dependencies)
 type GanttData struct {
-	Tasks         []Task           `json:"tasks"`
-	Dependencies  []TaskDependency `json:"dependencies"`
+	Tasks        []Task           `json:"tasks"`
+	Dependencies []TaskDependency `json:"dependencies"`
 }
 
 // SentinelUsecase defines the business logic
@@ -548,11 +569,12 @@ type SentinelUsecase interface {
 	CreateProject(name, description, status string, ctx CallerContext) (*Project, error)
 	GetProjects(ctx CallerContext) ([]Project, error)
 	GetProjectDetails(id uuid.UUID, ctx CallerContext) (*Project, error)
-	GetProjectByIDOrCode(idOrCode string, ctx CallerContext) (*Project, error)   // UUID or project code (e.g. mims-hdmap-main)
+	GetProjectByIDOrCode(idOrCode string, ctx CallerContext) (*Project, error)                 // UUID or project code (e.g. mims-hdmap-main)
 	GetProjectDetailsPage(idOrCode string, ctx CallerContext) (*ProjectDetailsResponse, error) // Combined project + tasks + sprints + milestones + epics (1 round-trip)
 	UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*Project, error)
 	DeleteProject(id uuid.UUID) error
 	AssignProjectTeam(projectID uuid.UUID, teamID *uint, requesterRole string) (*Project, error) // CEO only
+	AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*Project, error) // CEO/MANAGER when teams feature off
 
 	CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*Task, error)
 	AssignTask(taskID uuid.UUID, devID uint, assignerID uint) error
@@ -561,9 +583,9 @@ type SentinelUsecase interface {
 	GetTaskByID(taskID uuid.UUID) (*Task, error)
 	GetTaskByIDOrCode(idOrCode string) (*Task, error) // idOrCode is UUID or task code (e.g. mims-hdmap-main-001)
 	GetMyTasks(userID uint) ([]Task, error)
-	GetMyActiveSprints(userID uint) ([]Sprint, error) // Active sprints containing user's tasks
-	GetGlobalActiveTasks(userID uint) ([]GlobalActiveTask, error) // Tasks across ALL projects with ACTIVE sprints (TASK/BUG only)
-	GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error) // All ACTIVE-sprint TASK/BUG items in caller's team
+	GetMyActiveSprints(userID uint) ([]Sprint, error)                                      // Active sprints containing user's tasks
+	GetGlobalActiveTasks(userID uint) ([]GlobalActiveTask, error)                          // Tasks across ALL projects with ACTIVE sprints (TASK/BUG only)
+	GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)  // All ACTIVE-sprint TASK/BUG items in caller's team
 	GetActiveFeatures(callerTeamID *uint, callerRole string) ([]FeatureRoadmapItem, error) // FEATURE items for PM/CEO Roadmap Board
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
@@ -578,9 +600,9 @@ type SentinelUsecase interface {
 	// Task Management with Access Control
 	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*Task, error)
 	UpdateTaskResourceURLs(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, resourceURLs datatypes.JSON) (*Task, error)
-	EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*Task, error) // Kept for AI scheduling (ScheduleProjectWithAI)
-	GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*AIGeneratedPlan, error) // AI generates epics, milestones, sprints, tasks
-	ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error                     // Remove all tasks, sprints, milestones, epics (CEO/PM)
+	EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*Task, error)                            // Kept for AI scheduling (ScheduleProjectWithAI)
+	GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*AIGeneratedPlan, error)       // AI generates epics, milestones, sprints, tasks
+	ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error                              // Remove all tasks, sprints, milestones, epics (CEO/PM)
 	ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (updatedCount int, err error) // Estimate + schedule existing tasks (CEO/PM)
 	DeleteTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) error
 
@@ -599,12 +621,12 @@ type SentinelUsecase interface {
 	RejectTask(taskID uuid.UUID, rejectorID uint, rejectorRole string, reason string) error
 
 	// Continuous UAT: sub-task level testing queue (READY_FOR_TEST lane)
-	MarkReadyForTest(taskID uuid.UUID, devID uint) error                                       // Dev marks TASK/BUG as ready for PM to test
+	MarkReadyForTest(taskID uuid.UUID, devID uint) error                                                     // Dev marks TASK/BUG as ready for PM to test
 	PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error // PM approves READY_FOR_TEST → READY_FOR_UAT with test evidence
 	ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRole string) error                                   // CEO final approves READY_FOR_UAT → COMPLETED
-	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error                      // PM/CEO rejects → IN_PROGRESS
-	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                 // PM/CEO: fetch READY_FOR_TEST tasks for team
-	GetTasksReadyForCEOApproval(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)          // CEO: fetch READY_FOR_UAT tasks awaiting final approval
+	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error                       // PM/CEO rejects → IN_PROGRESS
+	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                  // PM/CEO: fetch READY_FOR_TEST tasks for team
+	GetTasksReadyForCEOApproval(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)           // CEO: fetch READY_FOR_UAT tasks awaiting final approval
 
 	// Sprints
 	CreateSprint(projectID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*Sprint, error)
@@ -659,6 +681,18 @@ type SentinelUsecase interface {
 	PreviewGoogleSlides(req *PreviewGoogleSlidesRequest, serverAPIKey string) (*PreviewGoogleSlidesResult, error)
 	ImportFromGoogleSlides(req *ImportGoogleSlidesRequest, serverAPIKey string, creatorID uint) (*ImportGoogleSlidesResult, error)
 
+	// Google Sheets Import
+	PreviewGoogleSheets(req *PreviewGoogleSheetsRequest) (*PreviewGoogleSheetsResult, error)
+	ImportFromGoogleSheets(req *ImportGoogleSheetsRequest, creatorID uint) (*ImportGoogleSheetsResult, error)
+
+	// Canva Import (Connect API → PPTX → same pipeline as Slides)
+	PreviewCanva(req *PreviewCanvaRequest, accessToken string) (*PreviewCanvaResult, error)
+	ImportFromCanva(req *ImportCanvaRequest, accessToken string, creatorID uint) (*ImportCanvaResult, error)
+
+	// PPTX File Upload Import (no API key required — user exports PPTX manually)
+	PreviewPPTX(data []byte) (*PreviewPPTXResult, error)
+	ImportFromPPTX(data []byte, req *ImportPPTXRequest, creatorID uint) (*ImportPPTXResult, error)
+
 	// Internal B2B Outsource
 	CreateB2BRequest(title, description string, estimatedMinutes int, requesterTeamID, targetTeamID, requesterUserID uint) (*B2BRequest, error)
 	GetB2BRequests(callerTeamID uint, direction string) ([]B2BRequest, error)
@@ -685,7 +719,7 @@ type SlideComment struct {
 // SlideResourceURLs is stored in task.resource_urls for imported slides
 type SlideResourceURLs struct {
 	ThumbnailURL   string         `json:"thumbnail_url"`
-	Images         []string       `json:"images"`         // base64 data URLs of embedded images
+	Images         []string       `json:"images"` // base64 data URLs of embedded images
 	SlideURL       string         `json:"slide_url"`
 	Source         string         `json:"source"`
 	SlideIndex     int            `json:"slide_index"`
@@ -696,20 +730,22 @@ type SlideResourceURLs struct {
 // PreviewGoogleSlidesRequest is the payload for POST /sentinel/import/google-slides/preview
 type PreviewGoogleSlidesRequest struct {
 	PresentationURL string `json:"presentation_url" binding:"required"`
-	APIKey         string `json:"api_key"`
+	APIKey          string `json:"api_key"`
 }
 
 // PreviewSlideItem is one slide in the preview list (index, title, and hidden flag)
 type PreviewSlideItem struct {
 	Index  int    `json:"index"`
-	Title  string `json:"title"`
-	Hidden bool   `json:"hidden"` // true when slide is hidden/skipped in presentation (PPTX show="0"); import should skip by default
+	Title  string `json:"title"` // structural slide title from deck (for reference / secondary label)
+	// SuggestedTaskTitle is derived from visible text on the slide (body), not the placeholder title — default for Task Title in triage.
+	SuggestedTaskTitle string `json:"suggested_task_title,omitempty"`
+	Hidden             bool   `json:"hidden"` // true when slide is hidden/skipped in presentation (PPTX show="0"); import should skip by default
 }
 
 // PreviewGoogleSlidesResult is the response for the preview endpoint
 type PreviewGoogleSlidesResult struct {
-	PresentationTitle string            `json:"presentation_title"`
-	PresentationID     string            `json:"presentation_id"`      // extracted from URL for "already imported" check
+	PresentationTitle string             `json:"presentation_title"`
+	PresentationID    string             `json:"presentation_id"` // extracted from URL for "already imported" check
 	Slides            []PreviewSlideItem `json:"slides"`
 	// AlreadyImportedSlideIndices: 1-based slide indices that were previously imported from this presentation (so UI can pre-uncheck them and select only new slides)
 	AlreadyImportedSlideIndices []int `json:"already_imported_slide_indices"`
@@ -723,38 +759,147 @@ type PreviewGoogleSlidesResult struct {
 
 // TriagedSlide holds per-slide triage data filled by PM during manual triage before import.
 type TriagedSlide struct {
-	SlideIndex       int    `json:"slide_index"`        // 1-based index (matches PreviewSlideItem.Index)
-	Title            string `json:"title"`              // editable task title
-	AssigneeID       *uint  `json:"assignee_id"`        // optional: user id to assign the task to
-	EstimatedMinutes int    `json:"estimated_minutes"`  // mandatory manual estimate
-	Priority         string `json:"priority"`           // CRITICAL | HIGH | MEDIUM | LOW
+	SlideIndex       int    `json:"slide_index"`       // 1-based index (matches PreviewSlideItem.Index)
+	Title            string `json:"title"`             // editable task title
+	AssigneeID       *uint  `json:"assignee_id"`       // optional: user id to assign the task to
+	EstimatedMinutes int    `json:"estimated_minutes"` // mandatory manual estimate
+	Priority         string `json:"priority"`          // CRITICAL | HIGH | MEDIUM | LOW
 }
 
 // ImportGoogleSlidesRequest is the payload for POST /sentinel/import/google-slides
 // Either sprint_id (import into sprint) or epic_id (import into backlog/epic) or neither (import into backlog unassigned).
 type ImportGoogleSlidesRequest struct {
 	PresentationURL string `json:"presentation_url" binding:"required"`
-	SprintID        string `json:"sprint_id"`  // optional: when set, tasks go to this sprint
-	EpicID         string `json:"epic_id"`    // optional: when set, tasks go to this epic (backlog)
-	ProjectID      string `json:"project_id" binding:"required"`
-	ParentID       string `json:"parent_id"`  // optional: when set, tasks are created as sub-tasks under this parent
-	APIKey         string `json:"api_key"`
-	Priority       string `json:"priority"`
-	StoryPoints    int    `json:"story_points"`
+	SprintID        string `json:"sprint_id"` // optional: when set, tasks go to this sprint
+	EpicID          string `json:"epic_id"`   // optional: when set, tasks go to this epic (backlog)
+	ProjectID       string `json:"project_id" binding:"required"`
+	ParentID        string `json:"parent_id"` // optional: when set, tasks are created as sub-tasks under this parent
+	APIKey          string `json:"api_key"`
+	Priority        string `json:"priority"`
+	StoryPoints     int    `json:"story_points"`
 	// SlideIndices: 1-based indices of slides to import. If empty or nil, import all.
 	// Deprecated in favour of Slides when triage data is provided.
-	SlideIndices []int          `json:"slide_indices"`
+	SlideIndices []int `json:"slide_indices"`
 	// Slides: per-slide triage data (title, assignee, estimated_minutes, priority).
 	// When provided, SlideIndices is derived from this array automatically.
-	Slides       []TriagedSlide `json:"slides"`
+	Slides []TriagedSlide `json:"slides"`
 }
 
 // ImportGoogleSlidesResult is the response for POST /sentinel/import/google-slides
 type ImportGoogleSlidesResult struct {
-	CreatedCount    int     `json:"created_count"`
-	SlideCount      int     `json:"slide_count"`
-	PresentationTitle string `json:"presentation_title"`
-	Tasks           []*Task `json:"tasks"`
+	CreatedCount      int     `json:"created_count"`
+	SlideCount        int     `json:"slide_count"`
+	PresentationTitle string  `json:"presentation_title"`
+	Tasks             []*Task `json:"tasks"`
+}
+
+// SheetRowPreviewItem is one data row from a Google Sheet CSV preview (IFP x KG style).
+type SheetRowPreviewItem struct {
+	RowIndex  int    `json:"row_index"`
+	Title     string `json:"title"`
+	DueDate   string `json:"due_date"`   // YYYY-MM-DD or empty
+	Status    string `json:"status"`     // mapped Sentinel status
+	RawStatus string `json:"raw_status"` // original cell text
+	Notes     string `json:"notes"`
+}
+
+// PreviewGoogleSheetsRequest is the payload for POST /sentinel/import/google-sheets/preview
+type PreviewGoogleSheetsRequest struct {
+	SheetURL string `json:"sheet_url" binding:"required"`
+}
+
+// PreviewGoogleSheetsResult is the response for the sheets preview endpoint
+type PreviewGoogleSheetsResult struct {
+	SheetTitle string                `json:"sheet_title"`
+	SheetID    string                `json:"sheet_id"`
+	Rows       []SheetRowPreviewItem `json:"rows"`
+}
+
+// TriagedSheetRow holds per-row overrides before import from Google Sheets.
+type TriagedSheetRow struct {
+	RowIndex         int    `json:"row_index"`
+	Title            string `json:"title"`
+	Priority         string `json:"priority"` // CRITICAL | HIGH | MEDIUM | LOW
+	EstimatedMinutes int    `json:"estimated_minutes"`
+	DueDate          string `json:"due_date"` // YYYY-MM-DD
+	Status           string `json:"status"`
+	Notes            string `json:"notes"`
+}
+
+// ImportGoogleSheetsRequest is the payload for POST /sentinel/import/google-sheets
+type ImportGoogleSheetsRequest struct {
+	SheetURL   string            `json:"sheet_url" binding:"required"`
+	SheetTitle string            `json:"sheet_title"` // optional; from preview for result display
+	ProjectID  string            `json:"project_id" binding:"required"`
+	SprintID   string            `json:"sprint_id"`
+	EpicID     string            `json:"epic_id"`
+	ParentID   string            `json:"parent_id"`
+	Rows       []TriagedSheetRow `json:"rows" binding:"required"`
+}
+
+// ImportGoogleSheetsResult is the response for POST /sentinel/import/google-sheets
+type ImportGoogleSheetsResult struct {
+	CreatedCount int     `json:"created_count"`
+	SheetTitle   string  `json:"sheet_title"`
+	Tasks        []*Task `json:"tasks"`
+}
+
+// PreviewCanvaRequest is the payload for POST /sentinel/import/canva/preview
+type PreviewCanvaRequest struct {
+	DesignURL string `json:"design_url" binding:"required"`
+}
+
+// PreviewCanvaResult lists pages (1..page_count) for triage before import
+type PreviewCanvaResult struct {
+	DesignTitle string             `json:"design_title"`
+	DesignID    string             `json:"design_id"`
+	Pages       []PreviewSlideItem `json:"pages"`
+}
+
+// ImportCanvaRequest is the payload for POST /sentinel/import/canva
+type ImportCanvaRequest struct {
+	DesignURL   string `json:"design_url" binding:"required"`
+	ProjectID   string `json:"project_id" binding:"required"`
+	SprintID    string `json:"sprint_id"`
+	EpicID      string `json:"epic_id"`
+	ParentID    string `json:"parent_id"`
+	Priority    string `json:"priority"`
+	StoryPoints int    `json:"story_points"`
+	// Pages: per-page triage (slide_index = 1-based page index, reuses TriagedSlide)
+	Pages []TriagedSlide `json:"pages" binding:"required"`
+}
+
+// ImportCanvaResult is the response for POST /sentinel/import/canva
+type ImportCanvaResult struct {
+	CreatedCount int     `json:"created_count"`
+	PageCount    int     `json:"page_count"`
+	DesignTitle  string  `json:"design_title"`
+	Tasks        []*Task `json:"tasks"`
+}
+
+// PreviewPPTXResult is the response for POST /sentinel/import/pptx/preview (multipart file upload)
+type PreviewPPTXResult struct {
+	Title  string             `json:"title"`
+	Slides []PreviewSlideItem `json:"slides"`
+}
+
+// ImportPPTXRequest is the JSON payload (sent as form field "payload") for POST /sentinel/import/pptx
+type ImportPPTXRequest struct {
+	ProjectID   string         `json:"project_id"`
+	SprintID    string         `json:"sprint_id"`
+	EpicID      string         `json:"epic_id"`
+	ParentID    string         `json:"parent_id"`
+	Priority    string         `json:"priority"`
+	StoryPoints int            `json:"story_points"`
+	Pages       []TriagedSlide `json:"pages"`
+}
+
+// ImportPPTXResult is the response for POST /sentinel/import/pptx
+type ImportPPTXResult struct {
+	CreatedCount int     `json:"created_count"`
+	PageCount    int     `json:"page_count"`
+	Title        string  `json:"title"`
+	Tasks        []*Task `json:"tasks"`
 }
 
 // FeatureRoadmapItem is a FEATURE-type task enriched with project identity and roll-up progress.
@@ -800,15 +945,15 @@ type AIPlanSprint struct {
 	EndDate   string `json:"end_date"`
 }
 type AIPlanTask struct {
-	Title           string `json:"title"`
-	Description     string `json:"description"`
-	Priority        string `json:"priority"`
-	StoryPoints     int    `json:"story_points"`
-	EpicIndex       *int   `json:"epic_index"`        // 0-based index into epics list
-	SprintIndex     *int   `json:"sprint_index"`     // 0-based index into sprints list
-	MilestoneIndex  *int   `json:"milestone_index"`  // 0-based index into milestones list
-	StartDate       string `json:"start_date"`       // YYYY-MM-DD
-	EndDate         string `json:"end_date"`         // YYYY-MM-DD
+	Title          string `json:"title"`
+	Description    string `json:"description"`
+	Priority       string `json:"priority"`
+	StoryPoints    int    `json:"story_points"`
+	EpicIndex      *int   `json:"epic_index"`      // 0-based index into epics list
+	SprintIndex    *int   `json:"sprint_index"`    // 0-based index into sprints list
+	MilestoneIndex *int   `json:"milestone_index"` // 0-based index into milestones list
+	StartDate      string `json:"start_date"`      // YYYY-MM-DD
+	EndDate        string `json:"end_date"`        // YYYY-MM-DD
 }
 
 // TaskEstimateInput is a minimal task info sent to AI for batch estimate + order
@@ -873,23 +1018,23 @@ type AIService interface {
 // Team A (requester) asks Team B (target) to handle work described by this request.
 // Status flow: PENDING → COUNTER_OFFERED → ACCEPTED | REJECTED
 type B2BRequest struct {
-	ID                 uuid.UUID  `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Title              string     `json:"title" gorm:"not null"`
-	Description        string     `json:"description" gorm:"type:text"`
-	EstimatedMinutes   int        `json:"estimated_minutes" gorm:"not null;default:0"`
-	ProposedMinutes    int        `json:"proposed_minutes" gorm:"default:0"`
-	NegotiationReason  string     `json:"negotiation_reason" gorm:"type:text"`
-	Status             string     `json:"status" gorm:"default:'PENDING';not null"`
+	ID                uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Title             string    `json:"title" gorm:"not null"`
+	Description       string    `json:"description" gorm:"type:text"`
+	EstimatedMinutes  int       `json:"estimated_minutes" gorm:"not null;default:0"`
+	ProposedMinutes   int       `json:"proposed_minutes" gorm:"default:0"`
+	NegotiationReason string    `json:"negotiation_reason" gorm:"type:text"`
+	Status            string    `json:"status" gorm:"default:'PENDING';not null"`
 
-	RequesterTeamID    uint       `json:"requester_team_id" gorm:"not null"`
-	TargetTeamID       uint       `json:"target_team_id" gorm:"not null"`
-	RequesterUserID    uint       `json:"requester_user_id" gorm:"not null"`
+	RequesterTeamID uint `json:"requester_team_id" gorm:"not null"`
+	TargetTeamID    uint `json:"target_team_id" gorm:"not null"`
+	RequesterUserID uint `json:"requester_user_id" gorm:"not null"`
 
-	CreatedTaskID      *uuid.UUID `json:"created_task_id,omitempty" gorm:"type:uuid"`
+	CreatedTaskID *uuid.UUID `json:"created_task_id,omitempty" gorm:"type:uuid"`
 
 	// Enriched fields (not in DB)
-	RequesterTeamName  string     `json:"requester_team_name,omitempty" gorm:"-"`
-	TargetTeamName     string     `json:"target_team_name,omitempty" gorm:"-"`
+	RequesterTeamName string `json:"requester_team_name,omitempty" gorm:"-"`
+	TargetTeamName    string `json:"target_team_name,omitempty" gorm:"-"`
 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
@@ -899,21 +1044,21 @@ func (B2BRequest) TableName() string { return "b2b_requests" }
 
 // ProjectBackupPayload is the full snapshot of a project stored as JSONB.
 type ProjectBackupPayload struct {
-	Project    Project    `json:"project"`
-	Epics      []Epic     `json:"epics"`
-	Sprints    []Sprint   `json:"sprints"`
+	Project    Project     `json:"project"`
+	Epics      []Epic      `json:"epics"`
+	Sprints    []Sprint    `json:"sprints"`
 	Milestones []Milestone `json:"milestones"`
-	Tasks      []Task     `json:"tasks"`
+	Tasks      []Task      `json:"tasks"`
 }
 
 // ProjectBackup is a point-in-time snapshot of a project and its child records.
 type ProjectBackup struct {
-	ID        uuid.UUID            `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	ProjectID uuid.UUID            `json:"project_id" gorm:"type:uuid;not null;index"`
-	Label     string               `json:"label" gorm:"type:varchar(255);default:''"`
-	Payload   datatypes.JSON       `json:"payload" gorm:"type:jsonb;not null;default:'{}'"`
-	CreatedBy *uint                `json:"created_by"`
-	CreatedAt time.Time            `json:"created_at" gorm:"autoCreateTime"`
+	ID        uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	ProjectID uuid.UUID      `json:"project_id" gorm:"type:uuid;not null;index"`
+	Label     string         `json:"label" gorm:"type:varchar(255);default:''"`
+	Payload   datatypes.JSON `json:"payload" gorm:"type:jsonb;not null;default:'{}'"`
+	CreatedBy *uint          `json:"created_by"`
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
 }
 
 func (ProjectBackup) TableName() string { return "project_backups" }
@@ -925,7 +1070,6 @@ type CreateProjectBackupRequest struct {
 
 // ImportProjectFromBackupRequest is the DTO for POST /sentinel/projects/import-backup
 type ImportProjectFromBackupRequest struct {
-	Name    string              `json:"name" binding:"required"`
+	Name    string               `json:"name" binding:"required"`
 	Payload ProjectBackupPayload `json:"payload" binding:"required"`
 }
-

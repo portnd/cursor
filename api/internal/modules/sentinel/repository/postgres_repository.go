@@ -30,17 +30,76 @@ func teamScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
 	return db.Where("team_id = ?", *ctx.TeamID)
 }
 
+// projectAccessScope restricts project rows for list/detail queries.
+// When teams feature is disabled, PMs only see projects where they are assigned in project_pm_assignments.
+func projectAccessScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
+	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager {
+		return db
+	}
+	if ctx.TeamsFeatureDisabled && ctx.Role == domain.RolePM && ctx.UserID != 0 {
+		return db.Where("id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
+	}
+	return teamScope(db, ctx)
+}
+
 func (r *postgresRepository) CreateProject(p *domain.Project) error {
 	return r.db.Create(p).Error
 }
 
+func (r *postgresRepository) fillProjectPmOwners(projects []domain.Project) error {
+	if len(projects) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(projects))
+	for i := range projects {
+		ids[i] = projects[i].ID
+	}
+	type row struct {
+		ProjectID   uuid.UUID `gorm:"column:project_id"`
+		UserID      uint      `gorm:"column:user_id"`
+		Email       string
+		DisplayName string `gorm:"column:display_name"`
+	}
+	var rows []row
+	err := r.db.Raw(`
+		SELECT ppa.project_id, u.id AS user_id, u.email, u.display_name
+		FROM project_pm_assignments ppa
+		JOIN users u ON u.id = ppa.user_id
+		WHERE ppa.project_id IN ?
+		ORDER BY ppa.project_id, u.email
+	`, ids).Scan(&rows).Error
+	if err != nil {
+		return err
+	}
+	byProj := make(map[uuid.UUID][]domain.ProjectPmOwner)
+	for _, row := range rows {
+		byProj[row.ProjectID] = append(byProj[row.ProjectID], domain.ProjectPmOwner{
+			UserID: row.UserID, Email: row.Email, DisplayName: row.DisplayName,
+		})
+	}
+	for i := range projects {
+		if owners, ok := byProj[projects[i].ID]; ok {
+			projects[i].PmOwners = owners
+		} else {
+			projects[i].PmOwners = nil
+		}
+	}
+	return nil
+}
+
 func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.Project, error) {
 	var projects []domain.Project
-	err := teamScope(r.db, ctx).
+	err := projectAccessScope(r.db.Model(&domain.Project{}), ctx).
 		Order("created_at desc").
 		Find(&projects).Error
-	if err != nil || len(projects) == 0 {
+	if err != nil {
 		return projects, err
+	}
+	if err := r.fillProjectPmOwners(projects); err != nil {
+		return projects, err
+	}
+	if len(projects) == 0 {
+		return projects, nil
 	}
 	projectIDs := make([]uuid.UUID, len(projects))
 	for i := range projects {
@@ -80,19 +139,29 @@ func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.
 
 func (r *postgresRepository) GetProjectByID(id uuid.UUID, ctx domain.CallerContext) (*domain.Project, error) {
 	var project domain.Project
-	err := teamScope(r.db, ctx).First(&project, "id = ?", id).Error
+	err := projectAccessScope(r.db, ctx).First(&project, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
+	slice := []domain.Project{project}
+	if err := r.fillProjectPmOwners(slice); err != nil {
+		return nil, err
+	}
+	project = slice[0]
 	return &project, nil
 }
 
 func (r *postgresRepository) GetProjectByCode(code string, ctx domain.CallerContext) (*domain.Project, error) {
 	var project domain.Project
-	err := teamScope(r.db, ctx).First(&project, "code = ?", code).Error
+	err := projectAccessScope(r.db, ctx).First(&project, "code = ?", code).Error
 	if err != nil {
 		return nil, err
 	}
+	slice := []domain.Project{project}
+	if err := r.fillProjectPmOwners(slice); err != nil {
+		return nil, err
+	}
+	project = slice[0]
 	return &project, nil
 }
 
@@ -105,6 +174,24 @@ func (r *postgresRepository) AssignProjectTeam(projectID uuid.UUID, teamID *uint
 		return errors.New("project not found")
 	}
 	return nil
+}
+
+func (r *postgresRepository) ReplaceProjectPmAssignments(projectID uuid.UUID, userIDs []uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ?", projectID).Delete(&domain.ProjectPmAssignment{}).Error; err != nil {
+			return err
+		}
+		for _, uid := range userIDs {
+			if uid == 0 {
+				continue
+			}
+			row := domain.ProjectPmAssignment{ProjectID: projectID, UserID: uid}
+			if err := tx.Create(&row).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *postgresRepository) UpdateProject(p *domain.Project) error {

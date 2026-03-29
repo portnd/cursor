@@ -19,9 +19,9 @@
       </button>
     </div>
 
-    <!-- Squad Banner for PM/DEV -->
+    <!-- Squad banner (PM only, when squads are enabled) -->
     <div
-      v-if="!isCEO && squadName"
+      v-if="!isCEO && currentUser?.role === 'PM' && teamsStore.teamsFeatureEnabled && squadName"
       class="mb-6 flex items-center gap-3 px-4 py-3 bg-purple-900/30 border border-purple-500/30 rounded-xl"
     >
       <div class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600/20 text-purple-400">
@@ -32,6 +32,19 @@
         <p class="text-white font-bold leading-tight">{{ squadName }}</p>
       </div>
       <span class="ml-auto text-xs text-gray-500">Showing projects for your team only</span>
+    </div>
+    <!-- No-squads mode: PM sees only CEO-assigned projects -->
+    <div
+      v-else-if="!isCEO && currentUser?.role === 'PM' && !teamsStore.teamsFeatureEnabled"
+      class="mb-6 flex items-center gap-3 px-4 py-3 bg-amber-900/20 border border-amber-600/40 rounded-xl text-amber-100"
+    >
+      <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600/20 text-amber-400">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </div>
+      <div class="min-w-0">
+        <span class="text-xs text-amber-400 uppercase tracking-widest font-semibold">PM access</span>
+        <p class="text-sm text-amber-100/95 leading-snug mt-0.5">Squads are off — you only see projects the CEO assigned to you as PM owner. Ask the CEO to add you on the project card if something is missing.</p>
+      </div>
     </div>
 
     <!-- System Metrics Row -->
@@ -171,6 +184,44 @@
             </select>
           </div>
         </div>
+
+        <!-- CEO/MANAGER: assign PM owners when squads are disabled (multi-select) -->
+        <div
+          v-if="!teamsStore.teamsFeatureEnabled && isCEO"
+          class="mb-4 space-y-2"
+          @click.stop
+        >
+          <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">PM owners</div>
+          <p class="text-[11px] text-gray-500 leading-snug">
+            คลิกชื่อเพื่อเลือกหรือยกเลิก — เลือกได้หลายคนพร้อมกัน (คลิกชื่อที่เลือกอยู่แล้วจะถอนการเลือก)
+          </p>
+          <div
+            v-if="pmUserOptions.length === 0"
+            class="text-xs text-amber-400/90"
+          >
+            No PM users in the system.
+          </div>
+          <div
+            v-else
+            class="max-h-36 overflow-y-auto rounded-lg border border-gray-600/50 bg-gray-700/40 px-1 py-1.5 space-y-0.5"
+          >
+            <label
+              v-for="u in pmUserOptions"
+              :key="u.id"
+              class="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs text-gray-200 hover:bg-gray-600/35 cursor-pointer select-none"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="h-3.5 w-3.5 shrink-0 rounded border-gray-500 bg-gray-800 text-purple-600 focus:ring-1 focus:ring-purple-500/50"
+                :checked="isPmOwner(project, u.id)"
+                @change="togglePmOwner(project, u.id, $event)"
+              />
+              <span class="truncate">{{ u.display_name || u.email }}</span>
+            </label>
+          </div>
+        </div>
+
         <div class="grid grid-cols-3 gap-2 mb-4">
           <div class="text-center p-2 bg-gray-800/60 rounded-lg">
             <div class="text-sm font-bold text-gray-200">{{ getTaskCount(project, 'total') }}</div>
@@ -397,12 +448,14 @@
 import { useAuth } from '~/composables/useAuth'
 import type { Project } from '~/core/modules/projects/infrastructure/projects-api'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
+import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
 const { fetchWithAuth, currentUser } = useAuth()
 const teamsStore = useTeamsStore()
+const teamsApi = useTeamsApi()
 const projectsApi = useProjectsApi()
 
 const isCEO = computed(() => currentUser.value?.role === 'CEO' || currentUser.value?.role === 'MANAGER')
@@ -435,6 +488,8 @@ const showDeleteModal = ref(false)
 const projectToDelete = ref<Project | null>(null)
 const isDeleting = ref(false)
 const deleteError = ref('')
+
+const pmUserOptions = ref<{ id: number; email: string; display_name?: string }[]>([])
 
 const totalProjects = computed(() => projects.value.length)
 const totalActive = computed(() => projects.value.filter((p) => p.status === 'ACTIVE').length)
@@ -645,8 +700,56 @@ async function assignTeam(project: Project, teamId: number | null) {
   }
 }
 
+async function loadPmUserOptions() {
+  if (!isCEO.value || teamsStore.teamsFeatureEnabled) {
+    pmUserOptions.value = []
+    return
+  }
+  try {
+    const res = await fetchWithAuth<{ data: { id: number; email: string; display_name?: string; role: string }[] }>('/auth/users')
+    pmUserOptions.value = (res.data || []).filter((u) => u.role === 'PM')
+  } catch {
+    pmUserOptions.value = []
+  }
+}
+
+function isPmOwner(project: Project, userId: number): boolean {
+  return !!project.pm_owners?.some((o) => o.user_id === userId)
+}
+
+/** Toggle one PM; click again on the same name clears that selection. Multiple PMs can stay selected. */
+async function togglePmOwner(project: Project, userId: number, e: Event) {
+  const checked = (e.target as HTMLInputElement).checked
+  const set = new Set<number>((project.pm_owners ?? []).map((o) => o.user_id))
+  if (checked) {
+    set.add(userId)
+  } else {
+    set.delete(userId)
+  }
+  const ids = [...set].sort((a, b) => a - b)
+  const idx = projects.value.findIndex((p) => p.id === project.id)
+  if (idx === -1) return
+
+  const nextOwners = pmUserOptions.value
+    .filter((u) => ids.includes(u.id))
+    .map((u) => ({
+      user_id: u.id,
+      email: u.email,
+      display_name: u.display_name,
+    }))
+  projects.value[idx] = { ...projects.value[idx], pm_owners: nextOwners }
+
+  try {
+    const updated = await teamsApi.assignProjectPmOwners(project.id, ids)
+    projects.value[idx] = { ...projects.value[idx], pm_owners: updated.pm_owners }
+  } catch {
+    await loadProjects()
+  }
+}
+
 onMounted(async () => {
   await teamsStore.fetchTeamsFeatureEnabled()
+  await loadPmUserOptions()
   await loadProjects()
   if (teamsStore.teamsFeatureEnabled) await teamsStore.fetchTeams()
 })

@@ -20,6 +20,14 @@ export interface Project {
   task_total?: number
   task_completed?: number
   task_overdue?: number
+  /** When teams/squads are off — CEO-assigned PM owners for this project */
+  pm_owners?: ProjectPmOwner[]
+}
+
+export interface ProjectPmOwner {
+  user_id: number
+  email: string
+  display_name?: string
 }
 
 export interface ProjectTransaction {

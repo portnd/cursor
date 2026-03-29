@@ -14,8 +14,8 @@ import (
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	authRepo "github.com/portnd/the-sentinel-core/internal/modules/auth/repository"
 	authUsecase "github.com/portnd/the-sentinel-core/internal/modules/auth/usecase"
-	financeDomain "github.com/portnd/the-sentinel-core/internal/modules/finance/domain"
 	financeHttp "github.com/portnd/the-sentinel-core/internal/modules/finance/delivery/http"
+	financeDomain "github.com/portnd/the-sentinel-core/internal/modules/finance/domain"
 	financeRepo "github.com/portnd/the-sentinel-core/internal/modules/finance/repository"
 	financeUsecase "github.com/portnd/the-sentinel-core/internal/modules/finance/usecase"
 	healthHttp "github.com/portnd/the-sentinel-core/internal/modules/health/delivery/http"
@@ -68,6 +68,7 @@ func main() {
 		&authDomain.TeamTransaction{},
 		&sentinelDomain.SystemConfig{},
 		&sentinelDomain.Project{},
+		&sentinelDomain.ProjectPmAssignment{},
 		&sentinelDomain.Sprint{},
 		&sentinelDomain.Milestone{},
 		&sentinelDomain.Epic{},
@@ -170,6 +171,8 @@ func main() {
 	}
 
 	router := gin.Default()
+	// Large PPTX uploads (Canva exports): default 32 MiB multipart buffer is low; spill threshold for multipart parsing.
+	router.MaxMultipartMemory = 128 << 20 // 128 MiB
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
@@ -187,14 +190,14 @@ func main() {
 	apiGroup := router.Group("/api/v1")
 	// Auth middleware (used by protected routes)
 	authMiddleware := middleware.AuthMiddleware(cfg.JWTSecret)
-	
+
 	// Auth routes (includes user management endpoints)
 	authHttp.RegisterRoutes(apiGroup, authUsecaseInstance, teamFinanceUsecaseInstance, authMiddleware)
 
 	// Sentinel routes (protected by auth middleware)
 	sentinelGroup := apiGroup.Group("")
 	sentinelGroup.Use(authMiddleware)
-	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey)
+	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey, cfg.CanvaAccessToken)
 
 	// Performance routes (protected by auth middleware)
 	perfGroup := apiGroup.Group("")
@@ -228,6 +231,3 @@ func main() {
 		log.Fatalf("❌ Failed to start server: %v", err)
 	}
 }
- 
- 
- 

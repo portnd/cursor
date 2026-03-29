@@ -1,4 +1,5 @@
 import { useAuth } from '~/composables/useAuth'
+import type { Project } from '~/core/modules/projects/infrastructure/projects-api'
 
 export interface Team {
   id: number
@@ -91,6 +92,13 @@ export function useTeamsApi() {
       body: JSON.stringify({ team_id: teamId }),
     })
 
+  /** When teams feature is disabled: set one or more PM user IDs as project owners (CEO/MANAGER). */
+  const assignProjectPmOwners = (projectId: string, pmUserIds: number[]): Promise<Project> =>
+    fetchWithAuth<{ data: Project }>(`/sentinel/projects/${projectId}/pm-owners`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pm_user_ids: pmUserIds }),
+    }).then((r) => r.data)
+
   // --- Team Finance / Internal VC Model ---
 
   const getTeamMonthlyCost = (teamId: number): Promise<TeamMonthlyCost> =>
@@ -129,6 +137,7 @@ export function useTeamsApi() {
     deleteTeam,
     assignUserToTeam,
     assignProjectToTeam,
+    assignProjectPmOwners,
     getTeamMonthlyCost,
     injectCapital,
     editCapital,

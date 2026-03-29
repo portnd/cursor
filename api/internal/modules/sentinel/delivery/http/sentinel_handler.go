@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -17,12 +18,13 @@ import (
 )
 
 type SentinelHandler struct {
-	usecase      domain.SentinelUsecase
-	googleAPIKey string
+	usecase          domain.SentinelUsecase
+	googleAPIKey     string
+	canvaAccessToken string
 }
 
-func NewSentinelHandler(usecase domain.SentinelUsecase, googleAPIKey string) *SentinelHandler {
-	return &SentinelHandler{usecase: usecase, googleAPIKey: googleAPIKey}
+func NewSentinelHandler(usecase domain.SentinelUsecase, googleAPIKey, canvaAccessToken string) *SentinelHandler {
+	return &SentinelHandler{usecase: usecase, googleAPIKey: googleAPIKey, canvaAccessToken: canvaAccessToken}
 }
 
 // Request DTOs
@@ -33,20 +35,20 @@ type createProjectReq struct {
 }
 
 type createTaskReq struct {
-	Title               string  `json:"title" binding:"required"`
-	Description         string  `json:"description"`
-	TaskType            string  `json:"task_type"` // FEATURE, TASK, BUG (default: TASK)
-	DueDate             *string `json:"due_date"`
-	ProjectID           *string `json:"project_id"`
-	ParentID            *string `json:"parent_id"`
-	EpicID              *string `json:"epic_id"`
-	StartDate           *string `json:"start_date"`
-	EndDate             *string `json:"end_date"`
-	Priority            string  `json:"priority"`
-	StoryPoints         int     `json:"story_points"`
-	SprintID            *string `json:"sprint_id"`
-	MilestoneID         *string `json:"milestone_id"`
-	EstimatedMinutes    *int    `json:"estimated_minutes"` // Manual estimate; stored for Costing Engine (mandatory from frontend)
+	Title            string  `json:"title" binding:"required"`
+	Description      string  `json:"description"`
+	TaskType         string  `json:"task_type"` // FEATURE, TASK, BUG (default: TASK)
+	DueDate          *string `json:"due_date"`
+	ProjectID        *string `json:"project_id"`
+	ParentID         *string `json:"parent_id"`
+	EpicID           *string `json:"epic_id"`
+	StartDate        *string `json:"start_date"`
+	EndDate          *string `json:"end_date"`
+	Priority         string  `json:"priority"`
+	StoryPoints      int     `json:"story_points"`
+	SprintID         *string `json:"sprint_id"`
+	MilestoneID      *string `json:"milestone_id"`
+	EstimatedMinutes *int    `json:"estimated_minutes"` // Manual estimate; stored for Costing Engine (mandatory from frontend)
 }
 
 type assignTaskReq struct {
@@ -174,11 +176,11 @@ type updateConfigReq struct {
 
 // --- Handlers ---
 
-// callerCtx extracts CallerContext (role + team_id) from the Gin context (set by AuthMiddleware).
+// callerCtx extracts CallerContext (role + team_id + user_id) from the Gin context (set by AuthMiddleware).
 func callerCtx(c *gin.Context) domain.CallerContext {
 	role, _ := c.Get("role")
 	teamID, _ := c.Get("team_id")
-	ctx := domain.CallerContext{}
+	ctx := domain.CallerContext{UserID: getUserIDFromContext(c)}
 	if r, ok := role.(string); ok {
 		ctx.Role = r
 	}
@@ -404,6 +406,42 @@ func (h *SentinelHandler) AssignProjectTeam(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Team assigned successfully", "data": updated})
 }
+
+type assignProjectPmOwnersReq struct {
+	PmUserIDs []uint `json:"pm_user_ids"` // empty = clear all PM owners for this project
+}
+
+// AssignProjectPmOwners handles PATCH /sentinel/projects/:id/pm-owners (CEO or MANAGER; only when teams feature is disabled).
+func (h *SentinelHandler) AssignProjectPmOwners(c *gin.Context) {
+	role, _ := c.Get("role")
+	roleStr, _ := role.(string)
+	if roleStr != "CEO" && roleStr != "MANAGER" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO or MANAGER can assign project PM owners"})
+		return
+	}
+	idStr := strings.TrimSpace(c.Param("id"))
+	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
+	if err != nil || project == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "project not found"})
+		return
+	}
+	var req assignProjectPmOwnersReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	updated, err := h.usecase.AssignProjectPmOwners(project.ID, req.PmUserIDs, roleStr)
+	if err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign PM owners", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Project PM owners updated", "data": updated})
+}
+
 func (h *SentinelHandler) GenerateProjectPlan(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
@@ -1153,8 +1191,8 @@ func (h *SentinelHandler) SubmitAppeal(c *gin.Context) {
 			})
 			return
 		}
-		if err.Error() == "appeal already exists for this submission" || 
-		   err.Error() == "can only appeal FAIL verdicts" {
+		if err.Error() == "appeal already exists for this submission" ||
+			err.Error() == "can only appeal FAIL verdicts" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "Bad Request",
 				"message": err.Error(),
@@ -1999,7 +2037,7 @@ func getUserRoleFromContext(c *gin.Context) string {
 
 // Helper to check if error message contains a substring
 func contains(str, substr string) bool {
-	return len(str) >= len(substr) && (str == substr || (len(str) > len(substr) && 
+	return len(str) >= len(substr) && (str == substr || (len(str) > len(substr) &&
 		(str[:len(substr)] == substr || contains(str[1:], substr))))
 }
 
@@ -2566,6 +2604,212 @@ func (h *SentinelHandler) ImportGoogleSlides(c *gin.Context) {
 		"message": fmt.Sprintf("Imported %d tasks from \"%s\"", result.CreatedCount, result.PresentationTitle),
 		"data":    result,
 	})
+}
+
+// --- Google Sheets Import ---
+
+func (h *SentinelHandler) PreviewGoogleSheets(c *gin.Context) {
+	var req domain.PreviewGoogleSheetsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	result, err := h.usecase.PreviewGoogleSheets(&req)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if contains(err.Error(), "invalid") || contains(err.Error(), "required") || contains(err.Error(), "no importable") || contains(err.Error(), "no data rows") {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{"error": "Preview failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func (h *SentinelHandler) ImportGoogleSheets(c *gin.Context) {
+	creatorID := getUserIDFromContext(c)
+	if creatorID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req domain.ImportGoogleSheetsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+
+	result, err := h.usecase.ImportFromGoogleSheets(&req, creatorID)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if contains(err.Error(), "invalid") || contains(err.Error(), "required") || contains(err.Error(), "at least one row") || contains(err.Error(), "parent task") || contains(err.Error(), "nested sub-task") {
+			statusCode = http.StatusBadRequest
+		}
+		if domain.IsBadRequest(err) {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{"error": "Import failed", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": fmt.Sprintf("Imported %d tasks from \"%s\"", result.CreatedCount, result.SheetTitle),
+		"data":    result,
+	})
+}
+
+// --- Canva Import ---
+
+func (h *SentinelHandler) PreviewCanva(c *gin.Context) {
+	var req domain.PreviewCanvaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	result, err := h.usecase.PreviewCanva(&req, h.canvaAccessToken)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if contains(err.Error(), "invalid") || contains(err.Error(), "required") || contains(err.Error(), "empty") || contains(err.Error(), "could not find") {
+			statusCode = http.StatusBadRequest
+		}
+		if contains(err.Error(), "HTTP 401") || contains(err.Error(), "HTTP 403") {
+			statusCode = http.StatusForbidden
+		}
+		c.JSON(statusCode, gin.H{"error": "Preview failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func (h *SentinelHandler) ImportCanva(c *gin.Context) {
+	creatorID := getUserIDFromContext(c)
+	if creatorID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req domain.ImportCanvaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+
+	result, err := h.usecase.ImportFromCanva(&req, h.canvaAccessToken, creatorID)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if contains(err.Error(), "invalid") || contains(err.Error(), "required") || contains(err.Error(), "at least one") || contains(err.Error(), "parent task") || contains(err.Error(), "nested sub-task") || contains(err.Error(), "no matching") {
+			statusCode = http.StatusBadRequest
+		}
+		if domain.IsBadRequest(err) {
+			statusCode = http.StatusBadRequest
+		}
+		if contains(err.Error(), "HTTP 401") || contains(err.Error(), "HTTP 403") {
+			statusCode = http.StatusForbidden
+		}
+		c.JSON(statusCode, gin.H{"error": "Import failed", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": fmt.Sprintf("Imported %d tasks from \"%s\"", result.CreatedCount, result.DesignTitle),
+		"data":    result,
+	})
+}
+
+// --- PPTX File Upload Import ---
+
+// maxPPTXUploadBytes: Canva / rich decks with images often exceed 50 MB.
+const maxPPTXUploadBytes = 250 * 1024 * 1024 // 250 MiB
+
+func (h *SentinelHandler) PreviewPPTX(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing file", "message": "multipart field 'file' is required"})
+		return
+	}
+	if fileHeader.Size > maxPPTXUploadBytes {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "File too large",
+			"message": fmt.Sprintf("PPTX file must be under %d MB (got %.1f MB)", maxPPTXUploadBytes/(1024*1024), float64(fileHeader.Size)/(1024*1024)),
+		})
+		return
+	}
+	f, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file", "message": err.Error()})
+		return
+	}
+	defer f.Close()
+	data, err := readAll(f)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file", "message": err.Error()})
+		return
+	}
+	result, err := h.usecase.PreviewPPTX(data)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid PPTX", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func (h *SentinelHandler) ImportPPTX(c *gin.Context) {
+	creatorID := getUserIDFromContext(c)
+	if creatorID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing file", "message": "multipart field 'file' is required"})
+		return
+	}
+	if fileHeader.Size > maxPPTXUploadBytes {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "File too large",
+			"message": fmt.Sprintf("PPTX file must be under %d MB (got %.1f MB)", maxPPTXUploadBytes/(1024*1024), float64(fileHeader.Size)/(1024*1024)),
+		})
+		return
+	}
+	f, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file", "message": err.Error()})
+		return
+	}
+	defer f.Close()
+	data, err := readAll(f)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file", "message": err.Error()})
+		return
+	}
+	payloadStr := c.PostForm("payload")
+	if payloadStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing payload", "message": "form field 'payload' (JSON) is required"})
+		return
+	}
+	var req domain.ImportPPTXRequest
+	if err := json.Unmarshal([]byte(payloadStr), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload", "message": err.Error()})
+		return
+	}
+	result, err := h.usecase.ImportFromPPTX(data, &req, creatorID)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if domain.IsBadRequest(err) || contains(err.Error(), "invalid") || contains(err.Error(), "required") || contains(err.Error(), "at least one") || contains(err.Error(), "parent task") || contains(err.Error(), "nested sub-task") || contains(err.Error(), "no matching") {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{"error": "Import failed", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"message": fmt.Sprintf("Imported %d tasks from \"%s\"", result.CreatedCount, result.Title),
+		"data":    result,
+	})
+}
+
+// readAll reads all bytes from a ReadCloser (alias for io.ReadAll used in handlers).
+func readAll(r interface{ Read([]byte) (int, error) }) ([]byte, error) {
+	return io.ReadAll(r)
 }
 
 // --- Epic Handlers (Hierarchy Dimension 1) ---
