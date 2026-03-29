@@ -3509,7 +3509,13 @@ async function updateTaskField(taskId: string, field: string, value: any) {
   const task = idx !== -1 ? allTasks.value[idx] : null
   if (task) (task as any)[field] = value || null
   try {
-    const payload: Record<string, unknown> = field === 'epic_id' ? { [field]: value ?? '' } : { [field]: value || undefined }
+    // sprint_id: JSON omits `undefined`; backend needs explicit "" to clear sprint (see UpdateTask hasSprint / empty string branch).
+    const payload: Record<string, unknown> =
+      field === 'epic_id'
+        ? { epic_id: value ?? '' }
+        : field === 'sprint_id'
+          ? { sprint_id: value && String(value).trim() !== '' ? String(value) : '' }
+          : { [field]: value || undefined }
     // When moving task to a sprint, clamp start/end to sprint range so the bar shows within the sprint
     if (field === 'sprint_id' && value && task) {
       let sprint = sprints.value.find((s) => s.id === value) ?? null

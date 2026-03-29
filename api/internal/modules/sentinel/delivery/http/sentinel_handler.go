@@ -1486,7 +1486,7 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 		sortOrderUpd = req.SortOrder
 	}
 
-	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
+	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, hasSprint, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
 	if err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {
