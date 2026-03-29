@@ -17,9 +17,11 @@ RUN go mod download
 COPY . .
 
 ARG VERSION=dev
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    -a -installsuffix cgo \
+# No -a: avoids OOM on small CI runners; CGO_ENABLED=0 still yields a static binary.
+RUN BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath \
+    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
     -o /app/main \
     ./cmd/server/main.go
 

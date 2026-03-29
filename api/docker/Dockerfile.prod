@@ -28,17 +28,13 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-# Flags explanation:
-# - CGO_ENABLED=0: Static binary (no C dependencies)
-# - GOOS=linux: Target OS
-# - GOARCH=amd64: Target architecture
-# - -ldflags="-s -w": Strip debug info (-s) and DWARF symbol table (-w)
-# - -a: Force rebuild of all packages
-# - -installsuffix cgo: Add suffix to package installation directory
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w -X main.Version=$(git describe --tags --always --dirty) -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    -a -installsuffix cgo \
+# Build the application (context is ./api only — no .git here, so do not use git describe).
+ARG VERSION=dev
+# No -a: avoids OOM on constrained builders; CGO_ENABLED=0 still yields a static binary.
+RUN BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath \
+    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
     -o /app/main \
     ./cmd/server/main.go
 

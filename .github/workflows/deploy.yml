@@ -33,15 +33,12 @@ jobs:
             context: ./api
             dockerfile: ./api/docker/Dockerfile.staging
             image_tag: sentinel-backend
-            build_args: "VERSION=${{ github.sha }}"
 
           - service: frontend
             context: ./web
             dockerfile: ./web/docker/Dockerfile.staging
             image_tag: sentinel-frontend
-            # Optional: add build-args if Nuxt needs env at build time (e.g. NUXT_PUBLIC_*)
-            # build_args: NUXT_PUBLIC_API_BASE=${{ secrets.NUXT_PUBLIC_API_BASE }}
-            build_args: ""
+            # Optional: add NUXT_PUBLIC_* via build-args block above if needed
 
     steps:
       - name: Checkout repository
@@ -64,7 +61,9 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_tag }}:staging
-          build-args: ${{ matrix.build_args }}
+          # Backend Dockerfile expects VERSION; unused args on frontend are ignored.
+          build-args: |
+            VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

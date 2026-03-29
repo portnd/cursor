@@ -36,6 +36,12 @@ import (
 	sentinelUsecase "github.com/portnd/the-sentinel-core/internal/modules/sentinel/usecase"
 )
 
+// Version and BuildTime are injected at link time via -ldflags (-X main.Version=...).
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+)
+
 func main() {
 	log.Println("🛡️  KOMGRIP API - Starting...")
 
