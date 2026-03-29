@@ -69,6 +69,7 @@ services:
       CHROME_PATH: /usr/bin/chromium
       TIMELINE_PDF_PATH: /app/storages/timeline_pdf/
       STORAGE_URL: ${STORAGE_URL:-http://localhost:8080}
+      CANVA_ACCESS_TOKEN: ${CANVA_ACCESS_TOKEN:-}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

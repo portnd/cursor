@@ -529,6 +529,14 @@
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
                 Import Slides
               </button>
+              <button @click="openSheetsImportModal()" class="btn-import-sm">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+                Import Sheets
+              </button>
+              <button @click="openPPTXImportModal()" class="btn-import-sm">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
+                Import PPTX
+              </button>
               <button @click="openCreateTaskModal()" class="btn-primary-sm">+ Task</button>
             </div>
           </div>
@@ -1192,7 +1200,7 @@
               <div class="p-3 bg-gray-700/40 rounded-xl flex-1 min-w-0">
                 <p class="text-sm font-medium text-white truncate">{{ backlogImportPreview.presentation_title }}</p>
                 <p class="text-xs text-gray-500 mt-0.5">
-                  {{ backlogImportSelectedIndices.length }} / {{ backlogImportPreview.slides.length }} slides selected — กรอก Estimated Minutes ก่อน import
+                  {{ backlogImportSelectedIndices.length }} / {{ backlogImportPreview.slides.length }} slides selected — Est. minutes ไม่บังคับ
                 </p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
@@ -1211,7 +1219,7 @@
                     <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-10">#</th>
                     <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold min-w-[200px]">Task Title</th>
                     <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold min-w-[140px]">Assignee</th>
-                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Est. Minutes <span class="text-red-400">*</span></th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Est. min <span class="text-gray-500 font-normal">(ไม่บังคับ)</span></th>
                     <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Priority</th>
                   </tr>
                 </thead>
@@ -1262,7 +1270,6 @@
                         type="number"
                         min="0"
                         class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-500/60"
-                        :class="backlogImportSelectedIndices.includes(s.index) && !backlogImportTriagedSlides[s.index]?.estimated_minutes ? 'border-red-500/60' : ''"
                         :disabled="!backlogImportSelectedIndices.includes(s.index)"
                         placeholder="0"
                       />
@@ -1344,6 +1351,437 @@
             </div>
           </template>
 
+        </div>
+      </div>
+    </div>
+
+    <!-- Import PPTX File Upload Modal -->
+    <div v-if="showPPTXImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="closePPTXImportModal">
+      <div
+        class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full my-auto flex flex-col max-h-[90vh]"
+        :class="pptxImportStep === 'select' ? 'max-w-5xl' : 'max-w-xl'"
+      >
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0 border-b border-gray-700/60">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-orange-600/20 border border-orange-500/30 flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-orange-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-white">Import PPTX</h2>
+              <p class="text-xs text-gray-400">Upload ไฟล์ .pptx (export จาก Canva, PowerPoint, Keynote ฯลฯ) — 1 slide = 1 task</p>
+            </div>
+          </div>
+          <button @click="closePPTXImportModal" class="text-gray-500 hover:text-white transition-colors shrink-0 ml-4">✕</button>
+        </div>
+
+        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          <!-- Result -->
+          <template v-if="pptxImportStep === 'result' && pptxImportResult">
+            <div class="p-4 bg-green-900/20 border border-green-600/40 rounded-xl">
+              <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                <span class="text-green-400 font-semibold text-sm">Import สำเร็จ!</span>
+              </div>
+              <p class="text-gray-300 text-sm font-medium mb-1">{{ pptxImportResult.title }}</p>
+              <p class="text-gray-400 text-xs">สร้าง {{ pptxImportResult.created_count }} tasks จาก {{ pptxImportResult.page_count }} slides</p>
+            </div>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div
+                v-for="task in pptxImportResult.tasks"
+                :key="task.id"
+                class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
+              >
+                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
+                <span class="text-gray-200 truncate">{{ task.title }}</span>
+              </div>
+            </div>
+            <button @click="closePPTXImportModal" class="w-full btn-primary py-2.5">Done</button>
+          </template>
+
+          <!-- Step 2: Triage Table -->
+          <template v-else-if="pptxImportStep === 'select' && pptxImportPreview">
+            <div class="flex items-center justify-between gap-3">
+              <div class="p-3 bg-gray-700/40 rounded-xl flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate">{{ pptxImportPreview.title }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  {{ pptxImportSelectedIndices.length }} / {{ pptxImportPreview.slides.length }} slides selected — Est. minutes ไม่บังคับ
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" @click="pptxImportSelectAll" class="btn-ghost-sm">ทั้งหมด</button>
+                <button type="button" @click="pptxImportDeselectAll" class="btn-ghost-sm">ยกเลิก</button>
+                <button type="button" @click="pptxImportSelectOnlyVisible" class="btn-ghost-sm text-orange-400">เฉพาะที่แสดง</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto border border-gray-700/60 rounded-xl">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-700/60 bg-gray-900/60">
+                    <th class="py-2 px-3 text-left w-8"></th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-10">#</th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold min-w-[200px]">Task Title</th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold min-w-[140px]">Assignee</th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Est. min <span class="text-gray-500 font-normal">(ไม่บังคับ)</span></th>
+                    <th class="py-2 px-3 text-left text-xs text-gray-400 font-semibold w-32">Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="s in pptxImportPreview.slides"
+                    :key="s.index"
+                    class="border-b border-gray-700/30 transition-colors"
+                    :class="pptxImportSelectedIndices.includes(s.index) ? 'bg-gray-800/80' : 'bg-gray-900/40 opacity-50'"
+                  >
+                    <td class="py-2 px-3">
+                      <input
+                        v-model="pptxImportSelectedIndices"
+                        type="checkbox"
+                        :value="s.index"
+                        class="rounded border-gray-500 bg-gray-700 text-orange-500 focus:ring-orange-500"
+                      />
+                    </td>
+                    <td class="py-2 px-3 text-xs text-gray-400 font-mono">
+                      {{ s.index }}
+                      <span v-if="s.hidden" class="text-amber-400 ml-1 text-[10px]">ซ่อน</span>
+                    </td>
+                    <td class="py-2 px-2">
+                      <input
+                        v-if="pptxImportTriagedSlides[s.index]"
+                        v-model="pptxImportTriagedSlides[s.index].title"
+                        type="text"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/60"
+                        :disabled="!pptxImportSelectedIndices.includes(s.index)"
+                      />
+                    </td>
+                    <td class="py-2 px-2">
+                      <select
+                        v-if="pptxImportTriagedSlides[s.index]"
+                        v-model="pptxImportTriagedSlides[s.index].assignee_id"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-orange-500/60"
+                        :disabled="!pptxImportSelectedIndices.includes(s.index)"
+                      >
+                        <option :value="null">— Unassigned —</option>
+                        <option v-for="u in backlogImportAssignees" :key="u.id" :value="u.id">{{ u.display_name || u.email }}</option>
+                      </select>
+                    </td>
+                    <td class="py-2 px-2">
+                      <input
+                        v-if="pptxImportTriagedSlides[s.index]"
+                        v-model.number="pptxImportTriagedSlides[s.index].estimated_minutes"
+                        type="number"
+                        min="0"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-orange-500/60"
+                        :disabled="!pptxImportSelectedIndices.includes(s.index)"
+                        placeholder="0"
+                      />
+                    </td>
+                    <td class="py-2 px-2">
+                      <select
+                        v-if="pptxImportTriagedSlides[s.index]"
+                        v-model="pptxImportTriagedSlides[s.index].priority"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-orange-500/60"
+                        :disabled="!pptxImportSelectedIndices.includes(s.index)"
+                      >
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="LOW">LOW</option>
+                      </select>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="pptxImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ pptxImportError }}</div>
+            <div class="flex gap-3">
+              <button
+                @click="submitPPTXImport"
+                :disabled="isPPTXImporting || pptxImportSelectedIndices.length === 0"
+                class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <svg v-if="isPPTXImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isPPTXImporting ? 'กำลัง import...' : `Import ${pptxImportSelectedIndices.length} Slides` }}
+              </button>
+              <button type="button" @click="pptxImportStep = 'form'" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">กลับ</button>
+            </div>
+          </template>
+
+          <!-- Step 1: File Picker + Epic/Parent -->
+          <template v-else>
+            <!-- File Drop Zone -->
+            <div
+              class="relative border-2 border-dashed rounded-xl p-8 text-center transition-colors"
+              :class="pptxDragOver ? 'border-orange-500/60 bg-orange-500/5' : 'border-gray-600/60 hover:border-gray-500/60'"
+              @dragover.prevent="pptxDragOver = true"
+              @dragleave="pptxDragOver = false"
+              @drop.prevent="onPPTXFileDrop"
+            >
+              <svg class="w-10 h-10 text-gray-500 mx-auto mb-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+              <p class="text-sm font-medium text-gray-300 mb-1">
+                {{ pptxImportFile ? pptxImportFile.name : 'ลากไฟล์ .pptx มาวาง หรือ' }}
+              </p>
+              <p v-if="!pptxImportFile" class="text-xs text-gray-500 mb-3">รองรับไฟล์ .pptx จาก Canva, PowerPoint, Keynote</p>
+              <p v-else class="text-xs text-green-400 mb-3">{{ (pptxImportFile.size / 1024 / 1024).toFixed(1) }} MB</p>
+              <label class="btn-import-sm cursor-pointer inline-flex items-center gap-1.5">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+                {{ pptxImportFile ? 'เปลี่ยนไฟล์' : 'เลือกไฟล์' }}
+                <input type="file" accept=".pptx" class="sr-only" @change="onPPTXFileChange" />
+              </label>
+            </div>
+
+            <div v-if="epics.length">
+              <label class="label">Epic</label>
+              <select v-model="pptxImportForm.epic_id" class="input-field w-full" :disabled="isPPTXLoadingPreview" @change="onPPTXImportEpicChange">
+                <option value="">— ทุก Epic / Unassigned —</option>
+                <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Target Parent Task <span class="text-gray-500 font-normal">(Sub-tasks จะถูกสร้างใต้ task นี้)</span></label>
+              <select v-model="pptxImportForm.parent_id" class="input-field w-full" :disabled="isPPTXLoadingPreview">
+                <option value="">— No Parent (Top-level tasks) —</option>
+                <option v-for="t in pptxParentTaskOptions" :key="t.id" :value="t.id">
+                  [{{ taskCodeSuffix(t.code) }}] {{ t.title }}
+                </option>
+              </select>
+            </div>
+
+            <div v-if="pptxImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ pptxImportError }}</div>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                @click="loadPPTXImportPreview"
+                :disabled="isPPTXLoadingPreview || !pptxImportFile"
+                class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <svg v-if="isPPTXLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isPPTXLoadingPreview ? 'กำลังโหลด...' : 'โหลดรายการ slide' }}
+              </button>
+              <button @click="closePPTXImportModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import from Google Sheets Modal (Backlog) -->
+    <div v-if="showSheetsImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="closeSheetsImportModal">
+      <div
+        class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full my-auto flex flex-col max-h-[90vh]"
+        :class="sheetsImportStep === 'select' ? 'max-w-6xl' : 'max-w-xl'"
+      >
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0 border-b border-gray-700/60">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-white">Import from Google Sheets</h2>
+              <p class="text-xs text-gray-400">Preview แถวจาก CSV — แก้ไขก่อน import (BUG, unassigned)</p>
+            </div>
+          </div>
+          <button type="button" @click="closeSheetsImportModal" class="text-gray-500 hover:text-white transition-colors shrink-0 ml-4">✕</button>
+        </div>
+
+        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          <template v-if="sheetsImportStep === 'result' && sheetsImportResult">
+            <div class="p-4 bg-green-900/20 border border-green-600/40 rounded-xl">
+              <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                <span class="text-green-400 font-semibold text-sm">Import สำเร็จ!</span>
+              </div>
+              <p class="text-gray-300 text-sm font-medium mb-1">{{ sheetsImportResult.sheet_title }}</p>
+              <p class="text-gray-400 text-xs">สร้าง {{ sheetsImportResult.created_count }} tasks จาก Google Sheet</p>
+            </div>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div
+                v-for="task in sheetsImportResult.tasks"
+                :key="task.id"
+                class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
+              >
+                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
+                <span class="text-gray-200 truncate">{{ task.title }}</span>
+              </div>
+            </div>
+            <button type="button" @click="closeSheetsImportModal" class="w-full btn-primary py-2.5">Done</button>
+          </template>
+
+          <template v-else-if="sheetsImportStep === 'select' && sheetsImportPreview">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="p-3 bg-gray-700/40 rounded-xl flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate">{{ sheetsImportPreview.sheet_title }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  {{ sheetsImportSelectedRowIndices.length }} / {{ sheetsImportPreview.rows.length }} rows selected
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" @click="sheetsImportSelectAll" class="btn-ghost-sm">ทั้งหมด</button>
+                <button type="button" @click="sheetsImportDeselectAll" class="btn-ghost-sm">ยกเลิก</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto border border-gray-700/60 rounded-xl">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-700/60 bg-gray-900/60">
+                    <th class="py-2 px-2 text-left w-8"></th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold w-12">#</th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold min-w-[180px]">Title</th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold w-36">Due</th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold min-w-[120px]">Status</th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold min-w-[140px]">Notes</th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold w-28">Est. min <span class="text-gray-500 font-normal">(ไม่บังคับ)</span></th>
+                    <th class="py-2 px-2 text-left text-xs text-gray-400 font-semibold w-28">Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="r in sheetsImportPreview.rows"
+                    :key="r.row_index"
+                    class="border-b border-gray-700/30 transition-colors align-top"
+                    :class="sheetsImportSelectedRowIndices.includes(r.row_index) ? 'bg-gray-800/80' : 'bg-gray-900/40 opacity-50'"
+                  >
+                    <td class="py-2 px-2">
+                      <input
+                        v-model="sheetsImportSelectedRowIndices"
+                        type="checkbox"
+                        :value="r.row_index"
+                        class="rounded border-gray-500 bg-gray-700 text-emerald-500 focus:ring-emerald-500"
+                      />
+                    </td>
+                    <td class="py-2 px-2 text-xs text-gray-400 font-mono">{{ r.row_index }}</td>
+                    <td class="py-2 px-1">
+                      <input
+                        v-if="sheetsImportTriagedRows[r.row_index]"
+                        v-model="sheetsImportTriagedRows[r.row_index].title"
+                        type="text"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/60"
+                        :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
+                      />
+                      <p v-if="r.raw_status" class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[200px]" :title="r.raw_status">KG: {{ r.raw_status }}</p>
+                    </td>
+                    <td class="py-2 px-1">
+                      <input
+                        v-if="sheetsImportTriagedRows[r.row_index]"
+                        v-model="sheetsImportTriagedRows[r.row_index].due_date"
+                        type="date"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-emerald-500/60 max-w-[9.5rem]"
+                        :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
+                      />
+                    </td>
+                    <td class="py-2 px-1">
+                      <select
+                        v-if="sheetsImportTriagedRows[r.row_index]"
+                        v-model="sheetsImportTriagedRows[r.row_index].status"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-emerald-500/60"
+                        :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
+                      >
+                        <option value="PENDING">PENDING</option>
+                        <option value="IN_PROGRESS">IN_PROGRESS</option>
+                        <option value="READY_FOR_TEST">READY_FOR_TEST</option>
+                        <option value="READY_FOR_UAT">READY_FOR_UAT</option>
+                        <option value="COMPLETED">COMPLETED</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                      </select>
+                    </td>
+                    <td class="py-2 px-1">
+                      <textarea
+                        v-if="sheetsImportTriagedRows[r.row_index]"
+                        v-model="sheetsImportTriagedRows[r.row_index].notes"
+                        rows="2"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/60 resize-y min-h-[2.25rem]"
+                        :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
+                      />
+                    </td>
+                    <td class="py-2 px-1">
+                      <input
+                        v-if="sheetsImportTriagedRows[r.row_index]"
+                        v-model.number="sheetsImportTriagedRows[r.row_index].estimated_minutes"
+                        type="number"
+                        min="0"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500/60"
+                        :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
+                        placeholder="—"
+                      />
+                    </td>
+                    <td class="py-2 px-1">
+                      <select
+                        v-if="sheetsImportTriagedRows[r.row_index]"
+                        v-model="sheetsImportTriagedRows[r.row_index].priority"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-emerald-500/60"
+                        :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
+                      >
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="LOW">LOW</option>
+                      </select>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="sheetsImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ sheetsImportError }}</div>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                @click="submitSheetsImport"
+                :disabled="isSheetsImporting || sheetsImportSelectedRowIndices.length === 0"
+                class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <svg v-if="isSheetsImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isSheetsImporting ? 'กำลัง import...' : `Import ${sheetsImportSelectedRowIndices.length} rows` }}
+              </button>
+              <button type="button" @click="sheetsImportStep = 'form'" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">กลับ</button>
+            </div>
+          </template>
+
+          <template v-else>
+            <div>
+              <label class="label">Google Sheets URL *</label>
+              <input
+                v-model="sheetsImportForm.sheet_url"
+                type="url"
+                class="input-field w-full"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                :disabled="isSheetsLoadingPreview"
+              />
+              <p class="text-xs text-gray-500 mt-1">ต้องเปิดสิทธิ์ &quot;Anyone with the link can view&quot; — คอลัมน์ A–K ตามแบบ IFP x KG</p>
+            </div>
+            <div v-if="epics.length">
+              <label class="label">Epic</label>
+              <select v-model="sheetsImportForm.epic_id" class="input-field w-full" :disabled="isSheetsLoadingPreview" @change="onSheetsImportEpicChange">
+                <option value="">— ทุก Epic / Unassigned —</option>
+                <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Target Parent Task <span class="text-gray-500 font-normal">(optional sub-tasks)</span></label>
+              <select v-model="sheetsImportForm.parent_id" class="input-field w-full" :disabled="isSheetsLoadingPreview">
+                <option value="">— No Parent (Top-level tasks) —</option>
+                <option v-for="t in sheetsParentTaskOptions" :key="t.id" :value="t.id">
+                  [{{ taskCodeSuffix(t.code) }}] {{ t.title }}
+                </option>
+              </select>
+              <p v-if="sheetsImportForm.epic_id && !sheetsParentTaskOptions.length" class="text-xs text-amber-400/80 mt-1">ไม่มี task ใน Epic นี้ที่จะเป็น parent ได้</p>
+            </div>
+            <div v-if="sheetsImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ sheetsImportError }}</div>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                @click="loadSheetsImportPreview"
+                :disabled="isSheetsLoadingPreview || !sheetsImportForm.sheet_url.trim()"
+                class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <svg v-if="isSheetsLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isSheetsLoadingPreview ? 'กำลังโหลด...' : 'โหลด preview' }}
+              </button>
+              <button type="button" @click="closeSheetsImportModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -3653,7 +4091,7 @@ const backlogImportError = ref('')
 const backlogImportResult = ref<{ created_count: number; slide_count: number; presentation_title: string; tasks: any[] } | null>(null)
 const backlogImportPreview = ref<{
   presentation_title: string
-  slides: { index: number; title: string; hidden?: boolean }[]
+  slides: { index: number; title: string; hidden?: boolean; suggested_task_title?: string }[]
   already_imported_slide_indices?: number[]
 } | null>(null)
 const backlogImportSelectedIndices = ref<number[]>([])
@@ -3736,6 +4174,284 @@ function closeBacklogImportModal() {
   if (backlogImportResult.value) loadAll()
 }
 
+// PPTX File Upload Import
+const showPPTXImportModal = ref(false)
+const pptxImportStep = ref<'form' | 'select' | 'result'>('form')
+const isPPTXImporting = ref(false)
+const isPPTXLoadingPreview = ref(false)
+const pptxImportError = ref('')
+const pptxImportResult = ref<{ created_count: number; page_count: number; title: string; tasks: any[] } | null>(null)
+const pptxImportPreview = ref<{ title: string; slides: { index: number; title: string; hidden?: boolean; suggested_task_title?: string }[] } | null>(null)
+const pptxImportFile = ref<File | null>(null)
+const pptxDragOver = ref(false)
+const pptxImportSelectedIndices = ref<number[]>([])
+const pptxImportTriagedSlides = ref<Record<number, BacklogTriagedSlide>>({})
+const pptxImportForm = ref({ epic_id: '', parent_id: '' })
+
+const pptxParentTaskOptions = computed(() => {
+  const epicId = pptxImportForm.value.epic_id
+  return allTasks.value
+    .filter((t) => {
+      if (t.parent_id) return false
+      if (epicId) return t.epic_id === epicId
+      return true
+    })
+    .sort((a, b) => a.title.localeCompare(b.title))
+})
+
+function onPPTXImportEpicChange() {
+  const currentParent = pptxParentTaskOptions.value.find((t) => t.id === pptxImportForm.value.parent_id)
+  if (!currentParent) pptxImportForm.value.parent_id = ''
+}
+
+function onPPTXFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files && input.files[0]) {
+    pptxImportFile.value = input.files[0]
+    pptxImportError.value = ''
+  }
+}
+
+function onPPTXFileDrop(e: DragEvent) {
+  pptxDragOver.value = false
+  const file = e.dataTransfer?.files[0]
+  if (file && (file.name.endsWith('.pptx') || file.type.includes('presentationml'))) {
+    pptxImportFile.value = file
+    pptxImportError.value = ''
+  } else {
+    pptxImportError.value = 'กรุณาเลือกไฟล์ .pptx เท่านั้น'
+  }
+}
+
+function openPPTXImportModal() {
+  pptxImportForm.value = { epic_id: '', parent_id: '' }
+  pptxImportStep.value = 'form'
+  pptxImportError.value = ''
+  pptxImportResult.value = null
+  pptxImportPreview.value = null
+  pptxImportFile.value = null
+  pptxImportSelectedIndices.value = []
+  pptxImportTriagedSlides.value = {}
+  showPPTXImportModal.value = true
+  loadBacklogImportAssignees()
+}
+
+function closePPTXImportModal() {
+  showPPTXImportModal.value = false
+  if (pptxImportResult.value) loadAll()
+}
+
+function pptxImportSelectAll() {
+  if (pptxImportPreview.value) pptxImportSelectedIndices.value = pptxImportPreview.value.slides.map((s) => s.index)
+}
+
+function pptxImportDeselectAll() {
+  pptxImportSelectedIndices.value = []
+}
+
+function pptxImportSelectOnlyVisible() {
+  if (pptxImportPreview.value) {
+    pptxImportSelectedIndices.value = pptxImportPreview.value.slides.filter((s) => !s.hidden).map((s) => s.index)
+  }
+}
+
+async function loadPPTXImportPreview() {
+  if (!pptxImportFile.value) return
+  isPPTXLoadingPreview.value = true
+  pptxImportError.value = ''
+  try {
+    const data = await tasksApi.previewPPTXUpload(pptxImportFile.value)
+    pptxImportPreview.value = data
+    pptxImportSelectedIndices.value = data.slides.filter((s) => !s.hidden).map((s) => s.index)
+    const triagedMap: Record<number, BacklogTriagedSlide> = {}
+    for (const s of data.slides) {
+      triagedMap[s.index] = {
+        title: s.suggested_task_title?.trim() || `Slide ${s.index}`,
+        assignee_id: null,
+        estimated_minutes: 0,
+        priority: 'MEDIUM',
+      }
+    }
+    pptxImportTriagedSlides.value = triagedMap
+    pptxImportStep.value = 'select'
+  } catch (e: any) {
+    pptxImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
+  } finally {
+    isPPTXLoadingPreview.value = false
+  }
+}
+
+async function submitPPTXImport() {
+  if (!project.value || !pptxImportFile.value) return
+  isPPTXImporting.value = true
+  pptxImportError.value = ''
+  try {
+    const pages = pptxImportSelectedIndices.value.map((idx) => {
+      const t = pptxImportTriagedSlides.value[idx]
+      return {
+        slide_index: idx,
+        title: t?.title || `Slide ${idx}`,
+        assignee_id: t?.assignee_id ?? null,
+        estimated_minutes: t?.estimated_minutes ?? 0,
+        priority: t?.priority || 'MEDIUM',
+      }
+    })
+    const payload: Record<string, unknown> = {
+      project_id: project.value.id,
+      priority: 'MEDIUM',
+      story_points: 1,
+      pages,
+    }
+    if (pptxImportForm.value.epic_id) payload.epic_id = pptxImportForm.value.epic_id
+    if (pptxImportForm.value.parent_id) payload.parent_id = pptxImportForm.value.parent_id
+    pptxImportResult.value = await tasksApi.importPPTXUpload(pptxImportFile.value, payload as any)
+    pptxImportStep.value = 'result'
+  } catch (e: any) {
+    pptxImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
+  } finally {
+    isPPTXImporting.value = false
+  }
+}
+
+// Backlog Import from Google Sheets
+interface SheetsTriagedRow {
+  title: string
+  priority: string
+  estimated_minutes: number
+  due_date: string
+  status: string
+  notes: string
+}
+
+const showSheetsImportModal = ref(false)
+const sheetsImportStep = ref<'form' | 'select' | 'result'>('form')
+const isSheetsImporting = ref(false)
+const isSheetsLoadingPreview = ref(false)
+const sheetsImportError = ref('')
+const sheetsImportResult = ref<{ created_count: number; sheet_title: string; tasks: any[] } | null>(null)
+const sheetsImportPreview = ref<{
+  sheet_title: string
+  sheet_id: string
+  rows: { row_index: number; title: string; due_date: string; status: string; raw_status: string; notes: string }[]
+} | null>(null)
+const sheetsImportSelectedRowIndices = ref<number[]>([])
+const sheetsImportTriagedRows = ref<Record<number, SheetsTriagedRow>>({})
+const sheetsImportForm = ref({
+  sheet_url: '',
+  epic_id: '',
+  parent_id: '',
+})
+
+const sheetsParentTaskOptions = computed(() => {
+  const epicId = sheetsImportForm.value.epic_id
+  return allTasks.value
+    .filter((t) => {
+      if (t.parent_id) return false
+      if (epicId) return t.epic_id === epicId
+      return true
+    })
+    .sort((a, b) => a.title.localeCompare(b.title))
+})
+
+function onSheetsImportEpicChange() {
+  const currentParent = sheetsParentTaskOptions.value.find((t) => t.id === sheetsImportForm.value.parent_id)
+  if (!currentParent) sheetsImportForm.value.parent_id = ''
+}
+
+function openSheetsImportModal() {
+  sheetsImportForm.value = { sheet_url: '', epic_id: '', parent_id: '' }
+  sheetsImportStep.value = 'form'
+  sheetsImportError.value = ''
+  sheetsImportResult.value = null
+  sheetsImportPreview.value = null
+  sheetsImportSelectedRowIndices.value = []
+  sheetsImportTriagedRows.value = {}
+  showSheetsImportModal.value = true
+}
+
+function closeSheetsImportModal() {
+  showSheetsImportModal.value = false
+  if (sheetsImportResult.value) loadAll()
+}
+
+function sheetsImportSelectAll() {
+  if (sheetsImportPreview.value) {
+    sheetsImportSelectedRowIndices.value = sheetsImportPreview.value.rows.map((r) => r.row_index)
+  }
+}
+
+function sheetsImportDeselectAll() {
+  sheetsImportSelectedRowIndices.value = []
+}
+
+async function loadSheetsImportPreview() {
+  if (!sheetsImportForm.value.sheet_url.trim()) return
+  isSheetsLoadingPreview.value = true
+  sheetsImportError.value = ''
+  try {
+    const data = await tasksApi.previewGoogleSheets({
+      sheet_url: sheetsImportForm.value.sheet_url.trim(),
+    })
+    sheetsImportPreview.value = data
+    const triagedMap: Record<number, SheetsTriagedRow> = {}
+    const selected: number[] = []
+    for (const r of data.rows) {
+      selected.push(r.row_index)
+      triagedMap[r.row_index] = {
+        title: r.title,
+        priority: 'MEDIUM',
+        estimated_minutes: 0,
+        due_date: r.due_date || '',
+        status: r.status,
+        notes: r.notes,
+      }
+    }
+    sheetsImportTriagedRows.value = triagedMap
+    sheetsImportSelectedRowIndices.value = selected
+    sheetsImportStep.value = 'select'
+  } catch (e: any) {
+    sheetsImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
+  } finally {
+    isSheetsLoadingPreview.value = false
+  }
+}
+
+async function submitSheetsImport() {
+  if (!project.value || !sheetsImportPreview.value) return
+  sheetsImportError.value = ''
+  isSheetsImporting.value = true
+  try {
+    const rows = sheetsImportSelectedRowIndices.value.map((rowIndex) => {
+      const t = sheetsImportTriagedRows.value[rowIndex]
+      const rawEst = Number(t?.estimated_minutes)
+      const estimatedMinutes = Number.isFinite(rawEst) && rawEst >= 0 ? Math.floor(rawEst) : 0
+      return {
+        row_index: rowIndex,
+        title: t?.title?.trim() || '',
+        priority: t?.priority || 'MEDIUM',
+        estimated_minutes: estimatedMinutes,
+        due_date: t?.due_date?.trim() || '',
+        status: t?.status || 'PENDING',
+        notes: t?.notes?.trim() || '',
+      }
+    })
+    const payload: Record<string, unknown> = {
+      sheet_url: sheetsImportForm.value.sheet_url.trim(),
+      sheet_title: sheetsImportPreview.value.sheet_title,
+      project_id: project.value.id,
+      rows,
+    }
+    if (sheetsImportForm.value.epic_id) payload.epic_id = sheetsImportForm.value.epic_id
+    if (sheetsImportForm.value.parent_id) payload.parent_id = sheetsImportForm.value.parent_id
+    sheetsImportResult.value = await tasksApi.importGoogleSheets(payload as any)
+    sheetsImportStep.value = 'result'
+  } catch (e: any) {
+    sheetsImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
+  } finally {
+    isSheetsImporting.value = false
+  }
+}
+
 async function loadBacklogImportPreview() {
   if (!backlogImportForm.value.presentation_url.trim()) return
   isBacklogLoadingPreview.value = true
@@ -3753,8 +4469,9 @@ async function loadBacklogImportPreview() {
     // Initialise per-slide triage data
     const triagedMap: Record<number, BacklogTriagedSlide> = {}
     for (const s of data.slides) {
+      const st = s.suggested_task_title?.trim()
       triagedMap[s.index] = {
-        title: s.title ? `Slide ${s.index}: ${s.title}` : `Slide ${s.index}`,
+        title: st || `Slide ${s.index}`,
         assignee_id: null,
         estimated_minutes: 0,
         priority: backlogImportForm.value.priority || 'MEDIUM',

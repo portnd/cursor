@@ -1,6 +1,10 @@
 import { useAuth } from '~/composables/useAuth'
 import type { Task } from '../../../modules/projects/infrastructure/projects-api'
 
+export interface PPTXPreviewSlide { index: number; title: string; hidden?: boolean; suggested_task_title?: string }
+export interface PPTXPreviewResult { title: string; slides: PPTXPreviewSlide[] }
+export interface PPTXImportResult { created_count: number; page_count: number; title: string; tasks: Task[] }
+
 export interface TaskComment {
   id: string
   task_id: string
@@ -184,7 +188,7 @@ function useTasksApi() {
     api_key?: string
   }): Promise<{
     presentation_title: string
-    slides: { index: number; title: string; hidden?: boolean }[]
+    slides: { index: number; title: string; hidden?: boolean; suggested_task_title?: string }[]
     import_mode: string
     api_key_status: string
     api_key_error?: string
@@ -193,7 +197,7 @@ function useTasksApi() {
       data: {
         presentation_title: string
         presentation_id?: string
-        slides: { index: number; title: string; hidden?: boolean }[]
+        slides: { index: number; title: string; hidden?: boolean; suggested_task_title?: string }[]
         already_imported_slide_indices?: number[]
         import_mode: string
         api_key_status: string
@@ -224,6 +228,93 @@ function useTasksApi() {
     const data = await fetchWithAuth<{ data: { created_count: number; slide_count: number; presentation_title: string; tasks: Task[] } }>(
       '/sentinel/import/google-slides',
       { method: 'POST', body: payload, timeoutMs: 5 * 60 * 1000 }, // 5 min: download PPTX + slide images + create tasks
+    )
+    return data.data
+  }
+
+  async function previewGoogleSheets(payload: { sheet_url: string }): Promise<{
+    sheet_title: string
+    sheet_id: string
+    rows: {
+      row_index: number
+      title: string
+      due_date: string
+      status: string
+      raw_status: string
+      notes: string
+    }[]
+  }> {
+    const data = await fetchWithAuth<{
+      data: {
+        sheet_title: string
+        sheet_id: string
+        rows: {
+          row_index: number
+          title: string
+          due_date: string
+          status: string
+          raw_status: string
+          notes: string
+        }[]
+      }
+    }>('/sentinel/import/google-sheets/preview', { method: 'POST', body: payload, timeoutMs: 60 * 1000 })
+    return data.data
+  }
+
+  async function previewPPTXUpload(file: File): Promise<PPTXPreviewResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const data = await fetchWithAuth<{ data: PPTXPreviewResult }>('/sentinel/import/pptx/preview', {
+      method: 'POST',
+      body: formData,
+      timeoutMs: 60 * 1000,
+    })
+    return data.data
+  }
+
+  async function importPPTXUpload(
+    file: File,
+    payload: {
+      project_id: string
+      sprint_id?: string
+      epic_id?: string
+      parent_id?: string
+      priority?: string
+      story_points?: number
+      pages: { slide_index: number; title: string; assignee_id?: number | null; estimated_minutes: number; priority: string }[]
+    },
+  ): Promise<PPTXImportResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('payload', JSON.stringify(payload))
+    const data = await fetchWithAuth<{ data: PPTXImportResult }>('/sentinel/import/pptx', {
+      method: 'POST',
+      body: formData,
+      timeoutMs: 3 * 60 * 1000,
+    })
+    return data.data
+  }
+
+  async function importGoogleSheets(payload: {
+    sheet_url: string
+    sheet_title?: string
+    project_id: string
+    sprint_id?: string
+    epic_id?: string
+    parent_id?: string
+    rows: {
+      row_index: number
+      title: string
+      priority: string
+      estimated_minutes: number
+      due_date: string
+      status: string
+      notes: string
+    }[]
+  }): Promise<{ created_count: number; sheet_title: string; tasks: Task[] }> {
+    const data = await fetchWithAuth<{ data: { created_count: number; sheet_title: string; tasks: Task[] } }>(
+      '/sentinel/import/google-sheets',
+      { method: 'POST', body: payload, timeoutMs: 2 * 60 * 1000 },
     )
     return data.data
   }
@@ -314,6 +405,10 @@ function useTasksApi() {
     getActiveFeatures,
     previewGoogleSlides,
     importGoogleSlides,
+    previewGoogleSheets,
+    importGoogleSheets,
+    previewPPTXUpload,
+    importPPTXUpload,
     splitTask,
     submitUAT,
     approveTask,

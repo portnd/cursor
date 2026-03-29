@@ -31,10 +31,11 @@ COPY . .
 # Build the application (context is ./api only — no .git here, so do not use git describe).
 ARG VERSION=dev
 # No -a: avoids OOM on constrained builders; CGO_ENABLED=0 still yields a static binary.
+# Use $$BUILD_TIME so Docker does not strip ${BUILD_TIME} (undefined at Dockerfile parse time).
 RUN BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -trimpath \
-    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
+    -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildTime=$$BUILD_TIME" \
     -o /app/main \
     ./cmd/server/main.go
 

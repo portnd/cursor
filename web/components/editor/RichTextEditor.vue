@@ -285,6 +285,19 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
+// Slide/PPTX imports stored <p><img ... /></p>. TipTap Image is a block node and cannot live inside a paragraph, so the image was dropped on parse — lift to top-level blocks.
+function liftImportedImagesOutOfParagraphs(html: string): string {
+  if (!html || typeof html !== 'string') return html
+  let out = html
+  let prev = ''
+  const re = /<p>\s*(<img\b[^>]*>)\s*<\/p>/gi
+  while (out !== prev) {
+    prev = out
+    out = out.replace(re, '$1')
+  }
+  return out
+}
+
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isPastingImage = ref(false)
 
@@ -391,7 +404,7 @@ const onAnnotationSave = (annotatedSrc: string) => {
 }
 
 const editor = useEditor({
-  content: props.modelValue || '',
+  content: liftImportedImagesOutOfParagraphs(props.modelValue || ''),
   editable: !props.readonly,
   extensions: [
     StarterKit.configure({
@@ -430,7 +443,7 @@ const editor = useEditor({
 watch(() => props.modelValue, (newVal) => {
   if (!editor.value) return
   const current = editor.value.getHTML()
-  const normalized = newVal || ''
+  const normalized = liftImportedImagesOutOfParagraphs(newVal || '')
   if (current !== normalized) {
     editor.value.commands.setContent(normalized, false)
   }
