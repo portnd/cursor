@@ -26,10 +26,11 @@ type Config struct {
 
 	JWTSecret string
 
-	GoogleAPIKey   string
-	GeminiAPIKey   string // GEMINI_API_KEY for AI estimate/code review
-	GroqAPIKey     string // GROQ_API_KEY — when set, use Groq instead of Gemini
-	UseNoopAI      bool   // USE_NOOP_AI=true to bypass external AI and use noop_ai_service only
+	GoogleAPIKey     string
+	CanvaAccessToken string // CANVA_ACCESS_TOKEN — Canva Connect OAuth access token (design:meta:read + design:content:read)
+	GeminiAPIKey     string // GEMINI_API_KEY for AI estimate/code review
+	GroqAPIKey       string // GROQ_API_KEY — when set, use Groq instead of Gemini
+	UseNoopAI        bool   // USE_NOOP_AI=true to bypass external AI and use noop_ai_service only
 
 	// Optional: AI quota limits for usage display (defaults in code: 15 RPM, 250 RPD if unset)
 	AILimitRPM int // e.g. 15 free, 1000 paid
@@ -55,10 +56,11 @@ func Load() (*Config, error) {
 
 		JWTSecret: getEnv("JWT_SECRET", "default_jwt_secret_change_in_production"),
 
-		GoogleAPIKey: getEnv("GOOGLE_API_KEY", ""),
-		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
-		GroqAPIKey:   getEnv("GROQ_API_KEY", ""),
-		UseNoopAI:    getEnv("USE_NOOP_AI", "") == "true" || getEnv("USE_NOOP_AI", "") == "1",
+		GoogleAPIKey:     getEnv("GOOGLE_API_KEY", ""),
+		CanvaAccessToken: getEnv("CANVA_ACCESS_TOKEN", ""),
+		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
+		GroqAPIKey:       getEnv("GROQ_API_KEY", ""),
+		UseNoopAI:        getEnv("USE_NOOP_AI", "") == "true" || getEnv("USE_NOOP_AI", "") == "1",
 
 		AILimitRPM: getEnvInt("AI_LIMIT_RPM", 0), // 0 = use default in usage tracker
 		AILimitRPD: getEnvInt("AI_LIMIT_RPD", 0),
