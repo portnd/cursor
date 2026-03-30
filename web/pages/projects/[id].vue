@@ -573,10 +573,10 @@
                       <div class="flex items-center justify-center shrink-0">
                         <input
                           type="checkbox"
-                          :checked="backlogSelectAllChecked"
-                          :indeterminate.prop="backlogSelectAllIndeterminate"
+                          :checked="backlogSectionSelectAllChecked(ep.id)"
+                          :indeterminate.prop="backlogSectionSelectAllIndeterminate(ep.id)"
                           class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-                          @change="backlogSelectAllChecked = ($event.target as HTMLInputElement).checked"
+                          @change="setBacklogSectionSelectAll(ep.id, ($event.target as HTMLInputElement).checked)"
                         />
                       </div>
                       <div class="flex items-center justify-center shrink-0"></div>
@@ -786,10 +786,10 @@
                       <div class="flex items-center justify-center shrink-0">
                         <input
                           type="checkbox"
-                          :checked="backlogSelectAllChecked"
-                          :indeterminate.prop="backlogSelectAllIndeterminate"
+                          :checked="backlogSectionSelectAllChecked('__unassigned__')"
+                          :indeterminate.prop="backlogSectionSelectAllIndeterminate('__unassigned__')"
                           class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-                          @change="backlogSelectAllChecked = ($event.target as HTMLInputElement).checked"
+                          @change="setBacklogSectionSelectAll('__unassigned__', ($event.target as HTMLInputElement).checked)"
                         />
                       </div>
                       <div class="flex items-center justify-center shrink-0"></div>
@@ -3165,7 +3165,6 @@ const epicTasks = computed(() => allTasks.value.filter((t) => !t.parent_id))
 /** Backlog multi-select: task IDs selected for bulk delete */
 const backlogSelectedTaskIds = ref<Set<string>>(new Set())
 const backlogSelectedCount = computed(() => backlogSelectedTaskIds.value.size)
-const allBacklogTopLevelIds = computed(() => new Set(allTasks.value.filter((t) => !t.parent_id).map((t) => t.id)))
 function isBacklogTaskSelected(id: string) {
   return backlogSelectedTaskIds.value.has(id)
 }
@@ -3175,31 +3174,9 @@ function toggleBacklogTaskSelection(id: string) {
   else next.add(id)
   backlogSelectedTaskIds.value = next
 }
-function selectAllBacklogTopLevel() {
-  backlogSelectedTaskIds.value = new Set(allBacklogTopLevelIds.value)
-}
 function clearBacklogSelection() {
   backlogSelectedTaskIds.value = new Set()
 }
-const backlogSelectAllChecked = computed({
-  get() {
-    const top = allBacklogTopLevelIds.value
-    if (top.size === 0) return false
-    const sel = backlogSelectedTaskIds.value
-    return [...top].every((id) => sel.has(id))
-  },
-  set(v: boolean) {
-    if (v) selectAllBacklogTopLevel()
-    else clearBacklogSelection()
-  },
-})
-const backlogSelectAllIndeterminate = computed(() => {
-  const top = allBacklogTopLevelIds.value
-  if (top.size === 0) return false
-  const sel = backlogSelectedTaskIds.value
-  const selected = [...top].filter((id) => sel.has(id))
-  return selected.length > 0 && selected.length < top.size
-})
 
 const isBulkDeletingBacklog = ref(false)
 async function bulkDeleteSelectedBacklogTasks() {
@@ -5026,6 +5003,46 @@ function getUnassignedTasks() {
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
   return applyDuplicatePlacement(sorted)
+}
+
+/** Row IDs in one backlog section (epic or unassigned), including all sub-tasks in the tree. */
+function pushBacklogSectionTaskIds(ids: string[], task: Task) {
+  ids.push(task.id)
+  getSubTasks(task.id).forEach((child) => pushBacklogSectionTaskIds(ids, child))
+}
+
+function backlogSectionRowIds(sectionKey: string): string[] {
+  const ids: string[] = []
+  const roots =
+    sectionKey === '__unassigned__' ? getUnassignedTasks() : getTasksForEpic(sectionKey)
+  roots.forEach((t) => pushBacklogSectionTaskIds(ids, t))
+  return ids
+}
+
+function backlogSectionSelectAllChecked(sectionKey: string): boolean {
+  const ids = backlogSectionRowIds(sectionKey)
+  if (ids.length === 0) return false
+  const sel = backlogSelectedTaskIds.value
+  return ids.every((id) => sel.has(id))
+}
+
+function backlogSectionSelectAllIndeterminate(sectionKey: string): boolean {
+  const ids = backlogSectionRowIds(sectionKey)
+  if (ids.length === 0) return false
+  const sel = backlogSelectedTaskIds.value
+  const n = ids.filter((id) => sel.has(id)).length
+  return n > 0 && n < ids.length
+}
+
+function setBacklogSectionSelectAll(sectionKey: string, checked: boolean) {
+  const rowIds = backlogSectionRowIds(sectionKey)
+  const next = new Set(backlogSelectedTaskIds.value)
+  if (checked) {
+    rowIds.forEach((id) => next.add(id))
+  } else {
+    rowIds.forEach((id) => next.delete(id))
+  }
+  backlogSelectedTaskIds.value = next
 }
 
 // --- Backlog drag-and-drop ---
