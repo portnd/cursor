@@ -545,7 +545,7 @@
 
     </template>
 
-    <DailyCheckinModal :forced="true" />
+    <DailyCheckinModal :forced="isDailyPulseForced" />
 
     <Teleport to="body">
       <Transition name="toast">
@@ -611,6 +611,9 @@ const DONE_PREVIEW_LIMIT = 12
 const PRI_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
 
 const { fetchWithAuth, currentUser } = useAuth()
+
+/** CEO / SUPPORT / PM / MANAGER are not forced; only DEV must check in from the dashboard. */
+const isDailyPulseForced = computed(() => currentUser.value?.role?.toUpperCase() === 'DEV')
 const performanceStore = usePerformanceStore()
 const teamsStore = useTeamsStore()
 const { getTeams } = useTeamsApi()

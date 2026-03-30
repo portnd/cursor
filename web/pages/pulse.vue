@@ -15,9 +15,9 @@
           </div>
 
           <div class="flex items-center gap-3">
-            <!-- My check-in status badge -->
+            <!-- My check-in status badge (CEO & SUPPORT are exempt from Daily Pulse) -->
             <div
-              v-if="currentUser"
+              v-if="currentUser && !exemptFromPulse"
               :class="[
                 'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold',
                 hasCheckedIn
@@ -31,7 +31,7 @@
 
             <!-- Check-in button (DEV: forced via modal / CEO-PM: also available) -->
             <button
-              v-if="!hasCheckedIn"
+              v-if="!exemptFromPulse && !hasCheckedIn"
               @click="checkinModal?.open()"
               class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-violet-500 hover:to-indigo-500"
             >
@@ -41,7 +41,7 @@
               Check in now
             </button>
             <button
-              v-else
+              v-else-if="!exemptFromPulse"
               @click="checkinModal?.open()"
               class="flex items-center gap-2 rounded-xl border border-gray-600 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-700"
             >
@@ -84,6 +84,11 @@ const store = usePulseStore()
 const checkinModal = ref<InstanceType<typeof DailyCheckinModal> | null>(null)
 
 const today = new Date().toISOString().slice(0, 10)
+
+const exemptFromPulse = computed(() => {
+  const r = currentUser.value?.role?.toUpperCase()
+  return r === 'CEO' || r === 'SUPPORT'
+})
 
 const hasCheckedIn = computed(() => {
   if (!store.pulse || !currentUser.value) return false

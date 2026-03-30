@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
@@ -27,6 +28,15 @@ func (u *pulseUsecase) SubmitStandup(
 	yesterday, blocker string,
 	todayTaskIDs []string,
 ) (*domain.DailyStandup, error) {
+	user, err := u.authRepo.FindByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("pulse: load user: %w", err)
+	}
+	role := strings.ToUpper(strings.TrimSpace(user.Role))
+	if role == authDomain.RoleCEO || role == authDomain.RoleSupport {
+		return nil, domain.ErrStandupNotRequiredForRole
+	}
+
 	// Normalise to UTC date (strip time component)
 	d := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 
@@ -42,12 +52,8 @@ func (u *pulseUsecase) SubmitStandup(
 		return nil, fmt.Errorf("pulse: submit standup: %w", err)
 	}
 
-	// Enrich with user info for the response
-	user, err := u.authRepo.FindByID(userID)
-	if err == nil && user != nil {
-		standup.UserEmail = user.Email
-		standup.UserDisplayName = user.DisplayName
-	}
+	standup.UserEmail = user.Email
+	standup.UserDisplayName = user.DisplayName
 
 	return standup, nil
 }
@@ -130,6 +136,10 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 
 	memberMap := make(map[uint]*domain.UserPulse, len(users))
 	for _, usr := range users {
+		r := strings.ToUpper(strings.TrimSpace(usr.Role))
+		if r == authDomain.RoleCEO || r == authDomain.RoleSupport {
+			continue
+		}
 		p := &domain.UserPulse{
 			UserID:          usr.ID,
 			UserEmail:       usr.Email,

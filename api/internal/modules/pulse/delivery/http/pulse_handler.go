@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -44,6 +45,10 @@ func (h *pulseHandler) submitStandup(c *gin.Context) {
 
 	standup, err := h.usecase.SubmitStandup(userID, date, req.YesterdaySummary, req.Blocker, req.TodayTaskIDs)
 	if err != nil {
+		if errors.Is(err, domain.ErrStandupNotRequiredForRole) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
