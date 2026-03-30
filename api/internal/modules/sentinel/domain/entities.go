@@ -176,6 +176,9 @@ type Sprint struct {
 	CreatedAt time.Time  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 	Tasks     []Task     `json:"tasks,omitempty" gorm:"foreignKey:SprintID"`
+	// GetActiveSprintsForUser: joined project identity for dev dashboard links
+	ProjectName string `json:"project_name,omitempty" gorm:"-"`
+	ProjectCode string `json:"project_code,omitempty" gorm:"-"`
 }
 
 func (Sprint) TableName() string { return "sprints" }
@@ -333,6 +336,12 @@ type Task struct {
 
 	AssignedToDisplayName string `json:"assigned_to_display_name,omitempty" gorm:"-"`
 	AssignedToEmail       string `json:"assigned_to_email,omitempty" gorm:"-"`
+
+	// My Board (GET /tasks/my): populated in repository, not stored
+	ProjectName       string     `json:"project_name,omitempty" gorm:"-"`
+	ProjectColor      string     `json:"project_color,omitempty" gorm:"-"`
+	SprintName        string     `json:"sprint_name,omitempty" gorm:"-"`
+	EffectiveSprintID *uuid.UUID `json:"effective_sprint_id,omitempty" gorm:"-"`
 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`

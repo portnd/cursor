@@ -981,6 +981,15 @@
           </div>
         </div>
 
+        <!-- TAB: Feature Roadmap (FEATURE tasks, scoped to this project) -->
+        <div v-if="activeTab === 'feature-roadmap'">
+          <FeatureRoadmapBoard
+            :scope-project-id="project.id"
+            :scope-project-code="project.code"
+            :scope-project-name="project.name"
+          />
+        </div>
+
         <!-- TAB: Sprints (Sprint Management) -->
         <div v-if="activeTab === 'sprints'" class="space-y-6">
           <!-- Header + CTA -->
@@ -2048,23 +2057,73 @@
           <button @click="closeSprintModal" class="text-gray-500 hover:text-white">✕</button>
         </div>
         <div class="space-y-4">
-          <div>
-            <label class="label">Sprint Name *</label>
-            <input v-model="sprintForm.name" type="text" class="input-field w-full" placeholder="e.g. Sprint 1 — Foundation" />
+          <div
+            v-if="!editingSprint && project"
+            class="rounded-xl border border-purple-500/25 bg-purple-500/5 px-3 py-2.5 text-xs text-gray-400 leading-relaxed"
+          >
+            <span class="text-gray-200 font-medium">{{ project.name }}</span>
+            — New sprint defaults: <span class="text-gray-300">2 weeks</span> (min 1 week), start on a <span class="text-gray-300">Monday 09:00</span>.
+            <template v-if="sprints.length">
+              If you already have sprints, the start date is placed <span class="text-gray-300">after the latest sprint ends</span> when that is later than “this week’s” Monday.
+            </template>
+            <template v-else>
+              Start is the upcoming Monday (or today if it’s Monday).
+            </template>
           </div>
           <div>
-            <label class="label">Sprint Goal</label>
+            <label class="label">Sprint name *</label>
+            <input
+              v-model="sprintForm.name"
+              type="text"
+              class="input-field w-full"
+              placeholder="Project — Sprint 1 (Mar 30 – Apr 12, 2026)"
+            />
+            <div v-if="!editingSprint && project" class="mt-1.5 flex flex-wrap items-center gap-2">
+              <button type="button" class="text-xs text-purple-400 hover:text-purple-300" @click="applySuggestedSprintName">
+                Use suggested name (project + dates in parentheses)
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="label">Sprint goal</label>
             <textarea v-model="sprintForm.goal" rows="2" class="input-field w-full resize-none" placeholder="What will this sprint achieve?"></textarea>
+          </div>
+          <div v-if="!editingSprint" class="space-y-2">
+            <label class="label">Duration</label>
+            <select
+              :value="sprintDurationWeeks"
+              class="input-field w-full"
+              @change="onSprintDurationWeeksChange"
+            >
+              <option v-for="w in sprintDurationOptions" :key="w" :value="w">
+                {{ w }} week{{ w === 1 ? '' : 's' }} (Mon–Sun × {{ w }})
+              </option>
+            </select>
+            <p class="text-[11px] text-gray-500">Minimum 1 week. End date updates from start + duration.</p>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="label">Start Date</label>
-              <input v-model="sprintForm.start_date" type="datetime-local" class="input-field w-full" />
+              <label class="label">Start</label>
+              <input
+                v-model="sprintForm.start_date"
+                type="datetime-local"
+                class="input-field w-full"
+                @change="syncSprintEndFromStartAndDuration"
+              />
             </div>
             <div>
-              <label class="label">End Date</label>
-              <input v-model="sprintForm.end_date" type="datetime-local" class="input-field w-full" />
+              <label class="label">End</label>
+              <input
+                v-model="sprintForm.end_date"
+                type="datetime-local"
+                class="input-field w-full"
+              />
             </div>
+          </div>
+          <div v-if="!editingSprint" class="flex flex-wrap gap-2">
+            <button type="button" class="text-xs px-3 py-1.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700/60" @click="resetSprintModalToDefaults">
+              Reset to smart start (after last sprint if any) + 2 weeks + suggested name
+            </button>
           </div>
           <div v-if="sprintError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ sprintError }}</div>
         </div>
@@ -2221,6 +2280,7 @@ const ProjectAnalytics = defineAsyncComponent(() => import('~/components/project
 const QuotationBuilder = defineAsyncComponent(() => import('~/core/modules/pricing/ui/QuotationBuilder.vue'))
 const ProjectBackupPanel = defineAsyncComponent(() => import('~/core/modules/projects/ui/ProjectBackupPanel.vue'))
 const ProjectCapitalPanel = defineAsyncComponent(() => import('~/core/modules/projects/ui/ProjectCapitalPanel.vue'))
+const FeatureRoadmapBoard = defineAsyncComponent(() => import('~/components/tasks/FeatureRoadmapBoard.vue'))
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
@@ -2244,6 +2304,7 @@ const allProjectTabs = [
   { id: 'board', label: 'Board', icon: '🗂' },
   { id: 'timeline', label: 'Timeline', icon: '📅' },
   { id: 'backlog', label: 'Backlog', icon: '📋' },
+  { id: 'feature-roadmap', label: 'Feature', icon: '🗺️' },
   { id: 'sprints', label: 'Sprints', icon: '🏃' },
   { id: 'analytics', label: 'Analytics', icon: '📈' },
   { id: 'capital', label: 'Capital', icon: '🏦' },
@@ -3314,6 +3375,148 @@ function isoToDatetimeLocal(iso: string | null | undefined): string {
   return `${y}-${m}-${day}T${h}:${min}`
 }
 
+/** `datetime-local` string → Date, or null */
+function parseDatetimeLocal(s: string): Date | null {
+  if (!s?.trim()) return null
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
+}
+
+/** Format for `datetime-local` inputs (local timezone). */
+function dateToDatetimeLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${h}:${min}`
+}
+
+/**
+ * Next sprint start: upcoming Monday 09:00 local (today if already Monday).
+ * Sunday → next calendar Monday; Tue–Sat → following Monday.
+ */
+function nextSprintMondayStart(base: Date = new Date(), hour = 9, minute = 0): Date {
+  const d = new Date(base)
+  d.setSeconds(0, 0)
+  d.setMilliseconds(0)
+  d.setHours(hour, minute, 0, 0)
+  const dow = d.getDay()
+  let add = 0
+  if (dow === 0) add = 1
+  else if (dow !== 1) add = 8 - dow
+  d.setDate(d.getDate() + add)
+  return d
+}
+
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  x.setMilliseconds(0)
+  return x
+}
+
+function addLocalCalendarDays(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setDate(x.getDate() + n)
+  return x
+}
+
+/** First Monday at hour:minute local on or after the calendar day of `day`. */
+function mondayOnOrAfterCalendarDay(day: Date, hour = 9, minute = 0): Date {
+  const x = startOfLocalDay(day)
+  const dow = x.getDay()
+  let add = 0
+  if (dow === 0) add = 1
+  else if (dow !== 1) add = 8 - dow
+  x.setDate(x.getDate() + add)
+  x.setHours(hour, minute, 0, 0)
+  x.setSeconds(0, 0)
+  return x
+}
+
+/** Latest end instant for overlap checks; if no end_date, approximate from start (+13d @17:00). */
+function sprintEffectiveEndTime(s: Sprint): number | null {
+  if (s.end_date) {
+    const t = new Date(s.end_date).getTime()
+    return Number.isNaN(t) ? null : t
+  }
+  if (s.start_date) {
+    const st = new Date(s.start_date)
+    if (Number.isNaN(st.getTime())) return null
+    const end = addLocalCalendarDays(startOfLocalDay(st), 13)
+    end.setHours(17, 0, 0, 0)
+    return end.getTime()
+  }
+  return null
+}
+
+/**
+ * Default Monday 09:00 for a new sprint in this project: the later of
+ * (a) next Monday from `now`, and (b) first Monday on/after the day after the latest existing sprint end.
+ */
+function defaultNextSprintMondayStart(existing: Sprint[], now: Date = new Date()): Date {
+  const fromToday = nextSprintMondayStart(now)
+  let latestEndMs: number | null = null
+  for (const sp of existing) {
+    const t = sprintEffectiveEndTime(sp)
+    if (t == null) continue
+    if (latestEndMs == null || t > latestEndMs) latestEndMs = t
+  }
+  if (latestEndMs == null) return fromToday
+  const latestEnd = new Date(latestEndMs)
+  const dayAfterLast = addLocalCalendarDays(startOfLocalDay(latestEnd), 1)
+  const afterPreviousSprints = mondayOnOrAfterCalendarDay(dayAfterLast)
+  return new Date(Math.max(fromToday.getTime(), afterPreviousSprints.getTime()))
+}
+
+/** Last day of sprint: Monday start + (weeks × 7 − 1) days at 17:00 local. */
+function sprintEndFromMondayStart(start: Date, weeks: number): Date {
+  const w = Math.max(1, Math.floor(weeks))
+  const end = new Date(start)
+  end.setDate(end.getDate() + w * 7 - 1)
+  end.setHours(17, 0, 0, 0)
+  return end
+}
+
+/** Inclusive calendar days between local midnights (Mon→Sun = 7 for a one-week sprint). */
+function sprintInclusiveCalendarDays(start: Date, end: Date): number {
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+  return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
+}
+
+/** Compact range for sprint title, e.g. "Mar 30 – Apr 12, 2026" or cross-year with both years. */
+function formatSprintDateRangeForName(start: Date, end: Date): string {
+  const sy = start.getFullYear()
+  const ey = end.getFullYear()
+  const short: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  const startPart =
+    sy === ey
+      ? start.toLocaleDateString('en-US', short)
+      : start.toLocaleDateString('en-US', { ...short, year: 'numeric' })
+  const endPart = end.toLocaleDateString('en-US', { ...short, year: 'numeric' })
+  return `${startPart} – ${endPart}`
+}
+
+function defaultSprintDisplayName(
+  projectName: string,
+  ordinal: number,
+  start?: Date | null,
+  end?: Date | null,
+): string {
+  const pn = projectName.trim() || 'Project'
+  const base = `${pn} — Sprint ${ordinal}`
+  if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
+    return `${base} (${formatSprintDateRangeForName(start, end)})`
+  }
+  return base
+}
+
+function nextSprintOrdinal(existing: Sprint[]): number {
+  return existing.length + 1
+}
+
 const BACKLOG_EXPANDED_STORAGE_KEY = 'sentinel-backlog-expanded'
 const BACKLOG_EXPECT_RETURN_KEY = 'sentinel-backlog-expect-return'
 
@@ -3678,13 +3881,77 @@ async function saveEditProject() {
 const showSprintModal = ref(false)
 const editingSprint = ref<Sprint | null>(null)
 const sprintForm = ref({ name: '', goal: '', start_date: '', end_date: '' })
+const sprintDurationWeeks = ref(2)
+/** 1–12 weeks for create flow */
+const sprintDurationOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 const isCreatingSprint = ref(false)
 const sprintError = ref('')
 
+function fillCreateSprintFormDefaults() {
+  const w = 2
+  const start = defaultNextSprintMondayStart(sprints.value, new Date())
+  const end = sprintEndFromMondayStart(start, w)
+  const pname = project.value?.name ?? ''
+  sprintForm.value = {
+    name: pname
+      ? defaultSprintDisplayName(pname, nextSprintOrdinal(sprints.value), start, end)
+      : '',
+    goal: '',
+    start_date: dateToDatetimeLocal(start),
+    end_date: dateToDatetimeLocal(end),
+  }
+  sprintDurationWeeks.value = w
+}
+
+/** Keep auto title `(start – end)` in sync when duration or start changes (create only). */
+function refreshCreateSprintNameFromDates(start: Date, end: Date) {
+  if (!project.value || editingSprint.value) return
+  sprintForm.value.name = defaultSprintDisplayName(
+    project.value.name,
+    nextSprintOrdinal(sprints.value),
+    start,
+    end,
+  )
+}
+
+function syncSprintEndFromStartAndDuration() {
+  if (editingSprint.value) return
+  const start = parseDatetimeLocal(sprintForm.value.start_date)
+  if (!start) return
+  const w = Math.max(1, sprintDurationWeeks.value)
+  const end = sprintEndFromMondayStart(start, w)
+  sprintForm.value.end_date = dateToDatetimeLocal(end)
+  refreshCreateSprintNameFromDates(start, end)
+}
+
+function onSprintDurationWeeksChange(ev: Event) {
+  const raw = Number((ev.target as HTMLSelectElement).value)
+  sprintDurationWeeks.value = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1
+  syncSprintEndFromStartAndDuration()
+}
+
+function applySuggestedSprintName() {
+  if (!project.value || editingSprint.value) return
+  const start = parseDatetimeLocal(sprintForm.value.start_date)
+  const end = parseDatetimeLocal(sprintForm.value.end_date)
+  sprintForm.value.name = defaultSprintDisplayName(
+    project.value.name,
+    nextSprintOrdinal(sprints.value),
+    start,
+    end,
+  )
+}
+
+function resetSprintModalToDefaults() {
+  if (editingSprint.value) return
+  fillCreateSprintFormDefaults()
+  sprintError.value = ''
+}
+
 function openSprintModal() {
   editingSprint.value = null
-  sprintForm.value = { name: '', goal: '', start_date: '', end_date: '' }
   sprintError.value = ''
+  fillCreateSprintFormDefaults()
   showSprintModal.value = true
 }
 
@@ -3717,13 +3984,20 @@ async function submitSprint() {
     const goal = sprintForm.value.goal?.trim() || undefined
     let start_date: string | undefined
     let end_date: string | undefined
-    if (sprintForm.value.start_date) {
-      const d = new Date(sprintForm.value.start_date)
-      if (!isNaN(d.getTime())) start_date = d.toISOString()
-    }
-    if (sprintForm.value.end_date) {
-      const d = new Date(sprintForm.value.end_date)
-      if (!isNaN(d.getTime())) end_date = d.toISOString()
+    const startD = parseDatetimeLocal(sprintForm.value.start_date)
+    const endD = parseDatetimeLocal(sprintForm.value.end_date)
+    if (startD) start_date = startD.toISOString()
+    if (endD) end_date = endD.toISOString()
+
+    if (startD && endD) {
+      if (endD.getTime() <= startD.getTime()) {
+        sprintError.value = 'End must be after start.'
+        return
+      }
+      if (!editingSprint.value && sprintInclusiveCalendarDays(startD, endD) < 7) {
+        sprintError.value = 'Sprint must span at least 1 full week (7 calendar days, Mon–Sun style).'
+        return
+      }
     }
 
     if (editingSprint.value) {

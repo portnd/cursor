@@ -1,8 +1,8 @@
 <template>
   <div class="rounded-lg border border-gray-700 bg-gray-800 overflow-hidden">
     <div class="px-4 py-3 border-b border-gray-700">
-      <h3 class="text-lg font-bold text-white">Team Leaderboard</h3>
-      <p class="text-xs text-gray-400">Ranked by composite KPI score</p>
+      <h3 class="text-lg font-bold text-white">{{ title }}</h3>
+      <p class="text-xs text-gray-400">{{ description }}</p>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
@@ -79,8 +79,8 @@
         </tbody>
       </table>
     </div>
-    <div v-if="members.length === 0" class="px-4 py-8 text-center text-gray-500">
-      No team members to display.
+    <div v-if="members.length === 0" class="px-4 py-8 text-center text-gray-500 text-sm leading-relaxed">
+      {{ emptyMessage }}
     </div>
 
     <!-- Success toast -->
@@ -110,9 +110,19 @@ import type { TeamMemberKPI } from '~/core/modules/performance/performance-api'
 import { usePerformanceApi } from '~/core/modules/performance/performance-api'
 import { useAuth } from '~/composables/useAuth'
 
-defineProps<{
-  members: TeamMemberKPI[]
-}>()
+withDefaults(
+  defineProps<{
+    members: TeamMemberKPI[]
+    title?: string
+    description?: string
+    emptyMessage?: string
+  }>(),
+  {
+    title: 'Team Leaderboard',
+    description: 'Ranked by composite KPI score',
+    emptyMessage: 'No team members to display.',
+  },
+)
 
 const emit = defineEmits<{
   (e: 'refresh'): void

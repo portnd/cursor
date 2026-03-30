@@ -82,6 +82,9 @@ export interface ProjectBackup {
 export interface Sprint {
   id: string
   project_id: string
+  /** Populated on dev “my sprints” payloads */
+  project_name?: string
+  project_code?: string
   name: string
   goal: string
   start_date: string | null
@@ -163,6 +166,11 @@ export interface Task {
   assigned_to: number | null
   assigned_to_display_name?: string
   assigned_to_email?: string
+  /** GET /sentinel/tasks/my — display enrichment */
+  project_name?: string
+  project_color?: string
+  sprint_name?: string
+  effective_sprint_id?: string | null
   created_by: number | null
   due_at: string | null
   start_date: string | null

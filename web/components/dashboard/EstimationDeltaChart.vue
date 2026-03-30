@@ -1,7 +1,10 @@
 <template>
   <section>
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="section-label mb-0">Estimation Accuracy — Delta Analysis</h2>
+    <div class="flex items-center justify-between mb-4 gap-4">
+      <div class="min-w-0">
+        <h2 class="section-label mb-0">{{ sectionTitle }}</h2>
+        <p v-if="scopeDescription" class="text-xs text-gray-500 mt-1 max-w-xl leading-relaxed">{{ scopeDescription }}</p>
+      </div>
       <div class="flex items-center gap-2">
         <span class="text-xs text-gray-500">{{ deltaRows.length }} tasks tracked</span>
         <button
@@ -161,10 +164,20 @@ interface DeltaRow {
   variancePct: number
 }
 
-const props = defineProps<{
-  teamProjectIds: string[]
-  initialTasks?: any[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    teamProjectIds: string[]
+    initialTasks?: any[]
+    /** Main heading (e.g. portfolio wording when squads are off). */
+    sectionTitle?: string
+    /** Shown under the title (e.g. squad vs PM-owned scope). */
+    scopeDescription?: string
+  }>(),
+  {
+    sectionTitle: 'Estimation Accuracy — Delta Analysis',
+    scopeDescription: '',
+  }
+)
 
 const { getTasksByProject, getTimeLogs } = useTasksApi()
 

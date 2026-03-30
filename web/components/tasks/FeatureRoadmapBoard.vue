@@ -10,11 +10,26 @@
         </div>
         <div>
           <h2 class="text-sm font-bold text-white">Feature Roadmap Board</h2>
-          <p class="text-xs text-gray-500">Strategic features with roll-up delivery progress (PM / CEO view)</p>
+          <p class="text-xs text-gray-500">
+            <template v-if="isProjectScoped && scopeProjectName">{{ scopeProjectName }} — features and delivery progress</template>
+            <template v-else>Strategic features with roll-up delivery progress (PM / CEO view)</template>
+          </p>
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Project filter (hidden when embedded on a project page) -->
+        <div v-if="!isProjectScoped" class="flex items-center gap-2">
+          <label class="text-[10px] font-bold uppercase tracking-wider text-gray-500 shrink-0">Project</label>
+          <select
+            v-model="selectedProjectId"
+            class="min-w-[140px] max-w-[220px] rounded-lg border border-gray-700 bg-gray-800/80 px-2.5 py-2 text-xs font-medium text-gray-200 focus:border-violet-500/50 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
+          >
+            <option value="">All projects</option>
+            <option v-for="p in projectOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
+
         <!-- Status filter -->
         <div class="flex rounded-lg border border-gray-700 bg-gray-800/60 overflow-hidden text-xs font-semibold">
           <button
@@ -77,7 +92,7 @@
     <div v-else class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
       <div class="rounded-xl border border-gray-700/60 bg-gray-800/50 px-4 py-3">
         <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Total Features</p>
-        <p class="text-xl font-black text-white tabular-nums">{{ features.length }}</p>
+        <p class="text-xl font-black text-white tabular-nums">{{ filteredFeatures.length }}</p>
       </div>
       <div class="rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3">
         <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Shipped</p>
@@ -93,10 +108,20 @@
       </div>
     </div>
 
-    <!-- Feature list -->
-    <div v-if="!loading && !error && filteredFeatures.length > 0" class="space-y-3">
+    <!-- Feature list (grouped by project when viewing all projects) -->
+    <div v-if="!loading && !error && filteredFeatures.length > 0" class="space-y-8">
+      <section v-for="group in featureGroups" :key="group.key" class="space-y-3">
+        <div
+          v-if="!hideProjectGroupHeaders"
+          class="flex items-center gap-2 pb-2 border-b border-gray-700/50"
+        >
+          <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: group.color }"/>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-300">{{ group.name }}</h3>
+          <span class="text-[10px] font-medium text-gray-600 tabular-nums">{{ group.features.length }} feature{{ group.features.length !== 1 ? 's' : '' }}</span>
+        </div>
+        <div class="space-y-3">
       <div
-        v-for="feature in filteredFeatures"
+        v-for="feature in group.features"
         :key="feature.id"
         class="rounded-2xl border bg-gray-800/40 overflow-hidden transition-all"
         :class="featureBorderClass(feature)"
@@ -297,6 +322,8 @@
           </div>
         </Transition>
       </div>
+        </div>
+      </section>
     </div>
 
     <!-- Modals -->
@@ -317,9 +344,25 @@
 </template>
 
 <script setup lang="ts">
+import SubmitUATModal from '~/components/tasks/SubmitUATModal.vue'
+import UATReviewModal from '~/components/tasks/UATReviewModal.vue'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { FeatureRoadmapItem } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useAuth } from '~/composables/useAuth'
+
+const props = withDefaults(
+  defineProps<{
+    /** When set (e.g. on project detail page), only show features for this project. */
+    scopeProjectId?: string
+    scopeProjectCode?: string
+    scopeProjectName?: string
+  }>(),
+  {
+    scopeProjectId: '',
+    scopeProjectCode: '',
+    scopeProjectName: '',
+  }
+)
 
 const statusFilters = [
   { value: 'ALL', label: 'All' },
@@ -347,18 +390,86 @@ const userRole = computed(() => currentUser.value?.role || '')
 const isDev = computed(() => userRole.value === 'DEV')
 const isPMOrCEO = computed(() => userRole.value === 'PM' || userRole.value === 'CEO')
 
-const filteredFeatures = computed(() => {
-  if (activeFilter.value === 'ALL') return features.value
-  return features.value.filter(f => f.status === activeFilter.value)
+const isProjectScoped = computed(
+  () => Boolean(props.scopeProjectId?.trim() || props.scopeProjectCode?.trim())
+)
+
+/** Stable project key for grouping / filter (API may use project_id or code). */
+function projectKey(f: FeatureRoadmapItem): string {
+  return String(f.project_id || f.project_code || '').trim() || '__none__'
+}
+
+function matchesScope(f: FeatureRoadmapItem): boolean {
+  const id = props.scopeProjectId?.trim()
+  const code = (props.scopeProjectCode || '').trim()
+  const pk = projectKey(f)
+  if (id && (f.project_id === id || pk === id)) return true
+  if (code && (f.project_code === code || pk.toLowerCase() === code.toLowerCase())) return true
+  return false
+}
+
+const hideProjectGroupHeaders = computed(
+  () => isProjectScoped.value || Boolean(selectedProjectId.value)
+)
+
+const projectOptions = computed(() => {
+  const m = new Map<string, { id: string; name: string }>()
+  for (const f of features.value) {
+    const id = projectKey(f)
+    if (id === '__none__') continue
+    if (!m.has(id)) m.set(id, { id, name: f.project_name || 'Unknown project' })
+  }
+  return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name))
 })
 
-const shippedCount = computed(() => features.value.filter(f => f.status === 'COMPLETED').length)
+const selectedProjectId = ref('')
+
+const filteredFeatures = computed(() => {
+  let list = features.value
+  if (activeFilter.value !== 'ALL') {
+    list = list.filter(f => f.status === activeFilter.value)
+  }
+  if (isProjectScoped.value) {
+    list = list.filter(f => matchesScope(f))
+  } else if (selectedProjectId.value) {
+    list = list.filter(f => projectKey(f) === selectedProjectId.value)
+  }
+  return list
+})
+
+const shippedCount = computed(() => filteredFeatures.value.filter(f => f.status === 'COMPLETED').length)
 const awaitingUATCount = computed(() =>
-  features.value.filter(f => f.status === 'READY_FOR_UAT' || f.status === 'REVIEW_PENDING').length
+  filteredFeatures.value.filter(f => f.status === 'READY_FOR_UAT' || f.status === 'REVIEW_PENDING').length
 )
 const avgProgress = computed(() => {
-  if (!features.value.length) return 0
-  return Math.round(features.value.reduce((s, f) => s + f.rollup_progress, 0) / features.value.length)
+  if (!filteredFeatures.value.length) return 0
+  return Math.round(filteredFeatures.value.reduce((s, f) => s + f.rollup_progress, 0) / filteredFeatures.value.length)
+})
+
+/** When showing all projects, group cards under project headings. */
+const featureGroups = computed(() => {
+  const list = filteredFeatures.value
+  if (isProjectScoped.value || selectedProjectId.value) {
+    const sample = list[0]
+    const name =
+      (isProjectScoped.value && props.scopeProjectName?.trim()) ||
+      sample?.project_name ||
+      'Project'
+    const color = sample?.project_color || '#6366f1'
+    const key = sample ? projectKey(sample) : (props.scopeProjectId || props.scopeProjectCode || 'scoped')
+    return [{ key, name, color, features: list }]
+  }
+  const map = new Map<string, { key: string; name: string; color: string; features: FeatureRoadmapItem[] }>()
+  for (const f of list) {
+    const key = projectKey(f)
+    const name = f.project_name || (key === '__none__' ? 'No project' : 'Unknown project')
+    const color = f.project_color || '#6366f1'
+    if (!map.has(key)) {
+      map.set(key, { key, name, color, features: [] })
+    }
+    map.get(key)!.features.push(f)
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
 })
 
 function completedChildCount(feature: FeatureRoadmapItem): number {

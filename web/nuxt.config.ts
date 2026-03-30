@@ -1,7 +1,12 @@
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const nuxtConfigDir = dirname(fileURLToPath(import.meta.url))
+
 export default defineNuxtConfig({
   ssr: true,
-  // Minimal dark overlay only (no logo)
-  spaLoadingTemplate: '~/app/spa-loading-template.html',
+  // Minimal dark overlay only (no logo) — absolute path so Docker (/app) does not treat ~ literally
+  spaLoadingTemplate: join(nuxtConfigDir, 'app/spa-loading-template.html'),
 
   devtools: { enabled: true },
 

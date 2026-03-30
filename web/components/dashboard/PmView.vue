@@ -117,6 +117,8 @@
       <!-- Continuous UAT Queue (highest priority: sub-task test approvals) -->
       <ContinuousUATQueue />
 
+      <PmPerformanceSection :projects="teamProjects" />
+
       <!-- ════════════════════════════════════════════════════════════════════════
            TEAM MODE — Squad financial & capacity widgets
            ════════════════════════════════════════════════════════════════════════ -->
@@ -250,11 +252,6 @@
       <!-- Active Sprints (full width — both modes) -->
       <ActiveSprintsOverview />
 
-      <!-- Feature Roadmap Board (both modes) -->
-      <section>
-        <FeatureRoadmapBoard />
-      </section>
-
       <!-- ── Project Capital Deep-dive (Squad mode only — teams have dedicated capital) -->
       <section v-if="teamsEnabled && teamProjects.length > 0">
         <div class="flex items-center justify-between mb-4">
@@ -321,10 +318,12 @@
         </div>
       </section>
 
-      <!-- Estimation Delta Chart (full width — both modes) -->
+      <!-- Estimation Delta Chart: squad projects when teams on; PM-owned projects when teams off -->
       <EstimationDeltaChart
-        :team-project-ids="allProjectIds"
+        :team-project-ids="estimationDeltaProjectIds"
         :initial-tasks="allTasks"
+        :section-title="estimationDeltaSectionTitle"
+        :scope-description="estimationDeltaScopeDescription"
       />
 
     </main>
@@ -338,8 +337,8 @@ import InternalB2BBoard from '~/components/dashboard/InternalB2BBoard.vue'
 import TeamCapacityRadar from '~/components/dashboard/TeamCapacityRadar.vue'
 import ActiveSprintsOverview from '~/components/dashboard/ActiveSprintsOverview.vue'
 import EstimationDeltaChart from '~/components/dashboard/EstimationDeltaChart.vue'
-import FeatureRoadmapBoard from '~/components/tasks/FeatureRoadmapBoard.vue'
 import ContinuousUATQueue from '~/components/dashboard/ContinuousUATQueue.vue'
+import PmPerformanceSection from '~/components/dashboard/PmPerformanceSection.vue'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
@@ -363,7 +362,34 @@ const teamsEnabled = computed(() => teamsStore.teamsFeatureEnabled)
 const myTeamMembers = computed<TeamUser[]>(() => myTeam.value?.users ?? [])
 const myTeamMemberIds = computed<number[]>(() => myTeamMembers.value.map(u => u.id))
 const myTeamProjectIds = computed<string[]>(() => teamProjects.value.map(p => p.id))
-const allProjectIds = computed<string[]>(() => teamProjects.value.map(p => p.id))
+
+/** Squad mode: all projects on the PM’s team. Individual (no squads): only projects where this PM is in pm_owners (fallback: full list from API if owners not loaded). */
+const estimationDeltaProjectIds = computed<string[]>(() => {
+  if (teamsEnabled.value) {
+    return teamProjects.value.map(p => p.id)
+  }
+  const uid = (currentUser.value as { user_id?: number; id?: number } | null)?.user_id
+    ?? (currentUser.value as { user_id?: number; id?: number } | null)?.id
+  if (uid == null) return teamProjects.value.map(p => p.id)
+  const owned = teamProjects.value.filter((p) => {
+    const owners = p.pm_owners
+    if (!owners?.length) return true
+    return owners.some(o => o.user_id === uid)
+  })
+  return owned.map(p => p.id)
+})
+
+const estimationDeltaSectionTitle = computed(() =>
+  teamsEnabled.value
+    ? 'Estimation Accuracy — Delta Analysis'
+    : 'Estimation Accuracy — Portfolio delta analysis'
+)
+
+const estimationDeltaScopeDescription = computed(() =>
+  teamsEnabled.value
+    ? 'Tasks in projects linked to your squad.'
+    : 'Only tasks in projects where you are the assigned PM (portfolio mode — not squad-scoped).'
+)
 
 const totalCapital = computed(() =>
   Object.values(projectCapitals.value).reduce((s, c) => s + (c.capital_balance ?? 0), 0)

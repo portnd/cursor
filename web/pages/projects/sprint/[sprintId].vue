@@ -55,11 +55,18 @@
             >
               ถัดไป →
             </NuxtLink>
-            <button @click="openCreateTaskModal()" class="btn-primary-sm">+ Add Task</button>
-            <button @click="openImportModal()" class="btn-import-sm">
-              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
-              Import Slides
+            <button
+              type="button"
+              @click="openBacklogImportModal"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+              title="Add existing tasks from the backlog (or another sprint)"
+            >
+              <svg class="w-3.5 h-3.5 shrink-0 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              From backlog
             </button>
+            <button @click="openCreateTaskModal()" class="btn-primary-sm">+ New task</button>
             <NuxtLink :to="`/projects/${projectId}?tab=sprints`" class="btn-ghost-sm inline-flex">← Back</NuxtLink>
           </div>
         </div>
@@ -89,27 +96,38 @@
       <div class="card">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 class="section-title mb-0">Tasks in this sprint</h3>
-          <div v-if="sprintTasks.length" class="flex items-center gap-3">
-            <label class="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-400 hover:text-gray-200">
-              <input
-                ref="checkAllInputRef"
-                type="checkbox"
-                :checked="isCheckAllChecked"
-                class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-                @change="toggleCheckAll"
-              />
-              <span>Check all</span>
-            </label>
+          <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
-              v-if="selectedTaskIds.length > 0"
+              v-if="backlogTaskCount > 0 || otherSprintTaskCount > 0"
               type="button"
-              class="px-3 py-1.5 text-sm font-medium text-red-300 bg-red-900/30 hover:bg-red-900/50 border border-red-800 rounded-lg transition-colors flex items-center gap-2"
-              :disabled="isDeletingTasks"
-              @click="confirmDeleteSelected"
+              @click="openBacklogImportModal"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              Delete ({{ selectedTaskIds.length }})
+              + From backlog
+              <span v-if="backlogTaskCount" class="text-emerald-400/90">({{ backlogTaskCount }})</span>
             </button>
+            <template v-if="sprintTasks.length">
+              <label class="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-400 hover:text-gray-200">
+                <input
+                  ref="checkAllInputRef"
+                  type="checkbox"
+                  :checked="isCheckAllChecked"
+                  class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                  @change="toggleCheckAll"
+                />
+                <span>Check all</span>
+              </label>
+              <button
+                v-if="selectedTaskIds.length > 0"
+                type="button"
+                class="px-3 py-1.5 text-sm font-medium text-red-300 bg-red-900/30 hover:bg-red-900/50 border border-red-800 rounded-lg transition-colors flex items-center gap-2"
+                :disabled="isDeletingTasks"
+                @click="confirmDeleteSelected"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Delete ({{ selectedTaskIds.length }})
+              </button>
+            </template>
           </div>
         </div>
         <div v-if="sprintTasks.length" class="space-y-2">
@@ -142,152 +160,165 @@
             </div>
           </div>
         </div>
-        <div v-else class="text-center py-12 text-gray-500 text-sm">
-          <p class="mb-4">No tasks in this sprint yet.</p>
-          <button @click="openCreateTaskModal()" class="btn-primary-sm">+ Add first task</button>
+        <div v-else class="text-center py-12 px-4 text-gray-500 text-sm">
+          <p class="mb-1 text-gray-400 font-medium">No tasks in this sprint yet</p>
+          <p class="mb-6 text-xs text-gray-600 max-w-md mx-auto leading-relaxed">
+            Pull work that already exists from the <span class="text-gray-500">backlog</span> (no sprint), or create a new task.
+          </p>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <button
+              v-if="backlogTaskCount > 0 || otherSprintTaskCount > 0"
+              type="button"
+              @click="openBacklogImportModal"
+              class="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-200 hover:bg-emerald-500/25 transition-colors"
+            >
+              Add from backlog
+              <span v-if="backlogTaskCount" class="text-xs font-normal text-emerald-400/90">({{ backlogTaskCount }} ready)</span>
+            </button>
+            <button type="button" @click="openCreateTaskModal()" class="btn-primary-sm px-4 py-2.5">+ New task</button>
+          </div>
+          <NuxtLink
+            :to="`/projects/${projectId}?tab=backlog`"
+            class="mt-5 inline-block text-xs text-purple-400/90 hover:text-purple-300"
+          >
+            Open full Backlog tab → assign or create tasks there
+          </NuxtLink>
         </div>
       </div>
     </div>
 
-    <!-- Import from Google Slides Modal -->
-    <div v-if="showImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeImportModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-xl w-full shadow-2xl">
-
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-5">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
-              <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
-            </div>
-            <div>
-              <h2 class="text-lg font-bold text-white">Import from Google Slides</h2>
-              <p class="text-xs text-gray-400">สร้าง task อัตโนมัติจากแต่ละ slide</p>
-            </div>
-          </div>
-          <button @click="closeImportModal" class="text-gray-500 hover:text-white transition-colors">✕</button>
-        </div>
-
-        <!-- Result state -->
-        <div v-if="importStep === 'result' && importResult" class="space-y-4">
-          <div class="p-4 bg-green-900/20 border border-green-600/40 rounded-xl">
-            <div class="flex items-center gap-2 mb-2">
-              <svg class="w-5 h-5 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-              <span class="text-green-400 font-semibold text-sm">Import สำเร็จ!</span>
-            </div>
-            <p class="text-gray-300 text-sm font-medium mb-1">{{ importResult.presentation_title }}</p>
-            <p class="text-gray-400 text-xs">สร้าง {{ importResult.created_count }} tasks จาก {{ importResult.slide_count }} slides</p>
-          </div>
-          <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-            <div
-              v-for="task in importResult.tasks"
-              :key="task.id"
-              class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm"
-            >
-              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
-              <span class="text-gray-200 truncate">{{ task.title }}</span>
-            </div>
-          </div>
-          <button @click="closeImportModal" class="w-full btn-primary py-2.5">Done</button>
-        </div>
-
-        <!-- Step 2: Select slides to import -->
-        <div v-else-if="importStep === 'select' && importPreview" class="space-y-4">
-          <div class="p-3 bg-gray-700/40 rounded-xl">
-            <p class="text-sm font-medium text-white">{{ importPreview.presentation_title }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">
-            เลือก slide ที่จะ import ({{ importSelectedIndices.length }} / {{ importPreview.slides.length }})
-            <span v-if="(importPreview.already_imported_slide_indices?.length ?? 0) > 0">— หน้าที่นำเข้าแล้วจะถูก uncheck ไว้ เลือกเฉพาะหน้าที่ต้องการเพิ่มได้</span>
-          </p>
-          </div>
-          <div class="flex items-center gap-2 flex-wrap">
-            <button type="button" @click="importSelectAll" class="btn-ghost-sm">เลือกทั้งหมด</button>
-            <button type="button" @click="importDeselectAll" class="btn-ghost-sm">ยกเลิกทั้งหมด</button>
-            <button
-              type="button"
-              @click="importSelectOnlyNew"
-              class="btn-ghost-sm text-purple-400"
-            >
-              เลือกเฉพาะที่ยังไม่เคยนำเข้า
-            </button>
-          </div>
-          <div class="max-h-56 overflow-y-auto space-y-1.5 pr-1 border border-gray-700/60 rounded-xl p-2">
-            <label
-              v-for="s in importPreview.slides"
-              :key="s.index"
-              class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-700/40 cursor-pointer"
-              :class="{ 'opacity-70': s.hidden }"
-            >
-              <input
-                v-model="importSelectedIndices"
-                type="checkbox"
-                :value="s.index"
-                class="rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-              />
-              <span class="text-xs text-gray-400 w-8 shrink-0">#{{ s.index }}</span>
-              <span class="text-sm text-gray-200 truncate flex-1">{{ s.title || '(ไม่มีชื่อ)' }}</span>
-              <span v-if="s.hidden" class="text-xs text-amber-400/90 shrink-0">ซ่อน</span>
-              <span v-else-if="(importPreview.already_imported_slide_indices || []).includes(s.index)" class="text-xs text-gray-500 shrink-0">นำเข้าแล้ว</span>
-            </label>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label">Priority ของทุก task</label>
-              <select v-model="importForm.priority" class="input-field w-full" :disabled="isImporting">
-                <option value="CRITICAL">🔴 Critical</option>
-                <option value="HIGH">🟠 High</option>
-                <option value="MEDIUM">🟡 Medium</option>
-                <option value="LOW">🟢 Low</option>
-              </select>
-            </div>
-            <div>
-              <label class="label">Story Points (ต่อ task)</label>
-              <input v-model.number="importForm.story_points" type="number" min="0" class="input-field w-full" placeholder="1" :disabled="isImporting" />
-            </div>
-          </div>
-          <div v-if="importError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ importError }}</div>
-          <div class="flex gap-3">
-            <button
-              @click="submitImport"
-              :disabled="isImporting || importSelectedIndices.length === 0"
-              class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              <svg v-if="isImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-              {{ isImporting ? 'กำลัง import...' : `Import ${importSelectedIndices.length} Slides` }}
-            </button>
-            <button type="button" @click="importStep = 'form'" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">กลับ</button>
-          </div>
-        </div>
-
-        <!-- Step 1: Form (URL + Load slides) -->
-        <div v-else class="space-y-4">
+    <!-- Add existing tasks (backlog / other sprints) → this sprint -->
+    <div
+      v-if="showBacklogImportModal && sprint"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      @click.self="closeBacklogImportModal"
+    >
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 sm:p-6 max-w-xl w-full shadow-2xl max-h-[88vh] flex flex-col">
+        <div class="flex items-start justify-between gap-3 mb-4">
           <div>
-            <label class="label">Google Slides URL *</label>
-            <input
-              v-model="importForm.presentation_url"
-              type="url"
-              class="input-field w-full"
-              placeholder="https://docs.google.com/presentation/d/..."
-              :disabled="isLoadingPreview"
-            />
-            <p class="text-xs text-gray-500 mt-1">ต้องเปิดสิทธิ์ "Anyone with the link can view"</p>
+            <h2 class="text-lg font-bold text-white">Add tasks to this sprint</h2>
+            <p class="text-sm text-gray-400 mt-1">
+              เลือกงานที่มีอยู่แล้วในโปรเจกต์ แล้วดึงเข้า
+              <span class="text-gray-200 font-medium">“{{ sprint.name }}”</span>
+            </p>
           </div>
-
-          <div v-if="importError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ importError }}</div>
-
-          <div class="flex gap-3 mt-1">
-            <button
-              type="button"
-              @click="loadImportPreview"
-              :disabled="isLoadingPreview || !importForm.presentation_url.trim()"
-              class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              <svg v-if="isLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-              {{ isLoadingPreview ? 'กำลังโหลด...' : 'โหลดรายการ slide' }}
-            </button>
-            <button @click="closeImportModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
-          </div>
+          <button type="button" class="text-gray-500 hover:text-white shrink-0" aria-label="Close" @click="closeBacklogImportModal">✕</button>
         </div>
 
+        <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5 mb-4 text-xs text-gray-400 leading-relaxed">
+          <span class="text-emerald-300/95 font-medium">Backlog</span>
+          = งานที่ยังไม่ได้อยู่ใน sprint ใด
+          <span class="text-gray-600 mx-1">·</span>
+          <span class="text-amber-300/90 font-medium">Other sprint</span>
+          = ย้ายจาก sprint อื่นมาที่นี่ได้ (โหมดขยายด้านล่าง)
+        </div>
+
+        <div class="mb-3">
+          <label class="sr-only" for="backlog-import-search">Search tasks</label>
+          <input
+            id="backlog-import-search"
+            v-model="backlogImportQuery"
+            type="search"
+            class="input-field w-full"
+            placeholder="ค้นหาชื่อหรือรหัส task…"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="flex rounded-xl border border-gray-600 p-1 bg-gray-900/40 mb-3">
+          <button
+            type="button"
+            class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+            :class="backlogImportScope === 'backlog' ? 'bg-emerald-600/30 text-emerald-200' : 'text-gray-500 hover:text-gray-300'"
+            @click="setBacklogImportScope('backlog')"
+          >
+            Backlog only
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+            :class="backlogImportScope === 'anywhere' ? 'bg-amber-600/25 text-amber-200' : 'text-gray-500 hover:text-gray-300'"
+            @click="setBacklogImportScope('anywhere')"
+          >
+            + Other sprints
+          </button>
+        </div>
+
+        <p class="text-[11px] text-gray-500 mb-2">
+          แสดง {{ backlogImportFiltered.length }} รายการ
+          <span v-if="backlogImportScope === 'backlog'">(ใน backlog {{ backlogTaskCount }} งาน)</span>
+          <span v-else>(ยังไม่อยู่ใน sprint นี้ {{ tasksNotInThisSprintCount }} งาน)</span>
+          · เลือกแล้ว {{ selectedBacklogTaskIds.length }}
+        </p>
+
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button type="button" class="text-xs text-purple-400 hover:text-purple-300" @click="selectAllVisibleBacklogImport">
+            เลือกทั้งหมดที่แสดง
+          </button>
+          <button type="button" class="text-xs text-gray-500 hover:text-gray-400" @click="selectedBacklogTaskIds = []">
+            ล้างการเลือก
+          </button>
+        </div>
+
+        <div class="flex-1 min-h-[12rem] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900/30 p-2">
+          <div v-if="backlogImportFiltered.length === 0" class="text-center py-10 px-3 text-sm text-gray-500">
+            <template v-if="backlogImportScope === 'backlog'">
+              ไม่มีงานใน backlog
+              <span v-if="otherSprintTaskCount > 0" class="block mt-2 text-xs text-gray-600">
+                มีงานใน sprint อื่น {{ otherSprintTaskCount }} รายการ — กดแท็บ “+ Other sprints”
+              </span>
+            </template>
+            <template v-else>ไม่มีงานที่จะย้ายเข้า sprint นี้ (หรือลองค้นหาอย่างอื่น)</template>
+          </div>
+          <label
+            v-for="t in backlogImportFiltered"
+            :key="t.id"
+            class="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-gray-700/45 cursor-pointer"
+          >
+            <input
+              v-model="selectedBacklogTaskIds"
+              type="checkbox"
+              :value="t.id"
+              class="rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500 shrink-0"
+            />
+            <span class="text-xs font-mono text-gray-500 shrink-0 w-14 truncate" :title="t.code ?? ''">{{ taskCodeSuffix(t.code) }}</span>
+            <span class="text-sm text-gray-200 truncate flex-1 min-w-0">{{ t.title }}</span>
+            <span
+              v-if="!t.sprint_id"
+              class="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-gray-600/80 text-gray-300"
+            >Backlog</span>
+            <span
+              v-else
+              class="text-[10px] px-1.5 py-0.5 rounded shrink-0 max-w-[7rem] truncate bg-amber-500/15 text-amber-400"
+              :title="sprintNameById(t.sprint_id) || ''"
+            >{{ sprintNameById(t.sprint_id) || 'Sprint' }}</span>
+          </label>
+        </div>
+
+        <div v-if="backlogImportError" class="mt-3 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">
+          {{ backlogImportError }}
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 mt-4">
+          <button
+            type="button"
+            class="flex-1 btn-primary py-2.5 disabled:opacity-45"
+            :disabled="isBacklogImporting || selectedBacklogTaskIds.length === 0"
+            @click="confirmBacklogImport"
+          >
+            {{ isBacklogImporting ? 'กำลังเพิ่ม…' : `เพิ่ม ${selectedBacklogTaskIds.length} งานเข้า sprint` }}
+          </button>
+          <button type="button" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors" @click="closeBacklogImportModal">
+            ยกเลิก
+          </button>
+        </div>
+        <NuxtLink
+          :to="`/projects/${projectId}?tab=backlog`"
+          class="mt-3 block text-center text-xs text-gray-500 hover:text-purple-400"
+          @click="closeBacklogImportModal"
+        >
+          เปิดแท็บ Backlog เต็มหน้าจอ (สร้าง / แก้ / import slides)
+        </NuxtLink>
       </div>
     </div>
 
@@ -408,6 +439,7 @@ const route = useRoute()
 const router = useRouter()
 const projectsApi = useProjectsApi()
 const tasksApi = useTasksApi()
+const { showSuccess } = useNotification()
 
 // Route: /projects/sprint/:sprintId?project=:projectIdOrCode (project required for loading)
 const projectId = computed(() => (route.query.project as string) || '')
@@ -480,6 +512,121 @@ const overdueCount = computed(() => {
   const now = Date.now()
   return sprintTasks.value.filter((t) => t.status !== 'COMPLETED' && t.due_at && new Date(t.due_at).getTime() < now).length
 })
+
+const backlogTaskCount = computed(() => allTasks.value.filter((t) => !t.sprint_id).length)
+const otherSprintTaskCount = computed(() =>
+  allTasks.value.filter((t) => !!t.sprint_id && t.sprint_id !== sprintId.value).length
+)
+const tasksNotInThisSprintCount = computed(() => allTasks.value.filter((t) => t.sprint_id !== sprintId.value).length)
+
+const showBacklogImportModal = ref(false)
+const backlogImportScope = ref<'backlog' | 'anywhere'>('backlog')
+const backlogImportQuery = ref('')
+const selectedBacklogTaskIds = ref<string[]>([])
+const backlogImportError = ref('')
+const isBacklogImporting = ref(false)
+
+function setBacklogImportScope(s: 'backlog' | 'anywhere') {
+  backlogImportScope.value = s
+}
+
+const backlogImportCandidates = computed(() => {
+  const sid = sprintId.value
+  return allTasks.value
+    .filter((t) => {
+      if (t.sprint_id === sid) return false
+      if (backlogImportScope.value === 'backlog') return !t.sprint_id
+      return true
+    })
+    .sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true }))
+})
+
+const backlogImportFiltered = computed(() => {
+  const q = backlogImportQuery.value.trim().toLowerCase()
+  if (!q) return backlogImportCandidates.value
+  return backlogImportCandidates.value.filter((t) => {
+    const code = (t.code ?? '').toLowerCase()
+    const title = (t.title ?? '').toLowerCase()
+    return code.includes(q) || title.includes(q)
+  })
+})
+
+function sprintNameById(id: string | null | undefined): string {
+  if (!id) return ''
+  return sprints.value.find((s) => s.id === id)?.name ?? ''
+}
+
+function toYMD(d: string) {
+  return d.split('T')[0]
+}
+
+function taskDatesInSprintRange(
+  _task: { start_date?: string | null; end_date?: string | null; due_at?: string | null },
+  sp: { start_date: string | null; end_date: string | null }
+): { start_date: string; end_date: string } | null {
+  if (!sp?.start_date) return null
+  const addDays = (ymd: string, days: number) => {
+    const dt = new Date(ymd + 'T12:00:00Z')
+    dt.setUTCDate(dt.getUTCDate() + days)
+    return toYMD(dt.toISOString())
+  }
+  const spStart = toYMD(sp.start_date)
+  let spEnd = sp.end_date ? toYMD(sp.end_date) : addDays(spStart, 14)
+  if (spEnd <= spStart) spEnd = addDays(spStart, 1)
+  const toNoonUTC = (ymd: string) => ymd + 'T12:00:00.000Z'
+  return { start_date: toNoonUTC(spStart), end_date: toNoonUTC(spEnd) }
+}
+
+function openBacklogImportModal() {
+  backlogImportQuery.value = ''
+  backlogImportScope.value = 'backlog'
+  selectedBacklogTaskIds.value = []
+  backlogImportError.value = ''
+  showBacklogImportModal.value = true
+}
+
+function closeBacklogImportModal() {
+  showBacklogImportModal.value = false
+  backlogImportError.value = ''
+}
+
+function selectAllVisibleBacklogImport() {
+  selectedBacklogTaskIds.value = backlogImportFiltered.value.map((t) => t.id)
+}
+
+async function confirmBacklogImport() {
+  if (!sprint.value || selectedBacklogTaskIds.value.length === 0) return
+  isBacklogImporting.value = true
+  backlogImportError.value = ''
+  const sp = sprint.value
+  const ids = [...selectedBacklogTaskIds.value]
+  try {
+    await projectsApi.addTasksToSprint(sp.id, ids)
+    for (const id of ids) {
+      const t = allTasks.value.find((x) => x.id === id)
+      if (t) {
+        t.sprint_id = sp.id
+        const dates = taskDatesInSprintRange(t, sp)
+        if (dates) {
+          try {
+            await tasksApi.updateTask(id, { start_date: dates.start_date, end_date: dates.end_date })
+            t.start_date = dates.start_date
+            t.end_date = dates.end_date
+          } catch {
+            // timeline dates optional
+          }
+        }
+      }
+    }
+    showSuccess(`Added ${ids.length} task(s) to this sprint.`, 'Done')
+    closeBacklogImportModal()
+  } catch (e: any) {
+    const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'เพิ่มงานไม่สำเร็จ'
+    backlogImportError.value = typeof err === 'string' ? err : 'เพิ่มงานไม่สำเร็จ'
+  } finally {
+    isBacklogImporting.value = false
+  }
+}
 
 function formatDate(d: string | null) {
   if (!d) return '—'
@@ -661,106 +808,6 @@ async function submitCreateTask() {
   }
 }
 
-// Import from Google Slides
-const showImportModal = ref(false)
-const importStep = ref<'form' | 'select' | 'result'>('form')
-const isImporting = ref(false)
-const isLoadingPreview = ref(false)
-const importError = ref('')
-const importResult = ref<{ created_count: number; slide_count: number; presentation_title: string; tasks: any[] } | null>(null)
-const importPreview = ref<{
-  presentation_title: string
-  slides: { index: number; title: string; hidden?: boolean }[]
-  import_mode?: string
-  api_key_status?: string
-  api_key_error?: string
-} | null>(null)
-const importSelectedIndices = ref<number[]>([])
-const importForm = ref({
-  presentation_url: '',
-  api_key: '',
-  priority: 'MEDIUM' as const,
-  story_points: 1,
-})
-
-function openImportModal() {
-  importForm.value = { presentation_url: '', api_key: '', priority: 'MEDIUM', story_points: 1 }
-  importStep.value = 'form'
-  importError.value = ''
-  importResult.value = null
-  importPreview.value = null
-  importSelectedIndices.value = []
-  showImportModal.value = true
-}
-
-function closeImportModal() {
-  showImportModal.value = false
-  if (importResult.value) {
-    loadAll()
-  }
-}
-
-async function loadImportPreview() {
-  if (!importForm.value.presentation_url.trim()) return
-  isLoadingPreview.value = true
-  importError.value = ''
-  try {
-    const data = await tasksApi.previewGoogleSlides({
-      presentation_url: importForm.value.presentation_url.trim(),
-    })
-    importPreview.value = data
-    // By default select only NEW slides (not yet imported) and non-hidden; so re-importing same link can add only new pages
-    const alreadySet = new Set(data.already_imported_slide_indices ?? [])
-    importSelectedIndices.value = data.slides
-      .filter((s: { index: number; hidden?: boolean }) => !s.hidden && !alreadySet.has(s.index))
-      .map((s: { index: number }) => s.index)
-    importStep.value = 'select'
-  } catch (e: any) {
-    importError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
-  } finally {
-    isLoadingPreview.value = false
-  }
-}
-
-function importSelectAll() {
-  if (importPreview.value) importSelectedIndices.value = importPreview.value.slides.map((s) => s.index)
-}
-
-function importDeselectAll() {
-  importSelectedIndices.value = []
-}
-
-function importSelectOnlyNew() {
-  if (!importPreview.value) return
-  const alreadySet = new Set(importPreview.value.already_imported_slide_indices ?? [])
-  importSelectedIndices.value = importPreview.value.slides
-    .filter((s: { index: number; hidden?: boolean }) => !s.hidden && !alreadySet.has(s.index))
-    .map((s: { index: number }) => s.index)
-}
-
-async function submitImport() {
-  if (!project.value || !sprint.value) return
-  isImporting.value = true
-  importError.value = ''
-  try {
-    const payload: any = {
-      presentation_url: importForm.value.presentation_url.trim(),
-      sprint_id: sprint.value.id,
-      project_id: project.value.id,
-      priority: importForm.value.priority,
-      story_points: importForm.value.story_points,
-    }
-    if (importForm.value.api_key.trim()) payload.api_key = importForm.value.api_key.trim()
-    if (importSelectedIndices.value.length > 0) payload.slide_indices = importSelectedIndices.value
-    importResult.value = await tasksApi.importGoogleSlides(payload)
-    importStep.value = 'result'
-  } catch (e: any) {
-    importError.value = e?.data?.message ?? e?.message ?? 'Import failed'
-  } finally {
-    isImporting.value = false
-  }
-}
-
 onMounted(loadAll)
 </script>
 
@@ -788,9 +835,6 @@ onMounted(loadAll)
 }
 .btn-ghost-sm {
   @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;
-}
-.btn-import-sm {
-  @apply px-3 py-1.5 text-xs bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
 }
 .btn-primary {
   @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;

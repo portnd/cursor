@@ -335,6 +335,94 @@ func (r *postgresRepository) GetTasksByAssignee(userID uint) ([]domain.Task, err
 	return tasks, err
 }
 
+func uuidSetToSlice(m map[uuid.UUID]struct{}) []uuid.UUID {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]uuid.UUID, 0, len(m))
+	for id := range m {
+		out = append(out, id)
+	}
+	return out
+}
+
+// enrichMyBoardTasks fills project/sprint display fields for GET /tasks/my.
+func (r *postgresRepository) enrichMyBoardTasks(tasks []domain.Task) {
+	if len(tasks) == 0 {
+		return
+	}
+	projIDSet := make(map[uuid.UUID]struct{})
+	parentIDSet := make(map[uuid.UUID]struct{})
+	for i := range tasks {
+		if tasks[i].ProjectID != nil {
+			projIDSet[*tasks[i].ProjectID] = struct{}{}
+		}
+		if tasks[i].SprintID == nil && tasks[i].ParentID != nil {
+			parentIDSet[*tasks[i].ParentID] = struct{}{}
+		}
+	}
+	var projects []domain.Project
+	if ids := uuidSetToSlice(projIDSet); len(ids) > 0 {
+		_ = r.db.Select("id", "name", "code", "color").Where("id IN ?", ids).Find(&projects).Error
+	}
+	projByID := make(map[uuid.UUID]domain.Project, len(projects))
+	for _, p := range projects {
+		projByID[p.ID] = p
+	}
+	parentByID := make(map[uuid.UUID]domain.Task)
+	if pids := uuidSetToSlice(parentIDSet); len(pids) > 0 {
+		var parents []domain.Task
+		_ = r.db.Select("id", "sprint_id").Where("id IN ?", pids).Find(&parents).Error
+		for _, p := range parents {
+			parentByID[p.ID] = p
+		}
+	}
+	sprintIDSet := make(map[uuid.UUID]struct{})
+	for i := range tasks {
+		var sid *uuid.UUID
+		if tasks[i].SprintID != nil {
+			sid = tasks[i].SprintID
+		} else if tasks[i].ParentID != nil {
+			if par, ok := parentByID[*tasks[i].ParentID]; ok && par.SprintID != nil {
+				sid = par.SprintID
+			}
+		}
+		if sid != nil {
+			sprintIDSet[*sid] = struct{}{}
+		}
+	}
+	var sprints []domain.Sprint
+	if sids := uuidSetToSlice(sprintIDSet); len(sids) > 0 {
+		_ = r.db.Select("id", "name").Where("id IN ?", sids).Find(&sprints).Error
+	}
+	sprintByID := make(map[uuid.UUID]domain.Sprint, len(sprints))
+	for _, s := range sprints {
+		sprintByID[s.ID] = s
+	}
+	for i := range tasks {
+		if tasks[i].ProjectID != nil {
+			if p, ok := projByID[*tasks[i].ProjectID]; ok {
+				tasks[i].ProjectName = p.Name
+				tasks[i].ProjectColor = p.Color
+			}
+		}
+		var eff *uuid.UUID
+		if tasks[i].SprintID != nil {
+			eff = tasks[i].SprintID
+		} else if tasks[i].ParentID != nil {
+			if par, ok := parentByID[*tasks[i].ParentID]; ok && par.SprintID != nil {
+				eff = par.SprintID
+			}
+		}
+		if eff != nil {
+			tasks[i].EffectiveSprintID = eff
+			if s, ok := sprintByID[*eff]; ok {
+				tasks[i].SprintName = s.Name
+			}
+		}
+	}
+}
+
 // GetActiveSprintTasksByAssignee returns only tasks that belong to an ACTIVE sprint
 // and are assigned to the given user. DEV role sees strictly their active battlefield.
 // Also includes child tasks whose parent (FEATURE) is in an active sprint.
@@ -355,7 +443,11 @@ func (r *postgresRepository) GetActiveSprintTasksByAssignee(userID uint) ([]doma
 		`).
 		Order("tasks.created_at desc").
 		Find(&tasks).Error
-	return tasks, err
+	if err != nil {
+		return nil, err
+	}
+	r.enrichMyBoardTasks(tasks)
+	return tasks, nil
 }
 
 // GetActiveSprintsForUser returns distinct ACTIVE sprints that have tasks assigned to the given user.
@@ -368,7 +460,29 @@ func (r *postgresRepository) GetActiveSprintsForUser(userID uint) ([]domain.Spri
 		Where("sprints.status = ? AND tasks.assigned_to = ?", "ACTIVE", userID).
 		Order("sprints.created_at desc").
 		Find(&sprints).Error
-	return sprints, err
+	if err != nil {
+		return nil, err
+	}
+	projIDSet := make(map[uuid.UUID]struct{})
+	for i := range sprints {
+		projIDSet[sprints[i].ProjectID] = struct{}{}
+	}
+	if ids := uuidSetToSlice(projIDSet); len(ids) > 0 {
+		var projs []domain.Project
+		if qerr := r.db.Select("id", "name", "code").Where("id IN ?", ids).Find(&projs).Error; qerr == nil {
+			pmap := make(map[uuid.UUID]domain.Project, len(projs))
+			for _, p := range projs {
+				pmap[p.ID] = p
+			}
+			for i := range sprints {
+				if p, ok := pmap[sprints[i].ProjectID]; ok {
+					sprints[i].ProjectName = p.Name
+					sprints[i].ProjectCode = p.Code
+				}
+			}
+		}
+	}
+	return sprints, nil
 }
 
 // GetGlobalActiveTasksByUser returns TASK and BUG items for the team scoped to ACTIVE sprints only.

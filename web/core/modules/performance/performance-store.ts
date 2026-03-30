@@ -58,13 +58,52 @@ export const usePerformanceStore = defineStore('performance', {
       }
     },
 
+    /** Loads role-appropriate KPIs in one loading cycle (parallel where possible). */
     async fetchAll(role: string) {
-      await this.fetchPersonal()
-      if (role === 'CEO' || role === 'PM') {
-        await this.fetchTeam()
-      }
-      if (role === 'CEO') {
-        await this.fetchOverview()
+      const api = usePerformanceApi()
+      const r = (role || 'DEV').toUpperCase()
+      this.loading = true
+      this.error = null
+      try {
+        if (r === 'CEO') {
+          const [personal, teamRes, overview] = await Promise.all([
+            api.getPersonalKPIs(),
+            api.getTeamKPIs(),
+            api.getOverviewKPIs().catch(() => null),
+          ])
+          this.personal = personal
+          this.team = teamRes.members || []
+          this.overview = overview
+          return
+        }
+        if (r === 'PM') {
+          const [personal, teamRes] = await Promise.all([
+            api.getPersonalKPIs(),
+            api.getTeamKPIs(),
+          ])
+          this.personal = personal
+          this.team = teamRes.members || []
+          this.overview = null
+          return
+        }
+        this.personal = await api.getPersonalKPIs()
+        this.team = []
+        this.overview = null
+      } catch (e: any) {
+        this.error = e?.message || 'Failed to load performance'
+        if (r === 'DEV') {
+          this.personal = null
+        }
+        if (r === 'PM') {
+          this.personal = null
+          this.team = []
+        }
+        if (r === 'CEO') {
+          this.team = []
+          this.overview = null
+        }
+      } finally {
+        this.loading = false
       }
     },
   },
