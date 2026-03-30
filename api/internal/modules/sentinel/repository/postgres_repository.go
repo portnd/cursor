@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -1122,26 +1123,31 @@ func (r *postgresRepository) GetProjectAnalytics(projectID uuid.UUID) (*domain.P
 		})
 	}
 
-	// Team capacity
+	// Team capacity (join users for real email / display name)
 	type capacityRow struct {
-		UserID         uint
-		AssignedTasks  int
-		EstimatedMins  int
-		LoggedMins     int
+		UserID          uint
+		UserEmail       string
+		UserDisplayName string
+		AssignedTasks   int
+		EstimatedMins   int
+		LoggedMins      int
 	}
 	var capRows []capacityRow
 	r.db.Raw(`
 		SELECT 
 			t.assigned_to as user_id,
+			COALESCE(u.email, '') as user_email,
+			COALESCE(u.display_name, '') as user_display_name,
 			COUNT(t.id) as assigned_tasks,
 			COALESCE(SUM(t.estimated_minutes), 0) as estimated_mins,
 			COALESCE(SUM(tl_sum.total_logged), 0) as logged_mins
 		FROM tasks t
+		LEFT JOIN users u ON u.id = t.assigned_to
 		LEFT JOIN (
 			SELECT task_id, SUM(minutes) as total_logged FROM time_logs GROUP BY task_id
 		) tl_sum ON tl_sum.task_id = t.id
 		WHERE t.project_id = ? AND t.assigned_to IS NOT NULL
-		GROUP BY t.assigned_to
+		GROUP BY t.assigned_to, u.email, u.display_name
 	`, projectID).Scan(&capRows)
 
 	for _, row := range capRows {
@@ -1150,12 +1156,13 @@ func (r *postgresRepository) GetProjectAnalytics(projectID uuid.UUID) (*domain.P
 			util = float64(row.LoggedMins) / float64(row.EstimatedMins) * 100
 		}
 		analytics.TeamCapacity = append(analytics.TeamCapacity, domain.TeamCapacityRow{
-			UserID:         row.UserID,
-			UserEmail:      fmt.Sprintf("user-%d", row.UserID),
-			AssignedTasks:  row.AssignedTasks,
-			EstimatedHours: float64(row.EstimatedMins) / 60,
-			LoggedHours:    float64(row.LoggedMins) / 60,
-			Utilization:    util,
+			UserID:          row.UserID,
+			UserEmail:       row.UserEmail,
+			UserDisplayName: strings.TrimSpace(row.UserDisplayName),
+			AssignedTasks:   row.AssignedTasks,
+			EstimatedHours:  float64(row.EstimatedMins) / 60,
+			LoggedHours:     float64(row.LoggedMins) / 60,
+			Utilization:     util,
 		})
 	}
 

@@ -196,6 +196,7 @@ export interface ProjectAnalytics {
   team_capacity: {
     user_id: number
     user_email: string
+    user_display_name?: string
     assigned_tasks: number
     estimated_hours: number
     logged_hours: number

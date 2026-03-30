@@ -75,9 +75,15 @@
               <td class="py-3 px-3">
                 <div class="flex items-center gap-2">
                   <div class="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                    {{ String(row.user_email || row.user_id).charAt(0).toUpperCase() }}
+                    {{ capacityInitial(row) }}
                   </div>
-                  <span class="text-gray-300">{{ row.user_email || `Dev #${row.user_id}` }}</span>
+                  <div class="min-w-0">
+                    <span class="text-gray-300 block truncate">{{ capacityLabel(row) }}</span>
+                    <span
+                      v-if="row.user_display_name?.trim() && row.user_email"
+                      class="text-xs text-gray-500 truncate block"
+                    >{{ row.user_email }}</span>
+                  </div>
                 </div>
               </td>
               <td class="text-right py-3 px-3 text-gray-300">{{ row.assigned_tasks }}</td>
@@ -157,6 +163,18 @@ function utilizationBarClass(pct: number) {
   if (pct > 90) return 'bg-green-500'
   if (pct > 50) return 'bg-yellow-500'
   return 'bg-gray-500'
+}
+
+function capacityLabel(row: ProjectAnalytics['team_capacity'][number]) {
+  const name = row.user_display_name?.trim()
+  if (name) return name
+  if (row.user_email?.trim()) return row.user_email.trim()
+  return `Dev #${row.user_id}`
+}
+
+function capacityInitial(row: ProjectAnalytics['team_capacity'][number]) {
+  const src = capacityLabel(row)
+  return src.charAt(0).toUpperCase() || '?'
 }
 
 async function renderCharts() {

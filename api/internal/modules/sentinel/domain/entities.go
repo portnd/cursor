@@ -249,12 +249,13 @@ type VelocityPoint struct {
 }
 
 type TeamCapacityRow struct {
-	UserID         uint    `json:"user_id"`
-	UserEmail      string  `json:"user_email"`
-	AssignedTasks  int     `json:"assigned_tasks"`
-	EstimatedHours float64 `json:"estimated_hours"`
-	LoggedHours    float64 `json:"logged_hours"`
-	Utilization    float64 `json:"utilization_pct"`
+	UserID          uint   `json:"user_id"`
+	UserEmail       string `json:"user_email"`
+	UserDisplayName string `json:"user_display_name,omitempty"`
+	AssignedTasks    int     `json:"assigned_tasks"`
+	EstimatedHours   float64 `json:"estimated_hours"`
+	LoggedHours      float64 `json:"logged_hours"`
+	Utilization      float64 `json:"utilization_pct"`
 }
 
 func (Project) TableName() string { return "projects" }
