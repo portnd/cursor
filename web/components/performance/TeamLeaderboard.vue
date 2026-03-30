@@ -34,14 +34,49 @@
                 {{ m.role }}
               </span>
             </td>
-            <td class="px-4 py-2 text-right">
+            <td
+              class="px-4 py-2 text-right cursor-pointer rounded transition-colors hover:bg-gray-700/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-500/60"
+              title="Click for how Delivery is defined and how it affects Score"
+              tabindex="0"
+              role="button"
+              @click.stop="openBreakdown(m, 'delivery')"
+              @keydown.enter.prevent="openBreakdown(m, 'delivery')"
+              @keydown.space.prevent="openBreakdown(m, 'delivery')"
+            >
               <span :class="pctColor(m.delivery_rate_pct)">{{ m.delivery_rate_pct.toFixed(1) }}%</span>
             </td>
-            <td class="px-4 py-2 text-right text-gray-300">{{ m.code_quality_index.toFixed(0) }}</td>
-            <td class="px-4 py-2 text-right">
+            <td
+              class="px-4 py-2 text-right text-gray-300 cursor-pointer rounded transition-colors hover:bg-gray-700/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-500/60"
+              title="Click for how Quality is defined and how it affects Score"
+              tabindex="0"
+              role="button"
+              @click.stop="openBreakdown(m, 'quality')"
+              @keydown.enter.prevent="openBreakdown(m, 'quality')"
+              @keydown.space.prevent="openBreakdown(m, 'quality')"
+            >
+              {{ m.code_quality_index.toFixed(0) }}
+            </td>
+            <td
+              class="px-4 py-2 text-right cursor-pointer rounded transition-colors hover:bg-gray-700/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-500/60"
+              title="Click for how Rework is defined and how it affects Score"
+              tabindex="0"
+              role="button"
+              @click.stop="openBreakdown(m, 'rework')"
+              @keydown.enter.prevent="openBreakdown(m, 'rework')"
+              @keydown.space.prevent="openBreakdown(m, 'rework')"
+            >
               <span :class="reworkColor(m.rework_rate_pct)">{{ m.rework_rate_pct.toFixed(1) }}%</span>
             </td>
-            <td class="px-4 py-2 text-right font-bold" :class="scoreColor(m.composite_score)">
+            <td
+              class="px-4 py-2 text-right font-bold cursor-pointer rounded transition-colors hover:bg-gray-700/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-500/60"
+              :class="scoreColor(m.composite_score)"
+              title="Click for full composite score calculation"
+              tabindex="0"
+              role="button"
+              @click.stop="openBreakdown(m, 'composite')"
+              @keydown.enter.prevent="openBreakdown(m, 'composite')"
+              @keydown.space.prevent="openBreakdown(m, 'composite')"
+            >
               {{ m.composite_score.toFixed(1) }}
             </td>
 
@@ -102,11 +137,17 @@
         Rework Rate reset — counter now starts from this moment.
       </div>
     </Transition>
+
+    <PerformanceScoreBreakdownModal
+      v-model="breakdownOpen"
+      :member="breakdownMember"
+      :focus="breakdownFocus"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import type { TeamMemberKPI } from '~/core/modules/performance/performance-api'
+import type { PerformanceBreakdownFocus, TeamMemberKPI } from '~/core/modules/performance/performance-api'
 import { usePerformanceApi } from '~/core/modules/performance/performance-api'
 import { useAuth } from '~/composables/useAuth'
 
@@ -137,6 +178,16 @@ const confirmingUserId = ref<number | null>(null)
 const resettingUserId = ref<number | null>(null)
 const toastVisible = ref(false)
 let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+const breakdownOpen = ref(false)
+const breakdownMember = ref<TeamMemberKPI | null>(null)
+const breakdownFocus = ref<PerformanceBreakdownFocus>('composite')
+
+function openBreakdown(m: TeamMemberKPI, focus: PerformanceBreakdownFocus) {
+  breakdownMember.value = m
+  breakdownFocus.value = focus
+  breakdownOpen.value = true
+}
 
 async function confirmReset(userId: number) {
   resettingUserId.value = userId

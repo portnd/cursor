@@ -30,6 +30,9 @@ export interface TeamKPIsResponse {
   members: TeamMemberKPI[]
 }
 
+/** Which metric the user opened the score breakdown from (team leaderboard). */
+export type PerformanceBreakdownFocus = 'composite' | 'delivery' | 'quality' | 'rework'
+
 export interface OverviewKPIs {
   engineering_health_index: number
   sprint_success_rate_pct: number
