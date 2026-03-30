@@ -1,27 +1,53 @@
 <template>
   <section class="bg-gray-800/50 border border-gray-700/80 rounded-xl p-5">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
       <div class="flex items-center gap-2">
         <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sub-tasks</h2>
         <span class="text-xs bg-gray-700 text-gray-400 rounded-full px-2 py-0.5">{{ subtasks.length }}</span>
       </div>
-      <button
-        v-if="canEdit && !showAddForm && !isMaxDepth"
-        type="button"
-        @click="openAddForm"
-        class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 border border-blue-600/40 rounded-lg transition-colors"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-        </svg>
-        Add Sub-task
-      </button>
+      <div v-if="canEdit && !isMaxDepth" class="flex flex-wrap items-center gap-2 justify-end">
+        <template v-if="projectId">
+          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSlides()">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+            Import Slides
+          </button>
+          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSheets()">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+            Import Sheets
+          </button>
+          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openPptx()">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
+            Import PPTX
+          </button>
+        </template>
+        <button
+          v-if="!showAddForm"
+          type="button"
+          @click="openAddForm"
+          class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 border border-blue-600/40 rounded-lg transition-colors"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add Sub-task
+        </button>
+      </div>
       <span
         v-else-if="isMaxDepth"
-        class="text-xs text-gray-600 italic"
+        class="text-xs text-gray-600 italic w-full text-right sm:text-left"
       >Max depth (Level C)</span>
     </div>
+
+    <SubtaskImportModals
+      v-if="projectId"
+      ref="importModalsRef"
+      :project-id="projectId"
+      :parent-task-id="parentTaskId"
+      :parent-title="parentTitle"
+      :epic-id="epicId ?? null"
+      @imported="onImportDone"
+    />
 
     <!-- Roll-up summary bar -->
     <div v-if="subtasks.length > 0" class="mb-4 p-3 bg-gray-900/60 rounded-lg border border-gray-700/50 space-y-2">
@@ -98,7 +124,23 @@
 
     <!-- Add Sub-task form (inline) -->
     <div v-if="showAddForm" class="mt-3 p-4 bg-gray-900/70 rounded-xl border border-blue-600/30">
-      <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">New Sub-task</div>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider">New Sub-task</div>
+        <div v-if="projectId" class="flex flex-wrap items-center gap-2">
+          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSlides()">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+            Import Slides
+          </button>
+          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSheets()">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+            Import Sheets
+          </button>
+          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openPptx()">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
+            Import PPTX
+          </button>
+        </div>
+      </div>
       <div class="space-y-3">
         <input
           ref="titleInputRef"
@@ -262,6 +304,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
+import SubtaskImportModals from '~/components/tasks/SubtaskImportModals.vue'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
@@ -295,6 +338,9 @@ interface SplitItem {
 const props = defineProps<{
   parentTaskId: string
   projectId?: string | null
+  /** Shown in import modals (current task title) */
+  parentTitle?: string
+  epicId?: string | null
   subtasks: SubTask[]
   canEdit: boolean
   /** true when this task is already at level C (parent itself has a parent) — blocks adding more sub-tasks */
@@ -316,6 +362,7 @@ const showAddForm = ref(false)
 const isAdding = ref(false)
 const addError = ref('')
 const titleInputRef = ref<HTMLInputElement | null>(null)
+const importModalsRef = ref<InstanceType<typeof SubtaskImportModals> | null>(null)
 
 const newSubtask = ref<{ title: string; assigned_to: number | null; estimated_minutes: number }>({
   title: '', assigned_to: null, estimated_minutes: 0,
@@ -390,6 +437,10 @@ async function openAddForm() {
 function cancelAddForm() {
   showAddForm.value = false
   addError.value = ''
+}
+
+function onImportDone() {
+  emit('refresh')
 }
 
 async function submitAddSubtask() {
@@ -524,3 +575,9 @@ onMounted(() => {
   if (props.canEdit) loadAssignees()
 })
 </script>
+
+<style scoped>
+.subtask-import-btn {
+  @apply px-3 py-1.5 text-xs bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
+}
+</style>

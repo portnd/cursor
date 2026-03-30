@@ -381,6 +381,8 @@
           <SubtaskList
             :parent-task-id="task.id"
             :project-id="task.project_id"
+            :parent-title="task.title"
+            :epic-id="task.epic_id ?? null"
             :subtasks="subtasks"
             :can-edit="canEditOrDelete"
             :is-max-depth="!!(task.parent_task?.parent_id)"
@@ -937,6 +939,7 @@ interface Task {
   id: string
   code?: string // e.g. mims-hdmap-main-001
   project_id?: string | null // UUID of project (for Back to project when task has no code)
+  epic_id?: string | null
   title: string
   description: string
   resource_urls: any
