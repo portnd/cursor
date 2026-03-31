@@ -381,8 +381,7 @@
           <SubtaskList
             :parent-task-id="task.id"
             :project-id="task.project_id"
-            :parent-title="task.title"
-            :epic-id="task.epic_id ?? null"
+            :parent-task="task"
             :subtasks="subtasks"
             :can-edit="canEditOrDelete"
             :is-max-depth="!!(task.parent_task?.parent_id)"

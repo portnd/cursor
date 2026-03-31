@@ -1,58 +1,58 @@
 <template>
-  <div class="min-h-screen bg-gray-900 flex items-start justify-center p-6">
-    <div class="w-full max-w-lg">
+  <div class="min-h-full w-full flex flex-col bg-gray-900">
+    <div class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 md:py-8 flex flex-col min-h-0">
       <!-- Header -->
-      <div class="mb-6">
-        <h1 class="text-2xl font-bold text-white tracking-tight">Create Task</h1>
-        <p class="text-sm text-gray-400 mt-1">Add a new task to your project</p>
+      <div class="mb-6 md:mb-8 shrink-0">
+        <h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight">Create Task</h1>
+        <p class="text-base text-gray-400 mt-2">Add a new task to your project</p>
       </div>
 
-      <!-- Card -->
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl">
+      <!-- Card — fills remaining viewport height in main panel -->
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl flex flex-col flex-1 min-h-0 min-h-[calc(100dvh-10rem)]">
 
         <!-- Scrollable form body -->
-        <div class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div class="p-6 md:p-10 space-y-6 md:space-y-7 flex-1 overflow-y-auto overscroll-contain">
 
           <!-- Success -->
-          <div v-if="showSuccessMsg" class="flex items-center gap-3 p-3 bg-green-900/30 border border-green-600 rounded-lg text-green-400 text-sm">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div v-if="showSuccessMsg" class="flex items-center gap-3 p-4 md:p-5 bg-green-900/30 border border-green-600 rounded-xl text-green-400 text-base">
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             Task created! Redirecting...
           </div>
 
           <!-- Error -->
-          <div v-if="errorMessage" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ errorMessage }}</div>
+          <div v-if="errorMessage" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ errorMessage }}</div>
 
           <!-- Task Type Selector -->
           <div>
             <label class="label">Type *</label>
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-3 gap-3 sm:gap-4">
               <button
                 type="button"
                 @click="form.task_type = 'FEATURE'"
                 :class="form.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'"
-                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+                class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
-                <span class="text-base">★</span> Feature
+                <span class="text-xl sm:text-2xl leading-none">★</span> Feature
               </button>
               <button
                 type="button"
                 @click="form.task_type = 'TASK'"
                 :class="form.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'"
-                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+                class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
-                <span class="text-base">📋</span> Task
+                <span class="text-xl sm:text-2xl leading-none">📋</span> Task
               </button>
               <button
                 type="button"
                 @click="form.task_type = 'BUG'"
                 :class="form.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'"
-                class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all"
+                class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
-                <span class="text-base">⚠</span> Bug
+                <span class="text-xl sm:text-2xl leading-none">⚠</span> Bug
               </button>
             </div>
             <!-- PM Rule hint -->
-            <div v-if="form.task_type === 'FEATURE'" class="mt-2 flex items-start gap-2 p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-lg text-xs text-purple-300">
+            <div v-if="form.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
               <span><strong>Feature mode:</strong> Acts as a parent container. Estimated Minutes is disabled — add sub-tasks of type Task/Bug to assign work.</span>
             </div>
@@ -67,7 +67,7 @@
           <!-- Description -->
           <div>
             <label class="label">Description</label>
-            <textarea v-model="form.description" rows="4" class="input-field w-full resize-none" placeholder="Describe the task objectives and requirements..."></textarea>
+            <textarea v-model="form.description" rows="6" class="input-field w-full resize-y min-h-[10rem]" placeholder="Describe the task objectives and requirements..."></textarea>
           </div>
 
           <!-- Project -->
@@ -95,11 +95,11 @@
               :disabled="form.task_type === 'FEATURE'"
               placeholder="e.g. 60 (minutes)"
             />
-            <p v-if="form.task_type !== 'FEATURE'" class="text-xs text-gray-500 mt-1">Minutes. Used for Manday and Quotation (Costing Engine).</p>
+            <p v-if="form.task_type !== 'FEATURE'" class="text-sm text-gray-500 mt-2">Minutes. Used for Manday and Quotation (Costing Engine).</p>
           </div>
 
           <!-- Priority & Story Points -->
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Priority</label>
               <select v-model="form.priority" class="input-field w-full">
@@ -140,7 +140,7 @@
           </div>
 
           <!-- Start / End Dates -->
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
               <input v-model="form.start_date" type="datetime-local" class="input-field w-full" />
@@ -154,16 +154,16 @@
         </div>
 
         <!-- Footer actions -->
-        <div class="flex gap-3 p-6 pt-4 border-t border-gray-700">
+        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 p-6 md:p-8 pt-4 border-t border-gray-700 shrink-0">
           <button
             @click="handleSubmit"
             :disabled="isSubmitting || !form.title.trim()"
-            class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-40 text-white font-semibold rounded-xl py-2.5 transition-colors flex items-center justify-center gap-2"
+            class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-40 text-white font-semibold rounded-xl py-4 md:py-4 text-base md:text-lg transition-colors flex items-center justify-center gap-2 min-h-[3.25rem]"
           >
-            <svg v-if="isSubmitting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <svg v-if="isSubmitting" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             <span>{{ isSubmitting ? 'Creating...' : 'Create Task' }}</span>
           </button>
-          <NuxtLink to="/dashboard" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors text-sm font-medium">Cancel</NuxtLink>
+          <NuxtLink to="/dashboard" class="sm:shrink-0 px-6 py-4 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-xl transition-colors text-base font-medium text-center min-h-[3.25rem] flex items-center justify-center">Cancel</NuxtLink>
         </div>
       </div>
     </div>
@@ -281,9 +281,9 @@ async function handleSubmit() {
 
 <style scoped>
 .label {
-  @apply block text-xs text-gray-400 mb-1.5 font-medium;
+  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
 }
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
 }
 </style>

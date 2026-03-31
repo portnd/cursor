@@ -7,20 +7,6 @@
         <span class="text-xs bg-gray-700 text-gray-400 rounded-full px-2 py-0.5">{{ subtasks.length }}</span>
       </div>
       <div v-if="canEdit && !isMaxDepth" class="flex flex-wrap items-center gap-2 justify-end">
-        <template v-if="projectId">
-          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSlides()">
-            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
-            Import Slides
-          </button>
-          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSheets()">
-            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
-            Import Sheets
-          </button>
-          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openPptx()">
-            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
-            Import PPTX
-          </button>
-        </template>
         <button
           v-if="!showAddForm"
           type="button"
@@ -38,16 +24,6 @@
         class="text-xs text-gray-600 italic w-full text-right sm:text-left"
       >Max depth (Level C)</span>
     </div>
-
-    <SubtaskImportModals
-      v-if="projectId"
-      ref="importModalsRef"
-      :project-id="projectId"
-      :parent-task-id="parentTaskId"
-      :parent-title="parentTitle"
-      :epic-id="epicId ?? null"
-      @imported="onImportDone"
-    />
 
     <!-- Roll-up summary bar -->
     <div v-if="subtasks.length > 0" class="mb-4 p-3 bg-gray-900/60 rounded-lg border border-gray-700/50 space-y-2">
@@ -126,20 +102,17 @@
     <div v-if="showAddForm" class="mt-3 p-4 bg-gray-900/70 rounded-xl border border-blue-600/30">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider">New Sub-task</div>
-        <div v-if="projectId" class="flex flex-wrap items-center gap-2">
-          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSlides()">
-            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
-            Import Slides
-          </button>
-          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openSheets()">
-            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
-            Import Sheets
-          </button>
-          <button type="button" class="subtask-import-btn" @click="importModalsRef?.openPptx()">
-            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
-            Import PPTX
-          </button>
-        </div>
+        <button
+          v-if="parentTask"
+          type="button"
+          class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-emerald-900/30 hover:bg-emerald-800/40 text-emerald-300 border border-emerald-700/50 rounded-lg transition-colors"
+          @click="fillFromParent"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+          Duplicate parent
+        </button>
       </div>
       <div class="space-y-3">
         <input
@@ -148,9 +121,12 @@
           type="text"
           placeholder="Sub-task title..."
           class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-          @keydown.enter="submitAddSubtask"
           @keydown.esc="cancelAddForm"
         />
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Description</label>
+          <RichTextEditor v-model="newSubtask.description" placeholder="Optional — paste from parent or write details…" />
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-500 mb-1">Assignee</label>
@@ -162,6 +138,30 @@
           <div>
             <label class="block text-xs text-gray-500 mb-1">Estimated Minutes</label>
             <input v-model.number="newSubtask.estimated_minutes" type="number" min="0" step="15" placeholder="e.g. 60" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Type</label>
+            <select v-model="newSubtask.task_type" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="TASK">TASK</option>
+              <option value="FEATURE">FEATURE</option>
+              <option value="BUG">BUG</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Priority</label>
+            <select v-model="newSubtask.priority" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="">— Default —</option>
+              <option value="CRITICAL">CRITICAL</option>
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="LOW">LOW</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Story points</label>
+            <input v-model.number="newSubtask.story_points" type="number" min="0" step="1" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
         </div>
         <p v-if="addError" class="text-xs text-red-400">{{ addError }}</p>
@@ -304,7 +304,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
-import SubtaskImportModals from '~/components/tasks/SubtaskImportModals.vue'
+import RichTextEditor from '~/components/editor/RichTextEditor.vue'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
@@ -328,6 +328,23 @@ interface AssigneeOption {
   role: string
 }
 
+/** Fields read when duplicating the parent task into a new sub-task (API task shape is a superset). */
+export interface ParentTaskCopySource {
+  title?: string
+  description?: string
+  task_type?: string
+  assigned_to?: number | null
+  estimated_minutes?: number
+  priority?: string
+  story_points?: number
+  epic_id?: string | null
+  sprint_id?: string | null
+  milestone_id?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  due_at?: string | null
+}
+
 interface SplitItem {
   title: string
   estimated_minutes: number
@@ -338,9 +355,8 @@ interface SplitItem {
 const props = defineProps<{
   parentTaskId: string
   projectId?: string | null
-  /** Shown in import modals (current task title) */
-  parentTitle?: string
-  epicId?: string | null
+  /** Current page task — used to duplicate creatable fields into a new sub-task */
+  parentTask?: ParentTaskCopySource | null
   subtasks: SubTask[]
   canEdit: boolean
   /** true when this task is already at level C (parent itself has a parent) — blocks adding more sub-tasks */
@@ -362,11 +378,42 @@ const showAddForm = ref(false)
 const isAdding = ref(false)
 const addError = ref('')
 const titleInputRef = ref<HTMLInputElement | null>(null)
-const importModalsRef = ref<InstanceType<typeof SubtaskImportModals> | null>(null)
 
-const newSubtask = ref<{ title: string; assigned_to: number | null; estimated_minutes: number }>({
-  title: '', assigned_to: null, estimated_minutes: 0,
-})
+interface NewSubtaskDraft {
+  title: string
+  description: string
+  task_type: 'FEATURE' | 'TASK' | 'BUG'
+  assigned_to: number | null
+  estimated_minutes: number
+  priority: string
+  story_points: number
+  epic_id: string | null
+  sprint_id: string | null
+  milestone_id: string | null
+  start_date: string | null
+  end_date: string | null
+  due_date: string | null
+}
+
+function emptyDraft(): NewSubtaskDraft {
+  return {
+    title: '',
+    description: '',
+    task_type: 'TASK',
+    assigned_to: null,
+    estimated_minutes: 0,
+    priority: '',
+    story_points: 0,
+    epic_id: null,
+    sprint_id: null,
+    milestone_id: null,
+    start_date: null,
+    end_date: null,
+    due_date: null,
+  }
+}
+
+const newSubtask = ref<NewSubtaskDraft>(emptyDraft())
 
 // ── Shared assignees ──────────────────────────────────────
 const assigneeOptions = ref<AssigneeOption[]>([])
@@ -425,9 +472,34 @@ async function loadAssignees() {
 }
 
 // ── Add form ──────────────────────────────────────────────
+function normalizeTaskType(t?: string): 'FEATURE' | 'TASK' | 'BUG' {
+  if (t === 'FEATURE' || t === 'BUG' || t === 'TASK') return t
+  return 'TASK'
+}
+
+function fillFromParent() {
+  const p = props.parentTask
+  if (!p) return
+  newSubtask.value = {
+    title: p.title || '',
+    description: p.description || '',
+    task_type: normalizeTaskType(p.task_type),
+    assigned_to: p.assigned_to ?? null,
+    estimated_minutes: p.estimated_minutes ?? 0,
+    priority: p.priority || '',
+    story_points: p.story_points ?? 0,
+    epic_id: p.epic_id ?? null,
+    sprint_id: p.sprint_id ?? null,
+    milestone_id: p.milestone_id ?? null,
+    start_date: p.start_date || null,
+    end_date: p.end_date || null,
+    due_date: p.due_at || null,
+  }
+}
+
 async function openAddForm() {
   showAddForm.value = true
-  newSubtask.value = { title: '', assigned_to: null, estimated_minutes: 0 }
+  newSubtask.value = emptyDraft()
   addError.value = ''
   await loadAssignees()
   await nextTick()
@@ -437,31 +509,39 @@ async function openAddForm() {
 function cancelAddForm() {
   showAddForm.value = false
   addError.value = ''
-}
-
-function onImportDone() {
-  emit('refresh')
+  newSubtask.value = emptyDraft()
 }
 
 async function submitAddSubtask() {
   if (!newSubtask.value.title.trim()) { addError.value = 'Title is required.'; return }
   isAdding.value = true
   addError.value = ''
+  const d = newSubtask.value
   try {
     const payload: Record<string, unknown> = {
-      title: newSubtask.value.title.trim(),
+      title: d.title.trim(),
       parent_id: props.parentTaskId,
-      estimated_minutes: newSubtask.value.estimated_minutes || 0,
+      estimated_minutes: d.estimated_minutes || 0,
+      task_type: d.task_type || 'TASK',
+      story_points: d.story_points ?? 0,
     }
     if (props.projectId) payload.project_id = props.projectId
-    if (newSubtask.value.assigned_to) payload.assigned_to = newSubtask.value.assigned_to
+    const desc = (d.description || '').trim()
+    if (desc) payload.description = desc
+    if (d.priority) payload.priority = d.priority
+    if (d.epic_id) payload.epic_id = d.epic_id
+    if (d.sprint_id) payload.sprint_id = d.sprint_id
+    if (d.milestone_id) payload.milestone_id = d.milestone_id
+    if (d.start_date) payload.start_date = d.start_date
+    if (d.end_date) payload.end_date = d.end_date
+    if (d.due_date) payload.due_date = d.due_date
 
     const created = await tasksApi.createTask(payload as Parameters<typeof tasksApi.createTask>[0])
-    if (newSubtask.value.assigned_to) {
-      try { await tasksApi.assignTask(created.id, newSubtask.value.assigned_to) } catch { /* non-fatal */ }
+    if (d.assigned_to) {
+      try { await tasksApi.assignTask(created.id, d.assigned_to) } catch { /* non-fatal */ }
     }
     emit('subtask-added', created as SubTask)
-    newSubtask.value = { title: '', assigned_to: null, estimated_minutes: 0 }
+    newSubtask.value = emptyDraft()
     showAddForm.value = false
     emit('refresh')
   } catch (err: any) {
@@ -575,9 +655,3 @@ onMounted(() => {
   if (props.canEdit) loadAssignees()
 })
 </script>
-
-<style scoped>
-.subtask-import-btn {
-  @apply px-3 py-1.5 text-xs bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
-}
-</style>

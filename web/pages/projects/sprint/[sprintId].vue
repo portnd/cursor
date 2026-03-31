@@ -323,20 +323,20 @@
     </div>
 
     <!-- Create Task Modal (same structure as project page) -->
-    <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeCreateTaskModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
-        <div class="flex items-center justify-between mb-5">
-          <h2 class="text-lg font-bold text-white">Add Task</h2>
-          <button @click="closeCreateTaskModal" class="text-gray-500 hover:text-white">✕</button>
+    <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto" @click.self="closeCreateTaskModal">
+      <div class="create-task-modal bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-7xl shadow-2xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
+        <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
+          <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Add Task</h2>
+          <button type="button" @click="closeCreateTaskModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 text-xl leading-none" aria-label="Close">✕</button>
         </div>
-        <div class="space-y-4">
+        <div class="px-6 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-7 flex-1 overflow-y-auto overscroll-contain min-h-0">
           <div>
             <label class="label">Title *</label>
             <input v-model="createTaskForm.title" type="text" class="input-field w-full" placeholder="Task title..." />
           </div>
           <div>
             <label class="label">Description</label>
-            <textarea v-model="createTaskForm.description" rows="3" class="input-field w-full resize-none" placeholder="Describe the task..."></textarea>
+            <textarea v-model="createTaskForm.description" rows="6" class="input-field w-full resize-y min-h-[10rem]" placeholder="Describe the task..."></textarea>
           </div>
           <div>
             <label class="label">Estimated Effort (Minutes/Hours) *</label>
@@ -349,9 +349,9 @@
               placeholder="e.g. 60 (minutes)"
               required
             />
-            <p class="text-xs text-gray-500 mt-1">Minutes. Used for Manday and Quotation (Costing Engine).</p>
+            <p class="text-sm text-gray-500 mt-2">Minutes. Used for Manday and Quotation (Costing Engine).</p>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Priority</label>
               <select v-model="createTaskForm.priority" class="input-field w-full">
@@ -366,7 +366,7 @@
               <input v-model.number="createTaskForm.story_points" type="number" min="0" class="input-field w-full" placeholder="0" />
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Sprint</label>
               <select v-model="createTaskForm.sprint_id" class="input-field w-full" disabled>
@@ -378,7 +378,7 @@
               <input v-model="createTaskForm.due_date" type="datetime-local" class="input-field w-full" />
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
               <input v-model="createTaskForm.start_date" type="datetime-local" class="input-field w-full" />
@@ -388,13 +388,13 @@
               <input v-model="createTaskForm.end_date" type="datetime-local" class="input-field w-full" />
             </div>
           </div>
-          <div v-if="createTaskError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ createTaskError }}</div>
+          <div v-if="createTaskError" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ createTaskError }}</div>
         </div>
-        <div class="flex gap-3 mt-5">
-          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim() || (Number(createTaskForm.estimated_minutes) ?? 0) < 0" class="flex-1 btn-primary py-2.5 disabled:opacity-40">
+        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 px-6 sm:px-8 py-5 sm:py-6 border-t border-gray-700 shrink-0">
+          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim() || (Number(createTaskForm.estimated_minutes) ?? 0) < 0" class="flex-1 btn-primary py-4 text-base sm:text-lg font-semibold rounded-xl disabled:opacity-40 min-h-[3.25rem]">
             {{ isCreatingTask ? 'Creating...' : 'Create Task' }}
           </button>
-          <button @click="closeCreateTaskModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
+          <button type="button" @click="closeCreateTaskModal" class="sm:shrink-0 px-6 py-4 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-xl transition-colors text-base font-medium min-h-[3.25rem]">Cancel</button>
         </div>
       </div>
     </div>
@@ -829,6 +829,12 @@ onMounted(loadAll)
 }
 .input-field {
   @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+}
+.create-task-modal .label {
+  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
+}
+.create-task-modal .input-field {
+  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
 }
 .btn-primary-sm {
   @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;

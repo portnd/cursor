@@ -99,6 +99,11 @@
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import type { Project, Sprint } from '~/core/modules/projects/infrastructure/projects-api'
 
+const props = defineProps<{
+  /** When set (PM dashboard), avoids a duplicate getProjects() round-trip */
+  projects: Project[]
+}>()
+
 interface SprintCard {
   project: Project
   sprint: Sprint
@@ -110,7 +115,7 @@ interface SprintCard {
   daysLeft: number | null
 }
 
-const { getProjects, getSprints } = useProjectsApi()
+const { getSprints } = useProjectsApi()
 
 const isLoading = ref(true)
 const activeSprintCards = ref<SprintCard[]>([])
@@ -159,7 +164,7 @@ const buildSprintCard = (project: Project, sprint: Sprint): SprintCard => {
 const fetchData = async () => {
   isLoading.value = true
   try {
-    const projects = await getProjects()
+    const projects = props.projects
     const activeProjects = projects.filter(p => p.status === 'ACTIVE')
 
     const sprintResults = await Promise.all(
@@ -182,7 +187,11 @@ const fetchData = async () => {
   }
 }
 
-onMounted(() => fetchData())
+watch(
+  () => props.projects.map(p => p.id).join(','),
+  () => fetchData(),
+  { immediate: true, flush: 'post' },
+)
 </script>
 
 <style scoped>

@@ -249,8 +249,8 @@
 
       </template>
 
-      <!-- Active Sprints (full width — both modes) -->
-      <ActiveSprintsOverview />
+      <!-- Active Sprints (full width — both modes) — reuses project list from bootstrap (no duplicate getProjects) -->
+      <ActiveSprintsOverview :projects="teamProjects" />
 
       <!-- ── Project Capital Deep-dive (Squad mode only — teams have dedicated capital) -->
       <section v-if="teamsEnabled && teamProjects.length > 0">
@@ -341,11 +341,13 @@ import ContinuousUATQueue from '~/components/dashboard/ContinuousUATQueue.vue'
 import PmPerformanceSection from '~/components/dashboard/PmPerformanceSection.vue'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
+import { usePerformanceStore } from '~/core/modules/performance/performance-store'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import type { Team, TeamUser } from '~/core/modules/teams/infrastructure/teams-api'
 import type { Project, ProjectCapitalResponse } from '~/core/modules/projects/infrastructure/projects-api'
 
 const { currentUser } = useAuth()
+const performanceStore = usePerformanceStore()
 const { getTeams } = useTeamsApi()
 const { getProjects, getProjectCapital } = useProjectsApi()
 const { fetchWithAuth } = useAuth()
@@ -435,10 +437,9 @@ const bootstrap = async () => {
   isBootstrapping.value = true
   bootstrapError.value = ''
   try {
-    // Fetch feature flag first so rendering decisions are correct immediately
-    await teamsStore.fetchTeamsFeatureEnabled()
-
-    const [projects, tasksRes] = await Promise.all([
+    // Feature flag + project list + tasks in parallel (was serial: flag → then projects/tasks)
+    const [, projects, tasksRes] = await Promise.all([
+      teamsStore.fetchTeamsFeatureEnabled(),
       getProjects(),
       fetchWithAuth<{ data: any[] }>('/sentinel/tasks').catch(() => ({ data: [] })),
     ])
@@ -446,26 +447,23 @@ const bootstrap = async () => {
     allTasks.value = (tasksRes as any)?.data ?? []
     teamProjects.value = projects
 
-    // Only resolve team assignment when teams feature is active
+    // Squad mode: resolve team + per-project capital in parallel (was: teams then N capitals)
     if (teamsStore.teamsFeatureEnabled) {
-      const teams = await getTeams()
       const userId = currentUser.value?.user_id
+      const [teams, capitals] = await Promise.all([
+        getTeams(),
+        Promise.allSettled(
+          projects.map(p => getProjectCapital(p.id).then(c => ({ id: p.id, capital: c })))
+        ),
+      ])
       myTeam.value = teams.find(t => t.users?.some(u => u.id === userId)) ?? null
-    } else {
-      myTeam.value = null
-    }
-
-    // Capital / runway only when squads are enabled (matches PM dashboard UI)
-    if (teamsStore.teamsFeatureEnabled) {
-      const capitals = await Promise.allSettled(
-        projects.map(p => getProjectCapital(p.id).then(c => ({ id: p.id, capital: c })))
-      )
       const map: Record<string, ProjectCapitalResponse> = {}
       for (const r of capitals) {
         if (r.status === 'fulfilled') map[r.value.id] = r.value.capital
       }
       projectCapitals.value = map
     } else {
+      myTeam.value = null
       projectCapitals.value = {}
     }
   } catch (err: any) {
@@ -475,5 +473,9 @@ const bootstrap = async () => {
   }
 }
 
-onMounted(() => bootstrap())
+onMounted(() => {
+  // KPIs load alongside bootstrap so “Performance” is ready when the shell appears
+  performanceStore.fetchAll('PM')
+  bootstrap()
+})
 </script>

@@ -136,9 +136,7 @@ function healthColor(h: number): string {
   return 'text-red-400'
 }
 
-onMounted(() => {
-  performanceStore.fetchAll('PM')
-})
+/** KPI fetch is started in PmView alongside bootstrap to avoid waiting for the shell. */
 </script>
 
 <style scoped>
