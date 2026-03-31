@@ -875,11 +875,9 @@ func (h *SentinelHandler) GetMyTasks(c *gin.Context) {
 }
 
 // GetGlobalActiveTasks handles GET /api/v1/sentinel/tasks/my-global-active
-// Returns all TASK/BUG items for the caller's team across all projects,
-// regardless of sprint assignment. Powers the Dev Global Kanban Board.
+// TASK/BUG in ACTIVE sprints: CEO/MANAGER = company-wide; others team-scoped; teams off → PM/DEV assignment rules.
 func (h *SentinelHandler) GetGlobalActiveTasks(c *gin.Context) {
-	userID := getUserIDFromContext(c)
-	if userID == 0 {
+	if getUserIDFromContext(c) == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   "Unauthorized",
 			"message": "user not authenticated",
@@ -887,7 +885,7 @@ func (h *SentinelHandler) GetGlobalActiveTasks(c *gin.Context) {
 		return
 	}
 
-	tasks, err := h.usecase.GetGlobalActiveTasks(userID)
+	tasks, err := h.usecase.GetGlobalActiveTasks(callerCtx(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve global active tasks",

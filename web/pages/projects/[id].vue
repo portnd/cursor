@@ -531,7 +531,11 @@
               </button>
               <button @click="openSheetsImportModal()" class="btn-import-sm">
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
-                Import Sheets
+                Import EU
+              </button>
+              <button @click="openIODImportModal()" class="btn-import-sm border border-blue-500/40 text-blue-300 hover:bg-blue-500/10">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Import IOD
               </button>
               <button @click="openPPTXImportModal()" class="btn-import-sm">
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
@@ -1758,7 +1762,11 @@
                 placeholder="https://docs.google.com/spreadsheets/d/..."
                 :disabled="isSheetsLoadingPreview"
               />
-              <p class="text-xs text-gray-500 mt-1">ต้องเปิดสิทธิ์ &quot;Anyone with the link can view&quot; — คอลัมน์ A–K ตามแบบ IFP x KG</p>
+              <p class="text-xs text-gray-500 mt-1">
+                เปิดสิทธิ์ &quot;Anyone with the link can view&quot; — คัดลอก URL จากแท็บที่ต้องการ (เช่น 31/03) ให้มี
+                <code class="text-gray-400">gid=...</code> ในลิงก์
+                — รองรับทั้งแบบ IFP x KG (คอลัมน์ A–K) และแบบ IOD bug list (ปัญหา / working Status)
+              </p>
             </div>
             <div v-if="epics.length">
               <label class="label">Epic</label>
@@ -1794,6 +1802,224 @@
         </div>
       </div>
     </div>
+
+    <!-- ══════ IOD Import Modal ══════ -->
+    <div v-if="showIODImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="closeIODImportModal">
+      <div
+        class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full my-auto flex flex-col max-h-[92vh]"
+        :class="iodImportStep === 'select' ? 'max-w-7xl' : 'max-w-xl'"
+      >
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0 border-b border-gray-700/60">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-white">Import IOD Bug Sheet</h2>
+              <p class="text-xs text-gray-400">นำเข้า Bug จาก Google Sheets แบบ IOD — ดึง Header, Detail, URL, Method, Payload ครบ</p>
+            </div>
+          </div>
+          <button type="button" @click="closeIODImportModal" class="text-gray-500 hover:text-white transition-colors shrink-0 ml-4">✕</button>
+        </div>
+
+        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          <!-- Step: Result -->
+          <template v-if="iodImportStep === 'result' && iodImportResult">
+            <div class="p-4 bg-green-900/20 border border-green-600/40 rounded-xl">
+              <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                <span class="text-green-400 font-semibold text-sm">Import สำเร็จ!</span>
+              </div>
+              <p class="text-gray-300 text-sm font-medium mb-1">{{ iodImportResult.sheet_title }}</p>
+              <p class="text-gray-400 text-xs">สร้าง {{ iodImportResult.created_count }} bugs จาก IOD Sheet</p>
+            </div>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div v-for="task in iodImportResult.tasks" :key="task.id" class="flex items-center gap-2 py-2 px-3 bg-gray-700/40 rounded-lg text-sm">
+                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(task.code) }}</span>
+                <span class="text-gray-200 truncate">{{ task.title }}</span>
+              </div>
+            </div>
+            <button type="button" @click="closeIODImportModal" class="w-full btn-primary py-2.5">Done</button>
+          </template>
+
+          <!-- Step: Preview Table -->
+          <template v-else-if="iodImportStep === 'select' && iodImportPreview">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="p-3 bg-gray-700/40 rounded-xl flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate">{{ iodImportPreview.sheet_title }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ iodImportSelectedRowIndices.length }} / {{ iodImportPreview.rows.length }} bugs selected</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" @click="iodImportSelectedRowIndices = iodImportPreview!.rows.map(r => r.row_index)" class="btn-ghost-sm">ทั้งหมด</button>
+                <button type="button" @click="iodImportSelectedRowIndices = []" class="btn-ghost-sm">ยกเลิก</button>
+              </div>
+            </div>
+
+            <!-- Full-detail IOD table -->
+            <div class="overflow-x-auto border border-gray-700/60 rounded-xl">
+              <table class="w-full text-xs" style="min-width:900px">
+                <thead>
+                  <tr class="border-b border-gray-700/60 bg-gray-900/60">
+                    <th class="py-2 px-2 w-8"></th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-10">#</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-36">Section (Header)</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold" style="min-width:200px">Detail (Bug Title)</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-52">Header Link</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-24">Method</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-52">Payload</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-24">Status</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-24">Priority</th>
+                    <th class="py-2 px-2 text-left text-gray-400 font-semibold w-20">Est. min</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="r in iodImportPreview.rows"
+                    :key="r.row_index"
+                    class="border-b border-gray-700/30 transition-colors align-top"
+                    :class="iodImportSelectedRowIndices.includes(r.row_index) ? 'bg-gray-800/80' : 'bg-gray-900/40 opacity-40'"
+                  >
+                    <td class="py-2 px-2">
+                      <input v-model="iodImportSelectedRowIndices" type="checkbox" :value="r.row_index"
+                        class="rounded border-gray-500 bg-gray-700 text-blue-500 focus:ring-blue-500" />
+                    </td>
+                    <td class="py-2 px-2 text-gray-500 font-mono">{{ r.row_index }}</td>
+                    <!-- Section (readonly info) -->
+                    <td class="py-2 px-1">
+                      <p class="text-gray-300 text-[11px] leading-snug max-h-16 overflow-y-auto">{{ r.header || '—' }}</p>
+                    </td>
+                    <!-- Detail / Title (editable) -->
+                    <td class="py-2 px-1">
+                      <textarea
+                        v-if="iodImportTriagedRows[r.row_index]"
+                        v-model="iodImportTriagedRows[r.row_index].title"
+                        rows="3"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500/60 resize-y"
+                        :disabled="!iodImportSelectedRowIndices.includes(r.row_index)"
+                      />
+                    </td>
+                    <!-- Header Link (readonly) -->
+                    <td class="py-2 px-1">
+                      <a v-if="r.header_link" :href="r.header_link" target="_blank" rel="noopener"
+                        class="text-blue-400 hover:underline break-all text-[10px] leading-snug line-clamp-3">{{ r.header_link }}</a>
+                      <span v-else class="text-gray-600">—</span>
+                    </td>
+                    <!-- Method (readonly badge) -->
+                    <td class="py-2 px-1 text-center">
+                      <span v-if="r.request_method"
+                        class="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold"
+                        :class="{
+                          'bg-green-900/50 text-green-300': r.request_method === 'GET',
+                          'bg-blue-900/50 text-blue-300': r.request_method === 'POST',
+                          'bg-yellow-900/50 text-yellow-300': r.request_method === 'PUT' || r.request_method === 'PATCH',
+                          'bg-red-900/50 text-red-300': r.request_method === 'DELETE',
+                          'bg-gray-700 text-gray-300': !['GET','POST','PUT','PATCH','DELETE'].includes(r.request_method)
+                        }">{{ r.request_method }}</span>
+                      <span v-else class="text-gray-600">—</span>
+                    </td>
+                    <!-- Payload (collapsible readonly) -->
+                    <td class="py-2 px-1">
+                      <details v-if="r.payload" class="cursor-pointer">
+                        <summary class="text-blue-400 text-[10px] hover:text-blue-300 select-none">ดู Payload</summary>
+                        <pre class="mt-1 text-[10px] text-gray-300 bg-gray-900/60 rounded p-1 max-h-32 overflow-auto whitespace-pre-wrap break-all">{{ r.payload }}</pre>
+                      </details>
+                      <span v-else class="text-gray-600">—</span>
+                    </td>
+                    <!-- Status (editable) -->
+                    <td class="py-2 px-1">
+                      <select v-if="iodImportTriagedRows[r.row_index]"
+                        v-model="iodImportTriagedRows[r.row_index].status"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-blue-500/60"
+                        :disabled="!iodImportSelectedRowIndices.includes(r.row_index)">
+                        <option value="PENDING">PENDING</option>
+                        <option value="IN_PROGRESS">IN_PROGRESS</option>
+                        <option value="READY_FOR_TEST">READY_FOR_TEST</option>
+                        <option value="READY_FOR_UAT">READY_FOR_UAT</option>
+                        <option value="BLOCKED">BLOCKED</option>
+                        <option value="COMPLETED">COMPLETED</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                      </select>
+                    </td>
+                    <!-- Priority (editable) -->
+                    <td class="py-2 px-1">
+                      <select v-if="iodImportTriagedRows[r.row_index]"
+                        v-model="iodImportTriagedRows[r.row_index].priority"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-blue-500/60"
+                        :disabled="!iodImportSelectedRowIndices.includes(r.row_index)">
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="LOW">LOW</option>
+                      </select>
+                    </td>
+                    <!-- Est. minutes (editable) -->
+                    <td class="py-2 px-1">
+                      <input v-if="iodImportTriagedRows[r.row_index]"
+                        v-model.number="iodImportTriagedRows[r.row_index].estimated_minutes"
+                        type="number" min="0"
+                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-blue-500/60"
+                        :disabled="!iodImportSelectedRowIndices.includes(r.row_index)"
+                        placeholder="—" />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="iodImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ iodImportError }}</div>
+            <div class="flex gap-3">
+              <button type="button" @click="submitIODImport"
+                :disabled="isIODImporting || iodImportSelectedRowIndices.length === 0"
+                class="flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors">
+                <svg v-if="isIODImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isIODImporting ? 'กำลัง import...' : `Import ${iodImportSelectedRowIndices.length} bugs` }}
+              </button>
+              <button type="button" @click="iodImportStep = 'form'" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">กลับ</button>
+            </div>
+          </template>
+
+          <!-- Step: Form -->
+          <template v-else>
+            <div>
+              <label class="label">Google Sheets URL (แท็บ 31/03 หรือ แท็บใดก็ได้) *</label>
+              <input v-model="iodImportForm.sheet_url" type="url" class="input-field w-full"
+                placeholder="https://docs.google.com/spreadsheets/d/...?gid=1794611958"
+                :disabled="isIODLoadingPreview" />
+              <p class="text-xs text-gray-500 mt-1">
+                คัดลอก URL จากแท็บที่ต้องการใน Google Sheets ให้มี <code class="text-gray-400">gid=...</code> —
+                เปิดสิทธิ์ "Anyone with the link can view"
+              </p>
+            </div>
+            <div v-if="epics.length">
+              <label class="label">Epic</label>
+              <select v-model="iodImportForm.epic_id" class="input-field w-full" :disabled="isIODLoadingPreview" @change="onIODImportEpicChange">
+                <option value="">— ทุก Epic / Unassigned —</option>
+                <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Target Parent Task <span class="text-gray-500 font-normal">(optional)</span></label>
+              <select v-model="iodImportForm.parent_id" class="input-field w-full" :disabled="isIODLoadingPreview">
+                <option value="">— No Parent (Top-level tasks) —</option>
+                <option v-for="t in iodParentTaskOptions" :key="t.id" :value="t.id">[{{ taskCodeSuffix(t.code) }}] {{ t.title }}</option>
+              </select>
+            </div>
+            <div v-if="iodImportError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ iodImportError }}</div>
+            <div class="flex gap-3">
+              <button type="button" @click="loadIODImportPreview"
+                :disabled="isIODLoadingPreview || !iodImportForm.sheet_url.trim()"
+                class="flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors">
+                <svg v-if="isIODLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                {{ isIODLoadingPreview ? 'กำลังโหลด...' : 'โหลด preview' }}
+              </button>
+              <button type="button" @click="closeIODImportModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+    <!-- ══════ End IOD Import Modal ══════ -->
 
     <!-- Create Task Modal -->
     <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto" @click.self="closeCreateTaskModal">
@@ -2348,7 +2574,9 @@ watch(activeTab, async (tab) => {
   if (tab === 'timeline' && project.value) {
     if (timelineMode.value === 'epic' && !epicTimelineData.value) await loadEpicTimeline()
     else if (timelineMode.value === 'sprint' && !sprintTimelineData.value) await loadSprintTimeline()
-    nextTick(() => setTimeout(scrollTimelineToToday, 200))
+    nextTick(() =>
+      setTimeout(ganttView.value === 'day' ? scrollTimelineDayFocusRecent : scrollTimelineToToday, 200)
+    )
   }
   if (tab === 'analytics' && !analytics.value && project.value) {
     loadAnalytics()
@@ -2378,7 +2606,9 @@ watch(timelineMode, async (mode) => {
   } else if (mode === 'sprint' && !sprintTimelineData.value) {
     await loadSprintTimeline()
   }
-  nextTick(() => setTimeout(scrollTimelineToToday, 200))
+  nextTick(() =>
+    setTimeout(ganttView.value === 'day' ? scrollTimelineDayFocusRecent : scrollTimelineToToday, 200)
+  )
 })
 
 const timelineFilteredTasks = computed(() => {
@@ -2508,8 +2738,9 @@ const ganttChartWidth = computed(() => {
   const end = new Date(ganttChartEnd.value + 'T00:00:00Z').getTime()
   const days = Math.max(1, (end - start) / 86400000)
   const v = ganttView.value
-  const pxPerDay = v === 'month' ? 4 : v === 'week' ? 24 : 40
-  return Math.max(800, Math.min(6000, Math.round(days * pxPerDay)))
+  const pxPerDay = v === 'month' ? 4 : v === 'week' ? 24 : 72
+  const maxChartPx = v === 'day' ? 12000 : 6000
+  return Math.max(800, Math.min(maxChartPx, Math.round(days * pxPerDay)))
 })
 
 const ganttDateRangeStart = computed(() => {
@@ -2594,8 +2825,9 @@ const matrixChartWidth = computed(() => {
   const end = new Date(matrixChartEnd.value + 'T00:00:00Z').getTime()
   const days = Math.max(1, (end - start) / 86400000)
   const v = ganttView.value
-  const pxPerDay = v === 'month' ? 4 : v === 'week' ? 24 : 40
-  return Math.max(800, Math.min(6000, Math.round(days * pxPerDay)))
+  const pxPerDay = v === 'month' ? 4 : v === 'week' ? 24 : 72
+  const maxChartPx = v === 'day' ? 12000 : 6000
+  return Math.max(800, Math.min(maxChartPx, Math.round(days * pxPerDay)))
 })
 const matrixDateRangeStart = computed(() => (matrixChartStart.value ? new Date(matrixChartStart.value + 'T00:00:00Z').toISOString() : ''))
 const matrixDateRangeEnd = computed(() => (matrixChartEnd.value ? new Date(matrixChartEnd.value + 'T00:00:00Z').toISOString() : ''))
@@ -3108,6 +3340,29 @@ function scrollTimelineToToday() {
   })
 }
 
+/** Day view: align scroll so the window shows from (today − 5 days) through today (local dates). */
+function scrollTimelineDayFocusRecent() {
+  nextTick(() => {
+    const scrollEl = getTimelineScrollElement()
+    const width = matrixChartWidth.value
+    if (!scrollEl || width <= 0) return
+    const rangeStart = toLocalMidnight(matrixChartStart.value)
+    const rangeEnd = toLocalMidnight(matrixChartEnd.value)
+    if (rangeEnd <= rangeStart) return
+    const focus = new Date()
+    focus.setHours(0, 0, 0, 0)
+    focus.setDate(focus.getDate() - 5)
+    const focusStart = focus.getTime()
+    const clamped = Math.max(rangeStart, Math.min(focusStart, rangeEnd))
+    const pct = (clamped - rangeStart) / (rangeEnd - rangeStart)
+    const gridLeftPx = 220 + pct * width
+    const padding = 8
+    const targetScroll = Math.max(0, gridLeftPx - padding)
+    const maxScroll = Math.max(0, scrollEl.scrollWidth - scrollEl.clientWidth)
+    scrollEl.scrollLeft = Math.min(targetScroll, maxScroll)
+  })
+}
+
 async function onExportTimelinePdf() {
   if (!project.value) return
   await exportTimelinePdf(
@@ -3129,6 +3384,12 @@ const isLoading = ref(true)
 const analyticsLoading = ref(false)
 const error = ref('')
 const ganttView = ref('week')
+
+watch(ganttView, (v, prev) => {
+  if (v !== 'day' || prev === 'day') return
+  nextTick(() => setTimeout(() => scrollTimelineDayFocusRecent(), 200))
+})
+
 const expandedEpics = ref<Record<string, boolean>>({})
 const expandedEpicGroups = ref<Record<string, boolean>>({})
 
@@ -3631,7 +3892,9 @@ async function loadAll() {
         else sprintTimelineData.value = data as typeof sprintTimelineData.value
         timelineOk = true
         nextTick(() => buildMatrixGanttRows())
-        nextTick(() => setTimeout(scrollTimelineToToday, 200))
+        nextTick(() =>
+          setTimeout(ganttView.value === 'day' ? scrollTimelineDayFocusRecent : scrollTimelineToToday, 200)
+        )
       } catch (e) {
         console.error('Failed to load timeline:', e)
       }
@@ -4709,6 +4972,152 @@ async function submitSheetsImport() {
   }
 }
 
+// ─── IOD Import State & Functions ───────────────────────────────────────────
+interface IODTriagedRow {
+  title: string
+  priority: string
+  estimated_minutes: number
+  status: string
+  notes: string
+  header: string
+  header_link: string
+  request_method: string
+  payload: string
+  image_ref: string
+}
+
+const showIODImportModal = ref(false)
+const iodImportStep = ref<'form' | 'select' | 'result'>('form')
+const isIODImporting = ref(false)
+const isIODLoadingPreview = ref(false)
+const iodImportError = ref('')
+const iodImportResult = ref<{ created_count: number; sheet_title: string; tasks: any[] } | null>(null)
+const iodImportPreview = ref<{
+  sheet_title: string
+  sheet_id: string
+  rows: {
+    row_index: number
+    title: string
+    status: string
+    raw_status: string
+    notes: string
+    header?: string
+    header_link?: string
+    request_method?: string
+    payload?: string
+    image_ref?: string
+  }[]
+} | null>(null)
+const iodImportSelectedRowIndices = ref<number[]>([])
+const iodImportTriagedRows = ref<Record<number, IODTriagedRow>>({})
+const iodImportForm = ref({ sheet_url: '', epic_id: '', parent_id: '' })
+
+const iodParentTaskOptions = computed(() => {
+  const epicId = iodImportForm.value.epic_id
+  return allTasks.value
+    .filter((t) => { if (t.parent_id) return false; if (epicId) return t.epic_id === epicId; return true })
+    .sort((a, b) => a.title.localeCompare(b.title))
+})
+
+function onIODImportEpicChange() {
+  const cur = iodParentTaskOptions.value.find((t) => t.id === iodImportForm.value.parent_id)
+  if (!cur) iodImportForm.value.parent_id = ''
+}
+
+function openIODImportModal() {
+  iodImportForm.value = { sheet_url: '', epic_id: '', parent_id: '' }
+  iodImportStep.value = 'form'
+  iodImportError.value = ''
+  iodImportResult.value = null
+  iodImportPreview.value = null
+  iodImportSelectedRowIndices.value = []
+  iodImportTriagedRows.value = {}
+  showIODImportModal.value = true
+}
+
+function closeIODImportModal() {
+  showIODImportModal.value = false
+  if (iodImportResult.value) loadAll()
+}
+
+async function loadIODImportPreview() {
+  if (!iodImportForm.value.sheet_url.trim()) return
+  isIODLoadingPreview.value = true
+  iodImportError.value = ''
+  try {
+    const data = await tasksApi.previewGoogleSheets({ sheet_url: iodImportForm.value.sheet_url.trim() })
+    iodImportPreview.value = data as any
+    const triagedMap: Record<number, IODTriagedRow> = {}
+    const selected: number[] = []
+    for (const r of data.rows) {
+      selected.push(r.row_index)
+      triagedMap[r.row_index] = {
+        title: r.title,
+        priority: 'MEDIUM',
+        estimated_minutes: 0,
+        status: r.status,
+        notes: r.notes,
+        header: r.header || '',
+        header_link: r.header_link || '',
+        request_method: r.request_method || '',
+        payload: r.payload || '',
+        image_ref: r.image_ref || '',
+        detail_links: r.detail_links || [],
+      }
+    }
+    iodImportTriagedRows.value = triagedMap
+    iodImportSelectedRowIndices.value = selected
+    iodImportStep.value = 'select'
+  } catch (e: any) {
+    iodImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
+  } finally {
+    isIODLoadingPreview.value = false
+  }
+}
+
+async function submitIODImport() {
+  if (!project.value || !iodImportPreview.value) return
+  iodImportError.value = ''
+  isIODImporting.value = true
+  try {
+    const rows = iodImportSelectedRowIndices.value.map((rowIndex) => {
+      const t = iodImportTriagedRows.value[rowIndex]
+      const rawEst = Number(t?.estimated_minutes)
+      const estimatedMinutes = Number.isFinite(rawEst) && rawEst >= 0 ? Math.floor(rawEst) : 0
+      return {
+        row_index: rowIndex,
+        title: t?.title?.trim() || '',
+        priority: t?.priority || 'MEDIUM',
+        estimated_minutes: estimatedMinutes,
+        due_date: '',
+        status: t?.status || 'PENDING',
+        notes: t?.notes?.trim() || '',
+        header: t?.header || '',
+        header_link: t?.header_link || '',
+        request_method: t?.request_method || '',
+        payload: t?.payload || '',
+        image_ref: t?.image_ref || '',
+        detail_links: t?.detail_links || [],
+      }
+    })
+    const payload: Record<string, unknown> = {
+      sheet_url: iodImportForm.value.sheet_url.trim(),
+      sheet_title: iodImportPreview.value.sheet_title,
+      project_id: project.value.id,
+      rows,
+    }
+    if (iodImportForm.value.epic_id) payload.epic_id = iodImportForm.value.epic_id
+    if (iodImportForm.value.parent_id) payload.parent_id = iodImportForm.value.parent_id
+    iodImportResult.value = await tasksApi.importGoogleSheets(payload as any)
+    iodImportStep.value = 'result'
+  } catch (e: any) {
+    iodImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
+  } finally {
+    isIODImporting.value = false
+  }
+}
+// ─── End IOD Import ──────────────────────────────────────────────────────────
+
 async function loadBacklogImportPreview() {
   if (!backlogImportForm.value.presentation_url.trim()) return
   isBacklogLoadingPreview.value = true
@@ -4860,7 +5269,9 @@ async function refreshTimeline() {
     await loadAll()
     if (timelineMode.value === 'epic') await loadEpicTimeline()
     else await loadSprintTimeline()
-    nextTick(() => setTimeout(scrollTimelineToToday, 200))
+    nextTick(() =>
+      setTimeout(ganttView.value === 'day' ? scrollTimelineDayFocusRecent : scrollTimelineToToday, 200)
+    )
   } finally {
     timelineRefreshing.value = false
   }

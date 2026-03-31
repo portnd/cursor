@@ -242,6 +242,12 @@ function useTasksApi() {
       status: string
       raw_status: string
       notes: string
+      header?: string
+      header_link?: string
+      request_method?: string
+      payload?: string
+      image_ref?: string
+      detail_links?: string[]
     }[]
   }> {
     const data = await fetchWithAuth<{
@@ -255,6 +261,12 @@ function useTasksApi() {
           status: string
           raw_status: string
           notes: string
+          header?: string
+          header_link?: string
+          request_method?: string
+          payload?: string
+          image_ref?: string
+          detail_links?: string[]
         }[]
       }
     }>('/sentinel/import/google-sheets/preview', { method: 'POST', body: payload, timeoutMs: 60 * 1000 })
@@ -310,6 +322,12 @@ function useTasksApi() {
       due_date: string
       status: string
       notes: string
+      header?: string
+      header_link?: string
+      request_method?: string
+      payload?: string
+      image_ref?: string
+      detail_links?: string[]
     }[]
   }): Promise<{ created_count: number; sheet_title: string; tasks: Task[] }> {
     const data = await fetchWithAuth<{ data: { created_count: number; sheet_title: string; tasks: Task[] } }>(

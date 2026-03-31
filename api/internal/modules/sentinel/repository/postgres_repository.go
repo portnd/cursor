@@ -32,13 +32,18 @@ func teamScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
 }
 
 // projectAccessScope restricts project rows for list/detail queries.
-// When teams feature is disabled, PMs only see projects where they are assigned in project_pm_assignments.
+// When teams feature is disabled: PMs see project_pm_assignments; DEVs see projects with at least one task assigned_to them.
 func projectAccessScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
 	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager {
 		return db
 	}
-	if ctx.TeamsFeatureDisabled && ctx.Role == domain.RolePM && ctx.UserID != 0 {
-		return db.Where("id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
+	if ctx.TeamsFeatureDisabled && ctx.UserID != 0 {
+		if ctx.Role == domain.RolePM {
+			return db.Where("id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
+		}
+		if ctx.Role == domain.RoleDEV {
+			return db.Where("id IN (SELECT DISTINCT project_id FROM tasks WHERE assigned_to = ?)", ctx.UserID)
+		}
 	}
 	return teamScope(db, ctx)
 }
@@ -486,17 +491,19 @@ func (r *postgresRepository) GetActiveSprintsForUser(userID uint) ([]domain.Spri
 	return sprints, nil
 }
 
-// GetGlobalActiveTasksByUser returns TASK and BUG items for the team scoped to ACTIVE sprints only.
+// GetGlobalActiveTasks returns TASK and BUG items scoped to ACTIVE sprints only.
 // A task is included when:
 //   a) it is directly assigned to an ACTIVE sprint, OR
 //   b) its parent task (FEATURE or TASK) is assigned to an ACTIVE sprint (sub-task inclusion rule).
 // FEATURE types are excluded from results — they belong to the PM/CEO Feature Roadmap Board.
-func (r *postgresRepository) GetGlobalActiveTasksByUser(userID uint) ([]domain.GlobalActiveTask, error) {
+//
+// CEO/MANAGER: all projects (company-wide). Teams off: PM → project_pm_assignments; DEV → assigned-task projects.
+// Otherwise: projects whose team_id matches the caller's user.team_id.
+func (r *postgresRepository) GetGlobalActiveTasks(ctx domain.CallerContext) ([]domain.GlobalActiveTask, error) {
 	var results []domain.GlobalActiveTask
-	err := r.db.Table("tasks").
+	q := r.db.Table("tasks").
 		Select("tasks.id, tasks.code, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.task_type, tasks.story_points, tasks.estimated_minutes, tasks.assigned_to, tasks.project_id, tasks.sprint_id, tasks.epic_id, tasks.parent_id, tasks.due_at, tasks.started_at, tasks.created_at, tasks.updated_at, projects.name AS project_name, projects.color AS project_color").
 		Joins("JOIN projects ON projects.id = tasks.project_id").
-		Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", userID).
 		Where("tasks.task_type IN ? AND tasks.status NOT IN ?",
 			[]string{"TASK", "BUG"},
 			[]string{"COMPLETED", "CANCELLED"},
@@ -511,9 +518,25 @@ func (r *postgresRepository) GetGlobalActiveTasksByUser(userID uint) ([]domain.G
 				JOIN sprints s ON s.id = parent.sprint_id
 				WHERE parent.id = tasks.parent_id AND s.status = 'ACTIVE'
 			)
-		`).
-		Order("tasks.created_at DESC").
-		Scan(&results).Error
+		`)
+
+	switch {
+	case ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager:
+		// no project scope — entire company
+	case ctx.TeamsFeatureDisabled && ctx.UserID != 0:
+		switch ctx.Role {
+		case domain.RolePM:
+			q = q.Where("projects.id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
+		case domain.RoleDEV:
+			q = q.Where("projects.id IN (SELECT DISTINCT project_id FROM tasks WHERE assigned_to = ?)", ctx.UserID)
+		default:
+			q = q.Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", ctx.UserID)
+		}
+	default:
+		q = q.Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", ctx.UserID)
+	}
+
+	err := q.Order("tasks.created_at DESC").Scan(&results).Error
 	return results, err
 }
 
@@ -1006,7 +1029,12 @@ func (r *postgresRepository) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status st
 	if len(taskIDs) == 0 {
 		return nil
 	}
-	return r.db.Model(&domain.Task{}).Where("id IN ?", taskIDs).Update("status", status).Error
+	updates := map[string]interface{}{"status": status}
+	if status == "IN_PROGRESS" {
+		now := time.Now()
+		updates["started_at"] = now
+	}
+	return r.db.Model(&domain.Task{}).Where("id IN ?", taskIDs).Updates(updates).Error
 }
 
 // --- Analytics ---

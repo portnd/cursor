@@ -428,17 +428,11 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID ui
 		return u.repo.UpdateTask(task)
 	}
 
-	// 2. Update assignment
+	// 2. Update assignment only — status remains unchanged so dev can move the card themselves
 	task.AssignedTo = &devID
 	task.AssignedByID = &assignerID // PM/CEO who assigned (drives PM Team Leaderboard scope)
-	task.Status = "IN_PROGRESS"
 
-	// 3. ⏰ Start Time Tracking: Set StartedAt = NOW()
-	now := time.Now()
-	task.StartedAt = &now
-	fmt.Printf("⏰ Time Tracking: Task %s started at %s\n", task.ID, now.Format(time.RFC3339))
-
-	// 4. Persist changes
+	// 3. Persist changes
 	if err := u.repo.UpdateTask(task); err != nil {
 		return err
 	}
@@ -543,10 +537,11 @@ func (u *sentinelUsecase) GetMyActiveSprints(userID uint) ([]domain.Sprint, erro
 	return u.repo.GetActiveSprintsForUser(userID)
 }
 
-// GetGlobalActiveTasks returns all tasks assigned to the user across ALL projects
-// where the sprint is ACTIVE, enriched with project name and color.
-func (u *sentinelUsecase) GetGlobalActiveTasks(userID uint) ([]domain.GlobalActiveTask, error) {
-	return u.repo.GetGlobalActiveTasksByUser(userID)
+// GetGlobalActiveTasks returns TASK/BUG in ACTIVE sprints, enriched with project name and color.
+// CEO/MANAGER see all projects; when teams off: PM → project_pm_assignments; DEV → projects with any task assigned to caller.
+func (u *sentinelUsecase) GetGlobalActiveTasks(ctx domain.CallerContext) ([]domain.GlobalActiveTask, error) {
+	ctx = u.withCallerScope(ctx)
+	return u.repo.GetGlobalActiveTasks(ctx)
 }
 
 // GetTeamActiveTasks returns all ACTIVE-sprint tasks within the caller's team.
@@ -3043,7 +3038,7 @@ var thaiMonthAbbrevToMonth = map[string]time.Month{
 }
 
 var validSheetImportStatuses = map[string]bool{
-	"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true, "READY_FOR_UAT": true, "COMPLETED": true, "CANCELLED": true,
+	"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true, "READY_FOR_UAT": true, "COMPLETED": true, "CANCELLED": true, "BLOCKED": true,
 }
 
 func sheetCSVCell(row []string, col int) string {
@@ -3114,6 +3109,12 @@ func fetchGoogleSheetCSVRecords(sheetID, gid string) (records [][]string, sheetT
 	records, err = r.ReadAll()
 	if err != nil {
 		return nil, sheetTitle, fmt.Errorf("invalid CSV: %w", err)
+	}
+	if len(records) > 0 && len(records[0]) > 0 {
+		first := strings.TrimSpace(records[0][0])
+		if strings.HasPrefix(first, "<!DOCTYPE") || strings.HasPrefix(first, "<html") {
+			return nil, "", errors.New("sheet export returned HTML (wrong gid or spreadsheet not shared as \"Anyone with the link can view\")")
+		}
 	}
 	return records, sheetTitle, nil
 }
@@ -3197,6 +3198,170 @@ func mapKGSheetStatus(raw string) string {
 	}
 }
 
+// sheetColumnMap holds the result of dynamic header detection.
+type sheetColumnMap struct {
+	layout           string // "iod_dynamic", "kg_ifp"
+	dataStart        int    // first data row index
+	colTitle         int    // column index for task title / ปัญหา / Detail (-1 = not found)
+	colStatus        int    // column index for working Status (-1 = not found)
+	colDue           int    // column index for due date (-1 = not found)
+	colPriority      int    // column index for Priority (-1 = not found)
+	colSection       int    // column index for Header / section (-1 = not found)
+	colHeaderLink    int    // column index for Header Link / URL (-1 = not found)
+	colRequestMethod int    // column index for Request Method (-1 = not found)
+	colPayload       int    // column index for Payload (-1 = not found)
+	colImage         int    // column index for Image (-1 = not found)
+	notesCols        []int  // leftover columns to include in notes
+}
+
+// detectSheetLayout scans the first 3 rows looking for an IOD-style header row.
+// It dynamically maps column positions so it works for any IOD sheet variant.
+func detectSheetLayout(records [][]string) sheetColumnMap {
+	limit := 3
+	if len(records) < limit {
+		limit = len(records)
+	}
+	for ri := 0; ri < limit; ri++ {
+		row := records[ri]
+		colTitle := -1
+		colStatus := -1
+		colDue := -1
+		colPriority := -1
+		colSection := -1
+		colHeaderLink := -1
+		colRequestMethod := -1
+		colPayload := -1
+		colImage := -1
+
+		for ci, rawCell := range row {
+			cell := strings.TrimSpace(strings.ReplaceAll(rawCell, "\u200b", ""))
+			low := strings.ToLower(cell)
+			switch {
+			case strings.Contains(cell, "ปัญหา") || low == "detail":
+				colTitle = ci
+			case strings.Contains(low, "working") || low == "status":
+				colStatus = ci
+			case strings.Contains(cell, "วันที่กำหนด") || low == "due date" || low == "due_date":
+				colDue = ci
+			case strings.Contains(low, "priority") || strings.Contains(cell, "ความสำคัญ"):
+				colPriority = ci
+			case low == "header" || strings.Contains(cell, "สเตป") || strings.Contains(cell, "มอบหมาย"):
+				colSection = ci
+			case low == "header link" || low == "header_link" || low == "headerlink":
+				colHeaderLink = ci
+			case strings.Contains(low, "request method") || low == "method" || low == "request_method":
+				colRequestMethod = ci
+			case low == "payload":
+				colPayload = ci
+			case low == "image" || strings.Contains(low, "รูป") || strings.Contains(low, "ภาพ"):
+				colImage = ci
+			}
+		}
+
+		if colTitle >= 0 && colStatus >= 0 {
+			knownCols := map[int]bool{
+				colTitle: true, colStatus: true, colDue: true, colPriority: true,
+				colSection: true, colHeaderLink: true, colRequestMethod: true,
+				colPayload: true, colImage: true,
+			}
+			var notesCols []int
+			for ci, rawCell := range row {
+				if knownCols[ci] {
+					continue
+				}
+				cell := strings.TrimSpace(strings.ReplaceAll(rawCell, "\u200b", ""))
+				low := strings.ToLower(cell)
+				if low == "no." || low == "" {
+					continue
+				}
+				notesCols = append(notesCols, ci)
+			}
+			return sheetColumnMap{
+				layout:           "iod_dynamic",
+				dataStart:        ri + 1,
+				colTitle:         colTitle,
+				colStatus:        colStatus,
+				colDue:           colDue,
+				colPriority:      colPriority,
+				colSection:       colSection,
+				colHeaderLink:    colHeaderLink,
+				colRequestMethod: colRequestMethod,
+				colPayload:       colPayload,
+				colImage:         colImage,
+				notesCols:        notesCols,
+			}
+		}
+	}
+	return sheetColumnMap{layout: "kg_ifp"}
+}
+
+// extractBugTitle cleans up a Detail cell: strips leading URLs, joins remaining lines.
+// If a section name is provided its first line is prepended as context.
+func extractBugTitle(detail, section string) string {
+	// Take only the first line of the section (it may contain login creds on following lines)
+	sectionFirst := strings.TrimSpace(section)
+	if idx := strings.IndexAny(sectionFirst, "\n\r"); idx >= 0 {
+		sectionFirst = strings.TrimSpace(sectionFirst[:idx])
+	}
+
+	lines := strings.Split(detail, "\n")
+	var textLines []string
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://") {
+			continue
+		}
+		textLines = append(textLines, l)
+	}
+	var title string
+	if len(textLines) > 0 {
+		title = strings.Join(textLines, " ")
+	} else {
+		// Only a URL was in the detail — use section or the raw first URL line
+		if sectionFirst != "" {
+			return sectionFirst
+		}
+		title = strings.TrimSpace(detail)
+		if idx := strings.Index(title, "\n"); idx > 0 {
+			title = title[:idx]
+		}
+	}
+	if sectionFirst != "" && !strings.Contains(title, sectionFirst) {
+		title = sectionFirst + ": " + title
+	}
+	if len([]rune(title)) > 220 {
+		runes := []rune(title)
+		title = string(runes[:220]) + "..."
+	}
+	return title
+}
+
+// mapIODWorkingStatus maps English / mixed working-status labels from IOD bug sheets.
+func mapIODWorkingStatus(raw string) string {
+	raw = strings.TrimSpace(strings.ReplaceAll(raw, "\u200b", ""))
+	if raw == "" {
+		return "PENDING"
+	}
+	if idx := strings.IndexAny(raw, "\n\r"); idx >= 0 {
+		raw = strings.TrimSpace(raw[:idx])
+	}
+	low := strings.ToLower(raw)
+	switch {
+	case strings.Contains(low, "done") || strings.Contains(low, "completed"):
+		return "COMPLETED"
+	case strings.Contains(low, "in process") || strings.Contains(low, "in progress") || low == "processing":
+		return "IN_PROGRESS"
+	case strings.Contains(low, "pause"):
+		return "BLOCKED"
+	case low == "bug":
+		return "READY_FOR_TEST"
+	case strings.Contains(low, "uat") || strings.Contains(low, "prod"):
+		return "READY_FOR_UAT"
+	default:
+		return "PENDING"
+	}
+}
+
 func (u *sentinelUsecase) PreviewGoogleSheets(req *domain.PreviewGoogleSheetsRequest) (*domain.PreviewGoogleSheetsResult, error) {
 	if req == nil || strings.TrimSpace(req.SheetURL) == "" {
 		return nil, errors.New("sheet_url is required")
@@ -3215,38 +3380,228 @@ func (u *sentinelUsecase) PreviewGoogleSheets(req *domain.PreviewGoogleSheetsReq
 	if sheetTitle == "" {
 		sheetTitle = "Google Sheet"
 	}
+	colMap := detectSheetLayout(records)
 	var rows []domain.SheetRowPreviewItem
-	for i := 1; i < len(records); i++ {
-		row := records[i]
-		title := sheetCSVCell(row, 1)
-		if title == "" {
-			continue
+	if colMap.layout == "iod_dynamic" {
+		for i := colMap.dataStart; i < len(records); i++ {
+			row := records[i]
+			rawDetail := sheetCSVCell(row, colMap.colTitle)
+			section := ""
+			if colMap.colSection >= 0 {
+				section = sheetCSVCell(row, colMap.colSection)
+			}
+			title := extractBugTitle(rawDetail, section)
+			if title == "" {
+				continue
+			}
+
+			statusRaw := sheetCSVCell(row, colMap.colStatus)
+
+			dueStr := ""
+			if colMap.colDue >= 0 {
+				dueStr = parseSheetDueRaw(sheetCSVCell(row, colMap.colDue))
+			}
+
+			priority := "MEDIUM"
+			if colMap.colPriority >= 0 {
+				if p := strings.ToUpper(strings.TrimSpace(sheetCSVCell(row, colMap.colPriority))); validPriorities[p] {
+					priority = p
+				}
+			}
+
+			var noteParts []string
+			for _, ci := range colMap.notesCols {
+				if s := sheetCSVCell(row, ci); s != "" {
+					noteParts = append(noteParts, s)
+				}
+			}
+			notes := strings.Join(noteParts, " | ")
+
+			// Collect IOD-specific extra fields
+			headerLink := ""
+			if colMap.colHeaderLink >= 0 {
+				headerLink = sheetCSVCell(row, colMap.colHeaderLink)
+			}
+			// Extract ALL URLs embedded in the Detail cell.
+			// Many IOD bug rows contain one or more page URLs mixed into the description text.
+			var detailURLs []string
+			for _, detailLine := range strings.Split(rawDetail, "\n") {
+				detailLine = strings.TrimSpace(detailLine)
+				if strings.HasPrefix(detailLine, "http://") || strings.HasPrefix(detailLine, "https://") {
+					detailURLs = append(detailURLs, detailLine)
+				}
+			}
+			// Use the first URL as headerLink when no explicit header link column value exists.
+			if headerLink == "" && len(detailURLs) > 0 {
+				headerLink = detailURLs[0]
+				detailURLs = detailURLs[1:] // remaining URLs become DetailLinks
+			}
+			requestMethod := ""
+			if colMap.colRequestMethod >= 0 {
+				requestMethod = sheetCSVCell(row, colMap.colRequestMethod)
+			}
+			payload := ""
+			if colMap.colPayload >= 0 {
+				payload = sheetCSVCell(row, colMap.colPayload)
+			}
+			imageRef := ""
+			if colMap.colImage >= 0 {
+				imageRef = sheetCSVCell(row, colMap.colImage)
+			}
+
+			rawFirst := statusRaw
+			if idx := strings.IndexAny(rawFirst, "\n\r"); idx >= 0 {
+				rawFirst = strings.TrimSpace(rawFirst[:idx])
+			}
+			log.Printf("[IOD preview] row %d headerLink=%q detailURLs=%v", i+1, headerLink, detailURLs)
+			rows = append(rows, domain.SheetRowPreviewItem{
+				RowIndex:      i + 1,
+				Title:         title,
+				DueDate:       dueStr,
+				Status:        mapIODWorkingStatus(statusRaw),
+				RawStatus:     rawFirst,
+				Notes:         notes,
+				Header:        section,
+				HeaderLink:    headerLink,
+				RequestMethod: requestMethod,
+				Payload:       payload,
+				ImageRef:      imageRef,
+				DetailLinks:   detailURLs,
+			})
+			_ = priority // exposed via triage in the frontend
 		}
-		dueRaw := sheetCSVCell(row, 0)
-		statusRaw := sheetCSVCell(row, 5)
-		notes := sheetCSVCell(row, 10)
-		dueStr := parseSheetDueRaw(dueRaw)
-		rawFirst := statusRaw
-		if idx := strings.IndexAny(rawFirst, "\n\r"); idx >= 0 {
-			rawFirst = strings.TrimSpace(rawFirst[:idx])
+		if len(rows) == 0 {
+			return nil, errors.New("no importable rows: title column is empty for all data rows")
 		}
-		rows = append(rows, domain.SheetRowPreviewItem{
-			RowIndex:  i + 1,
-			Title:     title,
-			DueDate:   dueStr,
-			Status:    mapKGSheetStatus(statusRaw),
-			RawStatus: rawFirst,
-			Notes:     notes,
-		})
-	}
-	if len(rows) == 0 {
-		return nil, errors.New("no importable rows: column B (รายละเอียด) is empty for all data rows")
+	} else {
+		// kg_ifp legacy layout: col A=date, col B=title, col F=status, col K=notes
+		for i := 1; i < len(records); i++ {
+			row := records[i]
+			title := sheetCSVCell(row, 1)
+			if title == "" {
+				continue
+			}
+			dueRaw := sheetCSVCell(row, 0)
+			statusRaw := sheetCSVCell(row, 5)
+			notes := sheetCSVCell(row, 10)
+			dueStr := parseSheetDueRaw(dueRaw)
+			rawFirst := statusRaw
+			if idx := strings.IndexAny(rawFirst, "\n\r"); idx >= 0 {
+				rawFirst = strings.TrimSpace(rawFirst[:idx])
+			}
+			rows = append(rows, domain.SheetRowPreviewItem{
+				RowIndex:  i + 1,
+				Title:     title,
+				DueDate:   dueStr,
+				Status:    mapKGSheetStatus(statusRaw),
+				RawStatus: rawFirst,
+				Notes:     notes,
+			})
+		}
+		if len(rows) == 0 {
+			return nil, errors.New("no importable rows: column B (รายละเอียด) is empty for all data rows")
+		}
 	}
 	return &domain.PreviewGoogleSheetsResult{
 		SheetTitle: sheetTitle,
 		SheetID:    sheetID,
 		Rows:       rows,
 	}, nil
+}
+
+// buildIODTaskDescription creates a rich HTML description from a TriagedSheetRow.
+// For IOD-style rows, it formats all available fields (Header, Detail, Header Link,
+// Request Method, Payload, Image, Notes) as a structured bug report.
+// For plain rows (only Notes), it falls back to a simple paragraph.
+func buildIODTaskDescription(tr domain.TriagedSheetRow) string {
+	hasIOD := tr.Header != "" || tr.HeaderLink != "" || tr.RequestMethod != "" || tr.Payload != "" || tr.ImageRef != "" || len(tr.DetailLinks) > 0
+	if !hasIOD {
+		n := strings.TrimSpace(tr.Notes)
+		if n == "" {
+			return ""
+		}
+		return "<p>" + html.EscapeString(n) + "</p>"
+	}
+
+	var b strings.Builder
+
+	if h := strings.TrimSpace(tr.Header); h != "" {
+		b.WriteString(`<p><strong>📌 Section / หน้า:</strong> `)
+		b.WriteString(html.EscapeString(h))
+		b.WriteString(`</p>`)
+	}
+
+	detail := strings.TrimSpace(tr.Title)
+	if detail != "" {
+		b.WriteString(`<p><strong>🐛 Bug Detail:</strong></p>`)
+		b.WriteString(`<p>`)
+		b.WriteString(strings.ReplaceAll(html.EscapeString(detail), "\n", "<br>"))
+		b.WriteString(`</p>`)
+	}
+
+	if link := strings.TrimSpace(tr.HeaderLink); link != "" {
+		b.WriteString(`<p><strong>🔗 URL: </strong>`)
+		if strings.HasPrefix(link, "http://") || strings.HasPrefix(link, "https://") {
+			b.WriteString(`<a href="`)
+			b.WriteString(html.EscapeString(link))
+			b.WriteString(`" target="_blank" rel="noopener">`)
+			b.WriteString(html.EscapeString(link))
+			b.WriteString(`</a>`)
+		} else {
+			b.WriteString(html.EscapeString(link))
+		}
+		b.WriteString(`</p>`)
+	}
+
+	if len(tr.DetailLinks) > 0 {
+		b.WriteString(`<p><strong>🔗 Related Links:</strong></p><ul>`)
+		for _, dl := range tr.DetailLinks {
+			dl = strings.TrimSpace(dl)
+			if dl == "" {
+				continue
+			}
+			b.WriteString(`<li><a href="`)
+			b.WriteString(html.EscapeString(dl))
+			b.WriteString(`" target="_blank" rel="noopener">`)
+			b.WriteString(html.EscapeString(dl))
+			b.WriteString(`</a></li>`)
+		}
+		b.WriteString(`</ul>`)
+	}
+
+	if m := strings.TrimSpace(tr.RequestMethod); m != "" {
+		b.WriteString(`<p><strong>⚙️ Request Method:</strong> <code>`)
+		b.WriteString(html.EscapeString(m))
+		b.WriteString(`</code></p>`)
+	}
+
+	if p := strings.TrimSpace(tr.Payload); p != "" {
+		b.WriteString(`<p><strong>📦 Payload / Response:</strong></p>`)
+		b.WriteString(`<pre><code>`)
+		b.WriteString(html.EscapeString(p))
+		b.WriteString(`</code></pre>`)
+	}
+
+	if img := strings.TrimSpace(tr.ImageRef); img != "" {
+		if strings.HasPrefix(img, "http://") || strings.HasPrefix(img, "https://") {
+			b.WriteString(`<p><strong>🖼️ Screenshot:</strong></p>`)
+			b.WriteString(`<img src="`)
+			b.WriteString(html.EscapeString(img))
+			b.WriteString(`" alt="screenshot">`)
+		} else {
+			b.WriteString(`<p><strong>🖼️ Image:</strong> `)
+			b.WriteString(html.EscapeString(img))
+			b.WriteString(`</p>`)
+		}
+	}
+
+	if n := strings.TrimSpace(tr.Notes); n != "" {
+		b.WriteString(`<p><strong>📝 Notes:</strong> `)
+		b.WriteString(html.EscapeString(n))
+		b.WriteString(`</p>`)
+	}
+
+	return b.String()
 }
 
 func (u *sentinelUsecase) ImportFromGoogleSheets(req *domain.ImportGoogleSheetsRequest, creatorID uint) (*domain.ImportGoogleSheetsResult, error) {
@@ -3337,10 +3692,8 @@ func (u *sentinelUsecase) ImportFromGoogleSheets(req *domain.ImportGoogleSheetsR
 			return nil, fmt.Errorf("row %d: invalid status %q", tr.RowIndex, tr.Status)
 		}
 
-		desc := strings.TrimSpace(tr.Notes)
-		if desc != "" {
-			desc = "<p>" + html.EscapeString(desc) + "</p>"
-		}
+		log.Printf("[IOD import] row %d detail_links=%v", tr.RowIndex, tr.DetailLinks)
+		desc := buildIODTaskDescription(tr)
 
 		var duePtr *time.Time
 		if ds := strings.TrimSpace(tr.DueDate); ds != "" {

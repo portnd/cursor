@@ -10,7 +10,7 @@
         </div>
         <div>
           <h2 class="text-sm font-bold text-white">Global Active Board</h2>
-          <p class="text-xs text-gray-500">All pending & in-progress TASK and BUG across projects</p>
+          <p class="text-xs text-gray-500">{{ boardSubtitle }}</p>
         </div>
       </div>
 
@@ -203,8 +203,18 @@
 </template>
 
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { GlobalActiveTask } from '~/core/modules/tasks/infrastructure/tasks-api'
+
+const { currentUser } = useAuth()
+const boardSubtitle = computed(() => {
+  const r = currentUser.value?.role
+  if (r === 'CEO' || r === 'MANAGER') {
+    return 'All pending & in-progress TASK and BUG company-wide (all projects)'
+  }
+  return 'All pending & in-progress TASK and BUG across your visible projects'
+})
 
 type KanbanStatus = 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_TEST'
 

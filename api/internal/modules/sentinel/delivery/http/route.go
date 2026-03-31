@@ -32,7 +32,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		// Task Management
 		sentinelGroup.POST("/tasks", handler.CreateTask)                                    // Create new task (CEO/PM)
 		sentinelGroup.GET("/tasks/my", handler.GetMyTasks)                                  // Get my assigned tasks (DEV)
-		sentinelGroup.GET("/tasks/my-global-active", handler.GetGlobalActiveTasks)          // Get TASK/BUG in active sprints across ALL projects (DEV Board)
+		sentinelGroup.GET("/tasks/my-global-active", handler.GetGlobalActiveTasks)          // Active sprints; CEO/MANAGER all projects; PM/DEV per rules
 		sentinelGroup.GET("/tasks/team-active", handler.GetTeamActiveTasks)                 // All ACTIVE-sprint TASK/BUG items in caller's team (cross-dev Quick Log Time)
 		sentinelGroup.GET("/tasks/features", handler.GetActiveFeatures)                     // FEATURE items for PM/CEO Roadmap Board (must be before /:id)
 		sentinelGroup.GET("/tasks/unassigned", handler.GetUnassignedTasks)                  // Get unassigned tasks (CEO/PM)

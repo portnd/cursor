@@ -612,8 +612,8 @@ const PRI_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW
 
 const { fetchWithAuth, currentUser } = useAuth()
 
-/** CEO / SUPPORT / PM / MANAGER are not forced; only DEV must check in from the dashboard. */
-const isDailyPulseForced = computed(() => currentUser.value?.role?.toUpperCase() === 'DEV')
+/** Daily check-in is optional on first entry; open manually from Pulse page/dashboard actions. */
+const isDailyPulseForced = computed(() => false)
 const performanceStore = usePerformanceStore()
 const teamsStore = useTeamsStore()
 const { getTeams } = useTeamsApi()

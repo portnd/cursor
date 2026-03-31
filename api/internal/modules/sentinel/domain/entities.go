@@ -465,7 +465,7 @@ type SentinelRepository interface {
 	GetTasksByAssignee(userID uint) ([]Task, error)
 	GetActiveSprintTasksByAssignee(userID uint) ([]Task, error)         // Only tasks in ACTIVE sprint (for DEV role)
 	GetActiveSprintsForUser(userID uint) ([]Sprint, error)              // ACTIVE sprints that have tasks assigned to user
-	GetGlobalActiveTasksByUser(userID uint) ([]GlobalActiveTask, error) // Tasks across ALL projects in ACTIVE sprints
+	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error) // TASK/BUG in ACTIVE sprints; CEO/MANAGER: all projects; else team / PM-DEV rules when teams off
 	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-dev time logging)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
@@ -594,7 +594,7 @@ type SentinelUsecase interface {
 	GetTaskByIDOrCode(idOrCode string) (*Task, error) // idOrCode is UUID or task code (e.g. mims-hdmap-main-001)
 	GetMyTasks(userID uint) ([]Task, error)
 	GetMyActiveSprints(userID uint) ([]Sprint, error)                                      // Active sprints containing user's tasks
-	GetGlobalActiveTasks(userID uint) ([]GlobalActiveTask, error)                          // Tasks across ALL projects with ACTIVE sprints (TASK/BUG only)
+	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)                    // TASK/BUG in ACTIVE sprints; CEO/MANAGER company-wide; PM/DEV per project list rules
 	GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)  // All ACTIVE-sprint TASK/BUG items in caller's team
 	GetActiveFeatures(callerTeamID *uint, callerRole string) ([]FeatureRoadmapItem, error) // FEATURE items for PM/CEO Roadmap Board
 	GetUnassignedTasks() ([]Task, error)
@@ -803,7 +803,7 @@ type ImportGoogleSlidesResult struct {
 	Tasks             []*Task `json:"tasks"`
 }
 
-// SheetRowPreviewItem is one data row from a Google Sheet CSV preview (IFP x KG style).
+// SheetRowPreviewItem is one data row from a Google Sheet CSV preview.
 type SheetRowPreviewItem struct {
 	RowIndex  int    `json:"row_index"`
 	Title     string `json:"title"`
@@ -811,6 +811,13 @@ type SheetRowPreviewItem struct {
 	Status    string `json:"status"`     // mapped Sentinel status
 	RawStatus string `json:"raw_status"` // original cell text
 	Notes     string `json:"notes"`
+	// IOD-specific extra fields (empty for non-IOD sheets)
+	Header        string   `json:"header"`         // Section / page name (col Header)
+	HeaderLink    string   `json:"header_link"`    // URL of the page being tested
+	RequestMethod string   `json:"request_method"` // GET / POST / etc.
+	Payload       string   `json:"payload"`        // Request / response payload
+	ImageRef      string   `json:"image_ref"`      // Image column text (URL if available)
+	DetailLinks   []string `json:"detail_links"`   // Additional URLs extracted from Detail cell
 }
 
 // PreviewGoogleSheetsRequest is the payload for POST /sentinel/import/google-sheets/preview
@@ -834,6 +841,13 @@ type TriagedSheetRow struct {
 	DueDate          string `json:"due_date"` // YYYY-MM-DD
 	Status           string `json:"status"`
 	Notes            string `json:"notes"`
+	// IOD-specific extra fields
+	Header        string   `json:"header"`
+	HeaderLink    string   `json:"header_link"`
+	RequestMethod string   `json:"request_method"`
+	Payload       string   `json:"payload"`
+	ImageRef      string   `json:"image_ref"`
+	DetailLinks   []string `json:"detail_links"` // Additional URLs extracted from Detail cell
 }
 
 // ImportGoogleSheetsRequest is the payload for POST /sentinel/import/google-sheets
