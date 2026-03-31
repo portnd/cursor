@@ -451,6 +451,8 @@ type SentinelRepository interface {
 	GetProjectByID(id uuid.UUID, ctx CallerContext) (*Project, error)
 	GetProjectByCode(code string, ctx CallerContext) (*Project, error)
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
+	// GetTasksByProjectIDForProjectPage returns tasks without large columns (description, resource_urls, negotiation text, uat_payload) for GET /projects/:id/details — smaller payload and faster DB I/O.
+	GetTasksByProjectIDForProjectPage(projectID uuid.UUID) ([]Task, error)
 	UpdateProject(p *Project) error
 	DeleteProject(id uuid.UUID) error
 	DeleteProjectPlan(projectID uuid.UUID) error               // Remove all tasks, sprints, milestones, epics for the project

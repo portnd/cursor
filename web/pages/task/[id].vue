@@ -570,22 +570,22 @@
     </div>
 
     <!-- ══ EDIT MODAL ══ -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="closeEditModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl max-w-lg w-full shadow-2xl my-auto flex flex-col max-h-[90vh]">
-        <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0 border-b border-gray-700/60">
-          <h2 class="text-base font-bold text-white">Edit Task</h2>
-          <button @click="closeEditModal" class="text-gray-500 hover:text-white transition-colors" :disabled="isUpdatingTask">✕</button>
+    <div v-if="showEditModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto" @click.self="closeEditModal">
+      <div class="edit-task-modal bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-7xl shadow-2xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
+        <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
+          <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Edit Task</h2>
+          <button type="button" @click="closeEditModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-40" :disabled="isUpdatingTask" aria-label="Close">✕</button>
         </div>
-        <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-          <div v-if="editError" class="p-3 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-sm">{{ editError }}</div>
+        <div class="overflow-y-auto flex-1 px-6 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-7 min-h-0 overscroll-contain">
+          <div v-if="editError" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ editError }}</div>
           <div>
             <label class="label">Type *</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button type="button" @click="editForm.task_type = 'FEATURE'" :class="editForm.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'" class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all" :disabled="isUpdatingTask"><span class="text-base">★</span> Feature</button>
-              <button type="button" @click="editForm.task_type = 'TASK'" :class="editForm.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'" class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all" :disabled="isUpdatingTask"><span class="text-base">📋</span> Task</button>
-              <button type="button" @click="editForm.task_type = 'BUG'" :class="editForm.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'" class="flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all" :disabled="isUpdatingTask"><span class="text-base">⚠</span> Bug</button>
+            <div class="grid grid-cols-3 gap-3 sm:gap-4">
+              <button type="button" @click="editForm.task_type = 'FEATURE'" :class="editForm.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">★</span> Feature</button>
+              <button type="button" @click="editForm.task_type = 'TASK'" :class="editForm.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">📋</span> Task</button>
+              <button type="button" @click="editForm.task_type = 'BUG'" :class="editForm.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">⚠</span> Bug</button>
             </div>
-            <div v-if="editForm.task_type === 'FEATURE'" class="mt-2 flex items-start gap-2 p-2.5 bg-purple-900/20 border border-purple-500/30 rounded-xl text-xs text-purple-300">
+            <div v-if="editForm.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
               <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and Estimated Minutes are disabled.</span>
             </div>
@@ -604,13 +604,13 @@
               <span v-if="editForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
             </label>
             <template v-if="isParentTask && editForm.task_type !== 'FEATURE'">
-              <div class="flex items-center gap-3 px-4 py-3 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-300/80 text-sm">{{ subtaskTotalEstimatedMinutes }} min (roll-up)</div>
+              <div class="flex items-center gap-3 px-4 py-4 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-200 text-base font-medium">{{ subtaskTotalEstimatedMinutes }} min (roll-up)</div>
             </template>
             <template v-else>
               <input v-model.number="editForm.estimated_minutes" type="number" min="0" step="1" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 60" />
             </template>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Priority</label>
               <select v-model="editForm.priority" class="input-field w-full" :disabled="isUpdatingTask">
@@ -636,7 +636,7 @@
             <label class="label">Due Date</label>
             <input v-model="editForm.deadline" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
               <input v-model="editForm.start_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
@@ -647,12 +647,12 @@
             </div>
           </div>
         </div>
-        <div class="flex gap-3 px-6 py-4 border-t border-gray-700/60 shrink-0">
-          <button @click="submitEdit" :disabled="isUpdatingTask || !editForm.title.trim()" class="flex-1 btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-2">
-            <svg v-if="isUpdatingTask" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 px-6 sm:px-8 py-5 sm:py-6 border-t border-gray-700/60 shrink-0">
+          <button type="button" @click="submitEdit" :disabled="isUpdatingTask || !editForm.title.trim()" class="flex-1 btn-primary py-4 text-base sm:text-lg font-semibold rounded-xl disabled:opacity-40 flex items-center justify-center gap-2 min-h-[3.25rem]">
+            <svg v-if="isUpdatingTask" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
             {{ isUpdatingTask ? 'Saving…' : 'Save Changes' }}
           </button>
-          <button @click="closeEditModal" :disabled="isUpdatingTask" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded-xl transition-colors">Cancel</button>
+          <button type="button" @click="closeEditModal" :disabled="isUpdatingTask" class="sm:shrink-0 px-6 py-4 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded-xl transition-colors text-base font-medium min-h-[3.25rem]">Cancel</button>
         </div>
       </div>
     </div>
@@ -1844,6 +1844,24 @@ onMounted(() => {
 }
 .input-field {
   @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+}
+/* Edit Task modal — wide layout, larger fields (rest of page unchanged) */
+.edit-task-modal .label {
+  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
+}
+.edit-task-modal .input-field {
+  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+}
+.edit-task-modal :deep(.rich-editor .editor-content) {
+  min-height: 18rem;
+  max-height: min(58vh, 800px);
+}
+.edit-task-modal :deep(.rich-editor .ProseMirror) {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+.edit-task-modal :deep(.editor-toolbar .toolbar-btn) {
+  @apply text-sm px-2.5 py-1.5 min-h-[2.25rem];
 }
 .btn-primary {
   @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;

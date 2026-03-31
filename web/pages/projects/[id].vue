@@ -3835,7 +3835,7 @@ async function onProjectRestored() {
 }
 
 // Load data — use combined details endpoint (1 round-trip) for fast initial load.
-// When tab=timeline: run details + timeline API in parallel for faster perceived load.
+// When tab=timeline: run details + timeline API in parallel; end full-page spinner as soon as details land (timeline shows its own loader).
 async function loadAll() {
   isLoading.value = true
   error.value = ''
@@ -3884,8 +3884,11 @@ async function loadAll() {
       })
     }
 
-    // Apply timeline data if we fetched in parallel
+    isLoading.value = false
+
+    // Apply timeline data if we fetched in parallel (do not block project shell on this)
     if (timelinePromise) {
+      matrixTimelineLoading.value = true
       try {
         const data = await timelinePromise
         if (timelineMode.value === 'epic') epicTimelineData.value = data as typeof epicTimelineData.value
@@ -3897,11 +3900,12 @@ async function loadAll() {
         )
       } catch (e) {
         console.error('Failed to load timeline:', e)
+      } finally {
+        matrixTimelineLoading.value = false
       }
     }
   } catch (e: any) {
     error.value = e.message || 'Failed to load project'
-  } finally {
     isLoading.value = false
   }
   // When timeline tab but we didn't get timeline data (no parallel or parallel failed): load now
@@ -4035,17 +4039,23 @@ async function duplicateTask(task: Task) {
   isDuplicatingTask.value = true
   duplicatePlacement.value = null
   try {
+    let source = task
+    try {
+      source = await tasksApi.getTask(task.id)
+    } catch {
+      // list payload may omit description; duplicate still works with empty body
+    }
     const payload: any = {
-      title: (task.title || '').trim() ? `${(task.title || '').trim()} (copy)` : 'Task (copy)',
-      description: task.description || '',
-      priority: task.priority || 'MEDIUM',
-      story_points: task.story_points ?? 0,
+      title: (source.title || '').trim() ? `${(source.title || '').trim()} (copy)` : 'Task (copy)',
+      description: source.description || '',
+      priority: source.priority || 'MEDIUM',
+      story_points: source.story_points ?? 0,
       project_id: project.value.id,
     }
-    if (task.epic_id) payload.epic_id = task.epic_id
-    if (task.sprint_id != null) payload.sprint_id = task.sprint_id
+    if (source.epic_id) payload.epic_id = source.epic_id
+    if (source.sprint_id != null) payload.sprint_id = source.sprint_id
     let newTask = await tasksApi.createTask(payload)
-    const nextOrder = (task.sort_order ?? 0) + 1
+    const nextOrder = (source.sort_order ?? 0) + 1
     try {
       const updated = await tasksApi.updateTask(newTask.id, { sort_order: nextOrder })
       newTask = updated

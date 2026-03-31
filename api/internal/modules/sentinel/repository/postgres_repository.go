@@ -231,6 +231,36 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 	return tasks, nil
 }
 
+// projectPageTaskColumns is tasks.* minus heavy TEXT/JSONB columns not needed for board/backlog/overview lists.
+const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.negotiation_status, tasks.proposed_minutes, tasks.negotiation_ai_recommendation, tasks.negotiation_ai_confidence, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.assigned_by_id, tasks.created_by, tasks.created_at, tasks.updated_at`
+
+func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID) ([]domain.Task, error) {
+	type taskRow struct {
+		domain.Task
+		DisplayName string `gorm:"column:assigned_to_display_name"`
+		Email       string `gorm:"column:assigned_to_email"`
+	}
+	var rows []taskRow
+	err := r.db.Table("tasks").
+		Select(projectPageTaskColumns+`,
+			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(u.email, '') AS assigned_to_email`).
+		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
+		Where("tasks.project_id = ?", projectID).
+		Order("tasks.created_at desc").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	tasks := make([]domain.Task, len(rows))
+	for i := range rows {
+		tasks[i] = rows[i].Task
+		tasks[i].AssignedToDisplayName = rows[i].DisplayName
+		tasks[i].AssignedToEmail = rows[i].Email
+	}
+	return tasks, nil
+}
+
 // DeleteProjectPlan removes all tasks, sprints, milestones, and epics for a project (for "clear plan" / reset before AI plan).
 func (r *postgresRepository) DeleteProjectPlan(projectID uuid.UUID) error {
 	// Remove task dependencies that reference any task in this project

@@ -166,7 +166,7 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, ctx domain.Call
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		res.tasks, errTasks = u.repo.GetTasksByProjectID(p.ID)
+		res.tasks, errTasks = u.repo.GetTasksByProjectIDForProjectPage(p.ID)
 	}()
 	go func() {
 		defer wg.Done()
