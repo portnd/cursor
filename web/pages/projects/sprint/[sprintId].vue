@@ -339,17 +339,17 @@
             <textarea v-model="createTaskForm.description" rows="6" class="input-field w-full resize-y min-h-[10rem]" placeholder="Describe the task..."></textarea>
           </div>
           <div>
-            <label class="label">Estimated Effort (Minutes/Hours) *</label>
+            <label class="label">Estimated Effort (hours) *</label>
             <input
-              v-model.number="createTaskForm.estimated_minutes"
+              v-model.number="createTaskForm.estimated_hours"
               type="number"
               min="0"
-              step="1"
+              step="0.1"
               class="input-field w-full"
-              placeholder="e.g. 60 (minutes)"
+              placeholder="e.g. 1.5"
               required
             />
-            <p class="text-sm text-gray-500 mt-2">Minutes. Used for Manday and Quotation (Costing Engine).</p>
+            <p class="text-sm text-gray-500 mt-2">Hours, up to 1 decimal place (e.g. 1.5). Used for Manday and Quotation (Costing Engine).</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
@@ -391,7 +391,7 @@
           <div v-if="createTaskError" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ createTaskError }}</div>
         </div>
         <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 px-6 sm:px-8 py-5 sm:py-6 border-t border-gray-700 shrink-0">
-          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim() || (Number(createTaskForm.estimated_minutes) ?? 0) < 0" class="flex-1 btn-primary py-4 text-base sm:text-lg font-semibold rounded-xl disabled:opacity-40 min-h-[3.25rem]">
+          <button @click="submitCreateTask" :disabled="isCreatingTask || !createTaskForm.title.trim() || (Number(createTaskForm.estimated_hours) ?? 0) < 0" class="flex-1 btn-primary py-4 text-base sm:text-lg font-semibold rounded-xl disabled:opacity-40 min-h-[3.25rem]">
             {{ isCreatingTask ? 'Creating...' : 'Create Task' }}
           </button>
           <button type="button" @click="closeCreateTaskModal" class="sm:shrink-0 px-6 py-4 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-xl transition-colors text-base font-medium min-h-[3.25rem]">Cancel</button>
@@ -432,6 +432,7 @@
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { Project, Sprint, Task } from '~/core/modules/projects/infrastructure/projects-api'
+import { effortHoursToMinutes } from '~/utils/effortHours'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -756,7 +757,7 @@ const createTaskForm = ref({
   due_date: '',
   start_date: '',
   end_date: '',
-  estimated_minutes: 0,
+  estimated_hours: 0,
 })
 const isCreatingTask = ref(false)
 const createTaskError = ref('')
@@ -771,7 +772,7 @@ function openCreateTaskModal() {
     due_date: '',
     start_date: '',
     end_date: '',
-    estimated_minutes: 0,
+    estimated_hours: 0,
   }
   createTaskError.value = ''
   showCreateTaskModal.value = true
@@ -793,7 +794,7 @@ async function submitCreateTask() {
       story_points: createTaskForm.value.story_points,
       project_id: project.value.id,
       sprint_id: sprint.value.id,
-      estimated_minutes: Number(createTaskForm.value.estimated_minutes) || 0,
+      estimated_minutes: effortHoursToMinutes(Number(createTaskForm.value.estimated_hours) || 0),
     }
     if (createTaskForm.value.due_date) payload.due_date = new Date(createTaskForm.value.due_date).toISOString()
     if (createTaskForm.value.start_date) payload.start_date = new Date(createTaskForm.value.start_date).toISOString()

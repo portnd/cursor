@@ -566,8 +566,30 @@ func (h *SentinelHandler) ClearProjectPlan(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Project plan cleared successfully"})
 }
 
+func isPrivilegedTaskRole(role string) bool {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case domain.RoleCEO, domain.RolePM, domain.RoleManager:
+		return true
+	default:
+		return false
+	}
+}
+
+func canUserCreateSubtask(parent *domain.Task, userID uint, role string) bool {
+	if isPrivilegedTaskRole(role) {
+		return true
+	}
+	if parent.CreatedBy != nil && *parent.CreatedBy == userID {
+		return true
+	}
+	if parent.AssignedTo != nil && *parent.AssignedTo == userID {
+		return true
+	}
+	return false
+}
+
 // CreateTask handles POST /api/v1/tasks
-// Creates a new task (CEO/PM only)
+// Top-level tasks: CEO/PM/Manager. Sub-tasks: same, or parent assignee/creator.
 func (h *SentinelHandler) CreateTask(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
@@ -679,6 +701,24 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 		epicID = &eid
 	}
 
+	userRole := getUserRoleFromContext(c)
+	if parentID == nil {
+		if !isPrivilegedTaskRole(userRole) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO, PM, or Manager can create top-level tasks"})
+			return
+		}
+	} else {
+		parent, err := h.usecase.GetTaskByID(*parentID)
+		if err != nil || parent == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "parent task not found"})
+			return
+		}
+		if !canUserCreateSubtask(parent, userID, userRole) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO, PM, Manager, the parent task assignee, or creator can create sub-tasks"})
+			return
+		}
+	}
+
 	task, err := h.usecase.CreateTask(req.Title, req.Description, req.TaskType, userID, dueDate, projectID, parentID, startDate, endDate, req.Priority, req.StoryPoints, sprintID, milestoneID, epicID, req.EstimatedMinutes)
 	if err != nil {
 		log.Printf("[CreateTask] usecase error: %v", err)
@@ -719,7 +759,11 @@ func (h *SentinelHandler) AssignTask(c *gin.Context) {
 		return
 	}
 
-	if err := h.usecase.AssignTask(task.ID, req.DevID, assignerID); err != nil {
+	if err := h.usecase.AssignTask(task.ID, req.DevID, assignerID, getUserRoleFromContext(c)); err != nil {
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to assign task",
 			"message": err.Error(),

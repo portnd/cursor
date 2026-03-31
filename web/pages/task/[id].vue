@@ -383,7 +383,7 @@
             :project-id="task.project_id"
             :parent-task="task"
             :subtasks="subtasks"
-            :can-edit="canEditOrDelete"
+            :can-edit="canManageSubtasks"
             :is-max-depth="!!(task.parent_task?.parent_id)"
             @refresh="fetchTask"
           />
@@ -495,30 +495,32 @@
                 </template>
               </div>
 
-              <!-- Estimated Effort -->
+              <!-- Estimated Effort (hours, 1 decimal; stored as minutes API-side) -->
               <div class="px-5 py-3.5">
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Estimated Effort</p>
                 <template v-if="isParentTask">
                   <p class="text-sm font-semibold text-white">
-                    {{ subtaskTotalEstimatedMinutes }} <span class="text-gray-400 font-normal text-xs">min</span>
-                    <span class="text-gray-500 font-normal text-xs ml-1">({{ (subtaskTotalEstimatedMinutes / 60).toFixed(1) }}h)</span>
+                    {{ formatMinutesAsHours(subtaskTotalEstimatedMinutes) }}
+                    <span class="text-gray-400 font-normal text-xs">h</span>
+                    <span class="text-gray-500 font-normal text-xs ml-1">({{ subtaskTotalEstimatedMinutes }} min)</span>
                   </p>
                   <p class="text-xs text-amber-400/80 mt-0.5">Roll-up from {{ subtasks.length }} sub-task{{ subtasks.length !== 1 ? 's' : '' }}</p>
                 </template>
                 <template v-else>
                   <div v-if="!canEditOrDelete" class="text-sm font-semibold text-white">
-                    {{ task.estimated_minutes ?? 0 }} <span class="text-gray-400 font-normal text-xs">min</span>
-                    <span class="text-gray-500 font-normal text-xs ml-1">({{ ((task.estimated_minutes ?? 0) / 60).toFixed(1) }}h)</span>
+                    {{ formatMinutesAsHours(task.estimated_minutes ?? 0) }}
+                    <span class="text-gray-400 font-normal text-xs">h</span>
+                    <span class="text-gray-500 font-normal text-xs ml-1">({{ task.estimated_minutes ?? 0 }} min)</span>
                   </div>
-                  <div v-else class="flex items-center gap-2">
+                  <div v-else class="flex items-center gap-2 flex-wrap">
                     <input
-                      v-model.number="estimatedMinutesLocal"
-                      type="number" min="0" step="1"
-                      class="w-24 px-2.5 py-1.5 bg-gray-900 border border-gray-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      v-model.number="estimatedHoursLocal"
+                      type="number" min="0" step="0.1"
+                      class="w-28 px-2.5 py-1.5 bg-gray-900 border border-gray-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="0"
                       @blur="saveEstimatedMinutes"
                     />
-                    <span class="text-xs text-gray-500">min</span>
+                    <span class="text-xs text-gray-500">hours</span>
                     <button
                       v-if="estimatedMinutesDirty"
                       type="button"
@@ -587,7 +589,7 @@
             </div>
             <div v-if="editForm.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
-              <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and Estimated Minutes are disabled.</span>
+              <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and estimated effort are disabled.</span>
             </div>
           </div>
           <div>
@@ -600,14 +602,14 @@
           </div>
           <div>
             <label class="label" :class="editForm.task_type === 'FEATURE' ? 'text-gray-500' : ''">
-              Estimated Effort (Minutes)
+              Estimated Effort (hours)
               <span v-if="editForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
             </label>
             <template v-if="isParentTask && editForm.task_type !== 'FEATURE'">
-              <div class="flex items-center gap-3 px-4 py-4 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-200 text-base font-medium">{{ subtaskTotalEstimatedMinutes }} min (roll-up)</div>
+              <div class="flex items-center gap-3 px-4 py-4 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-200 text-base font-medium">{{ formatMinutesAsHours(subtaskTotalEstimatedMinutes) }} h (roll-up, {{ subtaskTotalEstimatedMinutes }} min)</div>
             </template>
             <template v-else>
-              <input v-model.number="editForm.estimated_minutes" type="number" min="0" step="1" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 60" />
+              <input v-model.number="editForm.estimated_hours" type="number" min="0" step="0.1" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 1.5" />
             </template>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
@@ -886,6 +888,7 @@ import type { TaskComment, TimeLog } from '~/core/modules/tasks/infrastructure/t
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import OutsourceRequestModal from '~/components/b2b/OutsourceRequestModal.vue'
+import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from '~/utils/effortHours'
 
 definePageMeta({
   layout: 'default',
@@ -1039,7 +1042,7 @@ const editForm = ref({
   sprint_id: '',
   start_date: '',
   end_date: '',
-  estimated_minutes: 0
+  estimated_hours: 0
 })
 const editSprints = ref<{ id: string; name: string }[]>([])
 const isUpdatingTask = ref(false)
@@ -1061,11 +1064,12 @@ const timeLogs = ref<TimeLog[]>([])
 const commentsLoading = ref(false)
 const timeLogsLoading = ref(false)
 
-// Estimated Effort (manual minutes for Costing Engine)
-const estimatedMinutesLocal = ref(0)
+// Estimated Effort (UI: hours, 1 decimal → API: integer minutes)
+const estimatedHoursLocal = ref(0)
 const isSavingEstimate = ref(false)
 const estimatedMinutesDirty = computed(() =>
-  task.value != null && Number(estimatedMinutesLocal.value) !== (task.value.estimated_minutes ?? 0)
+  task.value != null &&
+  effortHoursToMinutes(Number(estimatedHoursLocal.value)) !== (task.value.estimated_minutes ?? 0)
 )
 
 // Sub-tasks (child tasks for parent-child hierarchy)
@@ -1136,6 +1140,17 @@ const canEditOrDelete = computed(() => {
   return creatorId === userId && !Number.isNaN(userId)
 })
 
+/** Sub-tasks: PM/CEO/creator (canEditOrDelete) or the user assigned to this task */
+const isCurrentUserAssignee = computed(() => {
+  if (!task.value || !effectiveUser.value) return false
+  const aid = task.value.assigned_to
+  if (aid == null || aid === undefined) return false
+  const userId = Number(effectiveUser.value.id ?? authStore.userId ?? 0)
+  return Number(aid) === userId && !Number.isNaN(userId)
+})
+
+const canManageSubtasks = computed(() => canEditOrDelete.value || isCurrentUserAssignee.value)
+
 const currentRole = computed(() => (effectiveUser.value?.role || '').trim().toUpperCase())
 
 /** PM/MANAGER step: task is READY_FOR_TEST and viewer is PM or MANAGER */
@@ -1200,7 +1215,7 @@ const fetchTask = async () => {
 
     const response = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${taskId}`)
     task.value = response.data
-    estimatedMinutesLocal.value = task.value.estimated_minutes ?? 0
+    estimatedHoursLocal.value = minutesToEffortHours(task.value.estimated_minutes ?? 0)
     // Populate local subtasks from response (backend preloads SubTasks)
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
 
@@ -1355,7 +1370,7 @@ async function submitUATReject() {
 
 const saveEstimatedMinutes = async () => {
   if (!task.value) return
-  const mins = Number(estimatedMinutesLocal.value)
+  const mins = effortHoursToMinutes(Number(estimatedHoursLocal.value))
   if (mins < 0 || Number.isNaN(mins)) return
   const taskId = (route.params.id as string)?.trim?.() || task.value.id
   if (!taskId) return
@@ -1363,7 +1378,7 @@ const saveEstimatedMinutes = async () => {
     isSavingEstimate.value = true
     const updated = await tasksApi.updateTask(taskId, { estimated_minutes: mins })
     task.value = { ...task.value, ...updated }
-    estimatedMinutesLocal.value = updated.estimated_minutes ?? 0
+    estimatedHoursLocal.value = minutesToEffortHours(updated.estimated_minutes ?? 0)
     showSuccess('Estimated effort updated.', 'Done')
   } catch (err: any) {
     showError(err?.data?.message ?? err?.message ?? 'Failed to update estimate')
@@ -1509,7 +1524,7 @@ const openEditModal = async () => {
   editForm.value.sprint_id = task.value.sprint_id ?? ''
   editForm.value.start_date = toDatetimeLocal(task.value.start_date)
   editForm.value.end_date = toDatetimeLocal(task.value.end_date)
-  editForm.value.estimated_minutes = task.value.estimated_minutes ?? 0
+  editForm.value.estimated_hours = minutesToEffortHours(task.value.estimated_minutes ?? 0)
 
   editSprints.value = []
   if (task.value.project_id) {
@@ -1537,7 +1552,7 @@ const closeEditModal = () => {
     sprint_id: '',
     start_date: '',
     end_date: '',
-    estimated_minutes: 0
+    estimated_hours: 0
   }
   editError.value = ''
 }
@@ -1592,7 +1607,7 @@ const submitEdit = async () => {
       body.end_date = newEndStr
     }
     const currentEst = task.value.estimated_minutes ?? 0
-    const newEst = Number(editForm.value.estimated_minutes) || 0
+    const newEst = effortHoursToMinutes(Number(editForm.value.estimated_hours) || 0)
     if (newEst !== currentEst) {
       body.estimated_minutes = newEst
     }

@@ -30,8 +30,9 @@
       <div class="flex items-center justify-between text-xs">
         <span class="text-gray-500">Total Estimated Effort</span>
         <span class="font-semibold text-white">
-          {{ totalEstimatedMinutes }} min
-          <span class="text-gray-400 font-normal">({{ (totalEstimatedMinutes / 60).toFixed(1) }}h)</span>
+          {{ formatMinutesAsHours(totalEstimatedMinutes) }}
+          <span class="text-gray-400 font-normal">h</span>
+          <span class="text-gray-500 font-normal text-xs ml-1">({{ totalEstimatedMinutes }} min)</span>
         </span>
       </div>
       <div class="flex items-center justify-between text-xs">
@@ -73,7 +74,7 @@
               {{ sub.assigned_to_display_name || sub.assigned_to_email || `Dev #${sub.assigned_to}` }}
             </span>
             <span v-else class="text-xs text-gray-600 italic">Unassigned</span>
-            <span v-if="sub.estimated_minutes" class="text-xs text-gray-600">· {{ sub.estimated_minutes }}min</span>
+            <span v-if="sub.estimated_minutes" class="text-xs text-gray-600">· {{ formatMinutesAsHours(sub.estimated_minutes) }}h</span>
           </div>
         </div>
 
@@ -136,8 +137,8 @@
             </select>
           </div>
           <div>
-            <label class="block text-xs text-gray-500 mb-1">Estimated Minutes</label>
-            <input v-model.number="newSubtask.estimated_minutes" type="number" min="0" step="15" placeholder="e.g. 60" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label class="block text-xs text-gray-500 mb-1">Estimated Effort (hours)</label>
+            <input v-model.number="newSubtask.estimated_hours" type="number" min="0" step="0.1" placeholder="e.g. 1.5" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -192,7 +193,7 @@
             </div>
             <p class="text-xs text-gray-500 truncate max-w-md">
               Original: <span class="text-gray-300">{{ splitTarget.title }}</span>
-              <span v-if="splitTarget.estimated_minutes" class="ml-2 text-gray-500">({{ splitTarget.estimated_minutes }}min)</span>
+              <span v-if="splitTarget.estimated_minutes" class="ml-2 text-gray-500">({{ formatMinutesAsHours(splitTarget.estimated_minutes) }}h)</span>
             </p>
           </div>
           <button @click="closeSplitModal" class="text-gray-500 hover:text-white transition-colors ml-4 shrink-0">✕</button>
@@ -242,10 +243,10 @@
                     <option v-for="u in assigneeOptions" :key="u.id" :value="u.id">{{ u.display_name || u.email }}</option>
                   </select>
                 </div>
-                <!-- Est. Minutes -->
+                <!-- Est. hours -->
                 <div>
-                  <label class="block text-xs text-gray-500 mb-1">Est. Minutes</label>
-                  <input v-model.number="item.estimated_minutes" type="number" min="0" step="15" placeholder="0" class="w-full px-2.5 py-2 bg-gray-800 border border-gray-600 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-amber-500/60 outline-none" />
+                  <label class="block text-xs text-gray-500 mb-1">Est. (hours)</label>
+                  <input v-model.number="item.estimated_hours" type="number" min="0" step="0.1" placeholder="0" class="w-full px-2.5 py-2 bg-gray-800 border border-gray-600 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-amber-500/60 outline-none" />
                 </div>
                 <!-- Priority -->
                 <div>
@@ -276,8 +277,9 @@
           <div class="flex items-center justify-between text-xs px-1">
             <span class="text-gray-500">Total estimated effort after split</span>
             <span class="font-semibold" :class="splitTotalMinutes > (splitTarget?.estimated_minutes || 0) ? 'text-amber-400' : 'text-gray-300'">
-              {{ splitTotalMinutes }} min
-              <span v-if="splitTarget?.estimated_minutes" class="text-gray-500 font-normal ml-1">(was {{ splitTarget.estimated_minutes }} min)</span>
+              {{ formatMinutesAsHours(splitTotalMinutes) }} h
+              <span class="text-gray-500 font-normal ml-1">({{ splitTotalMinutes }} min)</span>
+              <span v-if="splitTarget?.estimated_minutes" class="text-gray-500 font-normal ml-1">· was {{ formatMinutesAsHours(splitTarget.estimated_minutes) }} h</span>
             </span>
           </div>
 
@@ -309,6 +311,7 @@ import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useAuth } from '~/composables/useAuth'
+import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from '~/utils/effortHours'
 
 interface SubTask {
   id: string
@@ -347,7 +350,7 @@ export interface ParentTaskCopySource {
 
 interface SplitItem {
   title: string
-  estimated_minutes: number
+  estimated_hours: number
   assignee_id: number | null
   priority: string
 }
@@ -384,7 +387,7 @@ interface NewSubtaskDraft {
   description: string
   task_type: 'FEATURE' | 'TASK' | 'BUG'
   assigned_to: number | null
-  estimated_minutes: number
+  estimated_hours: number
   priority: string
   story_points: number
   epic_id: string | null
@@ -401,7 +404,7 @@ function emptyDraft(): NewSubtaskDraft {
     description: '',
     task_type: 'TASK',
     assigned_to: null,
-    estimated_minutes: 0,
+    estimated_hours: 0,
     priority: '',
     story_points: 0,
     epic_id: null,
@@ -426,7 +429,9 @@ const isSplitting = ref(false)
 const splitError = ref('')
 const splitSubmitted = ref(false)
 
-const splitTotalMinutes = computed(() => splitItems.value.reduce((s, i) => s + (i.estimated_minutes || 0), 0))
+const splitTotalMinutes = computed(() =>
+  splitItems.value.reduce((s, i) => s + effortHoursToMinutes(Number(i.estimated_hours) || 0), 0)
+)
 
 // ── Roll-up ───────────────────────────────────────────────
 const totalEstimatedMinutes = computed(() =>
@@ -485,7 +490,7 @@ function fillFromParent() {
     description: p.description || '',
     task_type: normalizeTaskType(p.task_type),
     assigned_to: p.assigned_to ?? null,
-    estimated_minutes: p.estimated_minutes ?? 0,
+    estimated_hours: minutesToEffortHours(p.estimated_minutes ?? 0),
     priority: p.priority || '',
     story_points: p.story_points ?? 0,
     epic_id: p.epic_id ?? null,
@@ -521,7 +526,7 @@ async function submitAddSubtask() {
     const payload: Record<string, unknown> = {
       title: d.title.trim(),
       parent_id: props.parentTaskId,
-      estimated_minutes: d.estimated_minutes || 0,
+      estimated_minutes: effortHoursToMinutes(Number(d.estimated_hours) || 0),
       task_type: d.task_type || 'TASK',
       story_points: d.story_points ?? 0,
     }
@@ -556,7 +561,7 @@ function makeSplitItem(src: SubTask, suffix: string): SplitItem {
   const baseTitle = src.title.replace(/\s*-\s*Part\s*\d+$/i, '').trim()
   return {
     title: `${baseTitle} - ${suffix}`,
-    estimated_minutes: Math.round((src.estimated_minutes || 0) / 2),
+    estimated_hours: minutesToEffortHours(Math.round((src.estimated_minutes || 0) / 2)),
     assignee_id: null,
     priority: '',
   }
@@ -606,7 +611,7 @@ async function submitSplit() {
       splitTarget.value.id,
       splitItems.value.map((i) => ({
         title: i.title.trim(),
-        estimated_minutes: i.estimated_minutes || 0,
+        estimated_minutes: effortHoursToMinutes(Number(i.estimated_hours) || 0),
         assignee_id: i.assignee_id ?? null,
         priority: i.priority || undefined,
       }))

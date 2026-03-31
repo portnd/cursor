@@ -46,7 +46,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/tasks/:id/estimate", handler.EstimateTask)                     // AI estimate time (Creator/CEO/PM)
 		sentinelGroup.DELETE("/tasks/:id", handler.DeleteTask)                              // Delete task (Creator or CEO only)
 		sentinelGroup.POST("/tasks/:id/split", handler.SplitTask)                           // Split task into N sub-tasks (PM/CEO/Creator)
-		sentinelGroup.POST("/tasks/:id/assign", handler.AssignTask)                         // Assign task to developer (PM)
+		sentinelGroup.POST("/tasks/:id/assign", handler.AssignTask)                         // Assign task (PM/CEO/Manager; parent assignee for subtasks)
 		sentinelGroup.POST("/tasks/:id/submit", handler.SubmitWork)                         // Handover: Dev submits PR/Commit URL for review
 		sentinelGroup.POST("/tasks/:id/submit-uat", handler.SubmitUAT)                      // UAT: Dev submits staging URL + release notes for FEATURE review
 		sentinelGroup.POST("/tasks/:id/negotiate", handler.NegotiateTime)                   // Developer negotiates AI time estimate

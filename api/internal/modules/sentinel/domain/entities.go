@@ -589,7 +589,7 @@ type SentinelUsecase interface {
 	AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*Project, error) // CEO/MANAGER when teams feature off
 
 	CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*Task, error)
-	AssignTask(taskID uuid.UUID, devID uint, assignerID uint) error
+	AssignTask(taskID uuid.UUID, devID uint, assignerID uint, assignerRole string) error
 	SubmitWork(taskID uuid.UUID, devID uint, referenceURL, note string) (*Submission, error)
 	SubmitUAT(taskID uuid.UUID, devID uint, payload UATPayloadData) error // Dev submits UAT payload for a FEATURE (READY_FOR_UAT → REVIEW_PENDING)
 	GetTaskByID(taskID uuid.UUID) (*Task, error)

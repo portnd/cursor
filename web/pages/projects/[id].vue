@@ -2061,7 +2061,7 @@
             <!-- PM Rule hint for FEATURE type -->
             <div v-if="createTaskForm.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
-              <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and Estimated Minutes are disabled — add sub-tasks of type Task/Bug to assign work.</span>
+              <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and estimated effort are disabled — add sub-tasks of type Task/Bug to assign work.</span>
             </div>
           </div>
 
@@ -2075,20 +2075,20 @@
           </div>
           <div>
             <label class="label" :class="createTaskForm.task_type === 'FEATURE' ? 'text-gray-500' : ''">
-              Estimated Effort (Minutes)
+              Estimated Effort (hours)
               <span v-if="createTaskForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
             </label>
             <input
-              v-model.number="createTaskForm.estimated_minutes"
+              v-model.number="createTaskForm.estimated_hours"
               type="number"
               min="0"
-              step="1"
+              step="0.1"
               class="input-field w-full transition-opacity"
               :class="createTaskForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''"
               :disabled="createTaskForm.task_type === 'FEATURE'"
-              placeholder="e.g. 60 (minutes)"
+              placeholder="e.g. 1.5"
             />
-            <p v-if="createTaskForm.task_type !== 'FEATURE'" class="text-sm text-gray-500 mt-2">Minutes. Used for Manday and Quotation (Costing Engine).</p>
+            <p v-if="createTaskForm.task_type !== 'FEATURE'" class="text-sm text-gray-500 mt-2">Hours, up to 1 decimal place (e.g. 1.5). Stored for Manday and Quotation (Costing Engine).</p>
           </div>
           <!-- Sub-task hint -->
           <div v-if="createTaskForm.parent_id" class="p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
@@ -2509,6 +2509,7 @@ const ProjectCapitalPanel = defineAsyncComponent(() => import('~/core/modules/pr
 const FeatureRoadmapBoard = defineAsyncComponent(() => import('~/components/tasks/FeatureRoadmapBoard.vue'))
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
+import { effortHoursToMinutes } from '~/utils/effortHours'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 
@@ -4596,13 +4597,13 @@ const showCreateTaskModal = ref(false)
 const createTaskForm = ref({
   title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0,
   sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: '', epic_id: '',
-  estimated_minutes: 0
+  estimated_hours: 0
 })
 const isCreatingTask = ref(false)
 const createTaskError = ref('')
 
 function openCreateTaskModal(parentId?: string, epicId?: string) {
-  createTaskForm.value = { title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0, sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: parentId || '', epic_id: epicId || '', estimated_minutes: 0 }
+  createTaskForm.value = { title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0, sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: parentId || '', epic_id: epicId || '', estimated_hours: 0 }
   createTaskError.value = ''
   showCreateTaskModal.value = true
 }
@@ -5216,7 +5217,7 @@ async function submitCreateTask() {
   isCreatingTask.value = true
   createTaskError.value = ''
   try {
-    const estMins = Number(createTaskForm.value.estimated_minutes) || 0
+    const estMins = effortHoursToMinutes(Number(createTaskForm.value.estimated_hours) || 0)
     const payload: any = {
       title: createTaskForm.value.title,
       description: createTaskForm.value.description,

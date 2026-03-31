@@ -95,11 +95,13 @@
                   <div class="flex items-center gap-4 text-xs">
                     <div>
                       <span class="text-gray-500">Estimate:</span>
-                      <span class="text-yellow-400 font-bold ml-1">{{ task.estimated_minutes }} min</span>
+                      <span class="text-yellow-400 font-bold ml-1">{{ formatMinutesAsHours(task.estimated_minutes) }} h</span>
+                      <span class="text-gray-600 ml-0.5">({{ task.estimated_minutes }} min)</span>
                     </div>
                     <div>
                       <span class="text-gray-500">→ Dev Proposes:</span>
-                      <span class="text-yellow-400 font-bold ml-1">{{ task.proposed_minutes }} min</span>
+                      <span class="text-yellow-400 font-bold ml-1">{{ formatMinutesAsHours(task.proposed_minutes || 0) }} h</span>
+                      <span class="text-gray-600 ml-0.5">({{ task.proposed_minutes || 0 }} min)</span>
                     </div>
                   </div>
                   <p class="text-xs text-gray-400">
@@ -236,7 +238,7 @@
               <div class="flex items-center gap-2">
                 <span class="text-gray-500">Estimated:</span>
                 <span class="text-blue-400 font-bold">
-                  {{ task.estimated_minutes }} min ({{ (task.estimated_minutes / 60).toFixed(1) }}h)
+                  {{ formatMinutesAsHours(task.estimated_minutes) }} h ({{ task.estimated_minutes }} min)
                 </span>
               </div>
               <div v-if="task.due_at" class="flex items-center gap-2">
@@ -291,6 +293,7 @@
 
 <script setup lang="ts">
 import { useAuthStore } from '~/core/modules/auth/store/auth-store'
+import { formatMinutesAsHours } from '~/utils/effortHours'
 
 // Page Meta
 definePageMeta({

@@ -407,9 +407,35 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 	return task, nil
 }
 
-// AssignTask assigns a developer to a task. assignerID is the PM/CEO who performs the assign (for PM-scoped leaderboard).
+// authorizeTaskAssign allows CEO/PM/MANAGER for any task; for subtasks also parent assignee/creator or current subtask assignee.
+func (u *sentinelUsecase) authorizeTaskAssign(task *domain.Task, assignerID uint, assignerRole string) error {
+	role := strings.ToUpper(strings.TrimSpace(assignerRole))
+	if role == domain.RoleCEO || role == domain.RolePM || role == domain.RoleManager {
+		return nil
+	}
+	if task.ParentID == nil {
+		return fmt.Errorf("unauthorized: only CEO, PM, or Manager can assign top-level tasks")
+	}
+	if task.AssignedTo != nil && *task.AssignedTo == assignerID {
+		return nil
+	}
+	parent, err := u.repo.GetTaskByID(*task.ParentID)
+	if err != nil || parent == nil {
+		return fmt.Errorf("parent task not found")
+	}
+	if parent.AssignedTo != nil && *parent.AssignedTo == assignerID {
+		return nil
+	}
+	if parent.CreatedBy != nil && *parent.CreatedBy == assignerID {
+		return nil
+	}
+	return fmt.Errorf("unauthorized: you cannot assign this task")
+}
+
+// AssignTask assigns a developer to a task. assignerID is recorded as assigned_by for PM-scoped leaderboard when set by PM/CEO.
+// Parent-task assignees may assign subtasks; subtask assignees may reassign their own subtask.
 // devID = 0 means unassign (set AssignedTo = nil, revert to PENDING).
-func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID uint) error {
+func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID uint, assignerRole string) error {
 	// 1. Validate if task exists
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -417,6 +443,10 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID ui
 	}
 	if task == nil {
 		return errors.New("task not found")
+	}
+
+	if err := u.authorizeTaskAssign(task, assignerID, assignerRole); err != nil {
+		return err
 	}
 
 	if devID == 0 {
@@ -3758,12 +3788,22 @@ func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskI
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// Access control: CEO / PM / creator
+	// Access control: CEO / PM / MANAGER / creator / parent assignee / current subtask assignee
 	role := strings.ToUpper(strings.TrimSpace(requestingUserRole))
-	if role != "CEO" && role != "PM" && role != "MANAGER" {
-		if orig.CreatedBy == nil || *orig.CreatedBy != requestingUserID {
-			return nil, &domain.ErrBadRequest{Msg: "only CEO, PM, or the task creator can split a task"}
+	allowed := role == "CEO" || role == "PM" || role == "MANAGER"
+	if !allowed && orig.CreatedBy != nil && *orig.CreatedBy == requestingUserID {
+		allowed = true
+	}
+	if !allowed && orig.AssignedTo != nil && *orig.AssignedTo == requestingUserID {
+		allowed = true
+	}
+	if !allowed && orig.ParentID != nil {
+		if parent, perr := u.repo.GetTaskByID(*orig.ParentID); perr == nil && parent != nil && parent.AssignedTo != nil && *parent.AssignedTo == requestingUserID {
+			allowed = true
 		}
+	}
+	if !allowed {
+		return nil, &domain.ErrBadRequest{Msg: "only CEO, PM, Manager, the task creator, the parent task assignee, or the subtask assignee can split this task"}
 	}
 
 	// Determine slug for code generation

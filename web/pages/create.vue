@@ -54,7 +54,7 @@
             <!-- PM Rule hint -->
             <div v-if="form.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
-              <span><strong>Feature mode:</strong> Acts as a parent container. Estimated Minutes is disabled — add sub-tasks of type Task/Bug to assign work.</span>
+              <span><strong>Feature mode:</strong> Acts as a parent container. Estimated effort is disabled — add sub-tasks of type Task/Bug to assign work.</span>
             </div>
           </div>
 
@@ -82,20 +82,20 @@
           <!-- Estimated Effort -->
           <div>
             <label class="label" :class="form.task_type === 'FEATURE' ? 'text-gray-500' : ''">
-              Estimated Effort (Minutes)
+              Estimated Effort (hours)
               <span v-if="form.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
             </label>
             <input
-              v-model.number="form.estimated_minutes"
+              v-model.number="form.estimated_hours"
               type="number"
               min="0"
-              step="1"
+              step="0.1"
               class="input-field w-full transition-opacity"
               :class="form.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''"
               :disabled="form.task_type === 'FEATURE'"
-              placeholder="e.g. 60 (minutes)"
+              placeholder="e.g. 1.5"
             />
-            <p v-if="form.task_type !== 'FEATURE'" class="text-sm text-gray-500 mt-2">Minutes. Used for Manday and Quotation (Costing Engine).</p>
+            <p v-if="form.task_type !== 'FEATURE'" class="text-sm text-gray-500 mt-2">Hours, up to 1 decimal place (e.g. 1.5). Used for Manday and Quotation (Costing Engine).</p>
           </div>
 
           <!-- Priority & Story Points -->
@@ -173,6 +173,7 @@
 <script setup lang="ts">
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
+import { effortHoursToMinutes } from '~/utils/effortHours'
 
 definePageMeta({
   layout: 'default',
@@ -205,7 +206,7 @@ const form = ref({
   epic_id:           '',
   priority:          'MEDIUM',
   story_points:      0,
-  estimated_minutes: 0,
+  estimated_hours: 0,
   due_date:          '',
   start_date:        '',
   end_date:          '',
@@ -251,7 +252,7 @@ async function handleSubmit() {
       task_type:         form.value.task_type || 'TASK',
       priority:          form.value.priority,
       story_points:      form.value.story_points,
-      estimated_minutes: form.value.task_type === 'FEATURE' ? 0 : (Number(form.value.estimated_minutes) || 0),
+      estimated_minutes: form.value.task_type === 'FEATURE' ? 0 : effortHoursToMinutes(Number(form.value.estimated_hours) || 0),
     }
     if (form.value.project_id)  payload.project_id  = form.value.project_id
     if (form.value.sprint_id)   payload.sprint_id   = form.value.sprint_id
