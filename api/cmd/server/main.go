@@ -10,6 +10,10 @@ import (
 	"github.com/portnd/the-sentinel-core/internal/core/config"
 	"github.com/portnd/the-sentinel-core/internal/core/database"
 	"github.com/portnd/the-sentinel-core/internal/core/middleware"
+	attendanceHttp "github.com/portnd/the-sentinel-core/internal/modules/attendance/delivery/http"
+	attendanceDomain "github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
+	attendanceRepo "github.com/portnd/the-sentinel-core/internal/modules/attendance/repository"
+	attendanceUsecase "github.com/portnd/the-sentinel-core/internal/modules/attendance/usecase"
 	authHttp "github.com/portnd/the-sentinel-core/internal/modules/auth/delivery/http"
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	authRepo "github.com/portnd/the-sentinel-core/internal/modules/auth/repository"
@@ -91,6 +95,8 @@ func main() {
 		&pricingDomain.ProjectCostSnapshot{},
 		&pricingDomain.ProjectExpense{},
 		&pulseDomain.DailyStandup{},
+		&attendanceDomain.OfficeConfig{},
+		&attendanceDomain.AttendanceRecord{},
 	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
@@ -172,6 +178,11 @@ func main() {
 	pulseUsecaseInstance := pulseUsecase.NewPulseUsecase(pulseRepository, authRepository)
 	log.Println("✅ Pulse Module initialized")
 
+	log.Println("🕐 Initializing Attendance Module...")
+	attendanceRepository := attendanceRepo.NewPostgresRepository(db)
+	attendanceUsecaseInstance := attendanceUsecase.NewAttendanceUsecase(attendanceRepository, cfg.JWTSecret)
+	log.Println("✅ Attendance Module initialized")
+
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -224,6 +235,10 @@ func main() {
 	pulseGroup := apiGroup.Group("")
 	pulseGroup.Use(authMiddleware)
 	pulseHttp.RegisterRoutes(pulseGroup, pulseUsecaseInstance)
+
+	attendanceGroup := apiGroup.Group("")
+	attendanceGroup.Use(authMiddleware)
+	attendanceHttp.RegisterRoutes(attendanceGroup, attendanceUsecaseInstance)
 
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)

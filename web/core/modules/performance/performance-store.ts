@@ -1,12 +1,18 @@
 import { defineStore } from 'pinia'
 import { usePerformanceApi } from './performance-api'
-import type { PersonalKPIs, TeamMemberKPI, OverviewKPIs } from './performance-api'
+import type { PersonalKPIs, TeamMemberKPI, OverviewKPIs, DisciplineResponse, DisciplineDayDetail } from './performance-api'
 
 export const usePerformanceStore = defineStore('performance', {
   state: () => ({
     personal: null as PersonalKPIs | null,
     team: [] as TeamMemberKPI[],
     overview: null as OverviewKPIs | null,
+    discipline: null as DisciplineResponse | null,
+    disciplineLoading: false,
+    disciplineError: null as string | null,
+    dayDetail: null as DisciplineDayDetail | null,
+    dayDetailLoading: false,
+    dayDetailError: null as string | null,
     loading: false,
     error: null as string | null,
   }),
@@ -55,6 +61,33 @@ export const usePerformanceStore = defineStore('performance', {
         this.error = e?.message || 'Failed to load overview'
       } finally {
         this.loading = false
+      }
+    },
+
+    async fetchDiscipline(from: string, to: string) {
+      const api = usePerformanceApi()
+      this.disciplineLoading = true
+      this.disciplineError = null
+      try {
+        this.discipline = await api.getDiscipline(from, to)
+      } catch (e: any) {
+        this.disciplineError = e?.message || 'Failed to load discipline data'
+      } finally {
+        this.disciplineLoading = false
+      }
+    },
+
+    async fetchDayDetail(userId: number, date: string) {
+      const api = usePerformanceApi()
+      this.dayDetailLoading = true
+      this.dayDetailError = null
+      this.dayDetail = null
+      try {
+        this.dayDetail = await api.getDisciplineDayDetail(userId, date)
+      } catch (e: any) {
+        this.dayDetailError = e?.message || 'Failed to load day detail'
+      } finally {
+        this.dayDetailLoading = false
       }
     },
 

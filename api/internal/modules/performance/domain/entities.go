@@ -45,12 +45,90 @@ type OverviewKPIs struct {
 	TeamVelocityTrendPct   float64 `json:"team_velocity_trend_pct"` // sprint-over-sprint growth %
 }
 
+// ─── Discipline Dashboard ──────────────────────────────────────────────────────
+
+// DisciplineUserDayStat holds one employee's activity metrics for a single date.
+type DisciplineUserDayStat struct {
+	Date          string `json:"date"`           // YYYY-MM-DD
+	TasksClosed   int    `json:"tasks_closed"`   // tasks completed on this date
+	Reworks       int    `json:"reworks"`        // [REJECTED] comments on tasks owned by user on this date
+	LoggedMinutes int    `json:"logged_minutes"` // total minutes logged via time_logs
+	HasDailyPulse bool   `json:"has_daily_pulse"` // whether a daily standup was submitted
+}
+
+// DisciplineUser aggregates one employee's discipline stats across the queried range.
+type DisciplineUser struct {
+	UserID           uint                    `json:"user_id"`
+	UserEmail        string                  `json:"user_email"`
+	UserDisplayName  string                  `json:"user_display_name,omitempty"`
+	Role             string                  `json:"role"`
+	MissedPulseCount int                     `json:"missed_pulse_count"` // working days without a standup in range
+	TotalTasksClosed int                     `json:"total_tasks_closed"`
+	TotalReworks     int                     `json:"total_reworks"`
+	TotalLoggedHours float64                 `json:"total_logged_hours"`
+	Days             []DisciplineUserDayStat `json:"days"`
+}
+
+// DisciplineResponse is the full payload for GET /performance/discipline.
+type DisciplineResponse struct {
+	FromDate string           `json:"from_date"` // YYYY-MM-DD
+	ToDate   string           `json:"to_date"`   // YYYY-MM-DD
+	Dates    []string         `json:"dates"`     // all calendar dates in range
+	Users    []DisciplineUser `json:"users"`
+}
+
+// ─── Discipline Day Detail ────────────────────────────────────────────────────
+
+// DisciplineTimeLogEntry is one time-log entry for a specific day.
+type DisciplineTimeLogEntry struct {
+	TaskID      string  `json:"task_id"`
+	TaskCode    string  `json:"task_code,omitempty"`
+	TaskTitle   string  `json:"task_title"`
+	Minutes     int     `json:"minutes"`
+	Hours       float64 `json:"hours"`
+	Description string  `json:"description,omitempty"`
+	WorkType    string  `json:"work_type,omitempty"`
+	IsTimer     bool    `json:"is_timer"`
+}
+
+// DisciplineCompletedTask is a task closed on a specific day.
+type DisciplineCompletedTask struct {
+	TaskID      string `json:"task_id"`
+	TaskCode    string `json:"task_code,omitempty"`
+	TaskTitle   string `json:"task_title"`
+	StoryPoints int    `json:"story_points"`
+	TaskType    string `json:"task_type"`
+}
+
+// DisciplineReworkEntry is a task that received a [REJECTED] comment on a specific day.
+type DisciplineReworkEntry struct {
+	TaskID          string `json:"task_id"`
+	TaskCode        string `json:"task_code,omitempty"`
+	TaskTitle       string `json:"task_title"`
+	RejectedComment string `json:"rejected_comment"`
+}
+
+// DisciplineDayDetail is the drill-down payload for one user on one day.
+type DisciplineDayDetail struct {
+	UserID         uint                      `json:"user_id"`
+	UserEmail      string                    `json:"user_email"`
+	UserDisplayName string                   `json:"user_display_name,omitempty"`
+	Date           string                    `json:"date"` // YYYY-MM-DD
+	HasDailyPulse  bool                      `json:"has_daily_pulse"`
+	TotalLoggedMin int                       `json:"total_logged_minutes"`
+	TimeLogs       []DisciplineTimeLogEntry  `json:"time_logs"`
+	CompletedTasks []DisciplineCompletedTask `json:"completed_tasks"`
+	Reworks        []DisciplineReworkEntry   `json:"reworks"`
+}
+
 // Usecase defines the performance business logic interface
 type Usecase interface {
 	GetPersonalKPIs(userID uint, role string) (*PersonalKPIs, error)
 	GetTeamKPIs(requestingUserID uint, requestingRole string) (*TeamKPIsResponse, error)
 	GetOverviewKPIs(requestingUserID uint, requestingRole string) (*OverviewKPIs, error)
 	ResetReworkRate(devUserID uint, requesterRole string) error // CEO only: reset rework history for a dev
+	GetDiscipline(from, to string) (*DisciplineResponse, error)
+	GetDisciplineDayDetail(userID uint, date string) (*DisciplineDayDetail, error)
 }
 
 // Repository defines the data access interface for performance aggregations
@@ -71,6 +149,10 @@ type Repository interface {
 	// For team: same metrics for every user (DEV role)
 	GetAllDevUserIDs() ([]uint, error)
 	GetUserEmailAndRole(userID uint) (email string, role string, healthScore float64, err error)
+
+	// Discipline dashboard — cross-module daily stats per user
+	GetDisciplineStats(from, to string) (*DisciplineResponse, error)
+	GetDisciplineDayDetail(userID uint, date string) (*DisciplineDayDetail, error)
 
 	// Company-wide (for overview)
 	GetSprintSuccessRate() (ratePct float64, err error)

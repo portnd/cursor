@@ -88,10 +88,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { usePulseStore } from '../store/pulse-store'
 import PulseMemberCard from './PulseMemberCard.vue'
+import { localDateStr } from '~/composables/useLocalDate'
 
 const store = usePulseStore()
 
-const today = new Date().toISOString().slice(0, 10)
+const today = localDateStr()
 const selectedDate = ref(today)
 
 const displayDate = computed(() => {

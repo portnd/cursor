@@ -153,8 +153,17 @@ type addCommentReq struct {
 }
 
 type logTimeReq struct {
+	Minutes        int    `json:"minutes" binding:"required,gt=0"`
+	Description    string `json:"description"`
+	WorkType       string `json:"work_type"`
+	LoggedDate     string `json:"logged_date"` // YYYY-MM-DD, optional (defaults to today)
+	IsTimerSession bool   `json:"is_timer_session"`
+}
+
+type editTimeLogReq struct {
 	Minutes     int    `json:"minutes" binding:"required,gt=0"`
 	Description string `json:"description"`
+	WorkType    string `json:"work_type"`
 }
 
 type bulkStatusReq struct {
@@ -2517,7 +2526,16 @@ func (h *SentinelHandler) LogTime(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
 		return
 	}
-	log, err := h.usecase.LogTime(task.ID, userID, req.Minutes, req.Description)
+	var loggedDate *time.Time
+	if req.LoggedDate != "" {
+		d, err := time.Parse("2006-01-02", req.LoggedDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "logged_date must be YYYY-MM-DD format"})
+			return
+		}
+		loggedDate = &d
+	}
+	entry, err := h.usecase.LogTime(task.ID, userID, req.Minutes, req.Description, req.WorkType, loggedDate, req.IsTimerSession)
 	if err != nil {
 		if domain.IsBadRequest(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
@@ -2526,7 +2544,7 @@ func (h *SentinelHandler) LogTime(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log time", "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Time logged", "data": log})
+	c.JSON(http.StatusCreated, gin.H{"message": "Time logged", "data": entry})
 }
 
 func (h *SentinelHandler) GetTimeLogs(c *gin.Context) {
@@ -2541,6 +2559,124 @@ func (h *SentinelHandler) GetTimeLogs(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Time logs retrieved", "data": logs})
+}
+
+// EditTimeLog updates minutes, description, or work_type of a log (owner only, within 24h).
+// PATCH /api/v1/sentinel/time-logs/:logId
+func (h *SentinelHandler) EditTimeLog(c *gin.Context) {
+	logIDStr := c.Param("logId")
+	logID, err := uuid.Parse(logIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid log ID"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	var req editTimeLogReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	updated, err := h.usecase.EditTimeLog(logID, userID, req.Minutes, req.Description, req.WorkType)
+	if err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update time log", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Time log updated", "data": updated})
+}
+
+// DeleteTimeLog removes a log (owner only, within 24h).
+// DELETE /api/v1/sentinel/time-logs/:logId
+func (h *SentinelHandler) DeleteTimeLog(c *gin.Context) {
+	logIDStr := c.Param("logId")
+	logID, err := uuid.Parse(logIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid log ID"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if err := h.usecase.DeleteTimeLog(logID, userID); err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete time log", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Time log deleted"})
+}
+
+// GetMyDailyTimeLogs returns the caller's time logs for a given date (defaults today).
+// GET /api/v1/sentinel/users/me/time-logs?date=YYYY-MM-DD
+func (h *SentinelHandler) GetMyDailyTimeLogs(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	dateStr := c.Query("date")
+	date := time.Now().UTC()
+	if dateStr != "" {
+		d, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "date must be YYYY-MM-DD"})
+			return
+		}
+		date = d
+	}
+	summary, err := h.usecase.GetMyDailyTimeLogs(userID, date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch daily time logs", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Daily time logs retrieved", "data": summary})
+}
+
+// BulkLogTime processes multiple time log entries in one request (EOD batch).
+// POST /api/v1/sentinel/time-logs/bulk
+func (h *SentinelHandler) BulkLogTime(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	var entries []domain.BulkLogEntry
+	if err := c.ShouldBindJSON(&entries); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	results, err := h.usecase.BulkLogTime(entries, userID)
+	if err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process bulk log", "message": err.Error()})
+		return
+	}
+	successCount := 0
+	for _, r := range results {
+		if r.Success {
+			successCount++
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":       fmt.Sprintf("Processed %d entries, %d succeeded", len(results), successCount),
+		"success_count": successCount,
+		"total":         len(results),
+		"results":       results,
+	})
 }
 
 // --- Analytics Handler ---

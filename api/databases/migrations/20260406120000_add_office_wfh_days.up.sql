@@ -1,0 +1,2 @@
+ALTER TABLE office_configs
+ADD COLUMN IF NOT EXISTS wfh_days JSONB NOT NULL DEFAULT '[]'::jsonb;

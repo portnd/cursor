@@ -414,8 +414,10 @@
                 <TimeLogger
                   :time-logs="timeLogs"
                   :estimated-minutes="isParentTask ? subtaskTotalEstimatedMinutes : (task.estimated_minutes || 0)"
+                  :task-id="route.params.id as string"
                   :loading="timeLogsLoading"
                   @log-time="handleLogTime"
+                  @refresh="fetchCommentsAndLogs"
                 />
               </div>
             </div>
@@ -1832,16 +1834,18 @@ async function handleAddComment(content: string) {
   }
 }
 
-async function handleLogTime(minutes: number, description: string) {
+async function handleLogTime(minutes: number, description: string, workType: string, loggedDate: string, isTimer: boolean) {
   const taskId = route.params.id as string
   const tasksApi = useTasksApi()
   timeLogsLoading.value = true
   try {
-    const log = await tasksApi.logTime(taskId, minutes, description)
+    const log = await tasksApi.logTime(taskId, minutes, description, workType, loggedDate, isTimer)
     timeLogs.value.unshift(log)
-  } catch (e: any) {
+  }
+  catch (e: any) {
     console.error('Failed to log time:', e)
-  } finally {
+  }
+  finally {
     timeLogsLoading.value = false
   }
 }

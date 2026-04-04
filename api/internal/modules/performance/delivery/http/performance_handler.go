@@ -101,6 +101,59 @@ func (h *Handler) GetOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, overview)
 }
 
+// GetDiscipline returns daily discipline stats for all employees in a date range.
+// GET /api/v1/performance/discipline?from=YYYY-MM-DD&to=YYYY-MM-DD (CEO + PM)
+func (h *Handler) GetDiscipline(c *gin.Context) {
+	role := getRole(c)
+	if role != "CEO" && role != "PM" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and PM only"})
+		return
+	}
+
+	from := c.Query("from")
+	to := c.Query("to")
+	if from == "" || to == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "from and to query params required (YYYY-MM-DD)"})
+		return
+	}
+
+	resp, err := h.usecase.GetDiscipline(from, to)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetDisciplineDayDetail returns drill-down activity for one user on one day.
+// GET /api/v1/performance/discipline/detail?user_id=X&date=YYYY-MM-DD (CEO + PM)
+func (h *Handler) GetDisciplineDayDetail(c *gin.Context) {
+	role := getRole(c)
+	if role != "CEO" && role != "PM" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and PM only"})
+		return
+	}
+
+	userIDStr := c.Query("user_id")
+	date := c.Query("date")
+	if userIDStr == "" || date == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "user_id and date required"})
+		return
+	}
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil || userID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid user_id"})
+		return
+	}
+
+	detail, err := h.usecase.GetDisciplineDayDetail(uint(userID), date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, detail)
+}
+
 // ResetReworkRate resets a developer's Rework Rate by setting rework_reset_at = NOW().
 // POST /api/v1/performance/users/:id/reset-rework (CEO only)
 func (h *Handler) ResetReworkRate(c *gin.Context) {

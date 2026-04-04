@@ -571,21 +571,56 @@ func (r *postgresRepository) GetGlobalActiveTasks(ctx domain.CallerContext) ([]d
 }
 
 // GetTeamActiveTasks returns TASK and BUG items in ACTIVE sprints for a team.
-// FEATURE types are excluded — they belong to the PM/CEO Feature Roadmap Board.
-// CEO/MANAGER callers with teamID=0 get all active-sprint tasks across all teams.
+// Includes direct sprint tasks AND sub-tasks whose parent FEATURE is in an ACTIVE sprint.
+// Excludes COMPLETED and CANCELLED tasks.
+// Joins users to populate AssignedToDisplayName / AssignedToEmail for Quick Log Time UI.
 func (r *postgresRepository) GetTeamActiveTasks(teamID uint) ([]domain.GlobalActiveTask, error) {
-	var results []domain.GlobalActiveTask
+	type row struct {
+		domain.Task
+		ProjectName           string `gorm:"column:project_name"`
+		ProjectColor          string `gorm:"column:project_color"`
+		AssignedToDisplayName string `gorm:"column:assigned_to_display_name"`
+		AssignedToEmail       string `gorm:"column:assigned_to_email"`
+	}
+	var rows []row
 	q := r.db.Table("tasks").
-		Select("tasks.*, projects.name AS project_name, projects.color AS project_color").
-		Joins("JOIN sprints ON sprints.id = tasks.sprint_id").
+		Select(`tasks.*, projects.name AS project_name, projects.color AS project_color,
+			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(u.email, '')               AS assigned_to_email`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
-		Where("sprints.status = ? AND tasks.task_type IN ?", "ACTIVE", []string{"TASK", "BUG"}).
+		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
+		Where("tasks.task_type IN ? AND tasks.status NOT IN ?",
+			[]string{"TASK", "BUG"},
+			[]string{"COMPLETED", "CANCELLED"},
+		).
+		Where(`
+			EXISTS (SELECT 1 FROM sprints s WHERE s.id = tasks.sprint_id AND s.status = 'ACTIVE')
+			OR EXISTS (
+				SELECT 1 FROM tasks parent
+				JOIN sprints s ON s.id = parent.sprint_id
+				WHERE parent.id = tasks.parent_id AND s.status = 'ACTIVE'
+			)
+		`).
 		Order("tasks.created_at DESC")
+
 	if teamID != 0 {
 		q = q.Where("projects.team_id = ?", teamID)
 	}
-	err := q.Scan(&results).Error
-	return results, err
+	if err := q.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	results := make([]domain.GlobalActiveTask, len(rows))
+	for i, r := range rows {
+		results[i] = domain.GlobalActiveTask{
+			Task:         r.Task,
+			ProjectName:  r.ProjectName,
+			ProjectColor: r.ProjectColor,
+		}
+		results[i].AssignedToDisplayName = r.AssignedToDisplayName
+		results[i].AssignedToEmail = r.AssignedToEmail
+	}
+	return results, nil
 }
 
 // GetActiveFeatures returns all FEATURE-type tasks across projects for a given team.
@@ -974,8 +1009,63 @@ func (r *postgresRepository) CreateTimeLog(t *domain.TimeLog) error {
 
 func (r *postgresRepository) GetTimeLogsByTaskID(taskID uuid.UUID) ([]domain.TimeLog, error) {
 	var logs []domain.TimeLog
-	err := r.db.Where("task_id = ?", taskID).Order("logged_at desc").Find(&logs).Error
+	err := r.db.Raw(`
+		SELECT tl.id, tl.task_id, tl.user_id, u.email AS user_email,
+		       tl.minutes, tl.description, tl.work_type, tl.logged_date, tl.is_timer_session, tl.logged_at
+		FROM time_logs tl
+		JOIN users u ON u.id = tl.user_id
+		WHERE tl.task_id = ?
+		ORDER BY tl.logged_date DESC, tl.logged_at DESC
+	`, taskID).Scan(&logs).Error
 	return logs, err
+}
+
+func (r *postgresRepository) GetTimeLogByID(logID uuid.UUID) (*domain.TimeLog, error) {
+	var t domain.TimeLog
+	err := r.db.Raw(`
+		SELECT tl.id, tl.task_id, tl.user_id, u.email AS user_email,
+		       tl.minutes, tl.description, tl.work_type, tl.logged_date, tl.is_timer_session, tl.logged_at
+		FROM time_logs tl
+		JOIN users u ON u.id = tl.user_id
+		WHERE tl.id = ?
+	`, logID).Scan(&t).Error
+	if err != nil {
+		return nil, err
+	}
+	if t.ID == uuid.Nil {
+		return nil, nil
+	}
+	return &t, nil
+}
+
+func (r *postgresRepository) UpdateTimeLog(t *domain.TimeLog) error {
+	return r.db.Model(&domain.TimeLog{}).Where("id = ?", t.ID).
+		Updates(map[string]interface{}{
+			"minutes":     t.Minutes,
+			"description": t.Description,
+			"work_type":   t.WorkType,
+		}).Error
+}
+
+func (r *postgresRepository) DeleteTimeLog(logID uuid.UUID) error {
+	return r.db.Where("id = ?", logID).Delete(&domain.TimeLog{}).Error
+}
+
+func (r *postgresRepository) GetTimeLogsByUserAndDate(userID uint, date time.Time) ([]domain.TimeLog, error) {
+	var logs []domain.TimeLog
+	err := r.db.Raw(`
+		SELECT tl.id, tl.task_id, tl.user_id, u.email AS user_email,
+		       tl.minutes, tl.description, tl.work_type, tl.logged_date, tl.is_timer_session, tl.logged_at
+		FROM time_logs tl
+		JOIN users u ON u.id = tl.user_id
+		WHERE tl.user_id = ? AND tl.logged_date = ?
+		ORDER BY tl.logged_at DESC
+	`, userID, date.Format("2006-01-02")).Scan(&logs).Error
+	return logs, err
+}
+
+func (r *postgresRepository) BulkCreateTimeLogs(logs []domain.TimeLog) error {
+	return r.db.Create(&logs).Error
 }
 
 func (r *postgresRepository) GetTotalLoggedMinutes(taskID uuid.UUID) (int, error) {

@@ -1792,10 +1792,37 @@ func (u *sentinelUsecase) GetComments(taskID uuid.UUID) ([]domain.TaskComment, e
 
 // --- Time Log Operations ---
 
-func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, description string) (*domain.TimeLog, error) {
+func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, description, workType string, loggedDate *time.Time, isTimer bool) (*domain.TimeLog, error) {
 	if minutes <= 0 {
-		return nil, errors.New("minutes must be greater than 0")
+		return nil, &domain.ErrBadRequest{Msg: "minutes must be greater than 0"}
 	}
+	if minutes > 960 {
+		return nil, &domain.ErrBadRequest{Msg: "cannot log more than 16 hours (960 minutes) in a single entry"}
+	}
+
+	// Validate and default work_type
+	wt := strings.ToUpper(strings.TrimSpace(workType))
+	if wt == "" {
+		wt = "DEV"
+	}
+	if !domain.ValidWorkTypes[wt] {
+		return nil, &domain.ErrBadRequest{Msg: "invalid work_type; allowed: DEV, REVIEW, TESTING, MEETING, RESEARCH, OTHER"}
+	}
+
+	// Validate logged_date: default today, allow up to 7 days back, no future
+	now := time.Now().UTC()
+	date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	if loggedDate != nil {
+		d := time.Date(loggedDate.Year(), loggedDate.Month(), loggedDate.Day(), 0, 0, 0, 0, time.UTC)
+		if d.After(date) {
+			return nil, &domain.ErrBadRequest{Msg: "cannot log time for a future date"}
+		}
+		if date.Sub(d).Hours() > 7*24 {
+			return nil, &domain.ErrBadRequest{Msg: "cannot backfill time logs older than 7 days"}
+		}
+		date = d
+	}
+
 	if _, err := u.repo.GetTaskByID(taskID); err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
@@ -1806,12 +1833,16 @@ func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, de
 	if childCount > 0 {
 		return nil, &domain.ErrBadRequest{Msg: "time cannot be logged against a Parent Task; log time on its Sub-tasks instead"}
 	}
+
 	t := &domain.TimeLog{
-		ID:          uuid.New(),
-		TaskID:      taskID,
-		UserID:      userID,
-		Minutes:     minutes,
-		Description: strings.TrimSpace(description),
+		ID:             uuid.New(),
+		TaskID:         taskID,
+		UserID:         userID,
+		Minutes:        minutes,
+		Description:    strings.TrimSpace(description),
+		WorkType:       wt,
+		LoggedDate:     date,
+		IsTimerSession: isTimer,
 	}
 	if err := u.repo.CreateTimeLog(t); err != nil {
 		return nil, fmt.Errorf("failed to log time: %w", err)
@@ -1824,17 +1855,175 @@ func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, de
 }
 
 func (u *sentinelUsecase) GetTimeLogs(taskID uuid.UUID) ([]domain.TimeLog, error) {
-	logs, err := u.repo.GetTimeLogsByTaskID(taskID)
+	// Repository now does JOIN — no N+1 here
+	return u.repo.GetTimeLogsByTaskID(taskID)
+}
+
+func (u *sentinelUsecase) EditTimeLog(logID uuid.UUID, callerID uint, minutes int, description, workType string) (*domain.TimeLog, error) {
+	existing, err := u.repo.GetTimeLogByID(logID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch time log: %w", err)
 	}
-	for i := range logs {
-		user, err := u.authRepo.FindByID(logs[i].UserID)
-		if err == nil && user != nil {
-			logs[i].UserEmail = user.Email
+	if existing == nil {
+		return nil, &domain.ErrBadRequest{Msg: "time log not found"}
+	}
+	if existing.UserID != callerID {
+		return nil, &domain.ErrBadRequest{Msg: "you can only edit your own time logs"}
+	}
+	if time.Since(existing.LoggedAt) > 24*time.Hour {
+		return nil, &domain.ErrBadRequest{Msg: "time logs can only be edited within 24 hours of creation"}
+	}
+	if minutes <= 0 {
+		return nil, &domain.ErrBadRequest{Msg: "minutes must be greater than 0"}
+	}
+	if minutes > 960 {
+		return nil, &domain.ErrBadRequest{Msg: "cannot log more than 16 hours (960 minutes) in a single entry"}
+	}
+	wt := strings.ToUpper(strings.TrimSpace(workType))
+	if wt == "" {
+		wt = existing.WorkType
+	}
+	if !domain.ValidWorkTypes[wt] {
+		return nil, &domain.ErrBadRequest{Msg: "invalid work_type"}
+	}
+	existing.Minutes = minutes
+	existing.Description = strings.TrimSpace(description)
+	existing.WorkType = wt
+	if err := u.repo.UpdateTimeLog(existing); err != nil {
+		return nil, fmt.Errorf("failed to update time log: %w", err)
+	}
+	return existing, nil
+}
+
+func (u *sentinelUsecase) DeleteTimeLog(logID uuid.UUID, callerID uint) error {
+	existing, err := u.repo.GetTimeLogByID(logID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch time log: %w", err)
+	}
+	if existing == nil {
+		return &domain.ErrBadRequest{Msg: "time log not found"}
+	}
+	if existing.UserID != callerID {
+		return &domain.ErrBadRequest{Msg: "you can only delete your own time logs"}
+	}
+	if time.Since(existing.LoggedAt) > 24*time.Hour {
+		return &domain.ErrBadRequest{Msg: "time logs can only be deleted within 24 hours of creation"}
+	}
+	return u.repo.DeleteTimeLog(logID)
+}
+
+func (u *sentinelUsecase) GetMyDailyTimeLogs(userID uint, date time.Time) (*domain.DailyTimeLogSummary, error) {
+	d := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	logs, err := u.repo.GetTimeLogsByUserAndDate(userID, d)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch daily logs: %w", err)
+	}
+	total := 0
+	for _, l := range logs {
+		total += l.Minutes
+	}
+	if logs == nil {
+		logs = []domain.TimeLog{}
+	}
+	return &domain.DailyTimeLogSummary{
+		Date:         d.Format("2006-01-02"),
+		TotalMinutes: total,
+		Entries:      logs,
+	}, nil
+}
+
+// BulkLogTime processes multiple time log entries in one call (EOD batch).
+// Each entry is validated independently — failures don't abort the batch.
+func (u *sentinelUsecase) BulkLogTime(entries []domain.BulkLogEntry, userID uint) ([]domain.BulkLogResult, error) {
+	if len(entries) == 0 {
+		return nil, &domain.ErrBadRequest{Msg: "entries must not be empty"}
+	}
+	if len(entries) > 20 {
+		return nil, &domain.ErrBadRequest{Msg: "bulk log is limited to 20 entries per request"}
+	}
+
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	results := make([]domain.BulkLogResult, 0, len(entries))
+	var logsToCreate []domain.TimeLog
+
+	for _, entry := range entries {
+		res := domain.BulkLogResult{TaskID: entry.TaskID}
+
+		taskID, err := uuid.Parse(entry.TaskID)
+		if err != nil {
+			res.Error = "invalid task_id format"
+			results = append(results, res)
+			continue
+		}
+		if entry.Minutes <= 0 || entry.Minutes > 960 {
+			res.Error = "minutes must be between 1 and 960"
+			results = append(results, res)
+			continue
+		}
+
+		wt := strings.ToUpper(strings.TrimSpace(entry.WorkType))
+		if wt == "" {
+			wt = "DEV"
+		}
+		if !domain.ValidWorkTypes[wt] {
+			res.Error = "invalid work_type"
+			results = append(results, res)
+			continue
+		}
+
+		logDate := today
+		if entry.LoggedDate != nil {
+			d, err := time.Parse("2006-01-02", *entry.LoggedDate)
+			if err != nil {
+				res.Error = "invalid logged_date format; expected YYYY-MM-DD"
+				results = append(results, res)
+				continue
+			}
+			d = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+			if d.After(today) {
+				res.Error = "cannot log time for a future date"
+				results = append(results, res)
+				continue
+			}
+			if today.Sub(d).Hours() > 7*24 {
+				res.Error = "cannot backfill time logs older than 7 days"
+				results = append(results, res)
+				continue
+			}
+			logDate = d
+		}
+
+		// Guard: no logging on parent tasks
+		childCount, err := u.repo.CountChildTasks(taskID)
+		if err != nil || childCount > 0 {
+			res.Error = "cannot log time on a parent task; use sub-tasks"
+			results = append(results, res)
+			continue
+		}
+
+		tl := domain.TimeLog{
+			ID:          uuid.New(),
+			TaskID:      taskID,
+			UserID:      userID,
+			Minutes:     entry.Minutes,
+			Description: strings.TrimSpace(entry.Description),
+			WorkType:    wt,
+			LoggedDate:  logDate,
+		}
+		res.Success = true
+		res.Log = &tl
+		logsToCreate = append(logsToCreate, tl)
+		results = append(results, res)
+	}
+
+	if len(logsToCreate) > 0 {
+		if err := u.repo.BulkCreateTimeLogs(logsToCreate); err != nil {
+			return nil, fmt.Errorf("failed to save bulk time logs: %w", err)
 		}
 	}
-	return logs, nil
+	return results, nil
 }
 
 // --- Analytics ---

@@ -101,12 +101,15 @@ func (r *postgresRepo) GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64,
 		Accuracy float64
 	}
 	var rows []row
+	// MEETING time is excluded — it doesn't represent dev productivity
 	err = r.db.Raw(`
 		WITH task_totals AS (
 			SELECT t.id, t.estimated_minutes AS est,
 				COALESCE(SUM(tl.minutes), 0)::int AS logged
 			FROM tasks t
-			LEFT JOIN time_logs tl ON tl.task_id = t.id AND tl.user_id = ?
+			LEFT JOIN time_logs tl ON tl.task_id = t.id
+				AND tl.user_id = ?
+				AND COALESCE(tl.work_type, 'DEV') != 'MEETING'
 			WHERE t.assigned_to = ? AND t.estimated_minutes > 0
 			GROUP BY t.id, t.estimated_minutes
 		)
@@ -264,12 +267,15 @@ func (r *postgresRepo) GetUserTimeAccuracyForAssignedBy(devID, assignedByID uint
 		Accuracy float64
 	}
 	var rows []row
+	// MEETING time excluded from dev productivity metrics
 	err = r.db.Raw(`
 		WITH task_totals AS (
 			SELECT t.id, t.estimated_minutes AS est,
 				COALESCE(SUM(tl.minutes), 0)::int AS logged
 			FROM tasks t
-			LEFT JOIN time_logs tl ON tl.task_id = t.id AND tl.user_id = ?
+			LEFT JOIN time_logs tl ON tl.task_id = t.id
+				AND tl.user_id = ?
+				AND COALESCE(tl.work_type, 'DEV') != 'MEETING'
 			WHERE t.assigned_to = ? AND t.assigned_by_id = ? AND t.estimated_minutes > 0
 			GROUP BY t.id, t.estimated_minutes
 		)
@@ -496,6 +502,298 @@ func (r *postgresRepo) GetCompanyWideDeliveryAndQuality() (avgDeliveryPct, avgCo
 		avgCodeQuality = sumQuality / float64(countQuality)
 	}
 	return avgDeliveryPct, avgCodeQuality, nil
+}
+
+// GetDisciplineStats returns per-user per-day activity for the given date range.
+// from/to are inclusive, format YYYY-MM-DD.
+func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.DisciplineResponse, error) {
+	// 1. Build ordered date list
+	fromTime, err := time.Parse("2006-01-02", from)
+	if err != nil {
+		return nil, err
+	}
+	toTime, err := time.Parse("2006-01-02", to)
+	if err != nil {
+		return nil, err
+	}
+	var dates []string
+	for d := fromTime; !d.After(toTime); d = d.AddDate(0, 0, 1) {
+		dates = append(dates, d.Format("2006-01-02"))
+	}
+
+	// 2. Load working-level users only (exclude CEO and SUPPORT)
+	var users []authDomain.User
+	if err := r.db.Select("id", "email", "display_name", "role").
+		Where("role NOT IN ?", []string{"CEO", "SUPPORT"}).
+		Find(&users).Error; err != nil {
+		return nil, err
+	}
+
+	// 3. Bulk-query stats with raw SQL for efficiency
+	type tasksClosedRow struct {
+		UserID uint
+		Date   string
+		Count  int
+	}
+	var closedRows []tasksClosedRow
+	r.db.Raw(`
+		SELECT assigned_to AS user_id, completed_at::date::text AS date, COUNT(*) AS count
+		FROM tasks
+		WHERE status = 'COMPLETED'
+		  AND completed_at IS NOT NULL
+		  AND completed_at::date BETWEEN ? AND ?
+		GROUP BY assigned_to, completed_at::date
+	`, from, to).Scan(&closedRows)
+
+	type reworkRow struct {
+		UserID uint
+		Date   string
+		Count  int
+	}
+	var reworkRows []reworkRow
+	r.db.Raw(`
+		SELECT t.assigned_to AS user_id, tc.created_at::date::text AS date, COUNT(*) AS count
+		FROM task_comments tc
+		JOIN tasks t ON t.id = tc.task_id
+		WHERE tc.content LIKE '[REJECTED]%'
+		  AND tc.created_at::date BETWEEN ? AND ?
+		  AND t.assigned_to IS NOT NULL
+		GROUP BY t.assigned_to, tc.created_at::date
+	`, from, to).Scan(&reworkRows)
+
+	type logRow struct {
+		UserID  uint
+		Date    string
+		Minutes int
+	}
+	var logRows []logRow
+	r.db.Raw(`
+		SELECT user_id, logged_date::text AS date, COALESCE(SUM(minutes), 0)::int AS minutes
+		FROM time_logs
+		WHERE logged_date BETWEEN ? AND ?
+		GROUP BY user_id, logged_date
+	`, from, to).Scan(&logRows)
+
+	type pulseRow struct {
+		UserID uint
+		Date   string
+	}
+	var pulseRows []pulseRow
+	r.db.Raw(`
+		SELECT user_id, date::text AS date
+		FROM daily_standups
+		WHERE date BETWEEN ? AND ?
+	`, from, to).Scan(&pulseRows)
+
+	// 4. Index rows by userID+date for O(1) lookup
+	closedIndex := map[uint]map[string]int{}
+	for _, row := range closedRows {
+		if closedIndex[row.UserID] == nil {
+			closedIndex[row.UserID] = map[string]int{}
+		}
+		closedIndex[row.UserID][row.Date] = row.Count
+	}
+	reworkIndex := map[uint]map[string]int{}
+	for _, row := range reworkRows {
+		if reworkIndex[row.UserID] == nil {
+			reworkIndex[row.UserID] = map[string]int{}
+		}
+		reworkIndex[row.UserID][row.Date] = row.Count
+	}
+	logIndex := map[uint]map[string]int{}
+	for _, row := range logRows {
+		if logIndex[row.UserID] == nil {
+			logIndex[row.UserID] = map[string]int{}
+		}
+		logIndex[row.UserID][row.Date] = row.Minutes
+	}
+	pulseIndex := map[uint]map[string]bool{}
+	for _, row := range pulseRows {
+		if pulseIndex[row.UserID] == nil {
+			pulseIndex[row.UserID] = map[string]bool{}
+		}
+		pulseIndex[row.UserID][row.Date] = true
+	}
+
+	// 5. Assemble per-user stats
+	resp := &perfDomain.DisciplineResponse{
+		FromDate: from,
+		ToDate:   to,
+		Dates:    dates,
+		Users:    make([]perfDomain.DisciplineUser, 0, len(users)),
+	}
+	for _, u := range users {
+		du := perfDomain.DisciplineUser{
+			UserID:          u.ID,
+			UserEmail:       u.Email,
+			UserDisplayName: u.DisplayName,
+			Role:            u.Role,
+		}
+		var totalClosed, totalReworks, totalMins, missedPulse int
+		for _, d := range dates {
+			closed := closedIndex[u.ID][d]
+			rework := reworkIndex[u.ID][d]
+			mins := logIndex[u.ID][d]
+			hasPulse := pulseIndex[u.ID][d]
+			if !hasPulse {
+				missedPulse++
+			}
+			totalClosed += closed
+			totalReworks += rework
+			totalMins += mins
+			du.Days = append(du.Days, perfDomain.DisciplineUserDayStat{
+				Date:          d,
+				TasksClosed:   closed,
+				Reworks:       rework,
+				LoggedMinutes: mins,
+				HasDailyPulse: hasPulse,
+			})
+		}
+		du.TotalTasksClosed = totalClosed
+		du.TotalReworks = totalReworks
+		du.TotalLoggedHours = float64(totalMins) / 60.0
+		du.MissedPulseCount = missedPulse
+		resp.Users = append(resp.Users, du)
+	}
+	return resp, nil
+}
+
+// GetDisciplineDayDetail returns drill-down activity for one user on one date.
+func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDomain.DisciplineDayDetail, error) {
+	// Resolve user info
+	var u authDomain.User
+	if err := r.db.Select("id", "email", "display_name").First(&u, "id = ?", userID).Error; err != nil {
+		return nil, err
+	}
+
+	detail := &perfDomain.DisciplineDayDetail{
+		UserID:          u.ID,
+		UserEmail:       u.Email,
+		UserDisplayName: u.DisplayName,
+		Date:            date,
+	}
+
+	// Daily Pulse check
+	var pulseCount int64
+	r.db.Raw("SELECT COUNT(*) FROM daily_standups WHERE user_id = ? AND date = ?", userID, date).Scan(&pulseCount)
+	detail.HasDailyPulse = pulseCount > 0
+
+	// Time logs with task info
+	type tlRow struct {
+		TaskID          string
+		TaskCode        string
+		TaskTitle       string
+		Minutes         int
+		Description     string
+		WorkType        string
+		IsTimerSession  bool
+	}
+	var tlRows []tlRow
+	r.db.Raw(`
+		SELECT tl.task_id::text AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       COALESCE(t.title, 'Unknown Task') AS task_title,
+		       tl.minutes,
+		       COALESCE(tl.description, '') AS description,
+		       COALESCE(tl.work_type, 'DEV') AS work_type,
+		       COALESCE(tl.is_timer_session, false) AS is_timer_session
+		FROM time_logs tl
+		LEFT JOIN tasks t ON t.id = tl.task_id
+		WHERE tl.user_id = ?
+		  AND tl.logged_date = ?
+		ORDER BY tl.logged_at
+	`, userID, date).Scan(&tlRows)
+
+	totalMins := 0
+	for _, row := range tlRows {
+		totalMins += row.Minutes
+		detail.TimeLogs = append(detail.TimeLogs, perfDomain.DisciplineTimeLogEntry{
+			TaskID:      row.TaskID,
+			TaskCode:    row.TaskCode,
+			TaskTitle:   row.TaskTitle,
+			Minutes:     row.Minutes,
+			Hours:       float64(row.Minutes) / 60.0,
+			Description: row.Description,
+			WorkType:    row.WorkType,
+			IsTimer:     row.IsTimerSession,
+		})
+	}
+	detail.TotalLoggedMin = totalMins
+
+	// Completed tasks on this date
+	type ctRow struct {
+		TaskID      string
+		TaskCode    string
+		TaskTitle   string
+		StoryPoints int
+		TaskType    string
+	}
+	var ctRows []ctRow
+	r.db.Raw(`
+		SELECT id::text AS task_id,
+		       COALESCE(code, '') AS task_code,
+		       title AS task_title,
+		       story_points,
+		       task_type
+		FROM tasks
+		WHERE assigned_to = ?
+		  AND status = 'COMPLETED'
+		  AND completed_at IS NOT NULL
+		  AND completed_at::date = ?
+		ORDER BY completed_at
+	`, userID, date).Scan(&ctRows)
+
+	for _, row := range ctRows {
+		detail.CompletedTasks = append(detail.CompletedTasks, perfDomain.DisciplineCompletedTask{
+			TaskID:      row.TaskID,
+			TaskCode:    row.TaskCode,
+			TaskTitle:   row.TaskTitle,
+			StoryPoints: row.StoryPoints,
+			TaskType:    row.TaskType,
+		})
+	}
+
+	// Rework events (REJECTED comments) on this date
+	type rwRow struct {
+		TaskID          string
+		TaskCode        string
+		TaskTitle       string
+		RejectedComment string
+	}
+	var rwRows []rwRow
+	r.db.Raw(`
+		SELECT t.id::text AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       COALESCE(t.title, 'Unknown Task') AS task_title,
+		       tc.content AS rejected_comment
+		FROM task_comments tc
+		JOIN tasks t ON t.id = tc.task_id
+		WHERE t.assigned_to = ?
+		  AND tc.content LIKE '[REJECTED]%'
+		  AND tc.created_at::date = ?
+		ORDER BY tc.created_at
+	`, userID, date).Scan(&rwRows)
+
+	for _, row := range rwRows {
+		detail.Reworks = append(detail.Reworks, perfDomain.DisciplineReworkEntry{
+			TaskID:          row.TaskID,
+			TaskCode:        row.TaskCode,
+			TaskTitle:       row.TaskTitle,
+			RejectedComment: row.RejectedComment,
+		})
+	}
+
+	if detail.TimeLogs == nil {
+		detail.TimeLogs = []perfDomain.DisciplineTimeLogEntry{}
+	}
+	if detail.CompletedTasks == nil {
+		detail.CompletedTasks = []perfDomain.DisciplineCompletedTask{}
+	}
+	if detail.Reworks == nil {
+		detail.Reworks = []perfDomain.DisciplineReworkEntry{}
+	}
+
+	return detail, nil
 }
 
 func (r *postgresRepo) GetCompanyWideReworkAndTimeAccuracy() (avgReworkPct, avgTimeAccuracyPct float64, err error) {

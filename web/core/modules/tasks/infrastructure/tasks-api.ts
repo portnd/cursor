@@ -21,12 +21,54 @@ export interface TimeLog {
   user_email: string
   minutes: number
   description: string
+  work_type: string      // DEV | REVIEW | TESTING | MEETING | RESEARCH | OTHER
+  logged_date: string    // YYYY-MM-DD
+  is_timer_session: boolean
   logged_at: string
+}
+
+export interface DailyTimeLogSummary {
+  date: string
+  total_minutes: number
+  entries: TimeLog[]
+}
+
+export const WORK_TYPES = [
+  { value: 'DEV',      label: 'Dev',      emoji: '💻' },
+  { value: 'REVIEW',   label: 'Review',   emoji: '👁' },
+  { value: 'TESTING',  label: 'Test',     emoji: '🧪' },
+  { value: 'MEETING',  label: 'Meeting',  emoji: '📅' },
+  { value: 'RESEARCH', label: 'Research', emoji: '🔬' },
+  { value: 'OTHER',    label: 'Other',    emoji: '📌' },
+] as const
+
+export interface BulkLogEntry {
+  task_id: string
+  minutes: number
+  description?: string
+  work_type?: string
+  logged_date?: string
+}
+
+export interface BulkLogResult {
+  task_id: string
+  success: boolean
+  log?: TimeLog
+  error?: string
+}
+
+export interface BulkLogResponse {
+  message: string
+  success_count: number
+  total: number
+  results: BulkLogResult[]
 }
 
 export interface GlobalActiveTask extends Task {
   project_name: string
   project_color: string
+  assigned_to_display_name?: string
+  assigned_to_email?: string
 }
 
 export interface UATPayload {
@@ -152,11 +194,44 @@ function useTasksApi() {
     return data.data || []
   }
 
-  async function logTime(taskId: string, minutes: number, description: string): Promise<TimeLog> {
+  async function logTime(
+    taskId: string,
+    minutes: number,
+    description: string,
+    workType = 'DEV',
+    loggedDate?: string,
+    isTimerSession = false,
+  ): Promise<TimeLog> {
     const data = await fetchWithAuth<{ data: TimeLog }>(`/sentinel/tasks/${taskId}/time-logs`, {
       method: 'POST',
-      body: { minutes, description },
+      body: { minutes, description, work_type: workType, logged_date: loggedDate, is_timer_session: isTimerSession },
     })
+    return data.data
+  }
+
+  async function editTimeLog(logId: string, minutes: number, description: string, workType: string): Promise<TimeLog> {
+    const data = await fetchWithAuth<{ data: TimeLog }>(`/sentinel/time-logs/${logId}`, {
+      method: 'PATCH',
+      body: { minutes, description, work_type: workType },
+    })
+    return data.data
+  }
+
+  async function deleteTimeLog(logId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/time-logs/${logId}`, { method: 'DELETE' })
+  }
+
+  async function bulkLogTime(entries: BulkLogEntry[]): Promise<BulkLogResponse> {
+    const data = await fetchWithAuth<BulkLogResponse>('/sentinel/time-logs/bulk', {
+      method: 'POST',
+      body: JSON.stringify(entries),
+    })
+    return data
+  }
+
+  async function getMyDailyTimeLogs(date?: string): Promise<DailyTimeLogSummary> {
+    const q = date ? `?date=${date}` : ''
+    const data = await fetchWithAuth<{ data: DailyTimeLogSummary }>(`/sentinel/users/me/time-logs${q}`)
     return data.data
   }
 
@@ -417,6 +492,10 @@ function useTasksApi() {
     addComment,
     getTimeLogs,
     logTime,
+    editTimeLog,
+    deleteTimeLog,
+    bulkLogTime,
+    getMyDailyTimeLogs,
     getGanttData,
     getGlobalActiveTasks,
     getTeamActiveTasks,

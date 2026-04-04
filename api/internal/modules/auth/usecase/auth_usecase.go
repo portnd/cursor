@@ -26,11 +26,10 @@ type authUsecase struct {
 // NewAuthUsecase creates a new authentication usecase instance
 // Follows Dependency Injection pattern
 func NewAuthUsecase(repo domain.Repository) domain.Usecase {
-	// Load JWT secret from environment
+	// Load JWT secret from environment (must match internal/core/config default and docker-compose)
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		// Fallback to a default secret (NOT recommended for production)
-		jwtSecret = "komgrip-default-secret-change-in-production"
+		jwtSecret = "default_jwt_secret_change_in_production"
 	}
 
 	return &authUsecase{

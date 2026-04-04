@@ -252,6 +252,17 @@ func (u *performanceUsecase) GetOverviewKPIs(requestingUserID uint, requestingRo
 	return out, nil
 }
 
+// GetDisciplineDayDetail returns drill-down activity for one user on one day.
+func (u *performanceUsecase) GetDisciplineDayDetail(userID uint, date string) (*perfDomain.DisciplineDayDetail, error) {
+	return u.repo.GetDisciplineDayDetail(userID, date)
+}
+
+// GetDiscipline returns daily discipline stats for all users in the date range.
+// from/to format: YYYY-MM-DD. Accessible to CEO and PM.
+func (u *performanceUsecase) GetDiscipline(from, to string) (*perfDomain.DisciplineResponse, error) {
+	return u.repo.GetDisciplineStats(from, to)
+}
+
 // ResetReworkRate clears the rework history for a developer by setting rework_reset_at = NOW().
 // Only CEO is allowed to perform this action.
 func (u *performanceUsecase) ResetReworkRate(devUserID uint, requesterRole string) error {

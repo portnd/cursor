@@ -47,11 +47,11 @@ export default defineNuxtConfig({
 
   vite: {
     server: {
+      host: '0.0.0.0',
       hmr: {
         protocol: 'ws',
         host: 'localhost',
-        port: 24678,
-        clientPort: 24678
+        clientPort: 3000,
       }
     },
     plugins: [
@@ -77,7 +77,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/projects/gantt': { ssr: false }
+    '/projects/gantt': { ssr: false },
+    '/logtime': { ssr: false },       // Heavy client state (localStorage timer, local timezone dates)
   },
 
   devServer: {

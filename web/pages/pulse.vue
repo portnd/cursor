@@ -9,13 +9,13 @@
               📡
             </div>
             <div>
-              <h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl">Daily Pulse</h1>
+              <h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl">Daily Standup</h1>
               <p class="text-xs text-gray-400 mt-0.5">Async standup & team activity tracker</p>
             </div>
           </div>
 
           <div class="flex items-center gap-3">
-            <!-- My check-in status badge (CEO & SUPPORT are exempt from Daily Pulse) -->
+            <!-- My check-in status badge (CEO & SUPPORT are exempt) -->
             <div
               v-if="currentUser && !exemptFromPulse"
               :class="[
@@ -29,7 +29,6 @@
               {{ hasCheckedIn ? 'Checked in today' : 'Not checked in' }}
             </div>
 
-            <!-- Check-in button (DEV: forced via modal / CEO-PM: also available) -->
             <button
               v-if="!exemptFromPulse && !hasCheckedIn"
               @click="checkinModal?.open()"
@@ -60,7 +59,7 @@
       <TeamPulseBoard />
     </main>
 
-    <!-- Check-in Modal (not forced on this page — user chose to open it) -->
+    <!-- Check-in Modal -->
     <DailyCheckinModal
       ref="checkinModal"
       :forced="false"
@@ -83,7 +82,8 @@ const { currentUser } = useAuth()
 const store = usePulseStore()
 const checkinModal = ref<InstanceType<typeof DailyCheckinModal> | null>(null)
 
-const today = new Date().toISOString().slice(0, 10)
+import { localDateStr } from '~/composables/useLocalDate'
+const today = localDateStr()
 
 const exemptFromPulse = computed(() => {
   const r = currentUser.value?.role?.toUpperCase()
@@ -96,9 +96,7 @@ const hasCheckedIn = computed(() => {
   return store.pulse.members.some((m) => m.user_id === uid && m.standup !== null)
 })
 
-function onCheckinSubmitted() {
-  // Board refreshes automatically via store action
-}
+function onCheckinSubmitted() {}
 
 onMounted(() => {
   store.fetchDailyPulse(today)

@@ -211,16 +211,49 @@ func (TaskComment) TableName() string { return "task_comments" }
 
 // TimeLog represents actual time logged by a developer on a task
 type TimeLog struct {
-	ID          uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	TaskID      uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
-	UserID      uint      `json:"user_id" gorm:"not null"`
-	UserEmail   string    `json:"user_email,omitempty" gorm:"-"`
-	Minutes     int       `json:"minutes" gorm:"not null"`
-	Description string    `json:"description" gorm:"type:text"`
-	LoggedAt    time.Time `json:"logged_at" gorm:"autoCreateTime"`
+	ID              uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	TaskID          uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
+	UserID          uint      `json:"user_id" gorm:"not null"`
+	UserEmail       string    `json:"user_email,omitempty" gorm:"-"`
+	Minutes         int       `json:"minutes" gorm:"not null"`
+	Description     string    `json:"description" gorm:"type:text"`
+	WorkType        string    `json:"work_type" gorm:"default:'DEV'"`
+	LoggedDate      time.Time `json:"logged_date" gorm:"type:date;default:CURRENT_DATE"`
+	IsTimerSession  bool      `json:"is_timer_session" gorm:"default:false"`
+	LoggedAt        time.Time `json:"logged_at" gorm:"autoCreateTime"`
 }
 
 func (TimeLog) TableName() string { return "time_logs" }
+
+// Valid work types for TimeLog
+var ValidWorkTypes = map[string]bool{
+	"DEV": true, "REVIEW": true, "TESTING": true,
+	"MEETING": true, "RESEARCH": true, "OTHER": true,
+}
+
+// DailyTimeLogSummary is the per-user daily log summary for /users/me/time-logs
+type DailyTimeLogSummary struct {
+	Date         string    `json:"date"`
+	TotalMinutes int       `json:"total_minutes"`
+	Entries      []TimeLog `json:"entries"`
+}
+
+// BulkLogEntry is a single item in a bulk log request
+type BulkLogEntry struct {
+	TaskID      string  `json:"task_id" binding:"required"`
+	Minutes     int     `json:"minutes" binding:"required,min=1"`
+	Description string  `json:"description"`
+	WorkType    string  `json:"work_type"`
+	LoggedDate  *string `json:"logged_date"` // YYYY-MM-DD, optional
+}
+
+// BulkLogResult is the outcome for each entry in a bulk log request
+type BulkLogResult struct {
+	TaskID  string    `json:"task_id"`
+	Success bool      `json:"success"`
+	Log     *TimeLog  `json:"log,omitempty"`
+	Error   string    `json:"error,omitempty"`
+}
 
 // ProjectAnalytics holds computed analytics for a project
 type ProjectAnalytics struct {
@@ -520,6 +553,11 @@ type SentinelRepository interface {
 	// Time Logs
 	CreateTimeLog(t *TimeLog) error
 	GetTimeLogsByTaskID(taskID uuid.UUID) ([]TimeLog, error)
+	GetTimeLogByID(logID uuid.UUID) (*TimeLog, error)
+	UpdateTimeLog(t *TimeLog) error
+	DeleteTimeLog(logID uuid.UUID) error
+	GetTimeLogsByUserAndDate(userID uint, date time.Time) ([]TimeLog, error)
+	BulkCreateTimeLogs(logs []TimeLog) error
 	GetTotalLoggedMinutes(taskID uuid.UUID) (int, error)
 	CountChildTasks(parentID uuid.UUID) (int, error)             // Leaf-node guard: returns number of direct children
 	GetChildTasksByParentID(parentID uuid.UUID) ([]Task, error)  // For UAT roll-up: fetch all direct children of a feature
@@ -661,8 +699,12 @@ type SentinelUsecase interface {
 	GetComments(taskID uuid.UUID) ([]TaskComment, error)
 
 	// Time Logging
-	LogTime(taskID uuid.UUID, userID uint, minutes int, description string) (*TimeLog, error)
+	LogTime(taskID uuid.UUID, userID uint, minutes int, description, workType string, loggedDate *time.Time, isTimer bool) (*TimeLog, error)
 	GetTimeLogs(taskID uuid.UUID) ([]TimeLog, error)
+	EditTimeLog(logID uuid.UUID, callerID uint, minutes int, description, workType string) (*TimeLog, error)
+	DeleteTimeLog(logID uuid.UUID, callerID uint) error
+	GetMyDailyTimeLogs(userID uint, date time.Time) (*DailyTimeLogSummary, error)
+	BulkLogTime(entries []BulkLogEntry, userID uint) ([]BulkLogResult, error)
 
 	// Analytics
 	GetProjectAnalytics(projectID uuid.UUID) (*ProjectAnalytics, error)

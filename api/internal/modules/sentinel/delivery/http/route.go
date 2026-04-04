@@ -71,6 +71,9 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		// Time Logging
 		sentinelGroup.POST("/tasks/:id/time-logs", handler.LogTime)
 		sentinelGroup.GET("/tasks/:id/time-logs", handler.GetTimeLogs)
+		sentinelGroup.PATCH("/time-logs/:logId", handler.EditTimeLog)
+		sentinelGroup.DELETE("/time-logs/:logId", handler.DeleteTimeLog)
+		sentinelGroup.GET("/users/me/time-logs", handler.GetMyDailyTimeLogs)
 
 		// Appeal System
 		sentinelGroup.POST("/submissions/:id/appeal", handler.SubmitAppeal)
@@ -104,6 +107,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 
 		// Bulk Operations
 		sentinelGroup.PATCH("/tasks/bulk-status", handler.BulkUpdateTaskStatus)
+		sentinelGroup.POST("/time-logs/bulk", handler.BulkLogTime)
 
 		// Google Slides Import
 		sentinelGroup.POST("/import/google-slides/preview", handler.PreviewGoogleSlides)

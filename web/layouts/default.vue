@@ -60,24 +60,36 @@
           to="/pulse"
           class="nav-link"
           active-class="bg-gradient-to-r from-violet-600 to-indigo-600 shadow-lg"
-          :title="sidebarCollapsed ? 'Daily Pulse' : undefined"
+          :title="sidebarCollapsed ? 'Daily Standup' : undefined"
         >
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">Daily Pulse</span>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Daily Standup</span>
         </NuxtLink>
 
-        <!-- Quick Log Time — Swarm/Pair Programming shortcut -->
-        <button
-          type="button"
-          @click="showQuickLog = true"
-          class="nav-link w-full text-purple-400 hover:bg-purple-700/20 hover:text-purple-300 border border-transparent hover:border-purple-600/30"
-          :title="sidebarCollapsed ? 'Quick Log Time' : undefined"
+        <!-- Work Log (timer + quick log + EOD + history) -->
+        <NuxtLink
+          to="/logtime"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Work Log' : undefined"
         >
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">Quick Log Time</span>
-        </button>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Work Log</span>
+        </NuxtLink>
+        <NuxtLink
+          to="/attendance"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-emerald-600 to-teal-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Office attendance' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Office attendance</span>
+        </NuxtLink>
         <NuxtLink
           v-if="['PM', 'CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
           to="/active-board"
@@ -97,6 +109,16 @@
         >
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-3 3m-6 2a2 2 0 11-4 0 2 2 0 014 0zM3 21V3m0 18v-4" /></svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Team Performance</span>
+        </NuxtLink>
+        <NuxtLink
+          v-if="['CEO', 'PM'].includes(currentUser?.role ?? '')"
+          to="/discipline"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-orange-600 to-red-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Discipline Tracker' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Discipline Tracker</span>
         </NuxtLink>
         <NuxtLink
           v-if="currentUser?.role === 'CEO'"
@@ -127,6 +149,18 @@
         >
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Cost Configuration</span>
+        </NuxtLink>
+        <NuxtLink
+          v-if="['CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
+          to="/admin/attendance-config"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-teal-600 to-emerald-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Attendance config' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132l.857-6a4 4 0 00-3.838-4.659h-1.5a4 4 0 00-3.838 4.659l.857 6" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Attendance config</span>
         </NuxtLink>
       </nav>
 
@@ -163,6 +197,9 @@
 
   <!-- Quick Log Time Modal (globally accessible) -->
   <TasksQuickLogTimeModal v-model="showQuickLog" />
+
+  <!-- EOD Batch Log Modal -->
+  <TasksBulkEodLoggerModal :show="showBulkLog" @close="showBulkLog = false" @done="showBulkLog = false" />
 </template>
 
 <script setup lang="ts">
@@ -172,6 +209,7 @@ const { confirm } = useNotification()
 const SIDEBAR_COLLAPSED_KEY = 'sentinel-sidebar-collapsed'
 const sidebarCollapsed = ref(false)
 const showQuickLog = ref(false)
+const showBulkLog = ref(false)
 
 onMounted(() => {
   if (import.meta.client) {
@@ -182,6 +220,20 @@ onMounted(() => {
 watch(sidebarCollapsed, (v) => {
   if (import.meta.client) localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? '1' : '0')
 })
+
+// ⌘+L → Quick Log Time | ⌘+Shift+L → EOD Batch Log
+function onKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+    e.preventDefault()
+    if (e.shiftKey) {
+      showBulkLog.value = true
+    } else {
+      showQuickLog.value = true
+    }
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const userEmail = computed(() => currentUser.value?.email || 'user@sentinel.com')
 const userRole = computed(() => {
