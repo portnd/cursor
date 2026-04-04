@@ -10,7 +10,7 @@
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
         <!-- Panel -->
-        <div class="relative w-full max-w-lg bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl shadow-black/50 flex flex-col max-h-[90vh]">
+        <div class="relative w-full max-w-lg min-h-0 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl shadow-black/50 flex flex-col max-h-[90vh]">
           <!-- Header -->
           <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700/60">
             <div class="flex items-center gap-2.5">
@@ -29,7 +29,7 @@
           </div>
 
           <!-- Body -->
-          <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div class="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
 
             <!-- Timer fill notice (shown when modal opened from timer stop) -->
             <div v-if="fromTimer" class="flex items-center gap-2 p-2.5 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">

@@ -1,17 +1,16 @@
 <template>
-  <div class="min-h-full w-full flex flex-col bg-gray-900">
-    <div class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 md:py-8 flex flex-col min-h-0">
+  <div class="min-h-full w-full bg-gray-900 pb-8">
+    <div class="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 md:py-8">
       <!-- Header -->
-      <div class="mb-6 md:mb-8 shrink-0">
+      <div class="mb-6 md:mb-8">
         <h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight">Create Task</h1>
         <p class="text-base text-gray-400 mt-2">Add a new task to your project</p>
       </div>
 
-      <!-- Card — fills remaining viewport height in main panel -->
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl flex flex-col flex-1 min-h-0 min-h-[calc(100dvh-10rem)]">
+      <!-- Card — single scroll via layout <main>; avoids nested overflow trapping wheel in Chrome -->
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl flex flex-col">
 
-        <!-- Scrollable form body -->
-        <div class="p-6 md:p-10 space-y-6 md:space-y-7 flex-1 overflow-y-auto overscroll-contain">
+        <div class="p-6 md:p-10 space-y-6 md:space-y-7">
 
           <!-- Success -->
           <div v-if="showSuccessMsg" class="flex items-center gap-3 p-4 md:p-5 bg-green-900/30 border border-green-600 rounded-xl text-green-400 text-base">
@@ -154,7 +153,7 @@
         </div>
 
         <!-- Footer actions -->
-        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 p-6 md:p-8 pt-4 border-t border-gray-700 shrink-0">
+        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 p-6 md:p-8 pt-4 border-t border-gray-700">
           <button
             @click="handleSubmit"
             :disabled="isSubmitting || !form.title.trim()"

@@ -11,7 +11,7 @@
 
         <!-- Panel -->
         <div
-          class="relative w-full sm:max-w-2xl max-h-[95dvh] sm:max-h-[90vh] bg-gray-900 border border-gray-700 sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
+          class="relative w-full sm:max-w-2xl min-h-0 max-h-[95dvh] sm:max-h-[90vh] bg-gray-900 border border-gray-700 sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
           @click.stop
         >
           <!-- Header -->
@@ -49,7 +49,7 @@
           </div>
 
           <!-- Entries list -->
-          <div class="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div class="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
             <!-- Row for each entry -->
             <div
               v-for="(entry, idx) in entries"
