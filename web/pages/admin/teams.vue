@@ -59,7 +59,7 @@
       >
         <p class="font-medium">Feature team is disabled</p>
         <p class="text-sm text-amber-200/80 mt-0.5">การมองเห็นทีม (Squads) ถูกปิดทั้งหมด — ไม่แสดงใน Dashboard, Projects และหน้าอื่นๆ กด "Enable feature team" เพื่อเปิดใช้กลับ</p>
-        <p class="text-sm text-amber-200/80 mt-2">ในขณะที่ปิดทีม: ไปที่ <span class="text-amber-100 font-medium">Projects</span> เพื่อให้ CEO กำหนด PM เจ้าของโปรเจกต์ได้หลายคนต่อโปรเจกต์</p>
+        <p class="text-sm text-amber-200/80 mt-2">ในขณะที่ปิดทีม: ไปที่ <span class="text-amber-100 font-medium">Projects</span> เพื่อให้ CEO กำหนด Product Owner เจ้าของโปรเจกต์ได้หลายคนต่อโปรเจกต์</p>
       </div>
 
       <!-- Metrics (only when feature enabled) -->

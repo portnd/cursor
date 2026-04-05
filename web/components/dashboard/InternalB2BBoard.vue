@@ -87,7 +87,7 @@
                     <span v-if="req.negotiation_reason" class="text-xs text-gray-500 italic">"{{ req.negotiation_reason }}"</span>
                   </div>
                 </div>
-                <!-- Actions for target team PM -->
+                <!-- Actions for target team Product Owner -->
                 <div v-if="req.status === 'PENDING' || req.status === 'COUNTER_OFFERED'" class="flex flex-col gap-2 flex-shrink-0">
                   <button
                     @click="acceptInbound(req)"
@@ -291,7 +291,8 @@ const tabs = [
 ]
 
 const userRole = computed(() => (currentUser.value as any)?.role?.toUpperCase() ?? '')
-const canCreate = computed(() => ['CEO', 'PM', 'MANAGER'].includes(userRole.value))
+const canCreate = computed(() =>
+  ['CEO', 'PRODUCT_OWNER', 'PM', 'MANAGER'].includes(userRole.value))
 
 const formatMinutes = (mins: number) => {
   if (!mins || mins <= 0) return '—'

@@ -279,8 +279,8 @@ func (s *geminiService) EstimateAndScheduleTasks(inputs []domain.TaskEstimateInp
 		}
 	}
 	tasksJSON, _ := json.Marshal(inputs)
-	prompt := fmt.Sprintf(`You are a Senior Technical PM. Given the following tasks of a project, do TWO things:
-1) Estimate the implementation time in MINUTES for each task (Senior Dev, stack: Go, Nuxt 3, PostgreSQL). AI assistance level: %d%%.
+	prompt := fmt.Sprintf(`You are a Senior Technical Product Owner. Given the following tasks of a project, do TWO things:
+1) Estimate the implementation time in MINUTES for each task (Senior Engineer, stack: Go, Nuxt 3, PostgreSQL). AI assistance level: %d%%.
 2) Suggest the EXECUTION ORDER (1 = do first, 2 = second, ...) based on dependencies and priority. Higher priority and blocking work should have lower order number.
 
 Tasks (JSON array):
@@ -641,12 +641,12 @@ func (s *geminiService) AnalyzeAppeal(diff string, originalFeedback string, appe
 {
 	"recommendation": "OVERTURN" or "UPHOLD",
 	"confidence": <int 0-100>,
-	"reasoning": "<1-2 ประโยคเป็นภาษาไทย แนะนำ CEO/PM ในการพิจารณาอุทธรณ์นี้>"
+	"reasoning": "<1-2 ประโยคเป็นภาษาไทย แนะนำ CEO / Product Owner ในการพิจารณาอุทธรณ์นี้>"
 }
 
 **CRITICAL:** 
 - Write "reasoning" in Thai language (ภาษาไทย) ONLY.
-- Must be 1-2 sentences max, clear and actionable for CEO/PM.`, diff, originalFeedback, appealReason)
+- Must be 1-2 sentences max, clear and actionable for CEO / Product Owner.`, diff, originalFeedback, appealReason)
 
 	// Build request with DYNAMIC generation config
 	reqBody := geminiRequest{
@@ -761,7 +761,7 @@ func (s *geminiService) AnalyzeAppeal(diff string, originalFeedback string, appe
 // Returns: (recommendation, confidence, reasoning, error)
 // - recommendation: "APPROVE" (developer is right) or "REJECT" (AI estimate stands)
 // - confidence: 0-100 (how confident AI is in recommendation)
-// - reasoning: Thai explanation for CEO/PM
+// - reasoning: Thai explanation for CEO / Product Owner
 func (s *geminiService) AnalyzeTimeNegotiation(
 	taskTitle string,
 	taskDescription string,
@@ -800,7 +800,7 @@ func (s *geminiService) AnalyzeTimeNegotiation(
 	multiplier := float64(devProposal) / float64(aiEstimate)
 
 	// Time Negotiation Analysis Prompt
-	prompt := fmt.Sprintf(`คุณคือ Senior Project Manager ที่ทำหน้าที่ตรวจสอบคำขอเจรจาเวลาจากนักพัฒนา
+	prompt := fmt.Sprintf(`คุณคือ Senior Product Owner ที่ทำหน้าที่ตรวจสอบคำขอเจรจาเวลาจากนักพัฒนา
 
 **งาน (Task):**
 ชื่อ: "%s"
@@ -855,14 +855,14 @@ func (s *geminiService) AnalyzeTimeNegotiation(
 **ระดับความมั่นใจ:**
 - 90-100: มั่นใจมากในคำแนะนำ
 - 70-89: มั่นใจ แต่ควรพิจารณาบริบทเพิ่มเติม
-- 50-69: มั่นใจปานกลาง ต้องใช้ดุลยพินิจของ PM/CEO
+- 50-69: มั่นใจปานกลาง ต้องใช้ดุลยพินิจของ Product Owner/CEO
 - 0-49: มั่นใจต่ำ ต้องมนุษย์ตรวจสอบแน่นอน
 
 **ตอบเป็น JSON ONLY (ไม่ต้องใส่ markdown):**
 {
 	"recommendation": "APPROVE" or "REJECT",
 	"confidence": <int 0-100>,
-	"reasoning": "<1-2 ประโยคเป็นภาษาไทย แนะนำ PM/CEO>"
+	"reasoning": "<1-2 ประโยคเป็นภาษาไทย แนะนำ Product Owner/CEO>"
 }
 
 **CRITICAL:**

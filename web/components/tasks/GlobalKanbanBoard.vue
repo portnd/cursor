@@ -92,7 +92,7 @@
             <span
               v-if="col.status === 'READY_FOR_TEST'"
               class="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border border-cyan-500/30 text-cyan-400/70 bg-cyan-500/10"
-            >Awaiting PM review</span>
+            >Awaiting Product Owner review</span>
           </div>
           <span
             class="text-xs font-bold tabular-nums px-2 py-0.5 rounded-full"

@@ -38,6 +38,13 @@ export interface DisciplineUserDayStat {
   reworks: number
   logged_minutes: number
   has_daily_pulse: boolean
+  deployments_completed: number // deployment_requests marked DEPLOYED by this reviewer
+  // Attendance
+  is_late: boolean
+  early_checkout: boolean
+  check_in_at?: string  // HH:MM ICT — empty if no record
+  check_out_at?: string // HH:MM ICT — empty if no record
+  attendance_status?: string // present | late | absent | wfh | ""
 }
 
 export interface DisciplineUser {
@@ -49,7 +56,19 @@ export interface DisciplineUser {
   total_tasks_closed: number
   total_reworks: number
   total_logged_hours: number
+  total_deployments: number          // total deployments completed as reviewer (Chief Engineer)
+  total_late_days: number            // times checked in late
+  total_early_checkout_days: number  // times left before work_end
   days: DisciplineUserDayStat[]
+}
+
+export interface DisciplineAttendanceRecord {
+  check_in_at?: string  // HH:MM ICT
+  check_out_at?: string // HH:MM ICT
+  is_late: boolean
+  early_checkout: boolean
+  status: string // present | late | absent | wfh
+  check_in_method?: string
 }
 
 export interface DisciplineResponse {
@@ -83,6 +102,13 @@ export interface DisciplineReworkEntry {
   rejected_comment: string
 }
 
+export interface DisciplineDeployedRequest {
+  id: number
+  title: string
+  branch: string
+  environment: string
+}
+
 export interface DisciplineDayDetail {
   user_id: number
   user_email: string
@@ -90,9 +116,11 @@ export interface DisciplineDayDetail {
   date: string
   has_daily_pulse: boolean
   total_logged_minutes: number
+  attendance?: DisciplineAttendanceRecord
   time_logs: DisciplineTimeLogEntry[]
   completed_tasks: DisciplineCompletedTask[]
   reworks: DisciplineReworkEntry[]
+  deployed_requests: DisciplineDeployedRequest[]
 }
 
 /** Which metric the user opened the score breakdown from (team leaderboard). */

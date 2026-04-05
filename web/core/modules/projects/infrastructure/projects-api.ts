@@ -20,7 +20,7 @@ export interface Project {
   task_total?: number
   task_completed?: number
   task_overdue?: number
-  /** When teams/squads are off — CEO-assigned PM owners for this project */
+  /** When teams/squads are off — CEO-assigned Product Owner users for this project (API field: pm_owners) */
   pm_owners?: ProjectPmOwner[]
 }
 
@@ -379,7 +379,7 @@ function useProjectsApi() {
     return data.data || { sprints: [] }
   }
 
-  /** Run AI estimate on a task; updates task.estimated_minutes. Returns updated task. Creator/CEO/PM only. */
+  /** Run AI estimate on a task; updates task.estimated_minutes. Returns updated task. Creator / CEO / Product Owner only. */
   async function estimateTask(taskIdOrCode: string): Promise<Task> {
     const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${encodeURIComponent(taskIdOrCode)}/estimate`, {
       method: 'POST',
@@ -387,14 +387,14 @@ function useProjectsApi() {
     return data.data
   }
 
-  /** Clear project plan: remove all tasks, sprints, milestones, epics. CEO/PM only. */
+  /** Clear project plan: remove all tasks, sprints, milestones, epics. CEO / Product Owner only. */
   async function clearProjectPlan(projectIdOrCode: string): Promise<void> {
     await fetchWithAuth(`/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/clear-plan`, {
       method: 'POST',
     })
   }
 
-  /** AI Agent: estimate time + arrange timeline for existing tasks (no new tasks created). CEO/PM only. */
+  /** AI Agent: estimate time + arrange timeline for existing tasks (no new tasks created). CEO / Product Owner only. */
   async function scheduleProjectWithAI(projectIdOrCode: string): Promise<{ message: string; updated: number }> {
     return fetchWithAuth<{ message: string; updated: number }>(
       `/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/ai-schedule`,
@@ -402,7 +402,7 @@ function useProjectsApi() {
     )
   }
 
-  /** (Optional) Generate new epics, milestones, sprints, tasks from project name/description. CEO/PM only. */
+  /** (Optional) Generate new epics, milestones, sprints, tasks from project name/description. CEO / Product Owner only. */
   async function generateProjectPlan(projectIdOrCode: string): Promise<AIGeneratedPlan> {
     const data = await fetchWithAuth<{ data: AIGeneratedPlan }>(
       `/sentinel/projects/${encodeURIComponent(projectIdOrCode)}/ai-plan`,

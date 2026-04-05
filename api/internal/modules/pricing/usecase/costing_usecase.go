@@ -75,14 +75,14 @@ func (u *costingUsecase) GetCompanyMandayRate() (*domain.CompanyMandayRateRespon
 		return nil, fmt.Errorf("manday rate: list salaries: %w", err)
 	}
 
-	// PM, MANAGER, SUPPORT salaries counted as overhead, not billable dev cost
-	overheadRoleSalaries, err := u.repo.GetActiveSalariesByRoles([]string{"PM", "MANAGER", "SUPPORT"})
+	// Product Owner, MANAGER, SUPPORT salaries counted as overhead, not billable engineer cost
+	overheadRoleSalaries, err := u.repo.GetActiveSalariesByRoles([]string{"PRODUCT_OWNER", "MANAGER", "SUPPORT"})
 	if err != nil {
 		return nil, fmt.Errorf("manday rate: fetch overhead role salaries: %w", err)
 	}
 
 	// DEV-only salaries for avg dev cost
-	devSalaries, err := u.repo.GetActiveSalariesByRoles([]string{"DEV"})
+	devSalaries, err := u.repo.GetActiveSalariesByRoles([]string{"ENGINEER", "CHIEF_ENGINEER"})
 	if err != nil {
 		return nil, fmt.Errorf("manday rate: fetch dev salaries: %w", err)
 	}
@@ -159,8 +159,8 @@ func (u *costingUsecase) CalculateQuotation(projectID string, req *domain.Quotat
 		return nil, fmt.Errorf("costing: get salaries: %w", err)
 	}
 
-	// PM, MANAGER, SUPPORT salaries are overhead (from DB; no manual input)
-	overheadRoleSalaries, err := u.repo.GetActiveSalariesByRoles([]string{"PM", "MANAGER", "SUPPORT"})
+	// Product Owner, MANAGER, SUPPORT salaries are overhead (from DB; no manual input)
+	overheadRoleSalaries, err := u.repo.GetActiveSalariesByRoles([]string{"PRODUCT_OWNER", "MANAGER", "SUPPORT"})
 	if err != nil {
 		return nil, fmt.Errorf("costing: get overhead role salaries: %w", err)
 	}
@@ -258,7 +258,7 @@ func (u *costingUsecase) ExportQuotationPDF(projectID string, req *domain.Quotat
 // computeCostPerManday derives the fully loaded daily cost from config + DB.
 //
 // CompanyExpenseTotal = cfg.CompanyExpense + cfg.ExecutiveExpense  (from config)
-//                     + Σ monthly_salary of PM + MANAGER + SUPPORT (from DB)
+//                     + Σ monthly_salary of Product Owner + MANAGER + SUPPORT (from DB)
 //                     + Total SS/mo (Σ SS of ALL employees with salary records)
 //
 // OverheadPerDev   = CompanyExpenseTotal / len(DevUserIDs)
@@ -289,7 +289,7 @@ func (u *costingUsecase) computeCostPerManday(cfg *domain.CompanyCostConfig, req
 		totalSS += domain.SSCost(s.MonthlySalary)
 	}
 
-	// Company overhead: config (company_expense, executive_expense) + PM/MANAGER/SUPPORT payroll + total SS
+	// Company overhead: config (company_expense, executive_expense) + Product Owner/MANAGER/SUPPORT payroll + total SS
 	companyExpenseTotal := cfg.CompanyExpense + cfg.ExecutiveExpense + overheadRoleSalarySum + totalSS
 	overheadPerDev := companyExpenseTotal / numDevs
 	fullyLoadedMonthly := avgSalary + overheadPerDev
@@ -491,19 +491,19 @@ func (u *costingUsecase) buildCostReportData(req *domain.CostReportRequest) (*do
 	for _, s := range salaries {
 		r := strings.ToUpper(s.UserRole)
 		switch r {
-		case "DEV", "DEVELOPER", "ENGINEER":
+		case "DEV", "DEVELOPER", "ENGINEER", "CHIEF_ENGINEER":
 			devSalaries = append(devSalaries, s)
-		case "PM":
+		case "PM", "PRODUCT_OWNER":
 			pmSalaries = append(pmSalaries, s)
 		default:
 			otherSalaries = append(otherSalaries, s)
 		}
 	}
-	// Fallback: if no explicit DEV found, non-CEO/PM/EXEC are devs
+	// Fallback: if no explicit engineer role found, non-CEO/Product Owner/EXEC are treated as engineers
 	if len(devSalaries) == 0 {
 		for _, s := range salaries {
 			r := strings.ToUpper(s.UserRole)
-			if r != "CEO" && r != "CTO" && r != "PM" && r != "EXEC" {
+			if r != "CEO" && r != "CTO" && r != "PM" && r != "PRODUCT_OWNER" && r != "EXEC" {
 				devSalaries = append(devSalaries, s)
 			}
 		}
@@ -1334,7 +1334,7 @@ tr.tot td { background:#1e3a5f; color:#fff; font-weight:700; }
     <div class="row"><span class="lbl">① Avg Dev Salary</span><span class="val">%s / mo</span></div>
     <div class="row"><span class="lbl">② Avg Social Security</span><span class="val">%s / mo</span></div>
     <div class="row"><span class="lbl" style="color:#6b7280;font-size:8pt">── Overhead per Dev ──</span><span class="val"></span></div>
-    <div class="row"><span class="lbl indent">PM Salaries ÷ %d devs</span><span class="val">%s</span></div>
+    <div class="row"><span class="lbl indent">Product Owner salaries ÷ %d devs</span><span class="val">%s</span></div>
     <div class="row"><span class="lbl indent">Company Expense ÷ %d devs</span><span class="val">%s</span></div>
     <div class="row"><span class="lbl indent">Exec Expense ÷ %d devs</span><span class="val">%s</span></div>
     <div class="row"><span class="lbl">③ Total Overhead per Dev</span><span class="val">%s / mo</span></div>
@@ -1375,7 +1375,7 @@ tr.tot td { background:#1e3a5f; color:#fff; font-weight:700; }
     <div class="kpi-lbl">Total Headcount</div>
     <div class="kpi-lbl th">จำนวนพนักงานทั้งหมด</div>
     <div class="kpi-val">%d</div>
-    <div class="kpi-sub">%d DEV · %d PM · %d other</div>
+    <div class="kpi-sub">%d ENG · %d PO · %d other</div>
   </div>
   <div class="tile amber">
     <div class="kpi-lbl">Monthly Payroll</div>

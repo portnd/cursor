@@ -1,0 +1,4 @@
+ALTER TABLE users DROP CONSTRAINT IF EXISTS check_user_role;
+UPDATE users SET role = 'DEV' WHERE role = 'ENGINEER';
+ALTER TABLE users ALTER COLUMN role SET DEFAULT 'DEV';
+ALTER TABLE users ADD CONSTRAINT check_user_role CHECK (role IN ('CEO', 'MANAGER', 'PM', 'DEV', 'SUPPORT'));

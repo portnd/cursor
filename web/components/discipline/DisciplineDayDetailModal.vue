@@ -67,8 +67,54 @@
 
           <!-- Content -->
           <div v-else-if="detail" class="flex-1 overflow-y-auto p-5 space-y-5">
+
+            <!-- Attendance Banner -->
+            <div
+              v-if="detail.attendance"
+              class="rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 border"
+              :class="detail.attendance.is_late
+                ? 'bg-rose-950/30 border-rose-700/40'
+                : 'bg-teal-950/20 border-teal-700/30'"
+            >
+              <!-- Status badge -->
+              <div
+                class="flex items-center gap-1.5 text-sm font-semibold shrink-0"
+                :class="detail.attendance.is_late ? 'text-rose-300' : 'text-teal-300'"
+              >
+                <span>{{ detail.attendance.is_late ? '🕐' : '✅' }}</span>
+                <span>{{ detail.attendance.is_late ? 'เข้างานสาย' : 'เข้างานตรงเวลา' }}</span>
+              </div>
+              <!-- Times -->
+              <div class="flex items-center gap-4 text-sm flex-wrap">
+                <div v-if="detail.attendance.check_in_at" class="flex items-center gap-1.5 text-gray-300">
+                  <span class="text-gray-500 text-xs">เข้า</span>
+                  <span class="font-bold font-mono">{{ detail.attendance.check_in_at }}</span>
+                </div>
+                <div v-if="detail.attendance.check_out_at" class="flex items-center gap-1.5" :class="detail.attendance.early_checkout ? 'text-amber-300' : 'text-gray-300'">
+                  <span class="text-gray-500 text-xs">ออก</span>
+                  <span class="font-bold font-mono">{{ detail.attendance.check_out_at }}</span>
+                  <span v-if="detail.attendance.early_checkout" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold">🚪 กลับก่อนเวลา</span>
+                </div>
+                <div v-if="!detail.attendance.check_out_at" class="text-gray-600 text-xs italic">ยังไม่ได้ check-out</div>
+              </div>
+              <!-- Method badge -->
+              <div v-if="detail.attendance.check_in_method" class="ml-auto shrink-0">
+                <span class="text-[10px] px-2 py-1 rounded-full bg-gray-700/70 text-gray-400 font-medium uppercase">
+                  {{ detail.attendance.check_in_method }}
+                </span>
+              </div>
+            </div>
+            <!-- No attendance record -->
+            <div
+              v-else
+              class="rounded-xl px-4 py-3 bg-gray-800/40 border border-gray-700/30 flex items-center gap-2 text-gray-500 text-sm"
+            >
+              <span>📭</span>
+              <span>ไม่มีข้อมูล check-in วันนี้</span>
+            </div>
+
             <!-- Summary row -->
-            <div class="grid grid-cols-4 gap-3">
+            <div class="grid gap-3" :class="(detail.deployed_requests?.length ?? 0) > 0 ? 'grid-cols-5' : 'grid-cols-4'">
               <div class="bg-gray-800 rounded-xl p-3 text-center border"
                 :class="detail.has_daily_pulse ? 'border-violet-700/40' : 'border-red-700/40'">
                 <div class="text-lg font-bold" :class="detail.has_daily_pulse ? 'text-violet-400' : 'text-red-400'">
@@ -79,6 +125,10 @@
               <div class="bg-gray-800 rounded-xl p-3 text-center border border-emerald-700/40">
                 <div class="text-lg font-bold text-emerald-400">{{ detail.completed_tasks.length }}</div>
                 <div class="text-[10px] text-gray-500 mt-0.5">Tasks ปิด</div>
+              </div>
+              <div v-if="(detail.deployed_requests?.length ?? 0) > 0" class="bg-gray-800 rounded-xl p-3 text-center border border-orange-700/40">
+                <div class="text-lg font-bold text-orange-400">{{ detail.deployed_requests.length }}</div>
+                <div class="text-[10px] text-gray-500 mt-0.5">🚀 Deploy</div>
               </div>
               <div class="bg-gray-800 rounded-xl p-3 text-center border"
                 :class="detail.reworks.length > 0 ? 'border-red-700/40' : 'border-gray-700'">
@@ -189,6 +239,38 @@
                       :class="taskTypeBadge(task.task_type)"
                     >{{ task.task_type }}</span>
                     <span v-if="task.story_points > 0" class="text-xs text-gray-400">{{ task.story_points }} SP</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Deployed Requests section (Chief Engineer) -->
+            <section v-if="(detail.deployed_requests?.length ?? 0) > 0">
+              <h3 class="text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
+                <span class="text-orange-400">🚀</span>
+                Deployment ที่ Deploy แล้ว
+                <span class="text-gray-600 font-normal">({{ detail.deployed_requests.length }} รายการ)</span>
+              </h3>
+              <div class="space-y-2">
+                <div
+                  v-for="dr in detail.deployed_requests"
+                  :key="dr.id"
+                  class="flex items-center gap-3 bg-orange-950/20 rounded-lg px-3 py-2.5 border border-orange-800/30"
+                >
+                  <div class="w-6 h-6 rounded-full bg-orange-900/60 border border-orange-700/40 flex items-center justify-center shrink-0 text-sm">
+                    🚀
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <span class="text-sm text-white font-medium truncate block">{{ dr.title }}</span>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <code class="text-[10px] text-cyan-400 font-mono">⎇ {{ dr.branch }}</code>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
+                        :class="{
+                          'bg-orange-500/15 text-orange-300': dr.environment === 'PRODUCTION',
+                          'bg-amber-500/15 text-amber-300': dr.environment === 'PRE-PROD',
+                          'bg-violet-500/15 text-violet-300': dr.environment === 'STAGING',
+                        }">{{ dr.environment }}</span>
+                    </div>
                   </div>
                 </div>
               </div>

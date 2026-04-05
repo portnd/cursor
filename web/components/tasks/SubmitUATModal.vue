@@ -48,7 +48,7 @@
             <!-- Body -->
             <div class="px-6 py-5 space-y-4">
               <p class="text-xs text-gray-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                All child tasks are complete. Provide the staging environment details for PM/CEO to review and accept.
+                All child tasks are complete. Provide the staging environment details for Product Owner / CEO to review and accept.
               </p>
 
               <!-- Staging URL -->

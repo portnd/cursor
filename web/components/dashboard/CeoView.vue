@@ -56,7 +56,7 @@
     <!-- ── Main Content ───────────────────────────────────────────────────────── -->
     <main v-else class="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
 
-      <!-- ── CEO UAT Approval Queue (sub-tasks PM has tested, awaiting CEO final approval) ── -->
+      <!-- ── CEO UAT Approval Queue (sub-tasks Product Owner has tested, awaiting CEO final approval) ── -->
       <CeoUATApprovalQueue />
 
       <!-- ── Section label helper ──────────────────────────────────────────────── -->

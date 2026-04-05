@@ -30,7 +30,7 @@ type TeamMemberKPI struct {
 	CompositeScore    float64 `json:"composite_score"` // 0-100 for ranking
 }
 
-// TeamKPIsResponse is the response for GET /performance/team (CEO + PM)
+// TeamKPIsResponse is the response for GET /performance/team (CEO + Product Owner)
 type TeamKPIsResponse struct {
 	Members []TeamMemberKPI `json:"members"`
 }
@@ -49,24 +49,44 @@ type OverviewKPIs struct {
 
 // DisciplineUserDayStat holds one employee's activity metrics for a single date.
 type DisciplineUserDayStat struct {
-	Date          string `json:"date"`           // YYYY-MM-DD
-	TasksClosed   int    `json:"tasks_closed"`   // tasks completed on this date
-	Reworks       int    `json:"reworks"`        // [REJECTED] comments on tasks owned by user on this date
-	LoggedMinutes int    `json:"logged_minutes"` // total minutes logged via time_logs
-	HasDailyPulse bool   `json:"has_daily_pulse"` // whether a daily standup was submitted
+	Date                 string `json:"date"`                  // YYYY-MM-DD
+	TasksClosed          int    `json:"tasks_closed"`          // tasks completed on this date
+	Reworks              int    `json:"reworks"`               // [REJECTED] comments on tasks owned by user on this date
+	LoggedMinutes        int    `json:"logged_minutes"`        // total minutes logged via time_logs
+	HasDailyPulse        bool   `json:"has_daily_pulse"`       // whether a daily standup was submitted
+	DeploymentsCompleted int    `json:"deployments_completed"` // deployment_requests marked DEPLOYED by this reviewer on this date
+	// Attendance fields
+	IsLate           bool   `json:"is_late"`
+	EarlyCheckout    bool   `json:"early_checkout"`
+	CheckInAt        string `json:"check_in_at,omitempty"`        // HH:MM ICT
+	CheckOutAt       string `json:"check_out_at,omitempty"`       // HH:MM ICT
+	AttendanceStatus string `json:"attendance_status,omitempty"` // present|late|absent|wfh
 }
 
 // DisciplineUser aggregates one employee's discipline stats across the queried range.
 type DisciplineUser struct {
-	UserID           uint                    `json:"user_id"`
-	UserEmail        string                  `json:"user_email"`
-	UserDisplayName  string                  `json:"user_display_name,omitempty"`
-	Role             string                  `json:"role"`
-	MissedPulseCount int                     `json:"missed_pulse_count"` // working days without a standup in range
-	TotalTasksClosed int                     `json:"total_tasks_closed"`
-	TotalReworks     int                     `json:"total_reworks"`
-	TotalLoggedHours float64                 `json:"total_logged_hours"`
-	Days             []DisciplineUserDayStat `json:"days"`
+	UserID                uint                    `json:"user_id"`
+	UserEmail             string                  `json:"user_email"`
+	UserDisplayName       string                  `json:"user_display_name,omitempty"`
+	Role                  string                  `json:"role"`
+	MissedPulseCount      int                     `json:"missed_pulse_count"` // working days without a standup in range
+	TotalTasksClosed      int                     `json:"total_tasks_closed"`
+	TotalReworks          int                     `json:"total_reworks"`
+	TotalLoggedHours      float64                 `json:"total_logged_hours"`
+	TotalDeployments      int                     `json:"total_deployments"`      // total deployments completed (Chief Engineer)
+	TotalLateDays         int                     `json:"total_late_days"`        // times checked in late
+	TotalEarlyCheckoutDays int                    `json:"total_early_checkout_days"` // times left early
+	Days                  []DisciplineUserDayStat `json:"days"`
+}
+
+// DisciplineAttendanceRecord holds attendance check-in/out data for one day.
+type DisciplineAttendanceRecord struct {
+	CheckInAt     string `json:"check_in_at,omitempty"`  // HH:MM ICT
+	CheckOutAt    string `json:"check_out_at,omitempty"` // HH:MM ICT
+	IsLate        bool   `json:"is_late"`
+	EarlyCheckout bool   `json:"early_checkout"`
+	Status        string `json:"status"` // present | late | absent | wfh
+	CheckInMethod string `json:"check_in_method,omitempty"`
 }
 
 // DisciplineResponse is the full payload for GET /performance/discipline.
@@ -100,6 +120,14 @@ type DisciplineCompletedTask struct {
 	TaskType    string `json:"task_type"`
 }
 
+// DisciplineDeployedRequest is a deployment request marked DEPLOYED on a specific day.
+type DisciplineDeployedRequest struct {
+	ID          uint   `json:"id"`
+	Title       string `json:"title"`
+	Branch      string `json:"branch"`
+	Environment string `json:"environment"`
+}
+
 // DisciplineReworkEntry is a task that received a [REJECTED] comment on a specific day.
 type DisciplineReworkEntry struct {
 	TaskID          string `json:"task_id"`
@@ -110,15 +138,17 @@ type DisciplineReworkEntry struct {
 
 // DisciplineDayDetail is the drill-down payload for one user on one day.
 type DisciplineDayDetail struct {
-	UserID         uint                      `json:"user_id"`
-	UserEmail      string                    `json:"user_email"`
-	UserDisplayName string                   `json:"user_display_name,omitempty"`
-	Date           string                    `json:"date"` // YYYY-MM-DD
-	HasDailyPulse  bool                      `json:"has_daily_pulse"`
-	TotalLoggedMin int                       `json:"total_logged_minutes"`
-	TimeLogs       []DisciplineTimeLogEntry  `json:"time_logs"`
-	CompletedTasks []DisciplineCompletedTask `json:"completed_tasks"`
-	Reworks        []DisciplineReworkEntry   `json:"reworks"`
+	UserID           uint                         `json:"user_id"`
+	UserEmail        string                       `json:"user_email"`
+	UserDisplayName  string                       `json:"user_display_name,omitempty"`
+	Date             string                       `json:"date"` // YYYY-MM-DD
+	HasDailyPulse    bool                         `json:"has_daily_pulse"`
+	TotalLoggedMin   int                          `json:"total_logged_minutes"`
+	Attendance       *DisciplineAttendanceRecord  `json:"attendance,omitempty"` // nil if no record
+	TimeLogs         []DisciplineTimeLogEntry     `json:"time_logs"`
+	CompletedTasks   []DisciplineCompletedTask    `json:"completed_tasks"`
+	Reworks          []DisciplineReworkEntry      `json:"reworks"`
+	DeployedRequests []DisciplineDeployedRequest  `json:"deployed_requests"` // deployments completed as reviewer on this day
 }
 
 // Usecase defines the performance business logic interface
@@ -139,7 +169,7 @@ type Repository interface {
 	GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64, sampleCount int, err error)
 	GetUserSprintVelocity(userID uint, lastNSprints int) (avgStoryPoints float64, trend string, err error)
 
-	// PM-scoped: only tasks assigned by this PM (assigned_by_id = pmID)
+	// Product Owner–scoped: only tasks assigned by this Product Owner (assigned_by_id = pmID)
 	GetDevUserIDsAssignedByPM(pmID uint) ([]uint, error)
 	GetUserTaskDeliveryStatsForAssignedBy(devID, assignedByID uint) (tasksWithDue int, completedOnTime int, err error)
 	GetUserSubmissionStatsForAssignedBy(devID, assignedByID uint) (avgScore float64, totalSubs int, failCount int, err error)

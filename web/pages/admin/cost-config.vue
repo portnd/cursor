@@ -71,8 +71,8 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             </svg>
             <div>
-              <p class="text-sm font-semibold text-amber-400">No developer salaries found</p>
-              <p class="text-xs text-gray-500 mt-0.5">Add salary records for DEV role users to see cost calculations. PM & overhead data can still be reviewed.</p>
+              <p class="text-sm font-semibold text-amber-400">No engineering salaries found</p>
+              <p class="text-xs text-gray-500 mt-0.5">Add salary records for users with role ENGINEER or CHIEF ENGINEER to see cost calculations. Product Owner & overhead data can still be reviewed.</p>
             </div>
           </div>
 
@@ -127,7 +127,7 @@
                       <span v-if="mandayRate" class="text-xs px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-500/30 text-emerald-400">live API</span>
                     </div>
                     <p class="text-xs text-gray-500 font-mono">
-                      (Executive + Company + PM + Manager + Support + Total SS) ÷ {{ devCount }} devs
+                      (Executive + Company + Product Owner + Manager + Support + Total SS) ÷ {{ devCount }} devs
                     </p>
                     <div class="flex flex-wrap gap-2 mt-1.5">
                       <span class="inline-flex items-center gap-1 text-xs text-gray-400">
@@ -140,7 +140,7 @@
                       </span>
                       <span class="inline-flex items-center gap-1 text-xs text-gray-400">
                         <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                        {{ pmCount }} PM ฿{{ fmtN(totalPMSalary) }}
+                        {{ pmCount }} PO ฿{{ fmtN(totalPMSalary) }}
                       </span>
                       <span class="inline-flex items-center gap-1 text-xs text-gray-400">
                         <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
@@ -257,12 +257,16 @@
                     <span class="text-sm font-semibold text-white">{{ managerCount }} person{{ managerCount !== 1 ? 's' : '' }}</span>
                   </div>
                   <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">PM</span>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">PO</span>
                     <span class="text-sm font-semibold text-white">{{ pmCount }} person{{ pmCount !== 1 ? 's' : '' }}</span>
                   </div>
                   <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">DEV</span>
-                    <span class="text-sm font-semibold text-white">{{ devCount }} person{{ devCount !== 1 ? 's' : '' }}</span>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">ENGINEER</span>
+                    <span class="text-sm font-semibold text-white">{{ engineerSalaryCount }} person{{ engineerSalaryCount !== 1 ? 's' : '' }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/30">CHIEF ENGINEER</span>
+                    <span class="text-sm font-semibold text-white">{{ chiefEngineerSalaryCount }} person{{ chiefEngineerSalaryCount !== 1 ? 's' : '' }}</span>
                   </div>
                   <div class="flex justify-between items-center">
                     <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">SUPPORT</span>
@@ -286,7 +290,7 @@
                 </h3>
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
-                    <span class="text-gray-400">PM Salaries</span>
+                    <span class="text-gray-400">Product Owner salaries</span>
                     <span class="text-white tabular-nums">{{ formatTHB(totalPMSalary) }}</span>
                   </div>
                   <div class="flex justify-between">
@@ -298,7 +302,7 @@
                     <span class="text-white tabular-nums">{{ formatTHB(totalSupportSalary) }}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-gray-400">Dev Salaries</span>
+                    <span class="text-gray-400">Engineering salaries</span>
                     <span class="text-white tabular-nums">{{ formatTHB(totalDevSalary) }}</span>
                   </div>
                   <div class="flex justify-between">
@@ -343,7 +347,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div class="rounded-lg bg-gray-900/60 border border-gray-700/50 px-3 py-2">
                 <p class="text-xs font-bold text-cyan-400 mb-0.5">Overhead per Dev</p>
-                <p class="text-xs text-gray-400 font-mono">(Exec + Company + PM + Mgr + Support + Total SS) ÷ #Devs</p>
+                <p class="text-xs text-gray-400 font-mono">(Exec + Company + PO + Mgr + Support + Total SS) ÷ #Devs</p>
               </div>
               <div class="rounded-lg bg-gray-900/60 border border-gray-700/50 px-3 py-2">
                 <p class="text-xs font-bold text-amber-400 mb-0.5">Cost per Dev</p>
@@ -629,7 +633,7 @@
           <div v-for="group in groupedSalaries" :key="group.role" class="mb-6">
             <!-- Group header -->
             <div class="flex items-center gap-3 mb-3">
-              <span :class="roleChip(group.role)">{{ group.role }}</span>
+              <span :class="roleChip(group.role)">{{ displayCostRoleLabel(group.role) }}</span>
               <span class="text-xs text-gray-500">{{ group.members.length }} member{{ group.members.length !== 1 ? 's' : '' }}</span>
               <div class="flex-1 h-px bg-gray-800"/>
               <span class="text-xs text-gray-500">
@@ -644,6 +648,7 @@
                 <thead>
                   <tr class="border-b border-gray-700 text-xs uppercase tracking-wider text-gray-500 bg-gray-900/40">
                     <th class="px-4 py-3 text-left">Employee</th>
+                    <th class="px-4 py-3 text-left">Role</th>
                     <th class="px-4 py-3 text-left">Type</th>
                     <th class="px-4 py-3 text-right">Monthly Salary</th>
                     <th class="px-4 py-3 text-right">SS (5%, max ฿875)</th>
@@ -669,6 +674,9 @@
                           <p class="text-xs text-gray-500">{{ sal.user_email }}</p>
                         </div>
                       </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class="text-xs font-medium text-gray-300">{{ displayCostRoleLabel(sal.user_role) }}</span>
                     </td>
                     <td class="px-4 py-3">
                       <span :class="empTypeChip(sal.employment_type)">{{ sal.employment_type }}</span>
@@ -962,7 +970,7 @@
               <select v-model.number="salaryForm.user_id" class="input-field" :disabled="!!editingSalary">
                 <option value="" disabled>Select employee…</option>
                 <option v-for="m in allMembers" :key="m.id" :value="m.id">
-                  [{{ m.role }}] {{ m.display_name || m.email }}
+                  [{{ displayCostRoleLabel(m.role) }}] {{ m.display_name || m.email }}
                 </option>
               </select>
             </div>
@@ -1075,6 +1083,7 @@
 import { usePricingApi } from '~/core/modules/pricing/infrastructure/pricing-api'
 import type { EmployeeSalaryWithUser, UpdateCostConfigPayload, CostReportRequest, CostReportPeriod, CompanyMandayRateResponse } from '~/core/modules/pricing/infrastructure/pricing-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
+import { isEngineerLikeRole } from '~/utils/roles'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -1235,18 +1244,28 @@ const activeSalaries = computed(() => {
   }
   return out
 })
-const devSalaries     = computed(() => activeSalaries.value.filter(s => s.user_role === 'DEV'))
-const pmSalaries      = computed(() => activeSalaries.value.filter(s => s.user_role === 'PM'))
+const devSalaries     = computed(() => activeSalaries.value.filter(s => isEngineerLikeRole(s.user_role)))
+const pmSalaries      = computed(() => activeSalaries.value.filter(s => s.user_role === 'PRODUCT_OWNER' || s.user_role === 'PM'))
 const managerSalaries = computed(() => activeSalaries.value.filter(s => s.user_role === 'MANAGER'))
 const supportSalaries = computed(() => activeSalaries.value.filter(s => s.user_role === 'SUPPORT'))
 const ceoSalaries     = computed(() => activeSalaries.value.filter(s => s.user_role === 'CEO'))
 
 const devCount     = computed(() => devSalaries.value.length)
+/** Headcount rows: Engineer = ENGINEER + legacy DEV; Chief Engineer counted separately. */
+const engineerSalaryCount = computed(() =>
+  activeSalaries.value.filter((s) => {
+    const r = (s.user_role || '').toUpperCase()
+    return r === 'ENGINEER' || r === 'DEV'
+  }).length
+)
+const chiefEngineerSalaryCount = computed(() =>
+  activeSalaries.value.filter((s) => (s.user_role || '').toUpperCase() === 'CHIEF_ENGINEER').length
+)
 const pmCount      = computed(() => pmSalaries.value.length)
 const managerCount = computed(() => managerSalaries.value.length)
 const supportCount = computed(() => supportSalaries.value.length)
 
-// Overhead roles (PM + MANAGER + SUPPORT) — not direct labour; same as backend
+// Overhead roles (Product Owner + MANAGER + SUPPORT) — not direct labour; same as backend
 const totalPMSalary      = computed(() => pmSalaries.value.reduce((s, m) => s + m.monthly_salary, 0))
 const totalManagerSalary = computed(() => managerSalaries.value.reduce((s, m) => s + m.monthly_salary, 0))
 const totalSupportSalary = computed(() => supportSalaries.value.reduce((s, m) => s + m.monthly_salary, 0))
@@ -1279,11 +1298,42 @@ const localBillableDays    = computed(() =>
 const localCostPerManday = computed(() => localBillableDays.value > 0 ? (localOverheadPerDev.value + costPerDev.value) / localBillableDays.value : 0)
 const localCostPerHour   = computed(() => configForm.working_hours_per_day > 0 ? localCostPerManday.value / configForm.working_hours_per_day : 0)
 
+/** Salary table grouping: legacy DEV → Engineer; legacy PM → Product Owner. */
+function canonicalCostRoleGroup(userRole: string): string {
+  const u = (userRole || '').trim().toUpperCase()
+  if (u === 'DEV' || u === 'ENGINEER') return 'ENGINEER'
+  if (u === 'PM') return 'PRODUCT_OWNER'
+  return u || 'OTHER'
+}
+
+/** User-visible role title (ALL CAPS; never show raw DEV in UI). */
+function displayCostRoleLabel(role: string): string {
+  const r = (role || '').trim().toUpperCase()
+  switch (r) {
+    case 'ENGINEER':
+    case 'DEV':
+      return 'ENGINEER'
+    case 'CHIEF_ENGINEER':
+      return 'CHIEF ENGINEER'
+    case 'PRODUCT_OWNER':
+    case 'PM':
+      return 'PRODUCT OWNER'
+    case 'CEO':
+      return 'CEO'
+    case 'MANAGER':
+      return 'MANAGER'
+    case 'SUPPORT':
+      return 'SUPPORT'
+    default:
+      return r || '—'
+  }
+}
+
 const groupedSalaries = computed(() => {
   const groups: Record<string, { role: string; members: EmployeeSalaryWithUser[] }> = {}
-  const order = ['CEO', 'MANAGER', 'PM', 'DEV', 'SUPPORT']
+  const order = ['CEO', 'MANAGER', 'PRODUCT_OWNER', 'ENGINEER', 'CHIEF_ENGINEER', 'SUPPORT']
   for (const s of salaries.value) {
-    const r = s.user_role || 'OTHER'
+    const r = canonicalCostRoleGroup(s.user_role || '')
     if (!groups[r]) groups[r] = { role: r, members: [] }
     groups[r].members.push(s)
   }
@@ -1476,11 +1526,16 @@ function initials(name: string): string {
 }
 
 function roleChip(role: string): string {
-  const base = 'px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border'
+  const base = 'px-2 py-0.5 rounded-full text-xs font-bold tracking-wide border'
   const map: Record<string, string> = {
     CEO:  `${base} bg-yellow-500/10 text-yellow-400 border-yellow-500/30`,
+    MANAGER: `${base} bg-orange-500/10 text-orange-400 border-orange-500/30`,
+    PRODUCT_OWNER: `${base} bg-blue-500/10 text-blue-400 border-blue-500/30`,
     PM:   `${base} bg-blue-500/10 text-blue-400 border-blue-500/30`,
+    ENGINEER: `${base} bg-purple-500/10 text-purple-400 border-purple-500/30`,
+    CHIEF_ENGINEER: `${base} bg-violet-500/10 text-violet-300 border-violet-500/30`,
     DEV:  `${base} bg-purple-500/10 text-purple-400 border-purple-500/30`,
+    SUPPORT: `${base} bg-cyan-500/10 text-cyan-400 border-cyan-500/30`,
   }
   return map[role] ?? `${base} bg-gray-700 text-gray-300 border-gray-600`
 }

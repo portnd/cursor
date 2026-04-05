@@ -74,33 +74,41 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-	// Get user_id from claims
-	userID, ok := claims["user_id"]
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "Unauthorized",
-			"message": "user_id not found in token",
-		})
-		c.Abort()
-		return
-	}
-
-	// Set user info in context for handlers to use
-	c.Set("user_id", userID)
-	c.Set("email", claims["email"])
-	c.Set("role", claims["role"]) // Extract role from JWT
-
-	// Extract team_id from JWT (optional — nil for CEO or unassigned users)
-	if rawTeamID, ok := claims["team_id"]; ok && rawTeamID != nil {
-		switch v := rawTeamID.(type) {
-		case float64:
-			teamID := uint(v)
-			c.Set("team_id", &teamID)
+		// Get user_id from claims
+		userID, ok := claims["user_id"]
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error":   "Unauthorized",
+				"message": "user_id not found in token",
+			})
+			c.Abort()
+			return
 		}
-	} else {
-		c.Set("team_id", (*uint)(nil))
-	}
 
-	c.Next()
-}
+		roleStr, _ := claims["role"].(string)
+		if roleStr == "DEV" {
+			roleStr = "ENGINEER"
+		}
+		if roleStr == "PM" {
+			roleStr = "PRODUCT_OWNER"
+		}
+
+		// Set user info in context for handlers to use
+		c.Set("user_id", userID)
+		c.Set("email", claims["email"])
+		c.Set("role", roleStr)
+
+		// Extract team_id from JWT (optional — nil for CEO or unassigned users)
+		if rawTeamID, ok := claims["team_id"]; ok && rawTeamID != nil {
+			switch v := rawTeamID.(type) {
+			case float64:
+				teamID := uint(v)
+				c.Set("team_id", &teamID)
+			}
+		} else {
+			c.Set("team_id", (*uint)(nil))
+		}
+
+		c.Next()
+	}
 }

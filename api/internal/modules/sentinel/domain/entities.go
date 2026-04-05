@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,11 +69,11 @@ type Project struct {
 	TaskTotal     int `json:"task_total" gorm:"-"`
 	TaskCompleted int `json:"task_completed" gorm:"-"`
 	TaskOverdue   int `json:"task_overdue" gorm:"-"`
-	// When teams feature is off, CEO assigns PM owners here (multiple allowed); populated by repo only
+	// When teams feature is off, CEO assigns Product Owners here (multiple allowed); populated by repo only (JSON field pm_owners kept for compatibility)
 	PmOwners []ProjectPmOwner `json:"pm_owners,omitempty" gorm:"-"`
 }
 
-// ProjectPmAssignment links a project to PM users (used when squads/teams feature is disabled).
+// ProjectPmAssignment links a project to Product Owner users (used when squads/teams feature is disabled; table name kept for compatibility).
 type ProjectPmAssignment struct {
 	ProjectID uuid.UUID `json:"project_id" gorm:"type:uuid;primaryKey"`
 	UserID    uint      `json:"user_id" gorm:"primaryKey"`
@@ -361,7 +362,7 @@ type Task struct {
 
 	// Relationships (uint to match User ID)
 	AssignedTo   *uint `json:"assigned_to"`                 // Developer assigned to this task
-	AssignedByID *uint `json:"assigned_by_id" gorm:"index"` // PM/CEO who assigned the task (for PM-scoped leaderboard)
+	AssignedByID *uint `json:"assigned_by_id" gorm:"index"` // Product Owner/CEO who assigned the task (for assigner-scoped leaderboard)
 	CreatedBy    *uint `json:"created_by"`
 
 	// Enriched from auth (not stored in DB)
@@ -406,7 +407,7 @@ func (TaskDependency) TableName() string { return "task_dependencies" }
 // TableName overrides default
 func (Task) TableName() string { return "tasks" }
 
-// Submission represents a handover record: Dev submits a PR/Commit URL for PM review
+// Submission represents a handover record: engineer submits a PR/Commit URL for Product Owner review
 type Submission struct {
 	ID           uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	TaskID       uuid.UUID `json:"task_id" gorm:"type:uuid;not null"`
@@ -429,9 +430,9 @@ type Appeal struct {
 	// AI Advisory System (Generated on submission)
 	AIRecommendation string `json:"ai_recommendation" gorm:"type:text"` // "UPHOLD" (reject appeal) or "OVERTURN" (approve appeal)
 	AIConfidence     int    `json:"ai_confidence"`                      // 0-100 confidence score
-	AIReasoning      string `json:"ai_reasoning" gorm:"type:text"`      // Explanation for CEO/PM
+	AIReasoning      string `json:"ai_reasoning" gorm:"type:text"`      // Explanation for CEO / Product Owner
 
-	ResolverID   *uint  `json:"resolver_id"`   // PM/CEO who resolved
+	ResolverID   *uint  `json:"resolver_id"`   // Product Owner/CEO who resolved
 	ResolverNote string `json:"resolver_note"` // Admin's decision note
 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
@@ -461,11 +462,22 @@ type CallerContext struct {
 
 // Role constants for CallerContext (mirrors auth/domain constants)
 const (
-	RoleCEO     = "CEO"
-	RoleManager = "MANAGER"
-	RolePM      = "PM"
-	RoleDEV     = "DEV"
+	RoleCEO            = "CEO"
+	RoleManager        = "MANAGER"
+	RoleProductOwner   = "PRODUCT_OWNER"
+	RoleEngineer       = "ENGINEER"
+	RoleChiefEngineer  = "CHIEF_ENGINEER"
 )
+
+// IsEngineerRole is true for roles that share engineer project/task visibility rules.
+func IsEngineerRole(role string) bool {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case RoleEngineer, RoleChiefEngineer:
+		return true
+	default:
+		return false
+	}
+}
 
 // TaskType defines the typology of a task item
 type TaskType string
@@ -498,10 +510,10 @@ type SentinelRepository interface {
 	CountTasksForCode(projectID *uuid.UUID) (int, error)
 	GetMaxTaskCodeSuffix(prefix string) (int, error) // max numeric suffix for code like "prefix-001"; used for globally unique codes
 	GetTasksByAssignee(userID uint) ([]Task, error)
-	GetActiveSprintTasksByAssignee(userID uint) ([]Task, error)         // Only tasks in ACTIVE sprint (for DEV role)
+	GetActiveSprintTasksByAssignee(userID uint) ([]Task, error)         // Only tasks in ACTIVE sprint (for engineer role)
 	GetActiveSprintsForUser(userID uint) ([]Sprint, error)              // ACTIVE sprints that have tasks assigned to user
-	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error) // TASK/BUG in ACTIVE sprints; CEO/MANAGER: all projects; else team / PM-DEV rules when teams off
-	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-dev time logging)
+	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error) // TASK/BUG in ACTIVE sprints; CEO/MANAGER: all projects; else team / Product Owner–engineer rules when teams off
+	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-engineer time logging)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
 	GetTasksRequiringApproval() ([]Task, error) // Tasks with PENDING appeals or time negotiations
@@ -527,9 +539,11 @@ type SentinelRepository interface {
 	RejectTask(taskID uuid.UUID, rejectorID uint, reason string) error // Return task to IN_PROGRESS with comment
 
 	// Continuous UAT: sub-task level testing queue
-	GetTasksReadyForTest(teamID uint) ([]GlobalActiveTask, error)        // All TASK/BUG in READY_FOR_TEST status, scoped to team
-	SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error        // PM approves: READY_FOR_TEST → READY_FOR_UAT with test evidence
-	GetTasksReadyForCEOApproval(teamID uint) ([]GlobalActiveTask, error) // All TASK/BUG in READY_FOR_UAT status for CEO final approval
+	GetTasksReadyForTest(teamID uint) ([]GlobalActiveTask, error)                // All TASK/BUG in READY_FOR_TEST status, scoped to team
+	SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error                // (legacy) Product Owner approves: READY_FOR_TEST → READY_FOR_UAT with test evidence
+	SetTaskWaitForDeploy(taskID uuid.UUID, uatPayload []byte) error              // Product Owner approves: READY_FOR_TEST → WAIT_FOR_DEPLOY (pending Chief Engineer deployment)
+	AdvanceTaskToReadyForUAT(taskID uuid.UUID) error                             // Chief Engineer deployed: WAIT_FOR_DEPLOY → READY_FOR_UAT
+	GetTasksReadyForCEOApproval(teamID uint) ([]GlobalActiveTask, error)         // All TASK/BUG in READY_FOR_UAT status for CEO final approval
 
 	// Sprints
 	CreateSprint(sprint *Sprint) error
@@ -561,7 +575,7 @@ type SentinelRepository interface {
 	GetTotalLoggedMinutes(taskID uuid.UUID) (int, error)
 	CountChildTasks(parentID uuid.UUID) (int, error)             // Leaf-node guard: returns number of direct children
 	GetChildTasksByParentID(parentID uuid.UUID) ([]Task, error)  // For UAT roll-up: fetch all direct children of a feature
-	GetActiveFeatures(teamID uint) ([]FeatureRoadmapItem, error) // Feature Roadmap Board (PM/CEO)
+	GetActiveFeatures(teamID uint) ([]FeatureRoadmapItem, error) // Feature Roadmap Board (Product Owner/CEO)
 
 	// Analytics
 	GetProjectAnalytics(projectID uuid.UUID) (*ProjectAnalytics, error)
@@ -624,24 +638,24 @@ type SentinelUsecase interface {
 	UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*Project, error)
 	DeleteProject(id uuid.UUID) error
 	AssignProjectTeam(projectID uuid.UUID, teamID *uint, requesterRole string) (*Project, error) // CEO only
-	AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*Project, error) // CEO/MANAGER when teams feature off
+	AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*Project, error) // CEO/MANAGER when teams feature off (param name kept for compatibility)
 
 	CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*Task, error)
 	AssignTask(taskID uuid.UUID, devID uint, assignerID uint, assignerRole string) error
 	SubmitWork(taskID uuid.UUID, devID uint, referenceURL, note string) (*Submission, error)
-	SubmitUAT(taskID uuid.UUID, devID uint, payload UATPayloadData) error // Dev submits UAT payload for a FEATURE (READY_FOR_UAT → REVIEW_PENDING)
+	SubmitUAT(taskID uuid.UUID, devID uint, payload UATPayloadData) error // Engineer submits UAT payload for a FEATURE (READY_FOR_UAT → REVIEW_PENDING)
 	GetTaskByID(taskID uuid.UUID) (*Task, error)
 	GetTaskByIDOrCode(idOrCode string) (*Task, error) // idOrCode is UUID or task code (e.g. mims-hdmap-main-001)
 	GetMyTasks(userID uint) ([]Task, error)
 	GetMyActiveSprints(userID uint) ([]Sprint, error)                                      // Active sprints containing user's tasks
-	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)                    // TASK/BUG in ACTIVE sprints; CEO/MANAGER company-wide; PM/DEV per project list rules
+	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)                    // TASK/BUG in ACTIVE sprints; CEO/MANAGER company-wide; Product Owner/engineer per project list rules
 	GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)  // All ACTIVE-sprint TASK/BUG items in caller's team
-	GetActiveFeatures(callerTeamID *uint, callerRole string) ([]FeatureRoadmapItem, error) // FEATURE items for PM/CEO Roadmap Board
+	GetActiveFeatures(callerTeamID *uint, callerRole string) ([]FeatureRoadmapItem, error) // FEATURE items for Product Owner/CEO Roadmap Board
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
 	GetGanttData(projectID *uuid.UUID) (*GanttData, error) // All tasks + dependencies; if projectID set, filter by project
-	GetPendingApprovals(userRole string) ([]Task, error)   // Approvals inbox for PM/CEO
+	GetPendingApprovals(userRole string) ([]Task, error)   // Approvals inbox for Product Owner/CEO
 
 	// Task Dependencies (Gantt links)
 	AddDependency(predecessorID, successorID uuid.UUID, depType string) (*TaskDependency, error)
@@ -652,8 +666,8 @@ type SentinelUsecase interface {
 	UpdateTaskResourceURLs(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, resourceURLs datatypes.JSON) (*Task, error)
 	EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*Task, error)                            // Kept for AI scheduling (ScheduleProjectWithAI)
 	GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*AIGeneratedPlan, error)       // AI generates epics, milestones, sprints, tasks
-	ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error                              // Remove all tasks, sprints, milestones, epics (CEO/PM)
-	ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (updatedCount int, err error) // Estimate + schedule existing tasks (CEO/PM)
+	ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error                              // Remove all tasks, sprints, milestones, epics (CEO / Product Owner)
+	ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (updatedCount int, err error) // Estimate + schedule existing tasks (CEO / Product Owner)
 	DeleteTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) error
 
 	// Split Task: decompose one task into N smaller sub-tasks, then delete the original
@@ -671,11 +685,12 @@ type SentinelUsecase interface {
 	RejectTask(taskID uuid.UUID, rejectorID uint, rejectorRole string, reason string) error
 
 	// Continuous UAT: sub-task level testing queue (READY_FOR_TEST lane)
-	MarkReadyForTest(taskID uuid.UUID, devID uint) error                                                     // Dev marks TASK/BUG as ready for PM to test
-	PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error // PM approves READY_FOR_TEST → READY_FOR_UAT with test evidence
+	MarkReadyForTest(taskID uuid.UUID, devID uint) error                                                     // Engineer marks TASK/BUG as ready for Product Owner to test
+	PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error // Product Owner approves READY_FOR_TEST → WAIT_FOR_DEPLOY
 	ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRole string) error                                   // CEO final approves READY_FOR_UAT → COMPLETED
-	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error                       // PM/CEO rejects → IN_PROGRESS
-	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                  // PM/CEO: fetch READY_FOR_TEST tasks for team
+	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error                       // Product Owner/CEO rejects → IN_PROGRESS
+	AdvanceTaskAfterDeploy(taskID uuid.UUID) error                                                           // Chief Engineer marks deployed: WAIT_FOR_DEPLOY → READY_FOR_UAT
+	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                  // Product Owner/CEO: fetch READY_FOR_TEST tasks for team
 	GetTasksReadyForCEOApproval(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)           // CEO: fetch READY_FOR_UAT tasks awaiting final approval
 
 	// Sprints
@@ -811,7 +826,7 @@ type PreviewGoogleSlidesResult struct {
 	APIKeyError string `json:"api_key_error,omitempty"`
 }
 
-// TriagedSlide holds per-slide triage data filled by PM during manual triage before import.
+// TriagedSlide holds per-slide triage data filled by Product Owner during manual triage before import.
 type TriagedSlide struct {
 	SlideIndex       int    `json:"slide_index"`       // 1-based index (matches PreviewSlideItem.Index)
 	Title            string `json:"title"`             // editable task title
@@ -971,7 +986,7 @@ type ImportPPTXResult struct {
 }
 
 // FeatureRoadmapItem is a FEATURE-type task enriched with project identity and roll-up progress.
-// Used by the Feature Roadmap Board (PM/CEO management view).
+// Used by the Feature Roadmap Board (Product Owner/CEO management view).
 type FeatureRoadmapItem struct {
 	Task
 	ProjectName    string `json:"project_name"`
@@ -1073,7 +1088,7 @@ type AIService interface {
 	// ReviewCode วิเคราะห์ code diff และคืนค่า verdict (PASS/FAIL), score (0-100), feedback
 	ReviewCode(diff string) (verdict string, score int, feedback string, err error)
 
-	// AnalyzeAppeal วิเคราะห์ความน่าเชื่อถือของ Appeal เพื่อแนะนำ CEO/PM
+	// AnalyzeAppeal วิเคราะห์ความน่าเชื่อถือของ Appeal เพื่อแนะนำ CEO / Product Owner
 	// Returns: recommendation (UPHOLD/OVERTURN), confidence (0-100), reasoning, error
 	AnalyzeAppeal(diff string, originalFeedback string, appealReason string) (recommendation string, confidence int, reasoning string, err error)
 

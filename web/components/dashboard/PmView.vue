@@ -318,7 +318,7 @@
         </div>
       </section>
 
-      <!-- Estimation Delta Chart: squad projects when teams on; PM-owned projects when teams off -->
+      <!-- Estimation Delta Chart: squad projects when teams on; Product Owner–owned projects when teams off -->
       <EstimationDeltaChart
         :team-project-ids="estimationDeltaProjectIds"
         :initial-tasks="allTasks"
@@ -365,7 +365,7 @@ const myTeamMembers = computed<TeamUser[]>(() => myTeam.value?.users ?? [])
 const myTeamMemberIds = computed<number[]>(() => myTeamMembers.value.map(u => u.id))
 const myTeamProjectIds = computed<string[]>(() => teamProjects.value.map(p => p.id))
 
-/** Squad mode: all projects on the PM’s team. Individual (no squads): only projects where this PM is in pm_owners (fallback: full list from API if owners not loaded). */
+/** Squad mode: all projects on the Product Owner’s team. Individual (no squads): only projects where this user is in pm_owners (fallback: full list from API if owners not loaded). */
 const estimationDeltaProjectIds = computed<string[]>(() => {
   if (teamsEnabled.value) {
     return teamProjects.value.map(p => p.id)
@@ -390,7 +390,7 @@ const estimationDeltaSectionTitle = computed(() =>
 const estimationDeltaScopeDescription = computed(() =>
   teamsEnabled.value
     ? 'Tasks in projects linked to your squad.'
-    : 'Only tasks in projects where you are the assigned PM (portfolio mode — not squad-scoped).'
+    : 'Only tasks in projects where you are the assigned Product Owner (portfolio mode — not squad-scoped).'
 )
 
 const totalCapital = computed(() =>
@@ -475,7 +475,7 @@ const bootstrap = async () => {
 
 onMounted(() => {
   // KPIs load alongside bootstrap so “Performance” is ready when the shell appears
-  performanceStore.fetchAll('PM')
+  performanceStore.fetchAll('PRODUCT_OWNER')
   bootstrap()
 })
 </script>

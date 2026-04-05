@@ -24,7 +24,7 @@ interface LoginRequest {
 export interface User {
   id: number
   email: string
-  role: string // CEO, PM, DEV
+  role: string // CEO, MANAGER, PRODUCT_OWNER, ENGINEER, CHIEF_ENGINEER, SUPPORT
   created_at: string
   updated_at: string
   display_name?: string

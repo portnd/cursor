@@ -52,11 +52,11 @@
           <div class="text-3xl font-bold text-white">{{ teamMembers.length }}</div>
         </div>
         <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">PROJECT MANAGERS</div>
+          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">PRODUCT OWNERS</div>
           <div class="text-3xl font-bold text-white">{{ pmCount }}</div>
         </div>
         <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">DEVELOPERS</div>
+          <div class="text-xs text-gray-400 uppercase tracking-wide mb-1">ENGINEERS</div>
           <div class="text-3xl font-bold text-white">{{ devCount }}</div>
         </div>
       </div>
@@ -103,7 +103,7 @@
                 <div
                   :class="[
                     'w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg',
-                    getRoleColor(member.role).avatar
+                    getRoleColor(normalizeUserRole(member.role)).avatar
                   ]"
                 >
                   {{ member.email.charAt(0).toUpperCase() }}
@@ -124,11 +124,11 @@
                 <span
                   :class="[
                     'inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold',
-                    getRoleColor(member.role).badge
+                    getRoleColor(normalizeUserRole(member.role)).badge
                   ]"
                 >
-                  <span>{{ getRoleIcon(member.role) }}</span>
-                  <span>{{ member.role }}</span>
+                  <span>{{ getRoleIcon(normalizeUserRole(member.role)) }}</span>
+                  <span>{{ formatRoleLabel(member.role) }}</span>
                 </span>
               </div>
 
@@ -148,8 +148,9 @@
                   >
                     <option value="CEO" class="bg-gray-900">👑 CEO</option>
                     <option value="MANAGER" class="bg-gray-900">🏢 MANAGER</option>
-                    <option value="PM" class="bg-gray-900">📋 PM</option>
-                    <option value="DEV" class="bg-gray-900">💻 DEV</option>
+                    <option value="PRODUCT_OWNER" class="bg-gray-900">📋 Product Owner</option>
+                    <option value="ENGINEER" class="bg-gray-900">💻 ENGINEER</option>
+                    <option value="CHIEF_ENGINEER" class="bg-gray-900">⚙️ CHIEF ENGINEER</option>
                     <option value="SUPPORT" class="bg-gray-900">🎧 SUPPORT</option>
                   </select>
                   <button
@@ -267,8 +268,9 @@
                   v-model="createForm.role"
                   class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 >
-                  <option value="DEV">💻 DEV</option>
-                  <option value="PM">📋 PM</option>
+                  <option value="ENGINEER">💻 ENGINEER</option>
+                  <option value="CHIEF_ENGINEER">⚙️ CHIEF ENGINEER</option>
+                  <option value="PRODUCT_OWNER">📋 Product Owner</option>
                   <option value="SUPPORT">🎧 SUPPORT</option>
                   <option value="MANAGER">🏢 MANAGER</option>
                   <option value="CEO">👑 CEO</option>
@@ -329,12 +331,12 @@
               <p class="text-sm text-gray-400 mb-3">
                 One user per line. Format: <code class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">email</code> or
                 <code class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">email,role</code> or
-                <code class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">email,role,password</code>. Role defaults to DEV. Max 500.
+                <code class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">email,role,password</code>. Role defaults to ENGINEER (legacy CSV may use DEV or PM; mapped to ENGINEER / PRODUCT_OWNER). Use CHIEF_ENGINEER for chief engineers. Max 500.
               </p>
               <textarea
                 v-model="importRaw"
                 rows="12"
-                placeholder="dev1@company.com&#10;pm1@company.com,PM&#10;ceo@company.com,CEO,SecurePass123"
+                placeholder="dev1@company.com&#10;po@company.com,PRODUCT_OWNER&#10;ceo@company.com,CEO,SecurePass123"
                 class="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm resize-y min-h-[200px]"
               />
               <div class="mt-3 flex items-center justify-between gap-4">
@@ -596,6 +598,8 @@
 </template>
 
 <script setup lang="ts">
+import { isEngineerLikeRole } from '~/utils/roles'
+
 definePageMeta({
   layout: 'default',
   middleware: 'auth'
@@ -608,6 +612,27 @@ interface TeamMember {
   health_score: number
   created_at: string
   updated_at: string
+}
+
+/** Legacy API/DB may use DEV or PM; canonical roles ENGINEER / PRODUCT_OWNER. */
+function normalizeUserRole(role: string): string {
+  if (role === 'DEV') return 'ENGINEER'
+  if (role === 'PM') return 'PRODUCT_OWNER'
+  return role
+}
+
+function formatRoleLabel(role: string): string {
+  const n = normalizeUserRole(role)
+  const labels: Record<string, string> = {
+    CEO: 'CEO',
+    MANAGER: 'MANAGER',
+    PRODUCT_OWNER: 'Product Owner',
+    PM: 'Product Owner',
+    ENGINEER: 'ENGINEER',
+    CHIEF_ENGINEER: 'Chief Engineer',
+    SUPPORT: 'SUPPORT',
+  }
+  return labels[n] ?? n
 }
 
 const { fetchWithAuth, currentUser } = useAuth()
@@ -634,7 +659,7 @@ const createForm = ref({
   email: '',
   password: '',
   confirmPassword: '',
-  role: 'DEV'
+  role: 'ENGINEER'
 })
 const createError = ref('')
 const createSubmitting = ref(false)
@@ -655,12 +680,12 @@ const importResult = ref<{
 // Computed
 const isCEO = computed(() => currentUser.value?.role === 'CEO' || currentUser.value?.role === 'MANAGER')
 
-const pmCount = computed(() => 
-  teamMembers.value.filter(m => m.role === 'PM').length
+const pmCount = computed(() =>
+  teamMembers.value.filter(m => m.role === 'PRODUCT_OWNER' || m.role === 'PM').length
 )
 
-const devCount = computed(() => 
-  teamMembers.value.filter(m => m.role === 'DEV').length
+const devCount = computed(() =>
+  teamMembers.value.filter(m => isEngineerLikeRole(m.role)).length
 )
 
 // Parse import text into users array (email, role?, password?)
@@ -670,11 +695,14 @@ const parsedImport = computed(() => {
     .map(l => l.trim())
     .filter(Boolean)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const roles = ['CEO', 'MANAGER', 'PM', 'DEV', 'SUPPORT']
+  const roles = ['CEO', 'MANAGER', 'PRODUCT_OWNER', 'ENGINEER', 'CHIEF_ENGINEER', 'SUPPORT']
   return lines.map(line => {
     const parts = line.split(',').map(p => p.trim())
     const email = parts[0] || ''
-    const role = parts[1] && roles.includes(parts[1]) ? parts[1] : 'DEV'
+    const rawRole = (parts[1] || '').toUpperCase()
+    let normalized = rawRole === 'DEV' ? 'ENGINEER' : rawRole
+    if (normalized === 'PM') normalized = 'PRODUCT_OWNER'
+    const role = normalized && roles.includes(normalized) ? normalized : 'ENGINEER'
     const password = parts[2] || ''
     return {
       email: email.toLowerCase(),
@@ -702,11 +730,15 @@ const fetchTeamMembers = async () => {
   
   try {
     const response = await fetchWithAuth<{ data: TeamMember[] }>('/auth/users')
-    teamMembers.value = response.data || []
-    
-    // Store original roles for comparison
+    const rows = response.data || []
+    teamMembers.value = rows.map((m) => ({
+      ...m,
+      role: normalizeUserRole(m.role)
+    }))
+
+    // Store original roles for comparison (normalized so DEV !== ENGINEER false positives are avoided)
     originalRoles.value.clear()
-    teamMembers.value.forEach(member => {
+    teamMembers.value.forEach((member) => {
       originalRoles.value.set(member.id, member.role)
     })
   } catch (err: any) {
@@ -847,7 +879,7 @@ const submitCreateUser = async () => {
     successMessage.value = `User ${createForm.value.email} created`
     setTimeout(() => { successMessage.value = '' }, 4000)
     showCreateModal.value = false
-    createForm.value = { email: '', password: '', confirmPassword: '', role: 'DEV' }
+    createForm.value = { email: '', password: '', confirmPassword: '', role: 'ENGINEER' }
     await fetchTeamMembers()
   } catch (err: any) {
     createError.value = err?.data?.message || err?.message || 'Failed to create user'
@@ -944,7 +976,10 @@ const getRoleIcon = (role: string) => {
   const icons: Record<string, string> = {
     'CEO': '👑',
     'MANAGER': '🏢',
+    'PRODUCT_OWNER': '📋',
     'PM': '📋',
+    'ENGINEER': '💻',
+    'CHIEF_ENGINEER': '⚙️',
     'DEV': '💻',
     'SUPPORT': '🎧'
   }
@@ -963,10 +998,25 @@ const getRoleColor = (role: string) => {
       avatar: 'bg-orange-600 text-white',
       text: 'text-orange-400'
     },
+    'PRODUCT_OWNER': {
+      badge: 'bg-blue-700 text-blue-100',
+      avatar: 'bg-blue-600 text-white',
+      text: 'text-blue-400'
+    },
     'PM': {
       badge: 'bg-blue-700 text-blue-100',
       avatar: 'bg-blue-600 text-white',
       text: 'text-blue-400'
+    },
+    'ENGINEER': {
+      badge: 'bg-green-700 text-green-100',
+      avatar: 'bg-green-600 text-white',
+      text: 'text-green-400'
+    },
+    'CHIEF_ENGINEER': {
+      badge: 'bg-green-700 text-green-100',
+      avatar: 'bg-green-600 text-white',
+      text: 'text-green-400'
     },
     'DEV': {
       badge: 'bg-green-700 text-green-100',

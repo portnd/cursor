@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/gin-gonic/gin"
 	perfDomain "github.com/portnd/the-sentinel-core/internal/modules/performance/domain"
 )
@@ -63,7 +64,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, kpis)
 }
 
-// GetTeam returns team KPIs (CEO + PM only)
+// GetTeam returns team KPIs (CEO + Product Owner only)
 // GET /api/v1/performance/team
 func (h *Handler) GetTeam(c *gin.Context) {
 	userID := getUserID(c)
@@ -102,11 +103,11 @@ func (h *Handler) GetOverview(c *gin.Context) {
 }
 
 // GetDiscipline returns daily discipline stats for all employees in a date range.
-// GET /api/v1/performance/discipline?from=YYYY-MM-DD&to=YYYY-MM-DD (CEO + PM)
+// GET /api/v1/performance/discipline?from=YYYY-MM-DD&to=YYYY-MM-DD (CEO + Product Owner)
 func (h *Handler) GetDiscipline(c *gin.Context) {
 	role := getRole(c)
-	if role != "CEO" && role != "PM" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and PM only"})
+	if role != "CEO" && role != authDomain.RoleProductOwner {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and Product Owner only"})
 		return
 	}
 
@@ -126,11 +127,11 @@ func (h *Handler) GetDiscipline(c *gin.Context) {
 }
 
 // GetDisciplineDayDetail returns drill-down activity for one user on one day.
-// GET /api/v1/performance/discipline/detail?user_id=X&date=YYYY-MM-DD (CEO + PM)
+// GET /api/v1/performance/discipline/detail?user_id=X&date=YYYY-MM-DD (CEO + Product Owner)
 func (h *Handler) GetDisciplineDayDetail(c *gin.Context) {
 	role := getRole(c)
-	if role != "CEO" && role != "PM" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and PM only"})
+	if role != "CEO" && role != authDomain.RoleProductOwner {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and Product Owner only"})
 		return
 	}
 

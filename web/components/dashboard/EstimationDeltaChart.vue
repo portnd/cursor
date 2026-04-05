@@ -170,7 +170,7 @@ const props = withDefaults(
     initialTasks?: any[]
     /** Main heading (e.g. portfolio wording when squads are off). */
     sectionTitle?: string
-    /** Shown under the title (e.g. squad vs PM-owned scope). */
+    /** Shown under the title (e.g. squad vs Product Owner–owned scope). */
     scopeDescription?: string
   }>(),
   {

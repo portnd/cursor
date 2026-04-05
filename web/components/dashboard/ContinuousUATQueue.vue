@@ -116,7 +116,7 @@
     </div>
   </section>
 
-  <!-- PM Approve: Test Evidence Form Modal -->
+  <!-- Product Owner approve: Test Evidence Form Modal -->
   <Teleport to="body">
     <div
       v-if="approveModalOpen"
@@ -268,7 +268,7 @@ const isLoading = ref(false)
 const actioningId = ref<string | null>(null)
 const actionType = ref<'approve' | 'reject' | null>(null)
 
-// PM Approve: test evidence form modal
+// Product Owner approve: test evidence form modal
 const approveModalOpen = ref(false)
 const approveTarget = ref<GlobalActiveTask | null>(null)
 const approveSubmitting = ref(false)

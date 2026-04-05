@@ -50,7 +50,7 @@
                 <span class="text-xl sm:text-2xl leading-none">⚠</span> Bug
               </button>
             </div>
-            <!-- PM Rule hint -->
+            <!-- Product Owner rule hint -->
             <div v-if="form.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
               <span><strong>Feature mode:</strong> Acts as a parent container. Estimated effort is disabled — add sub-tasks of type Task/Bug to assign work.</span>

@@ -103,9 +103,9 @@ func (u *sentinelUsecase) CreateProject(name, description, status string, ctx do
 	if err := u.repo.CreateProject(p); err != nil {
 		return nil, fmt.Errorf("failed to create project: %w", err)
 	}
-	if ctx.TeamsFeatureDisabled && ctx.Role == domain.RolePM && ctx.UserID != 0 {
+	if ctx.TeamsFeatureDisabled && ctx.Role == domain.RoleProductOwner && ctx.UserID != 0 {
 		if err := u.repo.ReplaceProjectPmAssignments(p.ID, []uint{ctx.UserID}); err != nil {
-			return nil, fmt.Errorf("failed to register creating PM as project owner: %w", err)
+			return nil, fmt.Errorf("failed to register creating Product Owner as project owner: %w", err)
 		}
 	}
 	return p, nil
@@ -214,13 +214,13 @@ func (u *sentinelUsecase) AssignProjectTeam(projectID uuid.UUID, teamID *uint, r
 	return u.repo.GetProjectByID(projectID, ceoCtx)
 }
 
-// AssignProjectPmOwners sets which PM users own a project when squads are disabled (replaces the whole list).
+// AssignProjectPmOwners sets which Product Owner users own a project when squads are disabled (replaces the whole list).
 func (u *sentinelUsecase) AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*domain.Project, error) {
 	if requesterRole != domain.RoleCEO && requesterRole != domain.RoleManager {
-		return nil, fmt.Errorf("unauthorized: only CEO or MANAGER can assign project PM owners")
+		return nil, fmt.Errorf("unauthorized: only CEO or MANAGER can assign project Product Owners")
 	}
 	if !u.isTeamsFeatureDisabled() {
-		return nil, &domain.ErrBadRequest{Msg: "project PM owners can only be edited when the teams feature is disabled"}
+		return nil, &domain.ErrBadRequest{Msg: "project Product Owner assignments can only be edited when the teams feature is disabled"}
 	}
 	ceoCtx := domain.CallerContext{Role: domain.RoleCEO}
 	if _, err := u.repo.GetProjectByID(projectID, ceoCtx); err != nil {
@@ -240,13 +240,13 @@ func (u *sentinelUsecase) AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs [
 		if err != nil || uu == nil {
 			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d not found", id)}
 		}
-		if uu.Role != authDomain.RolePM {
-			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d must have role PM (current role: %s)", id, uu.Role)}
+		if uu.Role != authDomain.RoleProductOwner {
+			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d must have role PRODUCT_OWNER (current role: %s)", id, uu.Role)}
 		}
 		clean = append(clean, id)
 	}
 	if err := u.repo.ReplaceProjectPmAssignments(projectID, clean); err != nil {
-		return nil, fmt.Errorf("failed to save PM assignments: %w", err)
+		return nil, fmt.Errorf("failed to save Product Owner assignments: %w", err)
 	}
 	return u.repo.GetProjectByID(projectID, ceoCtx)
 }
@@ -407,14 +407,14 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 	return task, nil
 }
 
-// authorizeTaskAssign allows CEO/PM/MANAGER for any task; for subtasks also parent assignee/creator or current subtask assignee.
+// authorizeTaskAssign allows CEO / Product Owner / MANAGER for any task; for subtasks also parent assignee/creator or current subtask assignee.
 func (u *sentinelUsecase) authorizeTaskAssign(task *domain.Task, assignerID uint, assignerRole string) error {
 	role := strings.ToUpper(strings.TrimSpace(assignerRole))
-	if role == domain.RoleCEO || role == domain.RolePM || role == domain.RoleManager {
+	if role == domain.RoleCEO || role == domain.RoleProductOwner || role == domain.RoleManager {
 		return nil
 	}
 	if task.ParentID == nil {
-		return fmt.Errorf("unauthorized: only CEO, PM, or Manager can assign top-level tasks")
+		return fmt.Errorf("unauthorized: only CEO, Product Owner, or Manager can assign top-level tasks")
 	}
 	if task.AssignedTo != nil && *task.AssignedTo == assignerID {
 		return nil
@@ -432,7 +432,7 @@ func (u *sentinelUsecase) authorizeTaskAssign(task *domain.Task, assignerID uint
 	return fmt.Errorf("unauthorized: you cannot assign this task")
 }
 
-// AssignTask assigns a developer to a task. assignerID is recorded as assigned_by for PM-scoped leaderboard when set by PM/CEO.
+// AssignTask assigns a developer to a task. assignerID is recorded as assigned_by for Product Owner–scoped leaderboard when set by Product Owner/CEO.
 // Parent-task assignees may assign subtasks; subtask assignees may reassign their own subtask.
 // devID = 0 means unassign (set AssignedTo = nil, revert to PENDING).
 func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID uint, assignerRole string) error {
@@ -460,7 +460,7 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID ui
 
 	// 2. Update assignment only — status remains unchanged so dev can move the card themselves
 	task.AssignedTo = &devID
-	task.AssignedByID = &assignerID // PM/CEO who assigned (drives PM Team Leaderboard scope)
+	task.AssignedByID = &assignerID // Product Owner/CEO who assigned (drives Product Owner team leaderboard scope)
 
 	// 3. Persist changes
 	if err := u.repo.UpdateTask(task); err != nil {
@@ -568,7 +568,7 @@ func (u *sentinelUsecase) GetMyActiveSprints(userID uint) ([]domain.Sprint, erro
 }
 
 // GetGlobalActiveTasks returns TASK/BUG in ACTIVE sprints, enriched with project name and color.
-// CEO/MANAGER see all projects; when teams off: PM → project_pm_assignments; DEV → projects with any task assigned to caller.
+// CEO/MANAGER see all projects; when teams off: Product Owner → project_pm_assignments; engineer → projects with any task assigned to caller.
 func (u *sentinelUsecase) GetGlobalActiveTasks(ctx domain.CallerContext) ([]domain.GlobalActiveTask, error) {
 	ctx = u.withCallerScope(ctx)
 	return u.repo.GetGlobalActiveTasks(ctx)
@@ -588,9 +588,9 @@ func (u *sentinelUsecase) GetTeamActiveTasks(callerTeamID *uint, callerRole stri
 	return tasks, nil
 }
 
-// GetActiveFeatures returns all FEATURE-type tasks for the PM/CEO Feature Roadmap Board.
+// GetActiveFeatures returns all FEATURE-type tasks for the Product Owner/CEO Feature Roadmap Board.
 // Each feature carries a roll-up progress (0–100%) computed from child TASK/BUG completion.
-// CEO/MANAGER see all teams; PM is scoped to their own team.
+// CEO/MANAGER see all teams; Product Owner is scoped to their own team.
 func (u *sentinelUsecase) GetActiveFeatures(callerTeamID *uint, callerRole string) ([]domain.FeatureRoadmapItem, error) {
 	teamID := uint(0)
 	if callerRole != domain.RoleCEO && callerRole != domain.RoleManager && callerTeamID != nil {
@@ -609,7 +609,7 @@ func (u *sentinelUsecase) GetUnassignedTasks() ([]domain.Task, error) {
 	return tasks, nil
 }
 
-// GetAllTasks retrieves all tasks in the system (for ADMIN/PM view)
+// GetAllTasks retrieves all tasks in the system (for ADMIN / Product Owner view)
 func (u *sentinelUsecase) GetAllTasks() ([]domain.Task, error) {
 	tasks, err := u.repo.GetAllTasks()
 	if err != nil {
@@ -688,11 +688,11 @@ func (u *sentinelUsecase) RemoveDependency(id uuid.UUID) error {
 	return u.repo.DeleteTaskDependency(id)
 }
 
-// GetPendingApprovals returns tasks requiring PM/CEO/MANAGER attention
+// GetPendingApprovals returns tasks requiring Product Owner/CEO/MANAGER attention
 // Includes: REVIEW_PENDING handovers, time negotiations (PENDING), appeals (PENDING)
 func (u *sentinelUsecase) GetPendingApprovals(userRole string) ([]domain.Task, error) {
-	if userRole != "CEO" && userRole != "PM" && userRole != "MANAGER" {
-		return nil, fmt.Errorf("access denied: only CEO, PM, or MANAGER can view approvals inbox")
+	if userRole != "CEO" && userRole != authDomain.RoleProductOwner && userRole != "MANAGER" {
+		return nil, fmt.Errorf("access denied: only CEO, Product Owner, or MANAGER can view approvals inbox")
 	}
 
 	tasks, err := u.repo.GetTasksRequiringApproval()
@@ -737,7 +737,7 @@ func (u *sentinelUsecase) SubmitAppeal(submissionID uuid.UUID, devID uint, reaso
 	return appeal, nil
 }
 
-// ResolveAppeal allows PM/CEO to approve or reject an appeal
+// ResolveAppeal allows Product Owner/CEO to approve or reject an appeal
 func (u *sentinelUsecase) ResolveAppeal(appealID uuid.UUID, resolverID uint, status string, note string) error {
 	if status != "APPROVED" && status != "REJECTED" {
 		return errors.New("status must be APPROVED or REJECTED")
@@ -748,8 +748,8 @@ func (u *sentinelUsecase) ResolveAppeal(appealID uuid.UUID, resolverID uint, sta
 		return fmt.Errorf("unauthorized: resolver user not found: %w", err)
 	}
 
-	if resolver.Role != authDomain.RoleCEO && resolver.Role != authDomain.RoleManager && resolver.Role != authDomain.RolePM {
-		return fmt.Errorf("forbidden: only CEO, MANAGER, or PM can resolve appeals (current role: %s)", resolver.Role)
+	if resolver.Role != authDomain.RoleCEO && resolver.Role != authDomain.RoleManager && resolver.Role != authDomain.RoleProductOwner {
+		return fmt.Errorf("forbidden: only CEO, MANAGER, or Product Owner can resolve appeals (current role: %s)", resolver.Role)
 	}
 
 	appeal, err := u.repo.GetAppealByID(appealID)
@@ -834,7 +834,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 		return errors.New("time negotiation already pending review")
 	}
 
-	// No AI: store negotiation for PM/CEO to approve manually
+	// No AI: store negotiation for Product Owner/CEO to approve manually
 	task.NegotiationStatus = "PENDING"
 	task.ProposedMinutes = minutes
 	task.NegotiationReason = reason
@@ -852,7 +852,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 }
 
 // UpdateTask updates a task with access control (no AI).
-// Creator, CEO, or PM can update. Gantt fields applied when provided.
+// Creator, CEO, or Product Owner can update. Gantt fields applied when provided.
 func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -861,10 +861,10 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isPM := requestingUserRole == "PM"
+	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
 
-	if !isCreator && !isCEO && !isPM {
-		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or PM can update this task")
+	if !isCreator && !isCEO && !isProductOwner {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can update this task")
 	}
 
 	if title != "" {
@@ -942,9 +942,9 @@ func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUse
 	}
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isPM := requestingUserRole == "PM"
-	if !isCreator && !isCEO && !isPM {
-		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or PM can update this task")
+	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
+	if !isCreator && !isCEO && !isProductOwner {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can update this task")
 	}
 	task.ResourceURLs = resourceURLs
 	if err := u.repo.UpdateTask(task); err != nil {
@@ -954,7 +954,7 @@ func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUse
 }
 
 // EstimateTask uses AI to estimate task effort (title + description) and updates task.estimated_minutes.
-// Used internally by ScheduleProjectWithAI. Only task creator, CEO, or PM can run estimate.
+// Used internally by ScheduleProjectWithAI. Only task creator, CEO, or Product Owner can run estimate.
 func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -962,9 +962,9 @@ func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, 
 	}
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isPM := requestingUserRole == "PM"
-	if !isCreator && !isCEO && !isPM {
-		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or PM can run AI estimate")
+	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
+	if !isCreator && !isCEO && !isProductOwner {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can run AI estimate")
 	}
 	minutes, _, err := u.aiService.EstimateEffort(task.Title, task.Description)
 	if err != nil {
@@ -979,10 +979,10 @@ func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, 
 }
 
 // GenerateProjectPlan uses AI to generate a full work plan (epics, milestones, sprints, tasks) and creates them in the project.
-// Only CEO or PM can run this.
+// Only CEO or Product Owner can run this.
 func (u *sentinelUsecase) GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*domain.AIGeneratedPlan, error) {
-	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
-		return nil, fmt.Errorf("unauthorized: only CEO or PM can generate AI work plan")
+	if requestingUserRole != "CEO" && requestingUserRole != authDomain.RoleProductOwner {
+		return nil, fmt.Errorf("unauthorized: only CEO or Product Owner can generate AI work plan")
 	}
 	proj, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO})
 	if err != nil || proj == nil {
@@ -1076,10 +1076,10 @@ func (u *sentinelUsecase) GenerateProjectPlan(projectID uuid.UUID, requestingUse
 	return plan, nil
 }
 
-// ClearProjectPlan removes all tasks, sprints, milestones, and epics for the project. Only CEO or PM.
+// ClearProjectPlan removes all tasks, sprints, milestones, and epics for the project. Only CEO or Product Owner.
 func (u *sentinelUsecase) ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error {
-	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
-		return fmt.Errorf("unauthorized: only CEO or PM can clear project plan")
+	if requestingUserRole != "CEO" && requestingUserRole != authDomain.RoleProductOwner {
+		return fmt.Errorf("unauthorized: only CEO or Product Owner can clear project plan")
 	}
 	if _, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO}); err != nil {
 		return fmt.Errorf("project not found: %w", err)
@@ -1091,10 +1091,10 @@ func (u *sentinelUsecase) ClearProjectPlan(projectID uuid.UUID, requestingUserID
 	return nil
 }
 
-// ScheduleProjectWithAI ประเมินเวลาและจัดเรียง timeline ของ task ที่มีอยู่แล้ว (ไม่สร้าง task ใหม่). เฉพาะ CEO/PM.
+// ScheduleProjectWithAI ประเมินเวลาและจัดเรียง timeline ของ task ที่มีอยู่แล้ว (ไม่สร้าง task ใหม่). เฉพาะ CEO / Product Owner.
 func (u *sentinelUsecase) ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (int, error) {
-	if requestingUserRole != "CEO" && requestingUserRole != "PM" {
-		return 0, fmt.Errorf("unauthorized: only CEO or PM can run AI schedule")
+	if requestingUserRole != "CEO" && requestingUserRole != authDomain.RoleProductOwner {
+		return 0, fmt.Errorf("unauthorized: only CEO or Product Owner can run AI schedule")
 	}
 	if _, err := u.repo.GetProjectByID(projectID, domain.CallerContext{Role: domain.RoleCEO}); err != nil {
 		return 0, fmt.Errorf("project not found: %w", err)
@@ -1169,13 +1169,13 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 		return fmt.Errorf("task not found: %w", err)
 	}
 
-	// 2️⃣ ACCESS CONTROL: Creator, CEO, or PM can delete
+	// 2️⃣ ACCESS CONTROL: Creator, CEO, or Product Owner can delete
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isPM := requestingUserRole == "PM"
+	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
 
-	if !isCreator && !isCEO && !isPM {
-		return fmt.Errorf("unauthorized: only the task creator, CEO, or PM can delete this task")
+	if !isCreator && !isCEO && !isProductOwner {
+		return fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can delete this task")
 	}
 
 	// 3️⃣ Cannot delete if task has sub-tasks (FK constraint)
@@ -1199,11 +1199,11 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 
 // --- Human Quality Gate ---
 
-// ApproveTask marks a task as COMPLETED after human verification (PM/CEO only)
+// ApproveTask marks a task as COMPLETED after human verification (Product Owner/CEO only)
 func (u *sentinelUsecase) ApproveTask(taskID uuid.UUID, approverID uint, approverRole string) error {
-	// 🔒 ROLE VALIDATION: Only PM or CEO can approve tasks
-	if approverRole != "CEO" && approverRole != "PM" {
-		return fmt.Errorf("access denied: only PM or CEO can approve tasks (your role: %s)", approverRole)
+	// 🔒 ROLE VALIDATION: Only Product Owner or CEO can approve tasks
+	if approverRole != "CEO" && approverRole != authDomain.RoleProductOwner {
+		return fmt.Errorf("access denied: only Product Owner or CEO can approve tasks (your role: %s)", approverRole)
 	}
 
 	// 1️⃣ Get the task
@@ -1255,7 +1255,7 @@ func (u *sentinelUsecase) ApproveTask(taskID uuid.UUID, approverID uint, approve
 	return nil
 }
 
-// SubmitUAT stores the UAT payload on a FEATURE task and moves it to REVIEW_PENDING for PM/CEO to review.
+// SubmitUAT stores the UAT payload on a FEATURE task and moves it to REVIEW_PENDING for Product Owner/CEO to review.
 func (u *sentinelUsecase) SubmitUAT(taskID uuid.UUID, devID uint, payload domain.UATPayloadData) error {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -1289,10 +1289,10 @@ func (u *sentinelUsecase) SubmitUAT(taskID uuid.UUID, devID uint, payload domain
 	return nil
 }
 
-// RejectTask returns a task to IN_PROGRESS and logs rejection reason as a comment (PM/CEO/MANAGER only)
+// RejectTask returns a task to IN_PROGRESS and logs rejection reason as a comment (Product Owner/CEO/MANAGER only)
 func (u *sentinelUsecase) RejectTask(taskID uuid.UUID, rejectorID uint, rejectorRole string, reason string) error {
-	if rejectorRole != "CEO" && rejectorRole != "PM" && rejectorRole != "MANAGER" {
-		return fmt.Errorf("access denied: only PM, CEO or MANAGER can reject tasks (your role: %s)", rejectorRole)
+	if rejectorRole != "CEO" && rejectorRole != authDomain.RoleProductOwner && rejectorRole != "MANAGER" {
+		return fmt.Errorf("access denied: only Product Owner, CEO or MANAGER can reject tasks (your role: %s)", rejectorRole)
 	}
 
 	task, err := u.repo.GetTaskByID(taskID)
@@ -1331,11 +1331,11 @@ func (u *sentinelUsecase) MarkReadyForTest(taskID uuid.UUID, devID uint) error {
 	return nil
 }
 
-// PMApproveSubTask is the PM's first-stage approval: READY_FOR_TEST → READY_FOR_UAT.
-// The PM must provide a test URL and detailed test steps that the CEO will follow to do the final UAT.
+// PMApproveSubTask is the Product Owner's first-stage approval: READY_FOR_TEST → WAIT_FOR_DEPLOY.
+// The PO provides test evidence (URL + steps); the task waits for a Chief Engineer deployment request.
 func (u *sentinelUsecase) PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error {
-	if pmRole != "PM" && pmRole != "MANAGER" {
-		return fmt.Errorf("access denied: only PM or MANAGER can submit for CEO approval (your role: %s)", pmRole)
+	if pmRole != authDomain.RoleProductOwner && pmRole != "MANAGER" {
+		return fmt.Errorf("access denied: only Product Owner or MANAGER can approve test (your role: %s)", pmRole)
 	}
 	if strings.TrimSpace(testURL) == "" {
 		return &domain.ErrBadRequest{Msg: "test_url is required"}
@@ -1356,8 +1356,17 @@ func (u *sentinelUsecase) PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRo
 	}
 
 	payload := fmt.Sprintf(`{"test_url":%q,"test_steps":%q}`, strings.TrimSpace(testURL), strings.TrimSpace(testSteps))
-	if err := u.repo.SetTaskReadyForUAT(taskID, []byte(payload)); err != nil {
-		return fmt.Errorf("failed to submit for CEO approval: %w", err)
+	if err := u.repo.SetTaskWaitForDeploy(taskID, []byte(payload)); err != nil {
+		return fmt.Errorf("failed to submit for deployment: %w", err)
+	}
+	return nil
+}
+
+// AdvanceTaskAfterDeploy moves a task from WAIT_FOR_DEPLOY → READY_FOR_UAT.
+// Called automatically by the deployment module when the Chief Engineer marks a request as deployed.
+func (u *sentinelUsecase) AdvanceTaskAfterDeploy(taskID uuid.UUID) error {
+	if err := u.repo.AdvanceTaskToReadyForUAT(taskID); err != nil {
+		return fmt.Errorf("advance-after-deploy: %w", err)
 	}
 	return nil
 }
@@ -1376,7 +1385,7 @@ func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRo
 		return errors.New("task not found")
 	}
 	if task.Status != "READY_FOR_UAT" {
-		return fmt.Errorf("task is not in READY_FOR_UAT status (current: %s) — PM must submit test evidence first", task.Status)
+		return fmt.Errorf("task is not in READY_FOR_UAT status (current: %s) — Product Owner must submit test evidence first", task.Status)
 	}
 
 	if err := u.repo.ApproveTask(taskID); err != nil {
@@ -1413,10 +1422,10 @@ func (u *sentinelUsecase) ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRo
 }
 
 // RejectSubTask returns a task to IN_PROGRESS with a reason log.
-// Accepts READY_FOR_TEST (PM rejecting dev work) or READY_FOR_UAT (CEO rejecting PM evidence).
+// Accepts READY_FOR_TEST (Product Owner rejecting engineer work) or READY_FOR_UAT (CEO rejecting Product Owner evidence).
 func (u *sentinelUsecase) RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error {
-	if pmRole != "CEO" && pmRole != "PM" && pmRole != "MANAGER" {
-		return fmt.Errorf("access denied: only PM, CEO or MANAGER can reject sub-tasks (your role: %s)", pmRole)
+	if pmRole != "CEO" && pmRole != authDomain.RoleProductOwner && pmRole != "MANAGER" {
+		return fmt.Errorf("access denied: only Product Owner, CEO or MANAGER can reject sub-tasks (your role: %s)", pmRole)
 	}
 	if len(reason) < 10 {
 		return &domain.ErrBadRequest{Msg: "rejection reason must be at least 10 characters"}
@@ -1436,10 +1445,10 @@ func (u *sentinelUsecase) RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole 
 	return u.repo.RejectTask(taskID, pmUserID, reason)
 }
 
-// GetTasksReadyForTest returns all TASK/BUG items in READY_FOR_TEST status, scoped to the caller's team (PM/CEO).
+// GetTasksReadyForTest returns all TASK/BUG items in READY_FOR_TEST status, scoped to the caller's team (Product Owner/CEO).
 func (u *sentinelUsecase) GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]domain.GlobalActiveTask, error) {
-	if callerRole != "CEO" && callerRole != "PM" && callerRole != "MANAGER" {
-		return nil, fmt.Errorf("access denied: only PM, CEO or MANAGER can view the test queue (your role: %s)", callerRole)
+	if callerRole != "CEO" && callerRole != authDomain.RoleProductOwner && callerRole != "MANAGER" {
+		return nil, fmt.Errorf("access denied: only Product Owner, CEO or MANAGER can view the test queue (your role: %s)", callerRole)
 	}
 	var teamID uint
 	if callerTeamID != nil {
@@ -2036,9 +2045,18 @@ func (u *sentinelUsecase) GetProjectAnalytics(projectID uuid.UUID) (*domain.Proj
 
 func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string) error {
 	validStatuses := map[string]bool{
-		"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true, "REVIEW_PENDING": true, "COMPLETED": true, "BLOCKED": true,
+		"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true,
+		"REVIEW_PENDING": true, "WAIT_FOR_DEPLOY": true, "BLOCKED": true,
+		// COMPLETED is intentionally excluded — use ApproveSubTask (CEO/MANAGER only)
+		// READY_FOR_UAT is intentionally excluded — set automatically on deployment
 	}
 	if !validStatuses[status] {
+		if status == "COMPLETED" {
+			return fmt.Errorf("cannot drag task to COMPLETED — use the CEO/MANAGER final approval action")
+		}
+		if status == "READY_FOR_UAT" {
+			return fmt.Errorf("READY_FOR_UAT is set automatically when the Chief Engineer marks the deployment as deployed")
+		}
 		return fmt.Errorf("invalid status: %s", status)
 	}
 	if len(taskIDs) == 0 {
@@ -3257,7 +3275,8 @@ var thaiMonthAbbrevToMonth = map[string]time.Month{
 }
 
 var validSheetImportStatuses = map[string]bool{
-	"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true, "READY_FOR_UAT": true, "COMPLETED": true, "CANCELLED": true, "BLOCKED": true,
+	"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true,
+	"WAIT_FOR_DEPLOY": true, "READY_FOR_UAT": true, "COMPLETED": true, "CANCELLED": true, "BLOCKED": true,
 }
 
 func sheetCSVCell(row []string, col int) string {
@@ -3960,7 +3979,7 @@ func (u *sentinelUsecase) ImportFromGoogleSheets(req *domain.ImportGoogleSheetsR
 }
 
 // SplitTask decomposes one task into N new sub-tasks (inheriting same parent_id, project, epic, sprint)
-// then deletes the original task. The caller must be CEO, PM, or the task creator.
+// then deletes the original task. The caller must be CEO, Product Owner, or the task creator.
 func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskItem, requestingUserID uint, requestingUserRole string) ([]*domain.Task, error) {
 	if len(splits) < 2 {
 		return nil, &domain.ErrBadRequest{Msg: "split requires at least 2 items"}
@@ -3977,9 +3996,9 @@ func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskI
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// Access control: CEO / PM / MANAGER / creator / parent assignee / current subtask assignee
+	// Access control: CEO / Product Owner / MANAGER / creator / parent assignee / current subtask assignee
 	role := strings.ToUpper(strings.TrimSpace(requestingUserRole))
-	allowed := role == "CEO" || role == "PM" || role == "MANAGER"
+	allowed := role == "CEO" || role == authDomain.RoleProductOwner || role == "MANAGER"
 	if !allowed && orig.CreatedBy != nil && *orig.CreatedBy == requestingUserID {
 		allowed = true
 	}
@@ -3992,7 +4011,7 @@ func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskI
 		}
 	}
 	if !allowed {
-		return nil, &domain.ErrBadRequest{Msg: "only CEO, PM, Manager, the task creator, the parent task assignee, or the subtask assignee can split this task"}
+		return nil, &domain.ErrBadRequest{Msg: "only CEO, Product Owner, Manager, the task creator, the parent task assignee, or the subtask assignee can split this task"}
 	}
 
 	// Determine slug for code generation
@@ -4711,7 +4730,7 @@ func (u *sentinelUsecase) RejectB2BRequest(id uuid.UUID, callerTeamID uint) (*do
 	return req, nil
 }
 
-// AcceptB2BRequest is called by the target team's PM.
+// AcceptB2BRequest is called by the target team's Product Owner.
 // It creates a Task in the first project of the target team and marks the request as ACCEPTED.
 func (u *sentinelUsecase) AcceptB2BRequest(id uuid.UUID, callerTeamID uint, accepterUserID uint) (*domain.Task, error) {
 	req, err := u.repo.GetB2BRequestByID(id)

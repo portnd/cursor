@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -85,7 +86,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Sentinel enhancements
-	Role        string         `json:"role" gorm:"type:varchar(20);not null;default:'DEV'"` // CEO, PM, or DEV
+	Role        string         `json:"role" gorm:"type:varchar(20);not null;default:'ENGINEER'"` // CEO, MANAGER, PRODUCT_OWNER, ENGINEER, CHIEF_ENGINEER, SUPPORT
 	HealthScore float64        `json:"health_score" gorm:"type:decimal(5,2);default:100.00"` // Performance tracking (0-100)
 	TechStack   pq.StringArray `json:"tech_stack" gorm:"type:text[]"`                        // Array of technologies
 	DisplayName string         `json:"display_name" gorm:"type:varchar(100)"`                // Optional display name (enterprise profile)
@@ -102,10 +103,21 @@ type User struct {
 const (
 	RoleCEO     = "CEO"
 	RoleManager = "MANAGER"
-	RolePM      = "PM"
-	RoleDEV     = "DEV"
-	RoleSupport = "SUPPORT"
+	RoleProductOwner = "PRODUCT_OWNER"
+	RoleEngineer      = "ENGINEER"
+	RoleChiefEngineer = "CHIEF_ENGINEER"
+	RoleSupport       = "SUPPORT"
 )
+
+// IsEngineerRole reports whether the role should receive engineer-equivalent permissions and KPIs.
+func IsEngineerRole(role string) bool {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case RoleEngineer, RoleChiefEngineer:
+		return true
+	default:
+		return false
+	}
+}
 
 // TableName overrides the default table name
 func (User) TableName() string {
@@ -133,14 +145,14 @@ type AuthResponse struct {
 
 // ChangeRoleRequest is the DTO for changing user roles (CEO only)
 type ChangeRoleRequest struct {
-	Role string `json:"role" binding:"required,oneof=CEO MANAGER PM DEV SUPPORT"`
+	Role string `json:"role" binding:"required,oneof=CEO MANAGER PRODUCT_OWNER ENGINEER CHIEF_ENGINEER SUPPORT"`
 }
 
 // CreateUserRequest is the DTO for admin creating a single user (CEO only)
 type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
-	Role     string `json:"role" binding:"required,oneof=CEO MANAGER PM DEV SUPPORT"`
+	Role     string `json:"role" binding:"required,oneof=CEO MANAGER PRODUCT_OWNER ENGINEER CHIEF_ENGINEER SUPPORT"`
 }
 
 // ImportUserItem is one row in a bulk user import (CEO only)
@@ -148,7 +160,7 @@ type CreateUserRequest struct {
 type ImportUserItem struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password"`                    // optional; min 8 if provided
-	Role     string `json:"role" binding:"omitempty,oneof=CEO MANAGER PM DEV SUPPORT"` // default DEV
+	Role     string `json:"role" binding:"omitempty,oneof=CEO MANAGER PRODUCT_OWNER ENGINEER CHIEF_ENGINEER SUPPORT"` // default ENGINEER
 }
 
 // ImportUsersRequest is the request body for bulk user import

@@ -447,7 +447,7 @@ function useTasksApi() {
     await fetchWithAuth(`/sentinel/tasks/${taskId}/ready-for-test`, { method: 'POST' })
   }
 
-  /** PM first-stage approval: READY_FOR_TEST → READY_FOR_UAT, attaches test evidence for CEO. */
+  /** Product Owner first-stage approval: READY_FOR_TEST → READY_FOR_UAT, attaches test evidence for CEO. */
   async function pmApproveSubTask(taskId: string, testUrl: string, testSteps: string): Promise<void> {
     await fetchWithAuth(`/sentinel/tasks/${taskId}/pm-approve-sub`, {
       method: 'POST',

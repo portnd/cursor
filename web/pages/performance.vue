@@ -70,7 +70,7 @@ definePageMeta({
 const { currentUser } = useAuth()
 const store = usePerformanceStore()
 
-const role = computed(() => (currentUser.value?.role as string)?.toUpperCase() || 'DEV')
+const role = computed(() => (currentUser.value?.role as string)?.toUpperCase() || 'ENGINEER')
 
 onMounted(() => {
   if (role.value !== 'CEO') {

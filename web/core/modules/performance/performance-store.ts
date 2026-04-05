@@ -94,7 +94,7 @@ export const usePerformanceStore = defineStore('performance', {
     /** Loads role-appropriate KPIs in one loading cycle (parallel where possible). */
     async fetchAll(role: string) {
       const api = usePerformanceApi()
-      const r = (role || 'DEV').toUpperCase()
+      const r = (role || 'ENGINEER').toUpperCase()
       this.loading = true
       this.error = null
       try {
@@ -109,7 +109,7 @@ export const usePerformanceStore = defineStore('performance', {
           this.overview = overview
           return
         }
-        if (r === 'PM') {
+        if (r === 'PRODUCT_OWNER' || r === 'PM') {
           const [personal, teamRes] = await Promise.all([
             api.getPersonalKPIs(),
             api.getTeamKPIs(),
@@ -124,10 +124,10 @@ export const usePerformanceStore = defineStore('performance', {
         this.overview = null
       } catch (e: any) {
         this.error = e?.message || 'Failed to load performance'
-        if (r === 'DEV') {
+        if (r === 'ENGINEER' || r === 'CHIEF_ENGINEER' || r === 'DEV') {
           this.personal = null
         }
-        if (r === 'PM') {
+        if (r === 'PRODUCT_OWNER' || r === 'PM') {
           this.personal = null
           this.team = []
         }

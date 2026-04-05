@@ -83,7 +83,7 @@
           {{ statusLabel(sub.status) }}
         </span>
 
-        <!-- Split button (PM/CEO only, visible on hover — hidden at max depth because split creates children) -->
+        <!-- Split button (Product Owner / CEO only, visible on hover — hidden at max depth because split creates children) -->
         <button
           v-if="canEdit && !isMaxDepth"
           type="button"
@@ -312,6 +312,7 @@ import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useAuth } from '~/composables/useAuth'
 import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from '~/utils/effortHours'
+import { isTaskAssigneeRole } from '~/utils/roles'
 
 interface SubTask {
   id: string
@@ -452,26 +453,22 @@ async function loadAssignees() {
   if (assigneeOptions.value.length > 0) return
   try {
     const role = (currentUser.value?.role || '').toUpperCase()
-    if (role === 'PM') {
+    if (role === 'PRODUCT_OWNER' || role === 'PM') {
       await teamsStore.fetchTeamsFeatureEnabled()
       if (teamsStore.teamsFeatureEnabled) {
         const userId = currentUser.value?.user_id
         const teams = await getTeams()
         const myTeam = teams.find((t) => t.users?.some((u) => u.id === userId))
         assigneeOptions.value = (myTeam?.users ?? [])
-          .filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+          .filter((u) => isTaskAssigneeRole(u.role))
           .map((u) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
       } else {
         const res = await fetchWithAuth<{ data: AssigneeOption[] }>('/auth/users')
-        assigneeOptions.value = (res.data ?? []).filter((u) =>
-          ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
-        )
+        assigneeOptions.value = (res.data ?? []).filter((u) => isTaskAssigneeRole(u.role))
       }
     } else {
       const res = await fetchWithAuth<{ data: AssigneeOption[] }>('/auth/users')
-      assigneeOptions.value = (res.data ?? []).filter((u) =>
-        ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
-      )
+      assigneeOptions.value = (res.data ?? []).filter((u) => isTaskAssigneeRole(u.role))
     }
   } catch { /* non-critical */ }
 }

@@ -14,6 +14,10 @@ import (
 	attendanceDomain "github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
 	attendanceRepo "github.com/portnd/the-sentinel-core/internal/modules/attendance/repository"
 	attendanceUsecase "github.com/portnd/the-sentinel-core/internal/modules/attendance/usecase"
+	deploymentHttp "github.com/portnd/the-sentinel-core/internal/modules/deployment/delivery/http"
+	deploymentDomain "github.com/portnd/the-sentinel-core/internal/modules/deployment/domain"
+	deploymentRepo "github.com/portnd/the-sentinel-core/internal/modules/deployment/repository"
+	deploymentUsecase "github.com/portnd/the-sentinel-core/internal/modules/deployment/usecase"
 	authHttp "github.com/portnd/the-sentinel-core/internal/modules/auth/delivery/http"
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	authRepo "github.com/portnd/the-sentinel-core/internal/modules/auth/repository"
@@ -97,6 +101,7 @@ func main() {
 		&pulseDomain.DailyStandup{},
 		&attendanceDomain.OfficeConfig{},
 		&attendanceDomain.AttendanceRecord{},
+		&deploymentDomain.DeploymentRequest{},
 	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
@@ -239,6 +244,16 @@ func main() {
 	attendanceGroup := apiGroup.Group("")
 	attendanceGroup.Use(authMiddleware)
 	attendanceHttp.RegisterRoutes(attendanceGroup, attendanceUsecaseInstance)
+
+	// Deployment routes (code review & deploy pipeline — protected by auth middleware)
+	log.Println("🚀 Initializing Deployment Module...")
+	deploymentRepository := deploymentRepo.NewPostgresRepository(db, authRepository)
+	// sentinelUsecaseInstance implements deployment.domain.TaskStatusAdvancer (AdvanceTaskAfterDeploy)
+	deploymentUsecaseInstance := deploymentUsecase.NewDeploymentUsecase(deploymentRepository, sentinelUsecaseInstance)
+	deploymentGroup := apiGroup.Group("")
+	deploymentGroup.Use(authMiddleware)
+	deploymentHttp.RegisterRoutes(deploymentGroup, deploymentUsecaseInstance)
+	log.Println("✅ Deployment Module initialized")
 
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)

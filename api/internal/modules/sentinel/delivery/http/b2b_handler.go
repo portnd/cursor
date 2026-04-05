@@ -33,7 +33,7 @@ type updateB2BRequestReq struct {
 }
 
 // CreateB2BRequest handles POST /sentinel/b2b/requests
-// PM/CEO sends an outsource request to another team.
+// Product Owner/CEO sends an outsource request to another team.
 func (h *B2BHandler) CreateB2BRequest(c *gin.Context) {
 	callerTeamID, ok := getCallerTeamID(c)
 	if !ok {
@@ -85,7 +85,7 @@ func (h *B2BHandler) GetB2BRequests(c *gin.Context) {
 }
 
 // UpdateB2BRequest handles PATCH /sentinel/b2b/requests/:id
-// Target team PM can counter-offer or reject; requester team PM can reject.
+// Target team Product Owner can counter-offer or reject; requester team Product Owner can reject.
 func (h *B2BHandler) UpdateB2BRequest(c *gin.Context) {
 	callerTeamID, ok := getCallerTeamID(c)
 	if !ok {
@@ -131,7 +131,7 @@ func (h *B2BHandler) UpdateB2BRequest(c *gin.Context) {
 }
 
 // AcceptB2BRequest handles POST /sentinel/b2b/requests/:id/accept
-// Target team PM accepts the request; a Task is created in target team's project.
+// Target team Product Owner accepts the request; a Task is created in target team's project.
 func (h *B2BHandler) AcceptB2BRequest(c *gin.Context) {
 	callerTeamID, ok := getCallerTeamID(c)
 	if !ok {

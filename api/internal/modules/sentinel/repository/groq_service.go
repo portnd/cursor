@@ -217,8 +217,8 @@ func (s *groqService) EstimateAndScheduleTasks(inputs []domain.TaskEstimateInput
 	}
 	config := s.getConfig()
 	tasksJSON, _ := json.Marshal(inputs)
-	prompt := fmt.Sprintf(`You are a Senior Technical PM. Given the following tasks of a project, do TWO things:
-1) Estimate the implementation time in MINUTES for each task (Senior Dev, stack: Go, Nuxt 3, PostgreSQL). AI assistance level: %d%%.
+	prompt := fmt.Sprintf(`You are a Senior Technical Product Owner. Given the following tasks of a project, do TWO things:
+1) Estimate the implementation time in MINUTES for each task (Senior Engineer, stack: Go, Nuxt 3, PostgreSQL). AI assistance level: %d%%.
 2) Suggest the EXECUTION ORDER (1 = do first, 2 = second, ...) based on dependencies and priority.
 
 Tasks (JSON array):
@@ -443,7 +443,7 @@ func (s *groqService) AnalyzeTimeNegotiation(taskTitle, taskDescription string, 
 	}
 	config := s.getConfig()
 	multiplier := float64(devProposal) / float64(aiEstimate)
-	prompt := fmt.Sprintf(`คุณคือ Senior PM ตรวจสอบคำขอเจรจาเวลาจากนักพัฒนา
+	prompt := fmt.Sprintf(`คุณคือ Senior Product Owner ตรวจสอบคำขอเจรจาเวลาจากนักพัฒนา
 
 **งาน:** "%s" — %s
 **AI คำนวณ:** %d นาที | **นักพัฒนาเสนอ:** %d นาที (%.1fx)

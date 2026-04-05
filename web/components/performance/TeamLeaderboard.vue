@@ -207,7 +207,7 @@ async function confirmReset(userId: number) {
 
 function roleBadgeClass(role: string) {
   if (role === 'CEO') return 'bg-purple-600/30 text-purple-300'
-  if (role === 'PM') return 'bg-blue-600/30 text-blue-300'
+  if (role === 'PRODUCT_OWNER' || role === 'PM') return 'bg-blue-600/30 text-blue-300'
   return 'bg-gray-600/30 text-gray-300'
 }
 

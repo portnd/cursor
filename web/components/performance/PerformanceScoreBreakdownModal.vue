@@ -34,19 +34,19 @@
         </div>
 
         <div class="px-4 py-4 space-y-4 text-sm text-gray-300">
-          <!-- PM (CEO leaderboard): team average -->
-          <template v-if="member.role === 'PM'">
+          <!-- Product Owner (CEO leaderboard): team average -->
+          <template v-if="member.role === 'PRODUCT_OWNER' || member.role === 'PM'">
             <p class="text-gray-300 leading-relaxed">
               This <strong class="text-white">Score</strong> is the <strong class="text-white">average composite KPI</strong>
-              of every developer who has at least one task assigned by this PM. Each developer’s composite uses the same
-              weighted formula as in the DEV row (delivery, quality, rework, velocity, time accuracy), but only for tasks
-              tied to that PM.
+              of every engineer who has at least one task assigned by this Product Owner. Each engineer’s composite uses the same
+              weighted formula as in the engineer row (delivery, quality, rework, velocity, time accuracy), but only for tasks
+              tied to that Product Owner.
             </p>
             <p class="text-xs text-gray-500 leading-relaxed">
-              คะแนนของ PM = ค่าเฉลี่ยคะแนนรวม (composite) ของ dev ที่ PM คนนี้เป็นคน assign task ให้อย่างน้อย 1 งาน
+              คะแนนของ Product Owner = ค่าเฉลี่ยคะแนนรวม (composite) ของ engineer ที่ Product Owner คนนี้เป็นคน assign task ให้อย่างน้อย 1 งาน
             </p>
             <p class="rounded-lg border border-gray-700/60 bg-gray-800/30 px-3 py-2 text-xs text-gray-400">
-              If no developers qualify, the API uses this PM’s <strong class="text-gray-300">profile health score</strong> instead.
+              If no engineers qualify, the API uses this Product Owner’s <strong class="text-gray-300">profile health score</strong> instead.
               <span class="block text-gray-600 mt-1">ถ้าไม่มี dev ที่เข้าเงื่อนไข ระบบใช้ health score จากโปรไฟล์</span>
             </p>
             <div class="rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2">
@@ -55,14 +55,14 @@
             </div>
           </template>
 
-          <!-- CEO / other non-DEV: health only -->
-          <template v-else-if="member.role !== 'DEV'">
+          <!-- CEO / other non-engineer: health only -->
+          <template v-else-if="!isEngineerLikeRole(member.role)">
             <p class="text-gray-300 leading-relaxed">
               For this role, <strong class="text-white">Score</strong> is the user’s
-              <strong class="text-white">health score</strong> from their profile — not the developer KPI blend.
+              <strong class="text-white">health score</strong> from their profile — not the engineer KPI blend.
             </p>
             <p class="text-xs text-gray-500 leading-relaxed">
-              บทบาทนี้ใช้ค่า health score จากโปรไฟล์ ไม่ใช้สูตร composite ของ DEV
+              บทบาทนี้ใช้ค่า health score จากโปรไฟล์ ไม่ใช้สูตร composite ของ engineer
             </p>
             <div class="rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2">
               <div class="text-xs text-gray-500 uppercase tracking-wide">Score</div>
@@ -70,7 +70,7 @@
             </div>
           </template>
 
-          <!-- DEV: full weighted breakdown -->
+          <!-- Engineer: full weighted breakdown -->
           <template v-else>
             <p
               v-if="focus === 'delivery'"
@@ -196,6 +196,7 @@
 
 <script setup lang="ts">
 import type { PerformanceBreakdownFocus, TeamMemberKPI } from '~/core/modules/performance/performance-api'
+import { isEngineerLikeRole } from '~/utils/roles'
 
 const props = defineProps<{
   modelValue: boolean
@@ -225,7 +226,7 @@ function breakdownForDev(m: TeamMemberKPI | null) {
     velocityNorm: 0,
     sum: 0,
   }
-  if (!m || m.role !== 'DEV') return z
+  if (!m || !isEngineerLikeRole(m.role)) return z
 
   let qualityNorm = m.code_quality_index
   if (qualityNorm > 100) qualityNorm = 100

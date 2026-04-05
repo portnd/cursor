@@ -81,7 +81,7 @@
     <!-- Data loaded -->
     <template v-else-if="store.discipline">
       <!-- Summary cards -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
           <div class="text-xs text-gray-400 mb-1">พนักงานทั้งหมด</div>
           <div class="text-3xl font-bold text-white">{{ store.discipline.users.length }}</div>
@@ -90,13 +90,27 @@
           <div class="text-xs text-gray-400 mb-1">Tasks ปิดรวม</div>
           <div class="text-3xl font-bold text-emerald-400">{{ totalTasksClosed }}</div>
         </div>
+        <div class="bg-gray-800 border border-orange-700/50 rounded-xl p-4">
+          <div class="text-xs text-gray-400 mb-1">🚀 Deploy รวม</div>
+          <div class="text-3xl font-bold text-orange-400">{{ totalDeployments }}</div>
+        </div>
         <div class="bg-gray-800 border border-red-700/50 rounded-xl p-4">
           <div class="text-xs text-gray-400 mb-1">Rework รวม</div>
           <div class="text-3xl font-bold text-red-400">{{ totalReworks }}</div>
         </div>
         <div class="bg-gray-800 border border-yellow-700/50 rounded-xl p-4">
-          <div class="text-xs text-gray-400 mb-1">Missed Daily Pulse</div>
+          <div class="text-xs text-gray-400 mb-1">Missed Pulse</div>
           <div class="text-3xl font-bold text-yellow-400">{{ totalMissedPulse }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
+        </div>
+        <div class="bg-gray-800 border border-rose-700/50 rounded-xl p-4">
+          <div class="text-xs text-gray-400 mb-1">🕐 สายรวม</div>
+          <div class="text-3xl font-bold text-rose-400">{{ totalLateDays }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
+        </div>
+        <div class="bg-gray-800 border border-amber-700/50 rounded-xl p-4">
+          <div class="text-xs text-gray-400 mb-1">🚪 กลับก่อนรวม</div>
+          <div class="text-3xl font-bold text-amber-400">{{ totalEarlyCheckoutDays }}</div>
           <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
         </div>
       </div>
@@ -104,10 +118,13 @@
       <!-- Legend -->
       <div class="flex flex-wrap gap-4 mb-4 text-xs text-gray-400">
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-emerald-600 inline-block"></span>Tasks ปิด</div>
+        <div class="flex items-center gap-1.5"><span class="text-orange-400 text-xs">🚀</span>Deploy (Chief Eng.)</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-red-600 inline-block"></span>Rework</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-blue-600 inline-block"></span>Hours logged</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-violet-600 inline-block"></span>Daily Pulse ✓</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-gray-700 border border-red-500/50 inline-block"></span>ไม่มี Pulse</div>
+        <div class="flex items-center gap-1.5"><span class="text-rose-400">🕐</span>สาย (เข้างานช้า)</div>
+        <div class="flex items-center gap-1.5"><span class="text-amber-400">🚪</span>กลับก่อนเวลา</div>
       </div>
 
       <!-- Main discipline grid -->
@@ -169,6 +186,10 @@
                     <span class="text-gray-500">Tasks</span>
                     <span class="font-bold text-emerald-400">{{ user.total_tasks_closed }}</span>
                   </div>
+                  <div v-if="(user.total_deployments ?? 0) > 0" class="flex items-center justify-between gap-2 text-xs">
+                    <span class="text-gray-500">🚀 Deploy</span>
+                    <span class="font-bold text-orange-400">{{ user.total_deployments }}</span>
+                  </div>
                   <div class="flex items-center justify-between gap-2 text-xs">
                     <span class="text-gray-500">Rework</span>
                     <span class="font-bold" :class="user.total_reworks > 0 ? 'text-red-400' : 'text-gray-600'">{{ user.total_reworks }}</span>
@@ -180,6 +201,14 @@
                   <div class="flex items-center justify-between gap-2 text-xs">
                     <span class="text-gray-500">No Pulse</span>
                     <span class="font-bold" :class="user.missed_pulse_count > 0 ? 'text-yellow-400' : 'text-gray-600'">{{ user.missed_pulse_count }}</span>
+                  </div>
+                  <div v-if="(user.total_late_days ?? 0) > 0" class="flex items-center justify-between gap-2 text-xs">
+                    <span class="text-gray-500">🕐 สาย</span>
+                    <span class="font-bold text-rose-400">{{ user.total_late_days }}</span>
+                  </div>
+                  <div v-if="(user.total_early_checkout_days ?? 0) > 0" class="flex items-center justify-between gap-2 text-xs">
+                    <span class="text-gray-500">🚪 กลับก่อน</span>
+                    <span class="font-bold text-amber-400">{{ user.total_early_checkout_days }}</span>
                   </div>
                 </div>
               </td>
@@ -206,11 +235,36 @@
                       {{ day.has_daily_pulse ? '✓ Pulse' : '✗ Pulse' }}
                     </span>
                   </div>
+                  <!-- Attendance row: check-in/out + late/early badges -->
+                  <div v-if="day.attendance_status" class="flex items-center gap-1 flex-wrap mb-0.5">
+                    <span
+                      class="text-[9px] px-1 py-0.5 rounded font-semibold"
+                      :class="day.is_late
+                        ? 'bg-rose-900/60 text-rose-300'
+                        : 'bg-teal-900/50 text-teal-300'"
+                    >
+                      {{ day.is_late ? '🕐 สาย' : '✓ ตรงเวลา' }}
+                    </span>
+                    <span
+                      v-if="day.early_checkout"
+                      class="text-[9px] px-1 py-0.5 rounded font-semibold bg-amber-900/60 text-amber-300"
+                    >🚪 ก่อนเวลา</span>
+                  </div>
+                  <!-- Check-in / check-out times -->
+                  <div v-if="day.check_in_at || day.check_out_at" class="flex items-center gap-1 text-[9px] text-gray-500 mb-0.5">
+                    <span v-if="day.check_in_at" class="text-gray-400">↑{{ day.check_in_at }}</span>
+                    <span v-if="day.check_in_at && day.check_out_at" class="text-gray-700">·</span>
+                    <span v-if="day.check_out_at" class="text-gray-400">↓{{ day.check_out_at }}</span>
+                  </div>
                   <!-- Metrics -->
                   <div class="space-y-0.5">
                     <div v-if="day.tasks_closed > 0" class="flex items-center gap-1 text-[10px]">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                       <span class="text-emerald-300">{{ day.tasks_closed }} task{{ day.tasks_closed > 1 ? 's' : '' }}</span>
+                    </div>
+                    <div v-if="(day.deployments_completed ?? 0) > 0" class="flex items-center gap-1 text-[10px]">
+                      <span class="text-orange-400 shrink-0">🚀</span>
+                      <span class="text-orange-300">{{ day.deployments_completed }} deploy{{ day.deployments_completed > 1 ? 's' : '' }}</span>
                     </div>
                     <div v-if="day.reworks > 0" class="flex items-center gap-1 text-[10px]">
                       <span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
@@ -254,7 +308,7 @@
                 <div class="text-gray-500 text-xs truncate">{{ user.user_email }}</div>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="gap-2 text-xs" :class="(user.total_deployments ?? 0) > 0 ? 'grid grid-cols-2' : 'grid grid-cols-2'">
               <div class="bg-gray-900/60 rounded-lg p-2 text-center">
                 <div class="text-gray-400 mb-0.5">Tasks</div>
                 <div class="text-xl font-bold text-emerald-400">{{ user.total_tasks_closed }}</div>
@@ -274,6 +328,24 @@
                 <div class="text-xl font-bold" :class="user.missed_pulse_count > 0 ? 'text-yellow-400' : 'text-emerald-400'">
                   {{ user.missed_pulse_count }}
                 </div>
+              </div>
+              <div v-if="(user.total_deployments ?? 0) > 0" class="col-span-2 bg-orange-950/30 border border-orange-800/30 rounded-lg p-2 text-center">
+                <div class="text-gray-400 mb-0.5">🚀 Deployed</div>
+                <div class="text-xl font-bold text-orange-400">{{ user.total_deployments }}</div>
+              </div>
+            </div>
+            <!-- Attendance mini-summary (show only when there's data) -->
+            <div
+              v-if="(user.total_late_days ?? 0) > 0 || (user.total_early_checkout_days ?? 0) > 0"
+              class="mt-2 flex gap-2"
+            >
+              <div v-if="(user.total_late_days ?? 0) > 0" class="flex-1 bg-rose-950/30 border border-rose-800/30 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-[10px] text-gray-500">🕐 สาย</div>
+                <div class="text-base font-bold text-rose-400">{{ user.total_late_days }} ครั้ง</div>
+              </div>
+              <div v-if="(user.total_early_checkout_days ?? 0) > 0" class="flex-1 bg-amber-950/30 border border-amber-800/30 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-[10px] text-gray-500">🚪 กลับก่อน</div>
+                <div class="text-base font-bold text-amber-400">{{ user.total_early_checkout_days }} ครั้ง</div>
               </div>
             </div>
             <!-- Discipline score bar -->
@@ -383,11 +455,20 @@ function dayOfWeek(d: string) {
 const totalTasksClosed = computed(() =>
   store.discipline?.users.reduce((s, u) => s + u.total_tasks_closed, 0) ?? 0
 )
+const totalDeployments = computed(() =>
+  store.discipline?.users.reduce((s, u) => s + (u.total_deployments ?? 0), 0) ?? 0
+)
 const totalReworks = computed(() =>
   store.discipline?.users.reduce((s, u) => s + u.total_reworks, 0) ?? 0
 )
 const totalMissedPulse = computed(() =>
   store.discipline?.users.reduce((s, u) => s + u.missed_pulse_count, 0) ?? 0
+)
+const totalLateDays = computed(() =>
+  store.discipline?.users.reduce((s, u) => s + (u.total_late_days ?? 0), 0) ?? 0
+)
+const totalEarlyCheckoutDays = computed(() =>
+  store.discipline?.users.reduce((s, u) => s + (u.total_early_checkout_days ?? 0), 0) ?? 0
 )
 
 const sortedUsers = computed(() => {
@@ -411,10 +492,12 @@ function disciplineScore(user: DisciplineUser): number {
 // ─── Styling helpers ──────────────────────────────────────────────────────────
 
 function dayCellBg(day: DisciplineUserDayStat): string {
-  if (!day.has_daily_pulse && day.logged_minutes === 0 && day.tasks_closed === 0) {
+  if (!day.has_daily_pulse && day.logged_minutes === 0 && day.tasks_closed === 0 && !day.attendance_status) {
     return 'bg-gray-800/40 border border-red-900/30'
   }
   if (day.reworks > 0) return 'bg-red-950/30 border border-red-700/20'
+  if (day.is_late) return 'bg-rose-950/25 border border-rose-800/30'
+  if (day.early_checkout) return 'bg-amber-950/20 border border-amber-800/25'
   if (day.logged_minutes > 0 || day.tasks_closed > 0) return 'bg-gray-800/60 border border-gray-700/30'
   return 'bg-gray-800/20 border border-gray-800'
 }
@@ -441,7 +524,10 @@ function disciplineBarClass(score: number): string {
 function roleBadgeClass(role: string): string {
   const map: Record<string, string> = {
     CEO: 'bg-purple-900/60 text-purple-300',
+    PRODUCT_OWNER: 'bg-blue-900/60 text-blue-300',
     PM: 'bg-blue-900/60 text-blue-300',
+    ENGINEER: 'bg-gray-700/80 text-gray-300',
+    CHIEF_ENGINEER: 'bg-gray-700/80 text-gray-300',
     DEV: 'bg-gray-700/80 text-gray-300',
     MANAGER: 'bg-indigo-900/60 text-indigo-300',
     SUPPORT: 'bg-green-900/60 text-green-300',

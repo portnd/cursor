@@ -37,7 +37,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">CEO Approval Queue</h2>
-        <p class="text-xs text-gray-500">PM has tested these tasks — review evidence and give final approval</p>
+        <p class="text-xs text-gray-500">Product Owner has tested these tasks — review evidence and give final approval</p>
       </div>
       <span class="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400">
         {{ queue.length }} awaiting approval
@@ -94,10 +94,10 @@
               </span>
             </div>
 
-            <!-- PM Test Evidence -->
+            <!-- Product Owner test evidence -->
             <template v-if="parsedPayload(task)">
               <div class="mt-2 p-3 rounded-xl bg-gray-900/60 border border-amber-600/20 space-y-2">
-                <p class="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-1">PM Test Evidence</p>
+                <p class="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-1">Product Owner test evidence</p>
                 <div v-if="parsedPayload(task)?.test_url" class="flex items-center gap-2">
                   <span class="text-[10px] text-gray-500 w-16 shrink-0">URL</span>
                   <a
@@ -158,7 +158,7 @@
           </div>
         </div>
         <p class="text-xs text-gray-400 mb-4">
-          This marks the task as <span class="text-emerald-400 font-medium">COMPLETED</span>. Continue only if you have verified the PM's test evidence.
+          This marks the task as <span class="text-emerald-400 font-medium">COMPLETED</span>. Continue only if you have verified the Product Owner's test evidence.
         </p>
         <div class="flex items-center justify-end gap-3">
           <button
@@ -200,7 +200,7 @@
             </svg>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white">Reject — Return to PM</h3>
+            <h3 class="text-sm font-bold text-white">Reject — Return to Product Owner</h3>
             <p class="text-xs text-gray-500 truncate max-w-[280px]">{{ rejectTarget?.title }}</p>
           </div>
         </div>
@@ -209,7 +209,7 @@
           ref="rejectTextareaRef"
           v-model="rejectReason"
           rows="4"
-          placeholder="Describe what the PM needs to fix (min. 10 characters)…"
+          placeholder="Describe what the Product Owner needs to fix (min. 10 characters)…"
           class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none focus:ring-1 focus:ring-red-500/30 resize-none"
         />
         <p v-if="rejectReason.length > 0 && rejectReason.length < 10" class="text-[11px] text-red-400 mt-1">

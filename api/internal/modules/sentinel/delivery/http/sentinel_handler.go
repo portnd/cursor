@@ -417,7 +417,7 @@ func (h *SentinelHandler) AssignProjectTeam(c *gin.Context) {
 }
 
 type assignProjectPmOwnersReq struct {
-	PmUserIDs []uint `json:"pm_user_ids"` // empty = clear all PM owners for this project
+	PmUserIDs []uint `json:"pm_user_ids"` // empty = clear all Product Owners for this project (JSON key kept for API compatibility)
 }
 
 // AssignProjectPmOwners handles PATCH /sentinel/projects/:id/pm-owners (CEO or MANAGER; only when teams feature is disabled).
@@ -425,7 +425,7 @@ func (h *SentinelHandler) AssignProjectPmOwners(c *gin.Context) {
 	role, _ := c.Get("role")
 	roleStr, _ := role.(string)
 	if roleStr != "CEO" && roleStr != "MANAGER" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO or MANAGER can assign project PM owners"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO or MANAGER can assign project Product Owners"})
 		return
 	}
 	idStr := strings.TrimSpace(c.Param("id"))
@@ -445,10 +445,10 @@ func (h *SentinelHandler) AssignProjectPmOwners(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign PM owners", "message": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign Product Owners", "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Project PM owners updated", "data": updated})
+	c.JSON(http.StatusOK, gin.H{"message": "Project Product Owners updated", "data": updated})
 }
 
 func (h *SentinelHandler) GenerateProjectPlan(c *gin.Context) {
@@ -492,7 +492,7 @@ func (h *SentinelHandler) GenerateProjectPlan(c *gin.Context) {
 	})
 }
 
-// ScheduleProjectWithAI handles POST /sentinel/projects/:id/ai-schedule — estimate time + arrange timeline for existing tasks (CEO/PM only).
+// ScheduleProjectWithAI handles POST /sentinel/projects/:id/ai-schedule — estimate time + arrange timeline for existing tasks (CEO / Product Owner only).
 func (h *SentinelHandler) ScheduleProjectWithAI(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
@@ -538,7 +538,7 @@ func (h *SentinelHandler) ScheduleProjectWithAI(c *gin.Context) {
 	})
 }
 
-// ClearProjectPlan handles POST /sentinel/projects/:id/clear-plan — removes all tasks, sprints, milestones, epics (CEO/PM only).
+// ClearProjectPlan handles POST /sentinel/projects/:id/clear-plan — removes all tasks, sprints, milestones, epics (CEO / Product Owner only).
 func (h *SentinelHandler) ClearProjectPlan(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
@@ -577,7 +577,7 @@ func (h *SentinelHandler) ClearProjectPlan(c *gin.Context) {
 
 func isPrivilegedTaskRole(role string) bool {
 	switch strings.ToUpper(strings.TrimSpace(role)) {
-	case domain.RoleCEO, domain.RolePM, domain.RoleManager:
+	case domain.RoleCEO, domain.RoleProductOwner, domain.RoleManager:
 		return true
 	default:
 		return false
@@ -598,7 +598,7 @@ func canUserCreateSubtask(parent *domain.Task, userID uint, role string) bool {
 }
 
 // CreateTask handles POST /api/v1/tasks
-// Top-level tasks: CEO/PM/Manager. Sub-tasks: same, or parent assignee/creator.
+// Top-level tasks: CEO / Product Owner / Manager. Sub-tasks: same, or parent assignee/creator.
 func (h *SentinelHandler) CreateTask(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
@@ -713,7 +713,7 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 	userRole := getUserRoleFromContext(c)
 	if parentID == nil {
 		if !isPrivilegedTaskRole(userRole) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO, PM, or Manager can create top-level tasks"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO, Product Owner, or Manager can create top-level tasks"})
 			return
 		}
 	} else {
@@ -723,7 +723,7 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 			return
 		}
 		if !canUserCreateSubtask(parent, userID, userRole) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO, PM, Manager, the parent task assignee, or creator can create sub-tasks"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "only CEO, Product Owner, Manager, the parent task assignee, or creator can create sub-tasks"})
 			return
 		}
 	}
@@ -745,7 +745,7 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 }
 
 // AssignTask handles POST /api/v1/tasks/:id/assign
-// :id can be UUID or task code. The requesting user (PM/CEO) is recorded as assigned_by for leaderboard scope.
+// :id can be UUID or task code. The requesting user (Product Owner/CEO) is recorded as assigned_by for leaderboard scope.
 func (h *SentinelHandler) AssignTask(c *gin.Context) {
 	assignerID := getUserIDFromContext(c)
 	if assignerID == 0 {
@@ -827,7 +827,7 @@ func (h *SentinelHandler) SubmitWork(c *gin.Context) {
 	})
 }
 
-// SubmitUAT stores UAT payload on a FEATURE task and promotes it to REVIEW_PENDING for PM/CEO review.
+// SubmitUAT stores UAT payload on a FEATURE task and promotes it to REVIEW_PENDING for Product Owner/CEO review.
 func (h *SentinelHandler) SubmitUAT(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)
 	if err != nil {
@@ -856,7 +856,7 @@ func (h *SentinelHandler) SubmitUAT(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "UAT submitted — feature is now pending PM/CEO review"})
+	c.JSON(http.StatusOK, gin.H{"message": "UAT submitted — feature is now pending Product Owner/CEO review"})
 }
 
 // GetTaskByID handles GET /api/v1/sentinel/tasks/:id
@@ -928,7 +928,7 @@ func (h *SentinelHandler) GetMyTasks(c *gin.Context) {
 }
 
 // GetGlobalActiveTasks handles GET /api/v1/sentinel/tasks/my-global-active
-// TASK/BUG in ACTIVE sprints: CEO/MANAGER = company-wide; others team-scoped; teams off → PM/DEV assignment rules.
+// TASK/BUG in ACTIVE sprints: CEO/MANAGER = company-wide; others team-scoped; teams off → Product Owner / engineer assignment rules.
 func (h *SentinelHandler) GetGlobalActiveTasks(c *gin.Context) {
 	if getUserIDFromContext(c) == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -954,7 +954,7 @@ func (h *SentinelHandler) GetGlobalActiveTasks(c *gin.Context) {
 }
 
 // GetUnassignedTasks handles GET /api/v1/sentinel/tasks/unassigned
-// Retrieves all tasks that are not assigned to anyone (for CEO/PM to assign)
+// Retrieves all tasks that are not assigned to anyone (for CEO / Product Owner to assign)
 func (h *SentinelHandler) GetUnassignedTasks(c *gin.Context) {
 	tasks, err := h.usecase.GetUnassignedTasks()
 	if err != nil {
@@ -992,9 +992,9 @@ func (h *SentinelHandler) GetTeamActiveTasks(c *gin.Context) {
 }
 
 // GetActiveFeatures handles GET /api/v1/sentinel/tasks/features
-// Returns all FEATURE-type tasks for the PM/CEO Feature Roadmap Board.
+// Returns all FEATURE-type tasks for the Product Owner/CEO Feature Roadmap Board.
 // Each feature includes a roll-up progress (0-100%) and its child TASK/BUG items for the accordion.
-// PM is scoped to their team; CEO/MANAGER see all teams.
+// Product Owner is scoped to their team; CEO/MANAGER see all teams.
 func (h *SentinelHandler) GetActiveFeatures(c *gin.Context) {
 	ctx := callerCtx(c)
 	items, err := h.usecase.GetActiveFeatures(ctx.TeamID, ctx.Role)
@@ -1014,7 +1014,7 @@ func (h *SentinelHandler) GetActiveFeatures(c *gin.Context) {
 // GetAllTasks handles GET /api/v1/sentinel/tasks
 // Optional query: ?project_id=UUID to get only that project's tasks (for project Board/Backlog).
 // Optional query: ?task_type=FEATURE|TASK|BUG to filter by task typology.
-// Without project_id: returns ALL tasks (ADMIN/PM overview).
+// Without project_id: returns ALL tasks (ADMIN / Product Owner overview).
 func (h *SentinelHandler) GetAllTasks(c *gin.Context) {
 	var tasks []domain.Task
 	var err error
@@ -1160,8 +1160,8 @@ func (h *SentinelHandler) DeleteDependency(c *gin.Context) {
 }
 
 // GetApprovals handles GET /api/v1/sentinel/tasks/approvals
-// Returns tasks requiring PM/CEO attention (PENDING appeals or time negotiations)
-// Access: CEO and PM only
+// Returns tasks requiring Product Owner/CEO attention (PENDING appeals or time negotiations)
+// Access: CEO and Product Owner only
 func (h *SentinelHandler) GetApprovals(c *gin.Context) {
 	// 1️⃣ Extract user role from JWT context
 	userRole := getUserRoleFromContext(c)
@@ -1265,7 +1265,7 @@ func (h *SentinelHandler) SubmitAppeal(c *gin.Context) {
 }
 
 // ResolveAppeal handles POST /api/v1/appeals/:id/resolve
-// Allows PM/CEO to approve or reject an appeal
+// Allows Product Owner/CEO to approve or reject an appeal
 func (h *SentinelHandler) ResolveAppeal(c *gin.Context) {
 	appealIDStr := c.Param("id")
 	appealID, err := uuid.Parse(appealIDStr)
@@ -1309,7 +1309,7 @@ func (h *SentinelHandler) ResolveAppeal(c *gin.Context) {
 		}
 
 		// Check if error contains "forbidden" or "role"
-		if contains(errMsg, "forbidden") || contains(errMsg, "only CEO or PM") {
+		if contains(errMsg, "forbidden") || contains(errMsg, "only CEO or PM") || contains(errMsg, "only CEO or Product Owner") {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error":   "Forbidden",
 				"message": err.Error(),
@@ -1395,7 +1395,7 @@ func (h *SentinelHandler) NegotiateTime(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Time negotiation submitted successfully and pending PM/CEO review",
+		"message": "Time negotiation submitted successfully and pending Product Owner/CEO review",
 	})
 }
 
@@ -1708,7 +1708,7 @@ func (h *SentinelHandler) DeleteTask(c *gin.Context) {
 	})
 }
 
-// ApproveTask marks a task as COMPLETED after human verification (PM/CEO only)
+// ApproveTask marks a task as COMPLETED after human verification (Product Owner/CEO only)
 // POST /api/v1/sentinel/tasks/:id/approve ; :id can be UUID or task code
 func (h *SentinelHandler) ApproveTask(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)
@@ -1776,7 +1776,7 @@ func (h *SentinelHandler) ApproveTask(c *gin.Context) {
 	})
 }
 
-// RejectTask returns a task to IN_PROGRESS with a rejection reason comment (PM/CEO/MANAGER only)
+// RejectTask returns a task to IN_PROGRESS with a rejection reason comment (Product Owner/CEO/MANAGER only)
 // POST /api/v1/sentinel/tasks/:id/reject ; :id can be UUID or task code
 func (h *SentinelHandler) RejectTask(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)
@@ -1866,8 +1866,8 @@ func (h *SentinelHandler) MarkReadyForTest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Task marked as READY_FOR_TEST"})
 }
 
-// PMApproveSubTask is the PM's first-stage approval: READY_FOR_TEST → READY_FOR_UAT.
-// The PM must supply a test URL and detailed test steps for the CEO to follow.
+// PMApproveSubTask is the Product Owner's first-stage approval: READY_FOR_TEST → READY_FOR_UAT.
+// The Product Owner must supply a test URL and detailed test steps for the CEO to follow.
 // POST /api/v1/sentinel/tasks/:id/pm-approve-sub
 func (h *SentinelHandler) PMApproveSubTask(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)
@@ -1952,7 +1952,7 @@ func (h *SentinelHandler) ApproveSubTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Sub-task approved and marked as COMPLETED"})
 }
 
-// RejectSubTask moves a READY_FOR_TEST task back to IN_PROGRESS and logs the reason (PM/CEO action).
+// RejectSubTask moves a READY_FOR_TEST task back to IN_PROGRESS and logs the reason (Product Owner/CEO action).
 // POST /api/v1/sentinel/tasks/:id/reject-sub
 func (h *SentinelHandler) RejectSubTask(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)

@@ -14,7 +14,7 @@
             :class="[
               'text-xs font-bold px-2 py-0.5 rounded mt-1 inline-block',
               authStore.user.role === 'CEO' ? 'bg-gray-700 text-gray-200' :
-              authStore.user.role === 'PM' ? 'bg-blue-700 text-blue-100' :
+              authStore.user.role === 'PRODUCT_OWNER' || authStore.user.role === 'PM' ? 'bg-blue-700 text-blue-100' :
               'bg-green-700 text-green-100'
             ]"
           >
@@ -47,7 +47,7 @@
 
     <!-- Content -->
     <div v-else class="space-y-8">
-      <!-- SECTION 1: ⏱️ PENDING TIME NEGOTIATIONS (CEO/PM ONLY) -->
+      <!-- SECTION 1: ⏱️ PENDING TIME NEGOTIATIONS (CEO / PRODUCT OWNER ONLY) -->
       <div 
         v-if="showApprovals && timeNegotiations.length > 0"
         class="bg-gray-800 border border-gray-700 rounded p-6 mb-8"
@@ -342,7 +342,9 @@ const approvals = ref<Task[]>([])
 
 // Computed
 const showApprovals = computed(() => {
-  return currentUser.value?.role === 'CEO' || currentUser.value?.role === 'PM'
+  return currentUser.value?.role === 'CEO'
+    || currentUser.value?.role === 'PRODUCT_OWNER'
+    || currentUser.value?.role === 'PM'
 })
 
 // Separate time negotiations from other approvals
@@ -360,13 +362,13 @@ const fetchData = async () => {
     const myTasksResponse = await fetchWithAuth<{ data: Task[] }>('/sentinel/tasks/my')
     myTasks.value = myTasksResponse.data || []
 
-    // 2. Fetch Approvals (only for CEO/PM)
+    // 2. Fetch Approvals (only for CEO / Product Owner)
     if (showApprovals.value) {
       try {
         const approvalsResponse = await fetchWithAuth<{ data: Task[] }>('/sentinel/tasks/approvals')
         approvals.value = approvalsResponse.data || []
       } catch (approvalsError: any) {
-        // If 403, it's expected for non-CEO/PM users, just skip
+        // If 403, it's expected for non-CEO/Product Owner users, just skip
         if (approvalsError.statusCode !== 403) {
           console.error('Failed to fetch approvals:', approvalsError)
         }

@@ -507,6 +507,7 @@ import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { usePricingApi } from '../infrastructure/pricing-api'
 import type { QuotationRequest } from '../infrastructure/pricing-api'
 import type { Epic, Task } from '~/core/modules/projects/infrastructure/projects-api'
+import { isEngineerLikeRole } from '~/utils/roles'
 
 const props = defineProps<{
   projectId: string
@@ -571,12 +572,12 @@ async function loadCostConfig() {
     costPerHour.value = mandayRate.cost_per_hour ?? 0
     billableDays.value = mandayRate.billable_days ?? 0
 
-    // PM count for display only (overhead is from backend)
-    const activePMSalaries = salaries.filter(s => s.user_role === 'PM' && !s.effective_to)
+    // Product Owner count for display only (overhead is from backend)
+    const activePMSalaries = salaries.filter(s => (s.user_role === 'PRODUCT_OWNER' || s.user_role === 'PM') && !s.effective_to)
     pmCount.value = activePMSalaries.length
 
     // DEV user IDs & salary totals: all active DEV-role salary records
-    const activeDevSalaries = salaries.filter(s => s.user_role === 'DEV' && !s.effective_to)
+    const activeDevSalaries = salaries.filter(s => isEngineerLikeRole(s.user_role) && !s.effective_to)
     devCount.value = activeDevSalaries.length
     form.dev_user_ids = activeDevSalaries.map(s => s.user_id)
     totalDevSalary.value = activeDevSalaries.reduce((sum, s) => sum + s.monthly_salary, 0)
@@ -687,7 +688,7 @@ function deselectAll() {
 
 async function openTaskSelectionModal() {
   if (form.dev_user_ids.length === 0) {
-    store.error = 'ไม่พบ Developer ใน Cost Config / No developers found in cost configuration. Please add DEV salary records at Admin → Cost Config.'
+    store.error = 'ไม่พบ Engineer ใน Cost Config / No engineers found in cost configuration. Please add ENGINEER or CHIEF_ENGINEER salary records at Admin → Cost Config.'
     return
   }
   store.error = null

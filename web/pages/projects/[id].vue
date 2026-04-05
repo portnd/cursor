@@ -274,6 +274,7 @@
             :task-display-code-map="taskDisplayCodeMap"
             :user-role="currentUser?.role"
             :active-sprint="activeSprint"
+            :deployed-task-ids="deployedTaskIds"
             @task-click="(t) => navigateToTask(t.id)"
             @status-change="handleStatusChange"
           />
@@ -2058,7 +2059,7 @@
                 <span class="text-xl sm:text-2xl leading-none">⚠</span> Bug
               </button>
             </div>
-            <!-- PM Rule hint for FEATURE type -->
+            <!-- Product Owner rule hint for FEATURE type -->
             <div v-if="createTaskForm.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
               <span><strong>Feature mode:</strong> Acts as a parent container. Assignee and estimated effort are disabled — add sub-tasks of type Task/Bug to assign work.</span>
@@ -2510,8 +2511,10 @@ const FeatureRoadmapBoard = defineAsyncComponent(() => import('~/components/task
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 import { effortHoursToMinutes } from '~/utils/effortHours'
+import { isTaskAssigneeRole } from '~/utils/roles'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
+import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -2523,7 +2526,7 @@ const { showError, showSuccess, confirm } = useNotification()
 const tasksApi = useTasksApi()
 const teamsStore = useTeamsStore()
 
-/** Capital / Costing / Backup — CEO only (not MANAGER/PM/DEV). */
+/** Capital / Costing / Backup — CEO only (not MANAGER / Product Owner / legacy DEV). */
 const CEO_ONLY_PROJECT_TAB_IDS = new Set(['capital', 'costing', 'backup'])
 
 const allProjectTabs = [
@@ -3382,6 +3385,8 @@ const milestones = ref<Milestone[]>([])
 const epics = ref<Epic[]>([])
 const analytics = ref<AnalyticsType | null>(null)
 const isLoading = ref(true)
+// Task IDs that already have a deployment request (used to show warning on WAIT_FOR_DEPLOY kanban cards)
+const deployedTaskIds = ref<string[]>([])
 const analyticsLoading = ref(false)
 const error = ref('')
 const ganttView = ref('week')
@@ -3886,6 +3891,23 @@ async function loadAll() {
     }
 
     isLoading.value = false
+
+    // Fetch deployment requests for WAIT_FOR_DEPLOY tasks (non-blocking)
+    const waitForDeployTaskIds = details.tasks
+      .filter((t) => t.status === 'WAIT_FOR_DEPLOY')
+      .map((t) => t.id)
+    if (waitForDeployTaskIds.length > 0) {
+      const depApi = useDeploymentApi()
+      const results = await Promise.allSettled(
+        waitForDeployTaskIds.map((id) => depApi.getByTaskId(id))
+      )
+      deployedTaskIds.value = waitForDeployTaskIds.filter((_, i) => {
+        const r = results[i]
+        return r.status === 'fulfilled' && r.value !== null
+      })
+    } else {
+      deployedTaskIds.value = []
+    }
 
     // Apply timeline data if we fetched in parallel (do not block project shell on this)
     if (timelinePromise) {
@@ -4661,7 +4683,7 @@ async function loadBacklogImportAssignees() {
   try {
     const { fetchWithAuth: fw } = useAuth()
     const role = (currentUser.value?.role || '').toUpperCase()
-    if (role === 'PM') {
+    if (role === 'PRODUCT_OWNER' || role === 'PM') {
       await teamsStore.fetchTeamsFeatureEnabled()
       if (teamsStore.teamsFeatureEnabled) {
         const { getTeams } = useTeamsApi()
@@ -4669,18 +4691,18 @@ async function loadBacklogImportAssignees() {
         const userId = currentUser.value?.user_id
         const myTeam = teams.find((t: any) => t.users?.some((u: any) => u.id === userId))
         backlogImportAssignees.value = (myTeam?.users ?? [])
-          .filter((u: any) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+          .filter((u: any) => isTaskAssigneeRole(u.role))
           .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
       } else {
         const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
         backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>
-          ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
+          isTaskAssigneeRole(u.role)
         )
       }
     } else {
       const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
       backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>
-        ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)
+        isTaskAssigneeRole(u.role)
       )
     }
   } catch {

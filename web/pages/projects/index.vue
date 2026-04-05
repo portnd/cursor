@@ -19,9 +19,9 @@
       </button>
     </div>
 
-    <!-- Squad banner (PM only, when squads are enabled) -->
+    <!-- Squad banner (Product Owner only, when squads are enabled) -->
     <div
-      v-if="!isCEO && currentUser?.role === 'PM' && teamsStore.teamsFeatureEnabled && squadName"
+      v-if="!isCEO && (currentUser?.role === 'PRODUCT_OWNER' || currentUser?.role === 'PM') && teamsStore.teamsFeatureEnabled && squadName"
       class="mb-6 flex items-center gap-3 px-4 py-3 bg-purple-900/30 border border-purple-500/30 rounded-xl"
     >
       <div class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600/20 text-purple-400">
@@ -33,17 +33,17 @@
       </div>
       <span class="ml-auto text-xs text-gray-500">Showing projects for your team only</span>
     </div>
-    <!-- No-squads mode: PM sees only CEO-assigned projects -->
+    <!-- No-squads mode: Product Owner sees only CEO-assigned projects -->
     <div
-      v-else-if="!isCEO && currentUser?.role === 'PM' && !teamsStore.teamsFeatureEnabled"
+      v-else-if="!isCEO && (currentUser?.role === 'PRODUCT_OWNER' || currentUser?.role === 'PM') && !teamsStore.teamsFeatureEnabled"
       class="mb-6 flex items-center gap-3 px-4 py-3 bg-amber-900/20 border border-amber-600/40 rounded-xl text-amber-100"
     >
       <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600/20 text-amber-400">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
       </div>
       <div class="min-w-0">
-        <span class="text-xs text-amber-400 uppercase tracking-widest font-semibold">PM access</span>
-        <p class="text-sm text-amber-100/95 leading-snug mt-0.5">Squads are off — you only see projects the CEO assigned to you as PM owner. Ask the CEO to add you on the project card if something is missing.</p>
+        <span class="text-xs text-amber-400 uppercase tracking-widest font-semibold">Product Owner access</span>
+        <p class="text-sm text-amber-100/95 leading-snug mt-0.5">Squads are off — you only see projects the CEO assigned to you as Product Owner. Ask the CEO to add you on the project card if something is missing.</p>
       </div>
     </div>
 
@@ -185,13 +185,13 @@
           </div>
         </div>
 
-        <!-- CEO/MANAGER: assign PM owners when squads are disabled (multi-select) -->
+        <!-- CEO/MANAGER: assign Product Owner users when squads are disabled (multi-select) -->
         <div
           v-if="!teamsStore.teamsFeatureEnabled && isCEO"
           class="mb-4 space-y-2"
           @click.stop
         >
-          <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">PM owners</div>
+          <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Product Owner users</div>
           <p class="text-[11px] text-gray-500 leading-snug">
             คลิกชื่อเพื่อเลือกหรือยกเลิก — เลือกได้หลายคนพร้อมกัน (คลิกชื่อที่เลือกอยู่แล้วจะถอนการเลือก)
           </p>
@@ -199,7 +199,7 @@
             v-if="pmUserOptions.length === 0"
             class="text-xs text-amber-400/90"
           >
-            No PM users in the system.
+            No Product Owner users in the system.
           </div>
           <div
             v-else
@@ -459,7 +459,8 @@ const teamsApi = useTeamsApi()
 const projectsApi = useProjectsApi()
 
 const isCEO = computed(() => currentUser.value?.role === 'CEO' || currentUser.value?.role === 'MANAGER')
-const canManageProjects = computed(() => ['CEO', 'MANAGER', 'PM'].includes(currentUser.value?.role ?? ''))
+const canManageProjects = computed(() =>
+  ['CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM'].includes(currentUser.value?.role ?? ''))
 const canDeleteProjects = computed(() => ['CEO'].includes(currentUser.value?.role ?? ''))
 const squadName = computed(() => {
   const tid = currentUser.value?.team_id
@@ -707,7 +708,7 @@ async function loadPmUserOptions() {
   }
   try {
     const res = await fetchWithAuth<{ data: { id: number; email: string; display_name?: string; role: string }[] }>('/auth/users')
-    pmUserOptions.value = (res.data || []).filter((u) => u.role === 'PM')
+    pmUserOptions.value = (res.data || []).filter((u) => u.role === 'PRODUCT_OWNER' || u.role === 'PM')
   } catch {
     pmUserOptions.value = []
   }
@@ -717,7 +718,7 @@ function isPmOwner(project: Project, userId: number): boolean {
   return !!project.pm_owners?.some((o) => o.user_id === userId)
 }
 
-/** Toggle one PM; click again on the same name clears that selection. Multiple PMs can stay selected. */
+/** Toggle one Product Owner; click again on the same name clears that selection. Multiple Product Owners can stay selected. */
 async function togglePmOwner(project: Project, userId: number, e: Event) {
   const checked = (e.target as HTMLInputElement).checked
   const set = new Set<number>((project.pm_owners ?? []).map((o) => o.user_id))

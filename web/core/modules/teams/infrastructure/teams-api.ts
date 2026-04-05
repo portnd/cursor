@@ -14,7 +14,7 @@ export interface Team {
 export interface TeamUser {
   id: number
   email: string
-  role: 'CEO' | 'MANAGER' | 'PM' | 'DEV' | 'SUPPORT'
+  role: 'CEO' | 'MANAGER' | 'PRODUCT_OWNER' | 'PM' | 'ENGINEER' | 'CHIEF_ENGINEER' | 'SUPPORT'
   display_name: string
   team_id: number | null
   health_score: number
@@ -92,7 +92,7 @@ export function useTeamsApi() {
       body: JSON.stringify({ team_id: teamId }),
     })
 
-  /** When teams feature is disabled: set one or more PM user IDs as project owners (CEO/MANAGER). */
+  /** When teams feature is disabled: set Product Owner user IDs as project owners (CEO/MANAGER). Body uses pm_user_ids for API compatibility. */
   const assignProjectPmOwners = (projectId: string, pmUserIds: number[]): Promise<Project> =>
     fetchWithAuth<{ data: Project }>(`/sentinel/projects/${projectId}/pm-owners`, {
       method: 'PATCH',

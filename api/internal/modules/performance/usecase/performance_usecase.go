@@ -29,7 +29,7 @@ func (u *performanceUsecase) GetPersonalKPIs(userID uint, role string) (*perfDom
 		Role:        role,
 		HealthScore: healthScore,
 	}
-	if role != "DEV" {
+	if !authDomain.IsEngineerRole(role) {
 		return out, nil
 	}
 	tasksWithDue, completedOnTime, err := u.repo.GetUserTaskDeliveryStats(userID)
@@ -79,26 +79,26 @@ func compositeScore(deliveryPct, codeQuality, reworkRatePct, timeAccuracyPct flo
 }
 
 func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole string) (*perfDomain.TeamKPIsResponse, error) {
-	if requestingRole != "CEO" && requestingRole != "PM" {
+	if requestingRole != "CEO" && requestingRole != authDomain.RoleProductOwner {
 		return &perfDomain.TeamKPIsResponse{Members: []perfDomain.TeamMemberKPI{}}, nil
 	}
 
-	if requestingRole == "PM" {
-		// PM sees only devs who have been assigned at least one task by this PM; scores from those tasks only.
+	if requestingRole == authDomain.RoleProductOwner {
+		// Product Owner sees only engineers assigned at least one task by this Product Owner; scores from those tasks only.
 		devIDs, err := u.repo.GetDevUserIDsAssignedByPM(requestingUserID)
 		if err != nil {
 			return nil, err
 		}
 		members := make([]perfDomain.TeamMemberKPI, 0, len(devIDs))
 		for _, devID := range devIDs {
-			email, role, healthScore, _ := u.repo.GetUserEmailAndRole(devID)
-			if role != "DEV" {
+			email, devRole, healthScore, _ := u.repo.GetUserEmailAndRole(devID)
+			if !authDomain.IsEngineerRole(devRole) {
 				continue
 			}
 			m := perfDomain.TeamMemberKPI{
 				UserID:      devID,
 				Email:       email,
-				Role:        "DEV",
+				Role:        devRole,
 				HealthScore: healthScore,
 			}
 			tasksWithDue, completedOnTime, _ := u.repo.GetUserTaskDeliveryStatsForAssignedBy(devID, requestingUserID)
@@ -128,7 +128,7 @@ func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole s
 		return &perfDomain.TeamKPIsResponse{Members: members}, nil
 	}
 
-	// CEO: all users. DEV = total score (all tasks); PM = team score (avg of PM's assigned-dev composites).
+	// CEO: all users. Engineer = total score (all tasks); Product Owner = team score (avg of assigned-engineer composites).
 	users, err := u.authRepo.GetAllUsers()
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole s
 			Role:        usr.Role,
 			HealthScore: usr.HealthScore,
 		}
-		if usr.Role == "DEV" {
+		if authDomain.IsEngineerRole(usr.Role) {
 			tasksWithDue, completedOnTime, _ := u.repo.GetUserTaskDeliveryStats(usr.ID)
 			if tasksWithDue > 0 {
 				m.DeliveryRatePct = float64(completedOnTime) / float64(tasksWithDue) * 100
@@ -156,14 +156,14 @@ func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole s
 			avgSP, _, _ := u.repo.GetUserSprintVelocity(usr.ID, 3)
 			m.SprintVelocitySP = avgSP
 			m.CompositeScore = compositeScore(m.DeliveryRatePct, m.CodeQualityIndex, m.ReworkRatePct, m.TimeAccuracyPct, m.SprintVelocitySP)
-		} else if usr.Role == "PM" {
-			// PM's score = team score from "My Accountability KPIs" (average of composites of devs assigned by this PM)
+		} else if usr.Role == authDomain.RoleProductOwner {
+			// Product Owner's score = team score from "My Accountability KPIs" (average of composites of engineers assigned by this Product Owner)
 			devIDs, _ := u.repo.GetDevUserIDsAssignedByPM(usr.ID)
 			var sumComposite float64
 			var count int
 			for _, devID := range devIDs {
-				_, role, _, _ := u.repo.GetUserEmailAndRole(devID)
-				if role != "DEV" {
+				_, devRole, _, _ := u.repo.GetUserEmailAndRole(devID)
+				if !authDomain.IsEngineerRole(devRole) {
 					continue
 				}
 				tasksWithDue, completedOnTime, _ := u.repo.GetUserTaskDeliveryStatsForAssignedBy(devID, usr.ID)
@@ -258,7 +258,7 @@ func (u *performanceUsecase) GetDisciplineDayDetail(userID uint, date string) (*
 }
 
 // GetDiscipline returns daily discipline stats for all users in the date range.
-// from/to format: YYYY-MM-DD. Accessible to CEO and PM.
+// from/to format: YYYY-MM-DD. Accessible to CEO and Product Owner.
 func (u *performanceUsecase) GetDiscipline(from, to string) (*perfDomain.DisciplineResponse, error) {
 	return u.repo.GetDisciplineStats(from, to)
 }

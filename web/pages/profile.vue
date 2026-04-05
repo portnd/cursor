@@ -293,8 +293,11 @@ const passwordForm = reactive({
 const roleLabels: Record<string, string> = {
   CEO: 'Chief Executive',
   MANAGER: 'Manager',
-  PM: 'Project Manager',
-  DEV: 'Developer',
+  PRODUCT_OWNER: 'Product Owner',
+  PM: 'Product Owner',
+  ENGINEER: 'Engineer',
+  CHIEF_ENGINEER: 'Chief Engineer',
+  DEV: 'Engineer',
   SUPPORT: 'Support',
 }
 
@@ -303,7 +306,8 @@ const roleLabel = computed(() => (profile.value ? roleLabels[profile.value.role]
 const roleBadgeClass = computed(() => {
   const role = profile.value?.role
   if (role === 'CEO') return 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-  if (role === 'PM') return 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+  if (role === 'PRODUCT_OWNER' || role === 'PM') return 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+  if (role === 'ENGINEER' || role === 'CHIEF_ENGINEER' || role === 'DEV') return 'bg-green-500/20 text-green-400 border border-green-500/40'
   return 'bg-gray-500/20 text-gray-300 border border-gray-500/40'
 })
 

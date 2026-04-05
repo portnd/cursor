@@ -176,7 +176,7 @@
         <svg class="h-5 w-5 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
         </svg>
-        <p class="text-sm text-amber-300">No active sprint found. Ask your PM to start a sprint and assign tasks to you.</p>
+        <p class="text-sm text-amber-300">No active sprint found. Ask your Product Owner to start a sprint and assign tasks to you.</p>
       </section>
 
       <!-- Filters -->
@@ -529,7 +529,7 @@
             </svg>
           </div>
           <p class="text-base font-semibold text-gray-300">No tasks in active sprints</p>
-          <p class="text-sm text-gray-500 mt-1 mb-6">When a PM assigns you work in a started sprint, it will show up here.</p>
+          <p class="text-sm text-gray-500 mt-1 mb-6">When a Product Owner assigns you work in a started sprint, it will show up here.</p>
           <NuxtLink
             to="/create"
             class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all"
@@ -880,7 +880,7 @@ const markReadyForTest = async (task: Task) => {
     myTasks.value = myTasks.value.map(t =>
       t.id === task.id ? { ...t, status: 'READY_FOR_TEST' } : t
     )
-    successMessage.value = 'Marked as Ready for Test — awaiting PM approval'
+    successMessage.value = 'Marked as Ready for Test — awaiting Product Owner approval'
     showSuccess.value = true
     setTimeout(() => { showSuccess.value = false }, 3000)
   } catch (err: any) {
@@ -902,7 +902,7 @@ onMounted(async () => {
   if (teamsStore.teamsFeatureEnabled) {
     fetchSquadFinancials()
   }
-  performanceStore.fetchAll('DEV')
+  performanceStore.fetchAll(currentUser.value?.role || 'ENGINEER')
 })
 </script>
 

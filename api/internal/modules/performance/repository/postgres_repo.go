@@ -9,6 +9,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// ict is used to format timestamps to Bangkok time.
+var ict *time.Location
+
+func init() {
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		loc = time.FixedZone("ICT", 7*3600)
+	}
+	ict = loc
+}
+
 type postgresRepo struct {
 	db *gorm.DB
 }
@@ -176,7 +187,7 @@ func (r *postgresRepo) GetUserSprintVelocity(userID uint, lastNSprints int) (avg
 	return avgStoryPoints, trend, nil
 }
 
-// GetDevUserIDsAssignedByPM returns distinct dev user IDs who have at least one task assigned by this PM.
+// GetDevUserIDsAssignedByPM returns distinct engineer user IDs who have at least one task assigned by this Product Owner (assigned_by_id).
 func (r *postgresRepo) GetDevUserIDsAssignedByPM(pmID uint) ([]uint, error) {
 	var ids []uint
 	err := r.db.Model(&sentinelDomain.Task{}).
@@ -342,7 +353,7 @@ func (r *postgresRepo) GetUserSprintVelocityForAssignedBy(devID, assignedByID ui
 
 func (r *postgresRepo) GetAllDevUserIDs() ([]uint, error) {
 	var ids []uint
-	err := r.db.Model(&authDomain.User{}).Where("role = ?", "DEV").Pluck("id", &ids).Error
+	err := r.db.Model(&authDomain.User{}).Where("role IN ?", []string{authDomain.RoleEngineer, authDomain.RoleChiefEngineer}).Pluck("id", &ids).Error
 	return ids, err
 }
 
@@ -474,7 +485,7 @@ func (r *postgresRepo) GetTeamVelocityTrend() (growthPct float64, err error) {
 
 func (r *postgresRepo) GetCompanyWideDeliveryAndQuality() (avgDeliveryPct, avgCodeQuality float64, err error) {
 	var ids []uint
-	if err = r.db.Model(&authDomain.User{}).Where("role = ?", "DEV").Pluck("id", &ids).Error; err != nil {
+	if err = r.db.Model(&authDomain.User{}).Where("role IN ?", []string{authDomain.RoleEngineer, authDomain.RoleChiefEngineer}).Pluck("id", &ids).Error; err != nil {
 		return 0, 0, err
 	}
 	if len(ids) == 0 {
@@ -585,6 +596,46 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		WHERE date BETWEEN ? AND ?
 	`, from, to).Scan(&pulseRows)
 
+	// Deployment requests marked DEPLOYED (reviewer = Chief Engineer who deployed)
+	type deployRow struct {
+		UserID uint
+		Date   string
+		Count  int
+	}
+	var deployRows []deployRow
+	r.db.Raw(`
+		SELECT reviewer_id AS user_id, deployed_at::date::text AS date, COUNT(*) AS count
+		FROM deployment_requests
+		WHERE status = 'DEPLOYED'
+		  AND deployed_at IS NOT NULL
+		  AND reviewer_id IS NOT NULL
+		  AND deployed_at::date BETWEEN ? AND ?
+		GROUP BY reviewer_id, deployed_at::date
+	`, from, to).Scan(&deployRows)
+
+	// Attendance records (is_late, early_checkout, check-in/out times)
+	type attDayRow struct {
+		UserID        uint
+		Date          string
+		IsLate        bool
+		EarlyCheckout bool
+		Status        string
+		CheckInTime   string
+		CheckOutTime  string
+	}
+	var attDayRows []attDayRow
+	r.db.Raw(`
+		SELECT user_id,
+		       attendance_date::text AS date,
+		       is_late,
+		       early_checkout,
+		       COALESCE(status, '') AS status,
+		       COALESCE(TO_CHAR(check_in_at AT TIME ZONE 'Asia/Bangkok', 'HH24:MI'), '') AS check_in_time,
+		       COALESCE(TO_CHAR(check_out_at AT TIME ZONE 'Asia/Bangkok', 'HH24:MI'), '') AS check_out_time
+		FROM attendance_records
+		WHERE attendance_date BETWEEN ? AND ?
+	`, from, to).Scan(&attDayRows)
+
 	// 4. Index rows by userID+date for O(1) lookup
 	closedIndex := map[uint]map[string]int{}
 	for _, row := range closedRows {
@@ -614,6 +665,34 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		}
 		pulseIndex[row.UserID][row.Date] = true
 	}
+	deployIndex := map[uint]map[string]int{}
+	for _, row := range deployRows {
+		if deployIndex[row.UserID] == nil {
+			deployIndex[row.UserID] = map[string]int{}
+		}
+		deployIndex[row.UserID][row.Date] = row.Count
+	}
+
+	type attDayData struct {
+		IsLate        bool
+		EarlyCheckout bool
+		Status        string
+		CheckInTime   string
+		CheckOutTime  string
+	}
+	attIndex := map[uint]map[string]attDayData{}
+	for _, row := range attDayRows {
+		if attIndex[row.UserID] == nil {
+			attIndex[row.UserID] = map[string]attDayData{}
+		}
+		attIndex[row.UserID][row.Date] = attDayData{
+			IsLate:        row.IsLate,
+			EarlyCheckout: row.EarlyCheckout,
+			Status:        row.Status,
+			CheckInTime:   row.CheckInTime,
+			CheckOutTime:  row.CheckOutTime,
+		}
+	}
 
 	// 5. Assemble per-user stats
 	resp := &perfDomain.DisciplineResponse{
@@ -629,30 +708,48 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			UserDisplayName: u.DisplayName,
 			Role:            u.Role,
 		}
-		var totalClosed, totalReworks, totalMins, missedPulse int
+		var totalClosed, totalReworks, totalMins, missedPulse, totalDeploys, totalLate, totalEarlyOut int
 		for _, d := range dates {
 			closed := closedIndex[u.ID][d]
 			rework := reworkIndex[u.ID][d]
 			mins := logIndex[u.ID][d]
 			hasPulse := pulseIndex[u.ID][d]
+			deploys := deployIndex[u.ID][d]
+			att := attIndex[u.ID][d]
 			if !hasPulse {
 				missedPulse++
+			}
+			if att.IsLate {
+				totalLate++
+			}
+			if att.EarlyCheckout {
+				totalEarlyOut++
 			}
 			totalClosed += closed
 			totalReworks += rework
 			totalMins += mins
+			totalDeploys += deploys
 			du.Days = append(du.Days, perfDomain.DisciplineUserDayStat{
-				Date:          d,
-				TasksClosed:   closed,
-				Reworks:       rework,
-				LoggedMinutes: mins,
-				HasDailyPulse: hasPulse,
+				Date:                 d,
+				TasksClosed:          closed,
+				Reworks:              rework,
+				LoggedMinutes:        mins,
+				HasDailyPulse:        hasPulse,
+				DeploymentsCompleted: deploys,
+				IsLate:               att.IsLate,
+				EarlyCheckout:        att.EarlyCheckout,
+				CheckInAt:            att.CheckInTime,
+				CheckOutAt:           att.CheckOutTime,
+				AttendanceStatus:     att.Status,
 			})
 		}
 		du.TotalTasksClosed = totalClosed
 		du.TotalReworks = totalReworks
 		du.TotalLoggedHours = float64(totalMins) / 60.0
 		du.MissedPulseCount = missedPulse
+		du.TotalDeployments = totalDeploys
+		du.TotalLateDays = totalLate
+		du.TotalEarlyCheckoutDays = totalEarlyOut
 		resp.Users = append(resp.Users, du)
 	}
 	return resp, nil
@@ -677,6 +774,39 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 	var pulseCount int64
 	r.db.Raw("SELECT COUNT(*) FROM daily_standups WHERE user_id = ? AND date = ?", userID, date).Scan(&pulseCount)
 	detail.HasDailyPulse = pulseCount > 0
+
+	// Attendance record for this user/date
+	type attDetailRow struct {
+		CheckInAt     *time.Time
+		CheckOutAt    *time.Time
+		IsLate        bool
+		EarlyCheckout bool
+		Status        string
+		CheckInMethod string
+	}
+	var attRec attDetailRow
+	r.db.Raw(`
+		SELECT check_in_at, check_out_at, is_late, early_checkout,
+		       COALESCE(status, '') AS status,
+		       COALESCE(check_in_method, '') AS check_in_method
+		FROM attendance_records
+		WHERE user_id = ? AND attendance_date = ?
+	`, userID, date).Scan(&attRec)
+	if attRec.Status != "" {
+		rec := &perfDomain.DisciplineAttendanceRecord{
+			IsLate:        attRec.IsLate,
+			EarlyCheckout: attRec.EarlyCheckout,
+			Status:        attRec.Status,
+			CheckInMethod: attRec.CheckInMethod,
+		}
+		if attRec.CheckInAt != nil {
+			rec.CheckInAt = attRec.CheckInAt.In(ict).Format("15:04")
+		}
+		if attRec.CheckOutAt != nil {
+			rec.CheckOutAt = attRec.CheckOutAt.In(ict).Format("15:04")
+		}
+		detail.Attendance = rec
+	}
 
 	// Time logs with task info
 	type tlRow struct {
@@ -783,6 +913,33 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 		})
 	}
 
+	// Deployment requests marked DEPLOYED by this reviewer on this date
+	type drRow struct {
+		ID          uint
+		Title       string
+		Branch      string
+		Environment string
+	}
+	var drRows []drRow
+	r.db.Raw(`
+		SELECT id, title, branch, environment
+		FROM deployment_requests
+		WHERE reviewer_id = ?
+		  AND status = 'DEPLOYED'
+		  AND deployed_at IS NOT NULL
+		  AND deployed_at::date = ?
+		ORDER BY deployed_at
+	`, userID, date).Scan(&drRows)
+
+	for _, row := range drRows {
+		detail.DeployedRequests = append(detail.DeployedRequests, perfDomain.DisciplineDeployedRequest{
+			ID:          row.ID,
+			Title:       row.Title,
+			Branch:      row.Branch,
+			Environment: row.Environment,
+		})
+	}
+
 	if detail.TimeLogs == nil {
 		detail.TimeLogs = []perfDomain.DisciplineTimeLogEntry{}
 	}
@@ -792,13 +949,16 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 	if detail.Reworks == nil {
 		detail.Reworks = []perfDomain.DisciplineReworkEntry{}
 	}
+	if detail.DeployedRequests == nil {
+		detail.DeployedRequests = []perfDomain.DisciplineDeployedRequest{}
+	}
 
 	return detail, nil
 }
 
 func (r *postgresRepo) GetCompanyWideReworkAndTimeAccuracy() (avgReworkPct, avgTimeAccuracyPct float64, err error) {
 	var ids []uint
-	if err = r.db.Model(&authDomain.User{}).Where("role = ?", "DEV").Pluck("id", &ids).Error; err != nil {
+	if err = r.db.Model(&authDomain.User{}).Where("role IN ?", []string{authDomain.RoleEngineer, authDomain.RoleChiefEngineer}).Pluck("id", &ids).Error; err != nil {
 		return 0, 0, err
 	}
 	if len(ids) == 0 {

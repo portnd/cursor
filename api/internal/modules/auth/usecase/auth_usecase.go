@@ -180,7 +180,7 @@ func (u *authUsecase) ChangePassword(userID uint, currentPassword, newPassword s
 	return u.repo.UpdatePassword(userID, string(hashedPassword))
 }
 
-// GetTeamMembers retrieves all users (CEO, MANAGER, or PM — for team management and task assignment).
+// GetTeamMembers retrieves all users (CEO, MANAGER, or Product Owner — for team management and task assignment).
 func (u *authUsecase) GetTeamMembers(requestingUserID uint) ([]domain.User, error) {
 	// Get requesting user to check their role
 	requestingUser, err := u.repo.FindByID(requestingUserID)
@@ -188,9 +188,9 @@ func (u *authUsecase) GetTeamMembers(requestingUserID uint) ([]domain.User, erro
 		return nil, fmt.Errorf("unauthorized: user not found")
 	}
 
-	// CEO, MANAGER, and PM can list users (e.g. for task assignment)
-	if requestingUser.Role != domain.RoleCEO && requestingUser.Role != domain.RoleManager && requestingUser.Role != domain.RolePM {
-		return nil, fmt.Errorf("unauthorized: only CEO, MANAGER, or PM can view team members")
+	// CEO, MANAGER, and Product Owner can list users (e.g. for task assignment)
+	if requestingUser.Role != domain.RoleCEO && requestingUser.Role != domain.RoleManager && requestingUser.Role != domain.RoleProductOwner {
+		return nil, fmt.Errorf("unauthorized: only CEO, MANAGER, or Product Owner can view team members")
 	}
 
 	// Fetch all users
@@ -205,7 +205,7 @@ func (u *authUsecase) GetTeamMembers(requestingUserID uint) ([]domain.User, erro
 // ChangeUserRole changes a user's role (CEO only)
 // Business Rules:
 // 1. Only users with role 'CEO' can change roles
-// 2. New role must be one of: CEO, PM, DEV
+// 2. New role must be one of: CEO, MANAGER, PRODUCT_OWNER, ENGINEER, CHIEF_ENGINEER, SUPPORT
 // 3. Cannot change own role (optional safeguard)
 func (u *authUsecase) ChangeUserRole(requestingUserID uint, targetUserID uint, newRole string) error {
 	// Get requesting user to check their role
@@ -220,8 +220,8 @@ func (u *authUsecase) ChangeUserRole(requestingUserID uint, targetUserID uint, n
 	}
 
 	// Validate new role
-	if newRole != domain.RoleCEO && newRole != domain.RoleManager && newRole != domain.RolePM && newRole != domain.RoleDEV && newRole != domain.RoleSupport {
-		return fmt.Errorf("invalid role: must be one of CEO, MANAGER, PM, DEV, or SUPPORT")
+	if newRole != domain.RoleCEO && newRole != domain.RoleManager && newRole != domain.RoleProductOwner && newRole != domain.RoleEngineer && newRole != domain.RoleChiefEngineer && newRole != domain.RoleSupport {
+		return fmt.Errorf("invalid role: must be one of CEO, MANAGER, PRODUCT_OWNER, ENGINEER, CHIEF_ENGINEER, or SUPPORT")
 	}
 
 	// Optional: Prevent CEO from changing their own role
@@ -301,7 +301,7 @@ func (u *authUsecase) ImportUsers(requestingUserID uint, req *domain.ImportUsers
 		email := strings.TrimSpace(strings.ToLower(item.Email))
 		role := item.Role
 		if role == "" {
-			role = domain.RoleDEV
+			role = domain.RoleEngineer
 		}
 
 		// Validate password if provided

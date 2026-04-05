@@ -23,7 +23,7 @@ func NewPostgresRepository(db *gorm.DB) domain.SentinelRepository {
 // --- Project Operations ---
 
 // teamScope applies a team-based filter for non-CEO/MANAGER users.
-// CEO and MANAGER bypass all filters; PM/DEV are restricted to their team's projects.
+// CEO and MANAGER bypass all filters; Product Owner / engineer are restricted to their team's projects.
 func teamScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
 	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager || ctx.TeamID == nil {
 		return db
@@ -32,16 +32,16 @@ func teamScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
 }
 
 // projectAccessScope restricts project rows for list/detail queries.
-// When teams feature is disabled: PMs see project_pm_assignments; DEVs see projects with at least one task assigned_to them.
+// When teams feature is disabled: Product Owners see project_pm_assignments; engineers see projects with at least one task assigned_to them.
 func projectAccessScope(db *gorm.DB, ctx domain.CallerContext) *gorm.DB {
 	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager {
 		return db
 	}
 	if ctx.TeamsFeatureDisabled && ctx.UserID != 0 {
-		if ctx.Role == domain.RolePM {
+		if ctx.Role == domain.RoleProductOwner {
 			return db.Where("id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
 		}
-		if ctx.Role == domain.RoleDEV {
+		if domain.IsEngineerRole(ctx.Role) {
 			return db.Where("id IN (SELECT DISTINCT project_id FROM tasks WHERE assigned_to = ?)", ctx.UserID)
 		}
 	}
@@ -525,9 +525,9 @@ func (r *postgresRepository) GetActiveSprintsForUser(userID uint) ([]domain.Spri
 // A task is included when:
 //   a) it is directly assigned to an ACTIVE sprint, OR
 //   b) its parent task (FEATURE or TASK) is assigned to an ACTIVE sprint (sub-task inclusion rule).
-// FEATURE types are excluded from results — they belong to the PM/CEO Feature Roadmap Board.
+// FEATURE types are excluded from results — they belong to the Product Owner/CEO Feature Roadmap Board.
 //
-// CEO/MANAGER: all projects (company-wide). Teams off: PM → project_pm_assignments; DEV → assigned-task projects.
+// CEO/MANAGER: all projects (company-wide). Teams off: Product Owner → project_pm_assignments; engineer → assigned-task projects.
 // Otherwise: projects whose team_id matches the caller's user.team_id.
 func (r *postgresRepository) GetGlobalActiveTasks(ctx domain.CallerContext) ([]domain.GlobalActiveTask, error) {
 	var results []domain.GlobalActiveTask
@@ -554,10 +554,10 @@ func (r *postgresRepository) GetGlobalActiveTasks(ctx domain.CallerContext) ([]d
 	case ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager:
 		// no project scope — entire company
 	case ctx.TeamsFeatureDisabled && ctx.UserID != 0:
-		switch ctx.Role {
-		case domain.RolePM:
+		switch {
+		case ctx.Role == domain.RoleProductOwner:
 			q = q.Where("projects.id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
-		case domain.RoleDEV:
+		case domain.IsEngineerRole(ctx.Role):
 			q = q.Where("projects.id IN (SELECT DISTINCT project_id FROM tasks WHERE assigned_to = ?)", ctx.UserID)
 		default:
 			q = q.Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", ctx.UserID)
@@ -625,7 +625,7 @@ func (r *postgresRepository) GetTeamActiveTasks(teamID uint) ([]domain.GlobalAct
 
 // GetActiveFeatures returns all FEATURE-type tasks across projects for a given team.
 // Each feature is enriched with project identity and a computed roll-up progress
-// calculated from its direct child tasks (TASK/BUG). PMs and CEOs use this for
+// calculated from its direct child tasks (TASK/BUG). Product Owners and CEOs use this for
 // the Feature Roadmap Board — a non-draggable, management-level view.
 // teamID=0 means no team filter (CEO sees all).
 func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoadmapItem, error) {
@@ -708,7 +708,7 @@ func (r *postgresRepository) GetUnassignedTasks() ([]domain.Task, error) {
 	return tasks, err
 }
 
-// maxAllTasksLimit caps GET /tasks when no project_id (CEO/PM dashboard) to avoid slow full scan
+// maxAllTasksLimit caps GET /tasks when no project_id (CEO / Product Owner dashboard) to avoid slow full scan
 const maxAllTasksLimit = 2000
 
 func (r *postgresRepository) GetAllTasks() ([]domain.Task, error) {
@@ -719,9 +719,9 @@ func (r *postgresRepository) GetAllTasks() ([]domain.Task, error) {
 	return tasks, err
 }
 
-// GetTasksRequiringApproval returns tasks that need PM/CEO attention:
+// GetTasksRequiringApproval returns tasks that need Product Owner/CEO attention:
 // - Tasks with status REVIEW_PENDING (awaiting handover approval)
-// - Tasks with negotiation_status = 'PENDING' (dev wants more time)
+// - Tasks with negotiation_status = 'PENDING' (engineer wants more time)
 func (r *postgresRepository) GetTasksRequiringApproval() ([]domain.Task, error) {
 	var tasks []domain.Task
 
@@ -1105,7 +1105,7 @@ func (r *postgresRepository) GetTasksReadyForTest(teamID uint) ([]domain.GlobalA
 	return results, err
 }
 
-// SetTaskReadyForUAT transitions a task to READY_FOR_UAT and saves the PM test evidence payload.
+// SetTaskReadyForUAT transitions a task to READY_FOR_UAT and saves the Product Owner test evidence payload.
 func (r *postgresRepository) SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []byte) error {
 	result := r.db.Exec(`
 		UPDATE tasks
@@ -1119,6 +1119,43 @@ func (r *postgresRepository) SetTaskReadyForUAT(taskID uuid.UUID, uatPayload []b
 	}
 	if result.RowsAffected == 0 {
 		return errors.New("task not found")
+	}
+	return nil
+}
+
+// SetTaskWaitForDeploy transitions a task to WAIT_FOR_DEPLOY (pending Chief Engineer deployment).
+// The Product Owner test evidence payload is saved alongside the status change.
+func (r *postgresRepository) SetTaskWaitForDeploy(taskID uuid.UUID, uatPayload []byte) error {
+	result := r.db.Exec(`
+		UPDATE tasks
+		SET status = 'WAIT_FOR_DEPLOY',
+		    uat_payload = ?,
+		    updated_at = NOW()
+		WHERE id = ?
+	`, uatPayload, taskID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("task not found")
+	}
+	return nil
+}
+
+// AdvanceTaskToReadyForUAT transitions a task from WAIT_FOR_DEPLOY → READY_FOR_UAT.
+// Called automatically when the Chief Engineer marks a linked deployment request as deployed.
+func (r *postgresRepository) AdvanceTaskToReadyForUAT(taskID uuid.UUID) error {
+	result := r.db.Exec(`
+		UPDATE tasks
+		SET status = 'READY_FOR_UAT',
+		    updated_at = NOW()
+		WHERE id = ? AND status = 'WAIT_FOR_DEPLOY'
+	`, taskID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("task not found or not in WAIT_FOR_DEPLOY status")
 	}
 	return nil
 }

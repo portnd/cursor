@@ -21,13 +21,16 @@ const { currentUser } = useAuth()
 const roleViewMap: Record<string, any> = {
   CEO: CeoView,
   MANAGER: CeoView,
+  PRODUCT_OWNER: PmView,
   PM: PmView,
+  ENGINEER: DevView,
+  CHIEF_ENGINEER: DevView,
   DEV: DevView
 }
 
 // Determine current view based on user role
 const currentView = computed(() => {
-  const userRole = currentUser.value?.role?.toUpperCase() || 'DEV'
+  const userRole = currentUser.value?.role?.toUpperCase() || 'ENGINEER'
   return roleViewMap[userRole] || DevView
 })
 </script>

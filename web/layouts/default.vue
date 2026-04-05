@@ -79,19 +79,7 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Work Log</span>
         </NuxtLink>
         <NuxtLink
-          to="/attendance"
-          class="nav-link"
-          active-class="bg-gradient-to-r from-emerald-600 to-teal-600 shadow-lg"
-          :title="sidebarCollapsed ? 'Office attendance' : undefined"
-        >
-          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">Office attendance</span>
-        </NuxtLink>
-        <NuxtLink
-          v-if="['PM', 'CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
+          v-if="['PRODUCT_OWNER', 'PM', 'CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
           to="/active-board"
           class="nav-link"
           active-class="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg"
@@ -110,8 +98,26 @@
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-3 3m-6 2a2 2 0 11-4 0 2 2 0 014 0zM3 21V3m0 18v-4" /></svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Team Performance</span>
         </NuxtLink>
+        <!-- Deployment — visible to all engineers + management -->
         <NuxtLink
-          v-if="['CEO', 'PM'].includes(currentUser?.role ?? '')"
+          v-if="['ENGINEER', 'CHIEF_ENGINEER', 'CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM'].includes(currentUser?.role ?? '')"
+          to="/deployment"
+          class="nav-link relative"
+          active-class="bg-gradient-to-r from-cyan-600 to-blue-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Deployment' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Deployment</span>
+          <!-- badge: pending count shown only to CHIEF_ENGINEER — loaded reactively -->
+          <span
+            v-if="!sidebarCollapsed && currentUser?.role === 'CHIEF_ENGINEER' && deploymentPendingCount > 0"
+            class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500 text-gray-900 shrink-0"
+          >{{ deploymentPendingCount }}</span>
+        </NuxtLink>
+        <NuxtLink
+          v-if="['CEO', 'PRODUCT_OWNER', 'PM'].includes(currentUser?.role ?? '')"
           to="/discipline"
           class="nav-link"
           active-class="bg-gradient-to-r from-orange-600 to-red-600 shadow-lg"
@@ -203,8 +209,29 @@
 </template>
 
 <script setup lang="ts">
+import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
+
 const { logout, currentUser } = useAuth()
 const { confirm } = useNotification()
+
+// Live pending deployment count badge for CHIEF_ENGINEER
+const deploymentPendingCount = ref(0)
+const deploymentApi = useDeploymentApi()
+
+async function refreshDeploymentBadge() {
+  if (currentUser.value?.role !== 'CHIEF_ENGINEER') return
+  try {
+    const s = await deploymentApi.getStats()
+    deploymentPendingCount.value = (s.total_pending ?? 0) + (s.total_reviewing ?? 0)
+  } catch { /* silent */ }
+}
+
+onMounted(() => {
+  refreshDeploymentBadge()
+  // Refresh badge every 60 s so Chief Engineer always sees live count
+  const interval = setInterval(refreshDeploymentBadge, 60_000)
+  onUnmounted(() => clearInterval(interval))
+})
 
 const SIDEBAR_COLLAPSED_KEY = 'sentinel-sidebar-collapsed'
 const sidebarCollapsed = ref(false)
@@ -237,12 +264,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const userEmail = computed(() => currentUser.value?.email || 'user@sentinel.com')
 const userRole = computed(() => {
-  const role = currentUser.value?.role || 'DEV'
+  const role = currentUser.value?.role || 'ENGINEER'
   const roleMap: Record<string, string> = {
     'CEO': 'Chief Executive',
     'MANAGER': 'Manager',
-    'PM': 'Project Manager',
-    'DEV': 'Developer',
+    'PRODUCT_OWNER': 'Product Owner',
+    'PM': 'Product Owner',
+    'ENGINEER': 'Engineer',
+    'CHIEF_ENGINEER': 'Chief Engineer',
+    'DEV': 'Engineer',
     'SUPPORT': 'Support'
   }
   return roleMap[role] || role

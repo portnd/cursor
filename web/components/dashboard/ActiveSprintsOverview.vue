@@ -100,7 +100,7 @@ import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-
 import type { Project, Sprint } from '~/core/modules/projects/infrastructure/projects-api'
 
 const props = defineProps<{
-  /** When set (PM dashboard), avoids a duplicate getProjects() round-trip */
+  /** When set (Product Owner dashboard), avoids a duplicate getProjects() round-trip */
   projects: Project[]
 }>()
 

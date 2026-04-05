@@ -88,16 +88,18 @@
         v-for="col in columns"
         :key="col.status"
         class="kanban-col min-w-[200px] sm:min-w-[220px] w-[200px] sm:w-[220px] lg:w-auto shrink-0 lg:shrink snap-start"
-        @dragover.prevent="onDragOver($event, col.status)"
+        @dragover.prevent="col.droppable ? onDragOver($event, col.status) : undefined"
         @dragleave="onDragLeave"
-        @drop="onDrop($event, col.status)"
-        :class="{ 'drop-target': dragOverCol === col.status }"
+        @drop="col.droppable ? onDrop($event, col.status) : undefined"
+        :class="{ 'drop-target': dragOverCol === col.status && col.droppable, 'col-locked': !col.droppable }"
       >
         <!-- Column Header -->
         <div class="flex items-center justify-between mb-3 px-1">
           <div class="flex items-center gap-2">
             <span class="text-lg">{{ col.icon }}</span>
             <span class="text-sm font-semibold" :class="col.headerClass">{{ col.label }}</span>
+            <!-- Lock badge for non-droppable columns -->
+            <span v-if="!col.droppable" title="Cannot drag tasks here" class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700">🔒</span>
           </div>
           <div class="flex items-center gap-2">
             <span
@@ -133,6 +135,13 @@
               </div>
               <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate" :title="sprintNameById(task.sprint_id)">📌 {{ sprintNameById(task.sprint_id) }}</p>
               <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
+              <!-- WAIT_FOR_DEPLOY: no deployment request yet -->
+              <div
+                v-if="col.status === 'WAIT_FOR_DEPLOY' && !(props.deployedTaskIds ?? []).includes(task.id)"
+                class="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md bg-orange-500/10 border border-orange-500/25 text-[10px] text-orange-400 font-medium"
+              >
+                <span>⚠️</span> No deployment request
+              </div>
               <div class="flex items-center justify-between text-xs text-gray-500">
                 <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
                 <span v-if="assigneeLabel(task)" class="flex items-center gap-1" :title="assigneeLabel(task)"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ assigneeInitial(task) }}</span></span>
@@ -169,6 +178,13 @@
                 </div>
                 <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate">📌 {{ sprintNameById(task.sprint_id) }}</p>
                 <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
+                <!-- WAIT_FOR_DEPLOY: no deployment request yet -->
+                <div
+                  v-if="col.status === 'WAIT_FOR_DEPLOY' && !(props.deployedTaskIds ?? []).includes(task.id)"
+                  class="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md bg-orange-500/10 border border-orange-500/25 text-[10px] text-orange-400 font-medium"
+                >
+                  <span>⚠️</span> No deployment request
+                </div>
                 <div class="flex items-center justify-between text-xs text-gray-500">
                   <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
                   <span v-if="assigneeLabel(task)" class="flex items-center gap-1" :title="assigneeLabel(task)"><span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">{{ assigneeInitial(task) }}</span></span>
@@ -190,7 +206,8 @@
             v-if="!tasksByCol[col.status]?.length"
             class="flex flex-col items-center justify-center h-20 border-2 border-dashed border-gray-700 rounded-lg text-gray-600 text-xs"
           >
-            Drop tasks here
+            <template v-if="col.droppable">Drop tasks here</template>
+            <template v-else>—</template>
           </div>
         </div>
       </div>
@@ -199,6 +216,7 @@
 </template>
 
 <script setup lang="ts">
+import { isEngineerLikeRole } from '~/utils/roles'
 import type { Task } from '~/core/modules/projects/infrastructure/projects-api'
 import type { Sprint } from '~/core/modules/projects/infrastructure/projects-api'
 
@@ -215,13 +233,15 @@ const props = defineProps<{
   sprints: Sprint[]
   /** Optional map taskId -> display code (e.g. 001, 002) from project backlog order */
   taskDisplayCodeMap?: Record<string, string>
-  /** Current user role — 'DEV' activates blinder mode */
+  /** Current user role — ENGINEER activates blinder mode */
   userRole?: string
   /** Active sprint info for the current user (from DevView or project page) */
   activeSprint?: ActiveSprintInfo | null
+  /** Set of task IDs that already have a deployment request; used to show warning on WAIT_FOR_DEPLOY cards */
+  deployedTaskIds?: string[]
 }>()
 
-const isDev = computed(() => props.userRole === 'DEV')
+const isDev = computed(() => isEngineerLikeRole(props.userRole))
 
 const emit = defineEmits<{
   (e: 'task-click', task: Task): void
@@ -304,12 +324,12 @@ function assigneeInitial(task: Task): string {
 }
 
 const columns = [
-  { status: 'PENDING', label: 'Backlog', icon: '📋', headerClass: 'text-gray-300', wipLimit: 0 },
-  { status: 'IN_PROGRESS', label: 'In Progress', icon: '⚡', headerClass: 'text-blue-400', wipLimit: 5 },
-  { status: 'READY_FOR_TEST', label: 'Ready for Test', icon: '🧪', headerClass: 'text-cyan-400', wipLimit: 3 },
-  { status: 'READY_FOR_UAT', label: 'Ready for UAT', icon: '🔬', headerClass: 'text-amber-400', wipLimit: 0 },
-  { status: 'COMPLETED', label: 'Done', icon: '✅', headerClass: 'text-green-400', wipLimit: 0 },
-  { status: 'BLOCKED', label: 'Blocked', icon: '🚫', headerClass: 'text-red-400', wipLimit: 0 },
+  { status: 'PENDING',         label: 'To Do',           icon: '📋', headerClass: 'text-gray-300',   wipLimit: 0,  droppable: true },
+  { status: 'IN_PROGRESS',     label: 'In Progress',     icon: '⚡', headerClass: 'text-blue-400',   wipLimit: 5,  droppable: true },
+  { status: 'READY_FOR_TEST',  label: 'Ready for Test',  icon: '🧪', headerClass: 'text-cyan-400',   wipLimit: 3,  droppable: true },
+  { status: 'WAIT_FOR_DEPLOY', label: 'Wait for Deploy', icon: '🚀', headerClass: 'text-orange-400', wipLimit: 0,  droppable: true },
+  { status: 'READY_FOR_UAT',   label: 'Ready for UAT',   icon: '🔬', headerClass: 'text-amber-400',  wipLimit: 0,  droppable: false }, // set automatically on deployment
+  { status: 'COMPLETED',       label: 'Done',            icon: '✅', headerClass: 'text-green-400',  wipLimit: 0,  droppable: false }, // CEO/MANAGER approve only — no drag
 ]
 
 const filteredTasks = computed(() =>
@@ -326,14 +346,11 @@ const filteredTasks = computed(() =>
   })
 )
 
-const COLUMN_STATUSES = ['PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'READY_FOR_UAT', 'COMPLETED', 'BLOCKED'] as const
+const COLUMN_STATUSES = ['PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'WAIT_FOR_DEPLOY', 'READY_FOR_UAT', 'COMPLETED'] as const
 
-/** Maps a task to a kanban column key.
- *  - READY_FOR_UAT → dedicated UAT column (FEATURE tasks awaiting formal UAT approval)
- *  - REVIEW_PENDING + FEATURE → same UAT column (feature UAT in progress)
- *  - REVIEW_PENDING + TASK/BUG → Ready for Test (legacy sub-task handover flow)
- */
+/** Maps a task to a kanban column key. */
 function bucketForTask(t: Task): string {
+  if (t.status === 'WAIT_FOR_DEPLOY') return 'WAIT_FOR_DEPLOY'
   if (t.status === 'READY_FOR_UAT') return 'READY_FOR_UAT'
   if (t.status === 'REVIEW_PENDING') {
     return t.task_type === 'FEATURE' ? 'READY_FOR_UAT' : 'READY_FOR_TEST'
@@ -343,15 +360,15 @@ function bucketForTask(t: Task): string {
   return 'PENDING'
 }
 
-/** Drop target status for API:
- *  - READY_FOR_TEST column: FEATURE → REVIEW_PENDING, others → READY_FOR_TEST
- *  - READY_FOR_UAT column: sets READY_FOR_UAT directly
+/** Drop target status for API.
+ *  Returns null when the column is non-droppable (COMPLETED / READY_FOR_UAT).
  */
-function resolvedStatusForColumn(colStatus: string, task: Task): string {
+function resolvedStatusForColumn(colStatus: string, task: Task): string | null {
+  const col = columns.find((c) => c.status === colStatus)
+  if (col && !col.droppable) return null
   if (colStatus === 'READY_FOR_TEST') {
     return task.task_type === 'FEATURE' ? 'REVIEW_PENDING' : 'READY_FOR_TEST'
   }
-  if (colStatus === 'READY_FOR_UAT') return 'READY_FOR_UAT'
   return colStatus
 }
 
@@ -421,12 +438,17 @@ function onDrop(e: DragEvent, colStatus: string) {
   const task = dragTask.value
   if (!task) return
   const target = resolvedStatusForColumn(colStatus, task)
-  if (task.status === target) {
+  // null means column is protected (COMPLETED / READY_FOR_UAT) — silently cancel
+  if (target === null || task.status === target) {
     dragTask.value = null
     return
   }
   emit('status-change', task.id, target)
   dragTask.value = null
+}
+
+function isColumnDroppable(colStatus: string): boolean {
+  return columns.find((c) => c.status === colStatus)?.droppable ?? true
 }
 </script>
 
@@ -437,6 +459,10 @@ function onDrop(e: DragEvent, colStatus: string) {
 
 .drop-target {
   @apply border-purple-500/60 bg-purple-500/5;
+}
+
+.col-locked {
+  @apply opacity-80 cursor-default;
 }
 
 .kanban-card {

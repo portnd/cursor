@@ -245,7 +245,7 @@
         </div>
       </div>
 
-      <!-- PM step: READY_FOR_TEST — submit test evidence to CEO -->
+      <!-- Product Owner step: READY_FOR_TEST — test & approve to send to deploy queue -->
       <section
         v-if="showPMUATActions"
         class="mb-6 rounded-2xl border border-cyan-500/35 bg-cyan-950/20 px-5 py-4"
@@ -254,7 +254,7 @@
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400 mb-1">Awaiting your test approval</p>
             <p class="text-sm text-gray-400">
-              This sub-task is in <span class="text-cyan-300 font-medium">Ready for Test</span>. Approve to submit test evidence to CEO, or reject to send it back to the developer.
+              This sub-task is in <span class="text-cyan-300 font-medium">Ready for Test</span>. Approve with test evidence to move it to <span class="text-orange-300 font-medium">Wait for Deploy</span>, or reject to send it back to the engineer.
             </p>
           </div>
           <div class="flex flex-col sm:flex-row gap-2 shrink-0">
@@ -280,7 +280,76 @@
         </div>
       </section>
 
-      <!-- CEO step: READY_FOR_UAT — final approval -->
+      <!-- WAIT_FOR_DEPLOY step: awaiting Chief Engineer deployment -->
+      <section
+        v-else-if="showWaitForDeploySection"
+        class="mb-6 rounded-2xl border border-orange-500/35 bg-orange-950/20 px-5 py-4"
+      >
+        <div class="flex flex-col gap-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-semibold uppercase tracking-widest text-orange-400 mb-1">🚀 Waiting for Deployment</p>
+              <p class="text-sm text-gray-400">
+                Test approved by Product Owner. The Chief Engineer must create a deployment request, get it reviewed, and mark it as deployed before this task advances to
+                <span class="text-amber-300 font-medium">Ready for UAT</span>.
+              </p>
+            </div>
+          </div>
+
+          <!-- No deployment request yet -->
+          <div v-if="!deploymentLoading && !deploymentForTask" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/10 border border-orange-500/25">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <span class="text-orange-400 text-lg shrink-0">⚠️</span>
+              <p class="text-sm text-orange-300 font-medium">No deployment request created yet.</p>
+            </div>
+            <button
+              @click="openDeploymentModal()"
+              class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-sm font-semibold transition-all shadow-lg"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+              </svg>
+              New Deployment Request
+            </button>
+          </div>
+
+          <!-- Deployment request exists — show status -->
+          <div v-else-if="deploymentForTask" class="px-4 py-3 rounded-xl bg-gray-800/60 border border-gray-700/50 space-y-2">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-sm font-semibold text-white truncate">{{ deploymentForTask.title }}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase"
+                  :class="{
+                    'bg-yellow-500/10 text-yellow-400 border-yellow-500/30': deploymentForTask.status === 'PENDING',
+                    'bg-blue-500/10 text-blue-400 border-blue-500/30': deploymentForTask.status === 'REVIEWING',
+                    'bg-green-500/10 text-green-400 border-green-500/30': deploymentForTask.status === 'APPROVED',
+                    'bg-red-500/10 text-red-400 border-red-500/30': deploymentForTask.status === 'REJECTED',
+                    'bg-cyan-500/10 text-cyan-400 border-cyan-500/30': deploymentForTask.status === 'DEPLOYED',
+                  }">{{ deploymentForTask.status }}</span>
+              </div>
+              <NuxtLink to="/deployment" class="text-xs text-blue-400 hover:text-blue-300 hover:underline shrink-0">View in Deployment →</NuxtLink>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+              <code class="text-cyan-400 font-mono">⎇ {{ deploymentForTask.branch }}</code>
+              <span>{{ deploymentForTask.environment }}</span>
+            </div>
+            <p v-if="deploymentForTask.status === 'REJECTED'" class="text-xs text-red-300 mt-1">
+              ✗ Rejected: {{ deploymentForTask.rejection_reason }}
+            </p>
+            <p v-if="deploymentForTask.status === 'DEPLOYED'" class="text-xs text-green-400 mt-1">
+              ✓ Deployed — task will advance to Ready for UAT automatically.
+            </p>
+          </div>
+
+          <!-- Loading -->
+          <div v-else class="flex items-center gap-2 text-xs text-gray-500 px-1">
+            <div class="w-3 h-3 rounded-full border-2 border-gray-500 border-t-transparent animate-spin" />
+            Checking deployment status…
+          </div>
+        </div>
+      </section>
+
+      <!-- CEO step: READY_FOR_UAT — final approval after deployment -->
       <section
         v-else-if="showCEOUATActions"
         class="mb-6 rounded-2xl border border-amber-500/35 bg-amber-950/20 px-5 py-4"
@@ -289,9 +358,9 @@
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-1">CEO Final Approval Required</p>
             <p class="text-sm text-gray-400">
-              PM has tested this task and submitted evidence. Review the test details below and give your <span class="text-amber-300 font-medium">final approval</span> or reject it back to the PM.
+              The Product Owner has tested this task and submitted evidence. Review the test details below and give your <span class="text-amber-300 font-medium">final approval</span> or reject it back to the Product Owner.
             </p>
-            <!-- Display PM test evidence from uat_payload -->
+            <!-- Display Product Owner test evidence from uat_payload -->
             <template v-if="uatPayloadData">
               <div class="mt-3 space-y-2">
                 <div v-if="uatPayloadData.test_url" class="flex items-center gap-2">
@@ -553,7 +622,7 @@
                 </div>
               </div>
 
-              <!-- Outsource to Team (PM/CEO only) -->
+              <!-- Outsource to Team (Product Owner / CEO only) -->
               <div v-if="canEditOrDelete" class="px-5 py-3.5">
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">B2B Outsource</p>
                 <button
@@ -692,7 +761,7 @@
       </div>
     </div>
 
-    <!-- ══ PM APPROVE: Test Evidence Form (READY_FOR_TEST → READY_FOR_UAT) ══ -->
+    <!-- ══ Product Owner approve: Test Evidence Form (READY_FOR_TEST → READY_FOR_UAT) ══ -->
     <Teleport to="body">
       <div
         v-if="uatApproveConfirmOpen && showPMUATActions"
@@ -875,6 +944,70 @@
       @created="onOutsourceCreated"
     />
 
+    <!-- ══ NEW DEPLOYMENT REQUEST MODAL ══ -->
+    <Teleport to="body">
+      <div v-if="showCreateDeploymentModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="showCreateDeploymentModal = false">
+        <div class="w-full max-w-lg bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/50 bg-gray-800/60">
+            <div class="flex items-center gap-2">
+              <span class="text-orange-400">🚀</span>
+              <h2 class="text-sm font-bold text-white">New Deployment Request</h2>
+            </div>
+            <button @click="showCreateDeploymentModal = false" class="text-gray-500 hover:text-gray-300 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <form @submit.prevent="submitCreateDeployment" class="px-6 py-5 space-y-4">
+            <p class="text-xs text-gray-400">This deployment request is linked to task <span class="text-orange-300 font-mono">{{ task?.code }}</span> and will automatically advance it to <span class="text-amber-300 font-medium">Ready for UAT</span> once deployed.</p>
+            <div>
+              <label class="block text-xs font-medium text-gray-400 mb-1.5">Title <span class="text-red-400">*</span></label>
+              <input v-model="deployForm.title" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors" :placeholder="`Deploy: ${task?.title}`" required />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-400 mb-1.5">Branch <span class="text-red-400">*</span></label>
+              <input v-model="deployForm.branch" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-cyan-300 focus:outline-none focus:border-orange-500 transition-colors" placeholder="feature/my-branch" required />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">Environment</label>
+                <select v-model="deployForm.environment" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
+                  <option value="STAGING">STAGING</option>
+                  <option value="PRE-PROD">PRE-PROD</option>
+                  <option value="PRODUCTION">PRODUCTION</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">PR URL</label>
+                <input v-model="deployForm.pr_url" type="url" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors" placeholder="https://github.com/…" />
+              </div>
+            </div>
+            <!-- Assignee selector -->
+            <div>
+              <label class="block text-xs font-medium text-gray-400 mb-1.5">Assign to Chief Engineer</label>
+              <select v-model="deployForm.reviewer_id" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
+                <option value="">— Unassigned (anyone can pick up) —</option>
+                <option v-for="ce in deployChiefEngineers" :key="ce.id" :value="String(ce.id)">
+                  {{ ce.display_name || ce.email }}
+                </option>
+              </select>
+              <p v-if="deployChiefEngineers.length === 0" class="text-[10px] text-gray-500 mt-1">No Chief Engineers found</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-400 mb-1.5">Release Notes</label>
+              <textarea v-model="deployForm.description" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors resize-none" placeholder="What changed, what to watch out for…" />
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+              <button type="button" @click="showCreateDeploymentModal = false" class="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 transition-colors">Cancel</button>
+              <button type="submit" :disabled="deployFormSubmitting || !deployForm.title || !deployForm.branch" class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white transition-all disabled:opacity-50">
+                <span v-if="deployFormSubmitting" class="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                {{ deployFormSubmitting ? 'Creating…' : 'Create Request' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
@@ -891,6 +1024,8 @@ import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import OutsourceRequestModal from '~/components/b2b/OutsourceRequestModal.vue'
 import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from '~/utils/effortHours'
+import { isTaskAssigneeRole } from '~/utils/roles'
+import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
 
 definePageMeta({
   layout: 'default',
@@ -907,7 +1042,7 @@ interface Appeal {
   // AI Advisory System
   ai_recommendation: string // OVERTURN or UPHOLD
   ai_confidence: number     // 0-100
-  ai_reasoning: string      // Advice for CEO/PM
+  ai_reasoning: string      // Advice for CEO / Product Owner
   
   resolver_id: number | null
   resolver_note: string
@@ -1021,7 +1156,7 @@ const uatRejectModalOpen = ref(false)
 const uatRejectReason = ref('')
 const uatRejectSubmitting = ref(false)
 const uatRejectTextareaRef = ref<HTMLTextAreaElement | null>(null)
-// PM test evidence form
+// Product Owner test evidence form
 const uatTestUrl = ref('')
 const uatTestSteps = ref('')
 const uatTestUrlRef = ref<HTMLInputElement | null>(null)
@@ -1136,13 +1271,13 @@ const canEditOrDelete = computed(() => {
   if (!task.value || !effectiveUser.value) return false
   const user = effectiveUser.value
   const role = (user.role || '').trim().toUpperCase()
-  if (role === 'CEO' || role === 'PM') return true
+  if (role === 'CEO' || role === 'PRODUCT_OWNER' || role === 'PM') return true
   const creatorId = Number(task.value.created_by)
   const userId = Number(user.id ?? authStore.userId ?? 0)
   return creatorId === userId && !Number.isNaN(userId)
 })
 
-/** Sub-tasks: PM/CEO/creator (canEditOrDelete) or the user assigned to this task */
+/** Sub-tasks: Product Owner / CEO / creator (canEditOrDelete) or the user assigned to this task */
 const isCurrentUserAssignee = computed(() => {
   if (!task.value || !effectiveUser.value) return false
   const aid = task.value.assigned_to
@@ -1155,17 +1290,23 @@ const canManageSubtasks = computed(() => canEditOrDelete.value || isCurrentUserA
 
 const currentRole = computed(() => (effectiveUser.value?.role || '').trim().toUpperCase())
 
-/** PM/MANAGER step: task is READY_FOR_TEST and viewer is PM or MANAGER */
+/** Product Owner / MANAGER step: task is READY_FOR_TEST and viewer is Product Owner or MANAGER */
 const showPMUATActions = computed(() => {
   if (!task.value) return false
   const role = currentRole.value
-  if (role !== 'PM' && role !== 'MANAGER') return false
+  if (role !== 'PRODUCT_OWNER' && role !== 'PM' && role !== 'MANAGER') return false
   if (task.value.status !== 'READY_FOR_TEST') return false
   const t = task.value.task_type
   return t === 'TASK' || t === 'BUG'
 })
 
-/** CEO/MANAGER step: task is READY_FOR_UAT (PM already tested) and viewer is CEO or MANAGER */
+/** WAIT_FOR_DEPLOY section: task is waiting for Chief Engineer to deploy */
+const showWaitForDeploySection = computed(() => {
+  if (!task.value) return false
+  return task.value.status === 'WAIT_FOR_DEPLOY' && (task.value.task_type === 'TASK' || task.value.task_type === 'BUG')
+})
+
+/** CEO/MANAGER step: task is READY_FOR_UAT (Chief Engineer deployed) and viewer is CEO or MANAGER */
 const showCEOUATActions = computed(() => {
   if (!task.value) return false
   const role = currentRole.value
@@ -1175,7 +1316,72 @@ const showCEOUATActions = computed(() => {
   return t === 'TASK' || t === 'BUG'
 })
 
-/** Parsed UAT payload (test URL + steps stored by PM when they submitted) */
+// Deployment request linked to this task (fetched when status is WAIT_FOR_DEPLOY or READY_FOR_UAT)
+const deploymentForTask = ref<import('~/core/modules/deployment/infrastructure/deployment-api').DeploymentRequest | null>(null)
+const deploymentLoading = ref(false)
+const showCreateDeploymentModal = ref(false)
+const deployFormSubmitting = ref(false)
+const deployForm = reactive({
+  title: '',
+  branch: '',
+  environment: 'STAGING' as 'STAGING' | 'PRE-PROD' | 'PRODUCTION',
+  pr_url: '',
+  description: '',
+  reviewer_id: '' as string,
+})
+const deployChiefEngineers = ref<import('~/core/modules/deployment/infrastructure/deployment-api').DeploymentUser[]>([])
+
+async function openDeploymentModal() {
+  showCreateDeploymentModal.value = true
+  if (deployChiefEngineers.value.length === 0) {
+    const depApi = useDeploymentApi()
+    deployChiefEngineers.value = await depApi.fetchChiefEngineers()
+  }
+}
+
+async function fetchDeploymentForTask() {
+  if (!task.value) return
+  if (!['WAIT_FOR_DEPLOY', 'READY_FOR_UAT'].includes(task.value.status)) return
+  deploymentLoading.value = true
+  try {
+    const depApi = useDeploymentApi()
+    deploymentForTask.value = await depApi.getByTaskId(task.value.id)
+  } catch { /* not found is fine */ } finally {
+    deploymentLoading.value = false
+  }
+}
+
+async function submitCreateDeployment() {
+  if (!task.value || !deployForm.title || !deployForm.branch) return
+  deployFormSubmitting.value = true
+  try {
+    const depApi = useDeploymentApi()
+    deploymentForTask.value = await depApi.createRequest({
+      title: deployForm.title,
+      branch: deployForm.branch,
+      environment: deployForm.environment,
+      pr_url: deployForm.pr_url || undefined,
+      description: deployForm.description || undefined,
+      task_id: task.value.id,
+      task_ref: task.value.code || task.value.title,
+      reviewer_id: deployForm.reviewer_id ? Number(deployForm.reviewer_id) : undefined,
+    })
+    showCreateDeploymentModal.value = false
+    deployForm.title = ''
+    deployForm.branch = ''
+    deployForm.environment = 'STAGING'
+    deployForm.pr_url = ''
+    deployForm.description = ''
+    deployForm.reviewer_id = ''
+    showSuccess('Deployment request created. Chief Engineer will review it.', 'Created 🚀')
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to create deployment request')
+  } finally {
+    deployFormSubmitting.value = false
+  }
+}
+
+/** Parsed UAT payload (test URL + steps stored by Product Owner when they submitted) */
 const uatPayloadData = computed<{ test_url?: string; test_steps?: string } | null>(() => {
   const raw = task.value?.uat_payload
   if (!raw) return null
@@ -1187,7 +1393,7 @@ const uatPayloadData = computed<{ test_url?: string; test_steps?: string } | nul
   }
 })
 
-/** Validation for PM's test evidence form */
+/** Validation for Product Owner test evidence form */
 const isUATApproveFormValid = computed(() =>
   uatTestUrl.value.startsWith('http') && uatTestSteps.value.trim().length >= 20
 )
@@ -1197,7 +1403,7 @@ const creatorLabel = computed(() => {
   const role = task.value.created_by_role
   const email = task.value.created_by_email
   if (role === 'CEO') return email ? `CEO (${email})` : 'CEO'
-  if (role === 'PM') return email ? `PM (${email})` : 'PM'
+  if (role === 'PRODUCT_OWNER' || role === 'PM') return email ? `Product Owner (${email})` : 'Product Owner'
   return `Dev #${task.value.created_by}`
 })
 
@@ -1254,22 +1460,22 @@ async function openAssignDropdown() {
   if (assigneeUsers.value.length === 0) {
     try {
       const role = (authCurrentUser.value?.role || '').toUpperCase()
-      if (role === 'PM') {
+      if (role === 'PRODUCT_OWNER' || role === 'PM') {
         await teamsStore.fetchTeamsFeatureEnabled()
         if (teamsStore.teamsFeatureEnabled) {
           const userId = authCurrentUser.value?.user_id
           const teams = await getTeams()
           const myTeam = teams.find(t => t.users?.some(u => u.id === userId))
-          assigneeUsers.value = myTeam?.users?.filter(u => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role)) ?? []
+          assigneeUsers.value = myTeam?.users?.filter(u => isTaskAssigneeRole(u.role)) ?? []
         } else {
           const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
           const users = res.data ?? []
-          assigneeUsers.value = users.filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+          assigneeUsers.value = users.filter((u) => isTaskAssigneeRole(u.role))
         }
       } else {
         const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
         const users = res.data ?? []
-        assigneeUsers.value = users.filter((u) => ['DEV', 'PM', 'MANAGER', 'SUPPORT'].includes(u.role))
+        assigneeUsers.value = users.filter((u) => isTaskAssigneeRole(u.role))
       }
     } catch {
       assignError.value = 'Failed to load users'
@@ -1319,10 +1525,10 @@ async function submitUATApprove() {
   uatApproveSubmitting.value = true
   try {
     if (showPMUATActions.value) {
-      // PM: submit test evidence → READY_FOR_UAT
+      // Product Owner: submit test evidence → WAIT_FOR_DEPLOY
       await tasksApi.pmApproveSubTask(task.value.id, uatTestUrl.value.trim(), uatTestSteps.value.trim())
       uatApproveConfirmOpen.value = false
-      showSuccess('Test evidence submitted. Task forwarded to CEO for final approval.', 'Submitted')
+      showSuccess('Test approved. Task is now waiting for Chief Engineer deployment.', 'Submitted')
     } else {
       // CEO: final approval → COMPLETED
       await tasksApi.approveSubTask(task.value.id)
@@ -1391,13 +1597,15 @@ const saveEstimatedMinutes = async () => {
 
 const getStatusBadgeClass = (status: string) => {
   const classes: Record<string, string> = {
-    'COMPLETED':      'bg-green-900/40 border-green-600/50 text-green-300',
-    'IN_PROGRESS':    'bg-blue-900/40 border-blue-600/50 text-blue-300',
-    'PENDING':        'bg-yellow-900/40 border-yellow-600/50 text-yellow-300',
-    'BLOCKED':        'bg-red-900/40 border-red-600/50 text-red-300',
-    'REVIEW_PENDING': 'bg-purple-900/40 border-purple-600/50 text-purple-300',
-    'READY_FOR_TEST': 'bg-cyan-900/40 border-cyan-600/50 text-cyan-300',
-    'ASSIGNED':       'bg-gray-700/60 border-gray-600/50 text-gray-300',
+    'COMPLETED':       'bg-green-900/40 border-green-600/50 text-green-300',
+    'IN_PROGRESS':     'bg-blue-900/40 border-blue-600/50 text-blue-300',
+    'PENDING':         'bg-yellow-900/40 border-yellow-600/50 text-yellow-300',
+    'BLOCKED':         'bg-red-900/40 border-red-600/50 text-red-300',
+    'REVIEW_PENDING':  'bg-purple-900/40 border-purple-600/50 text-purple-300',
+    'READY_FOR_TEST':  'bg-cyan-900/40 border-cyan-600/50 text-cyan-300',
+    'WAIT_FOR_DEPLOY': 'bg-orange-900/40 border-orange-600/50 text-orange-300',
+    'READY_FOR_UAT':   'bg-amber-900/40 border-amber-600/50 text-amber-300',
+    'ASSIGNED':        'bg-gray-700/60 border-gray-600/50 text-gray-300',
   }
   return classes[status] || 'bg-gray-700/60 border-gray-600/50 text-gray-300'
 }
@@ -1406,13 +1614,15 @@ const getStatusClass = (status: string) => getStatusBadgeClass(status)
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    'COMPLETED': '✅ COMPLETED',
-    'IN_PROGRESS': '🔄 IN PROGRESS',
-    'PENDING': '⏳ PENDING',
-    'BLOCKED': '🚫 BLOCKED',
-    'REVIEW_PENDING': '⏳ WAITING FOR APPROVAL', // 🚦 Quality Gate
-    'READY_FOR_TEST': '🧪 READY FOR TEST',
-    'ASSIGNED': '📌 ASSIGNED'
+    'COMPLETED':       '✅ COMPLETED',
+    'IN_PROGRESS':     '🔄 IN PROGRESS',
+    'PENDING':         '⏳ PENDING',
+    'BLOCKED':         '🚫 BLOCKED',
+    'REVIEW_PENDING':  '⏳ WAITING FOR APPROVAL',
+    'READY_FOR_TEST':  '🧪 READY FOR TEST',
+    'WAIT_FOR_DEPLOY': '🚀 WAIT FOR DEPLOY',
+    'READY_FOR_UAT':   '🔬 READY FOR UAT',
+    'ASSIGNED':        '📌 ASSIGNED',
   }
   return labels[status] || status
 }
@@ -1851,9 +2061,10 @@ async function handleLogTime(minutes: number, description: string, workType: str
 }
 
 // Lifecycle
-onMounted(() => {
-  fetchTask()
+onMounted(async () => {
+  await fetchTask()
   fetchCommentsAndLogs()
+  fetchDeploymentForTask()
 })
 </script>
 

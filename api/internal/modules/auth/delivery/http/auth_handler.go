@@ -256,7 +256,7 @@ func (h *AuthHandler) GetTeam(c *gin.Context) {
 
 // ChangeRole handles PATCH /auth/users/:id/role
 // Changes a user's role (CEO only)
-// Request Body: { "role": "PM" }
+// Request Body: { "role": "PRODUCT_OWNER" }
 func (h *AuthHandler) ChangeRole(c *gin.Context) {
 	// Extract user ID from JWT context
 	requestingUserID := getUserIDFromContext(c)
@@ -461,7 +461,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 }
 
 // CreateUser handles POST /auth/users (CEO only)
-// Request Body: { "email": "user@example.com", "password": "password123", "role": "DEV" }
+// Request Body: { "email": "user@example.com", "password": "password123", "role": "ENGINEER" }
 func (h *AuthHandler) CreateUser(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
@@ -511,7 +511,7 @@ func (h *AuthHandler) CreateUser(c *gin.Context) {
 }
 
 // ImportUsers handles POST /auth/users/import (CEO only)
-// Request Body: { "users": [ { "email": "...", "password": "optional", "role": "DEV" } ] }
+// Request Body: { "users": [ { "email": "...", "password": "optional", "role": "ENGINEER" } ] }
 // Max 500 users per request. If password is omitted, a temporary password is returned per created user.
 func (h *AuthHandler) ImportUsers(c *gin.Context) {
 	userID := getUserIDFromContext(c)

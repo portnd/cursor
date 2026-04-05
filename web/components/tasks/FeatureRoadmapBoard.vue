@@ -12,7 +12,7 @@
           <h2 class="text-sm font-bold text-white">Feature Roadmap Board</h2>
           <p class="text-xs text-gray-500">
             <template v-if="isProjectScoped && scopeProjectName">{{ scopeProjectName }} — features and delivery progress</template>
-            <template v-else>Strategic features with roll-up delivery progress (PM / CEO view)</template>
+            <template v-else>Strategic features with roll-up delivery progress (Product Owner / CEO view)</template>
           </p>
         </div>
       </div>
@@ -225,7 +225,7 @@
                 Submit for UAT
               </button>
 
-              <!-- PM/CEO: Review UAT button (shown when feature is REVIEW_PENDING) -->
+              <!-- Product Owner / CEO: Review UAT button (shown when feature is REVIEW_PENDING) -->
               <button
                 v-if="isPMOrCEO && feature.status === 'REVIEW_PENDING'"
                 @click="openUATReview(feature)"
@@ -349,6 +349,7 @@ import UATReviewModal from '~/components/tasks/UATReviewModal.vue'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { FeatureRoadmapItem } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useAuth } from '~/composables/useAuth'
+import { isEngineerLikeRole } from '~/utils/roles'
 
 const props = withDefaults(
   defineProps<{
@@ -387,8 +388,9 @@ const submitUATModalOpen = ref(false)
 const uatReviewModalOpen = ref(false)
 
 const userRole = computed(() => currentUser.value?.role || '')
-const isDev = computed(() => userRole.value === 'DEV')
-const isPMOrCEO = computed(() => userRole.value === 'PM' || userRole.value === 'CEO')
+const isDev = computed(() => isEngineerLikeRole(userRole.value))
+const isPMOrCEO = computed(() =>
+  userRole.value === 'PRODUCT_OWNER' || userRole.value === 'PM' || userRole.value === 'CEO')
 
 const isProjectScoped = computed(
   () => Boolean(props.scopeProjectId?.trim() || props.scopeProjectCode?.trim())
