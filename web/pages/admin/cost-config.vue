@@ -1125,13 +1125,14 @@ const utilizationRate = computed(() =>
     ? 1 / (mandayRate.value.overhead_multiplier || 1)
     : localUtilizationRate.value
 )
-const overheadPerDev  = computed(() => {
-  if (mandayRate.value && devCount.value > 0) {
-    return mandayRate.value.company_expense_total / devCount.value
-  }
-  return localOverheadPerDev.value
-})
-const fullyLoadedCost = computed(() => overheadPerDev.value + costPerDev.value)
+// Use API-authoritative per-dev breakdown so all three numbers are consistent:
+// fullyLoadedCost ÷ billableDays === costPerManday
+const overheadPerDev  = computed(() =>
+  mandayRate.value?.overhead_per_dev ?? localOverheadPerDev.value
+)
+const fullyLoadedCost = computed(() =>
+  mandayRate.value?.fully_loaded_monthly_per_dev ?? (overheadPerDev.value + costPerDev.value)
+)
 
 // ── Cost Analysis Report Export ───────────────────────────────────────────────
 

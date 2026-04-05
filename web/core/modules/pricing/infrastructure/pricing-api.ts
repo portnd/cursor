@@ -55,6 +55,11 @@ export interface CompanyMandayRateResponse {
   company_expense_total: number
   total_monthly_burn_rate: number
   active_headcount: number
+  dev_count: number
+  // Per-dev authoritative breakdown (consistent with cost_per_manday)
+  avg_dev_salary: number
+  overhead_per_dev: number
+  fully_loaded_monthly_per_dev: number
   working_days_per_month: number
   overhead_multiplier: number
   billable_days: number

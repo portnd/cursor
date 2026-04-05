@@ -377,12 +377,17 @@ type CompanyMandayRateResponse struct {
 	TotalMonthlyBurnRate float64 `json:"total_monthly_burn_rate"` // all salaries + SS + config overheads
 	// Headcount
 	ActiveHeadcount int `json:"active_headcount"` // number of active employees with salary records
+	DevCount        int `json:"dev_count"`         // number of billable engineers (ENGINEER + CHIEF_ENGINEER)
+	// Per-dev breakdown (authoritative — matches CostPerManday calculation)
+	AvgDevSalary           float64 `json:"avg_dev_salary"`             // average dev salary = totalDevSalary / devCount
+	OverheadPerDev         float64 `json:"overhead_per_dev"`           // companyExpenseTotal / devCount
+	FullyLoadedMonthlyPerDev float64 `json:"fully_loaded_monthly_per_dev"` // avgDevSalary + overheadPerDev
 	// Config
 	WorkingDaysPerMonth int     `json:"working_days_per_month"`
 	OverheadMultiplier  float64 `json:"overhead_multiplier"`
 	BillableDays        float64 `json:"billable_days"` // working_days / overhead_multiplier
 	// Rates
-	CostPerManday float64 `json:"cost_per_manday"` // total_burn_rate / (headcount * billable_days)
+	CostPerManday float64 `json:"cost_per_manday"` // fully_loaded_monthly_per_dev / billable_days
 	CostPerHour   float64 `json:"cost_per_hour"`   // cost_per_manday / working_hours_per_day
 	Currency      string  `json:"currency"`
 }

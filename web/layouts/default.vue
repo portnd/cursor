@@ -28,7 +28,7 @@
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-3 space-y-1 overflow-hidden">
+      <nav class="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
         <NuxtLink
           to="/dashboard"
           class="nav-link"

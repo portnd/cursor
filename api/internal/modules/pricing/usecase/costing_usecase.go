@@ -130,20 +130,24 @@ func (u *costingUsecase) GetCompanyMandayRate() (*domain.CompanyMandayRateRespon
 	totalBurnRate := totalSalary + totalSS + cfg.CompanyExpense + cfg.ExecutiveExpense
 
 	return &domain.CompanyMandayRateResponse{
-		TotalMonthlySalaries:    round2(totalSalary),
-		TotalMonthlySS:          round2(totalSS),
-		CompanyExpense:          cfg.CompanyExpense,
-		ExecutiveExpense:        cfg.ExecutiveExpense,
-		OverheadRoleSalaryTotal: round2(overheadRoleSalarySum),
-		CompanyExpenseTotal:     round2(companyExpenseTotal),
-		TotalMonthlyBurnRate:    round2(totalBurnRate),
-		ActiveHeadcount:         len(allSalaries),
-		WorkingDaysPerMonth:     cfg.WorkingDaysPerMonth,
-		OverheadMultiplier:      cfg.OverheadMultiplier,
-		BillableDays:            round2(billableDays),
-		CostPerManday:           round2(costPerManday),
-		CostPerHour:             round2(costPerHour),
-		Currency:                cfg.Currency,
+		TotalMonthlySalaries:         round2(totalSalary),
+		TotalMonthlySS:               round2(totalSS),
+		CompanyExpense:               cfg.CompanyExpense,
+		ExecutiveExpense:             cfg.ExecutiveExpense,
+		OverheadRoleSalaryTotal:      round2(overheadRoleSalarySum),
+		CompanyExpenseTotal:          round2(companyExpenseTotal),
+		TotalMonthlyBurnRate:         round2(totalBurnRate),
+		ActiveHeadcount:              len(allSalaries),
+		DevCount:                     devCount,
+		AvgDevSalary:                 round2(avgDevSalary),
+		OverheadPerDev:               round2(overheadPerDev),
+		FullyLoadedMonthlyPerDev:     round2(fullyLoadedMonthly),
+		WorkingDaysPerMonth:          cfg.WorkingDaysPerMonth,
+		OverheadMultiplier:           cfg.OverheadMultiplier,
+		BillableDays:                 round2(billableDays),
+		CostPerManday:                round2(costPerManday),
+		CostPerHour:                  round2(costPerHour),
+		Currency:                     cfg.Currency,
 	}, nil
 }
 
