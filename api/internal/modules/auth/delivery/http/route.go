@@ -17,7 +17,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.Usecase, teamFinance
 	authGroup := router.Group("/auth")
 	{
 		// Public routes (no authentication required)
-		authGroup.POST("/register", handler.Register)
+		// NOTE: /register is intentionally removed — user accounts are created by CEO only via POST /auth/users
 		authGroup.POST("/login", handler.Login)
 
 		// Protected routes (authentication required)

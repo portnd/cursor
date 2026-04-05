@@ -258,7 +258,7 @@ func main() {
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)
 	log.Printf("🌐 Health endpoint: http://localhost:%s/health", cfg.AppPort)
-	log.Printf("🔐 Auth endpoints: http://localhost:%s/api/v1/auth/register | /api/v1/auth/login", cfg.AppPort)
+	log.Printf("🔐 Auth endpoint: http://localhost:%s/api/v1/auth/login (self-registration disabled)", cfg.AppPort)
 	log.Printf("👥 User Management (CEO): GET /api/v1/auth/users | POST /api/v1/auth/users | POST /api/v1/auth/users/import | PATCH /api/v1/auth/users/:id/role")
 	log.Printf("🛡️  Sentinel endpoints: http://localhost:%s/api/v1/sentinel/tasks | /api/v1/sentinel/tasks/my", cfg.AppPort)
 	log.Printf("⚙️  AI Config endpoints (CEO): GET/PUT /api/v1/admin/config | GET /api/v1/admin/models")
