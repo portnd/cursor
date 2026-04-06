@@ -76,13 +76,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Copy deploy folder to server
+      - name: Copy deploy and migrations to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
-          source: "deploy/*"
+          source: "deploy/*,api/databases/migrations/*"
           target: "~/kg"
           strip_components: 1
 
@@ -93,10 +93,13 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
+            set -e
             cd ~/kg
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            docker compose pull
-            docker compose up -d
+            docker compose pull backend frontend
+            docker compose up -d postgres redis
+            docker compose run --rm migrate
+            docker compose up -d backend frontend caddy
             docker image prune -f
