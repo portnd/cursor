@@ -54,12 +54,12 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: migrate/migrate:v4.18.2
+    image: ghcr.io/amacneil/dbmate:2.26.0
     container_name: sentinel_migrate
-    command:
-      - "-path=/migrations"
-      - "-database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
-      - "up"
+    command: ["--wait", "up"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DBMATE_MIGRATIONS_DIR: /migrations
     volumes:
       - ./databases/migrations:/migrations:ro
     networks:
