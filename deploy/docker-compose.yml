@@ -54,12 +54,30 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: ghcr.io/amacneil/dbmate:2.26.0
+    image: postgres:15-alpine
     container_name: sentinel_migrate
-    command: ["--wait", "up"]
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      DBMATE_MIGRATIONS_DIR: /migrations
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    command:
+      - sh
+      - -ec
+      - |
+        psql -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS schema_migrations (id SERIAL PRIMARY KEY, version VARCHAR(255) NOT NULL UNIQUE, applied_at TIMESTAMPTZ DEFAULT NOW());"
+        for f in /migrations/*.up.sql; do
+          [ -f "$f" ] || continue
+          v="$(basename "$f" .up.sql)"
+          if psql -tAc "SELECT 1 FROM schema_migrations WHERE version = '$v' LIMIT 1" | grep -q 1; then
+            echo "Skipping $v (already applied)"
+            continue
+          fi
+          echo "Applying $v"
+          psql -v ON_ERROR_STOP=1 -f "$f"
+          psql -v ON_ERROR_STOP=1 -c "INSERT INTO schema_migrations (version) VALUES ('$v')"
+        done
     volumes:
       - ./databases/migrations:/migrations:ro
     networks:
