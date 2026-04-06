@@ -540,6 +540,15 @@
                     </div>
                     <span v-else class="text-sm text-gray-500">Unassigned</span>
                     <button
+                      v-if="canClaimTask"
+                      type="button"
+                      @click="claimTask"
+                      :disabled="assignLoading"
+                      class="text-[11px] text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded-md bg-emerald-900/20 border border-emerald-800/40 hover:border-emerald-700/60 transition-colors disabled:opacity-50"
+                    >
+                      {{ assignLoading ? 'Claiming…' : 'Claim task' }}
+                    </button>
+                    <button
                       v-if="canEditOrDelete && !showAssignDropdown"
                       type="button"
                       @click="openAssignDropdown"
@@ -1290,6 +1299,13 @@ const canManageSubtasks = computed(() => canEditOrDelete.value || isCurrentUserA
 
 const currentRole = computed(() => (effectiveUser.value?.role || '').trim().toUpperCase())
 
+const canClaimTask = computed(() => {
+  if (!task.value || !effectiveUser.value) return false
+  if (task.value.assigned_to != null) return false
+  const role = currentRole.value
+  return role === 'ENGINEER' || role === 'CHIEF_ENGINEER' || role === 'CHIEF'
+})
+
 /** Product Owner / MANAGER step: task is READY_FOR_TEST and viewer is Product Owner or MANAGER */
 const showPMUATActions = computed(() => {
   if (!task.value) return false
@@ -1497,6 +1513,24 @@ async function confirmChangeAssignee() {
     await fetchTask()
   } catch (err: any) {
     assignError.value = err?.data?.message ?? err?.message ?? 'Failed to assign'
+  } finally {
+    assignLoading.value = false
+  }
+}
+
+async function claimTask() {
+  if (!task.value || !effectiveUser.value || !canClaimTask.value) return
+  assignLoading.value = true
+  assignError.value = ''
+  try {
+    const taskId = (route.params.id as string)?.trim?.() || task.value.id
+    const myId = Number(effectiveUser.value.id)
+    await tasksApi.assignTask(taskId, myId)
+    showSuccess('Task claimed successfully.', 'Done')
+    await fetchTask()
+  } catch (err: any) {
+    assignError.value = err?.data?.message ?? err?.message ?? 'Failed to claim task'
+    showError(assignError.value)
   } finally {
     assignLoading.value = false
   }

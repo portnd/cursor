@@ -13,32 +13,12 @@
           <div class="min-w-0">
             <h1 class="text-base font-bold text-white">Execution Dashboard</h1>
             <p class="text-xs text-gray-500">
-              <template v-if="activeView === 'pipeline'">My Board = your work in <span class="text-gray-400">active sprints</span> · {{ myTeamName ? myTeamName + ' Board' : 'Global Board' }} = TASK/BUG queue across projects</template>
-              <template v-else>Deep work & task pipeline</template>
+              My Board = your work in <span class="text-gray-400">active sprints</span>
             </p>
           </div>
         </div>
         <div class="flex items-center gap-3 shrink-0">
-          <div class="flex rounded-lg border border-gray-700 bg-gray-800/60 overflow-hidden text-xs font-semibold">
-            <button
-              type="button"
-              @click="activeView = 'board'"
-              class="px-3 py-2 transition-colors"
-              :class="activeView === 'board' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'"
-            >
-              {{ myTeamName ? myTeamName + ' Board' : 'Global Board' }}
-            </button>
-            <button
-              type="button"
-              @click="activeView = 'pipeline'"
-              class="px-3 py-2 transition-colors"
-              :class="activeView === 'pipeline' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'"
-            >
-              My Board
-            </button>
-          </div>
           <button
-            v-if="activeView === 'pipeline'"
             type="button"
             :disabled="isLoading"
             class="inline-flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-800/60 px-3 py-2 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
@@ -53,22 +33,7 @@
       </div>
     </div>
 
-    <!-- ── Squad P&L (Global Board only) ── -->
-    <div v-if="activeView === 'board' && teamsStore.teamsFeatureEnabled" class="max-w-screen-xl mx-auto px-6 pt-6">
-      <TeamFinancialWidget
-        :team-member-ids="myTeamMemberIds"
-        :completed-task-ids="[]"
-        :total-capital="squadTotalCapital"
-        :project-capital-count="squadProjectCapitalCount"
-        :loaded-monthly-burn-rate="squadLoadedBurnRate"
-      />
-    </div>
 
-    <main v-if="activeView === 'board'" class="max-w-screen-xl mx-auto px-6 py-8">
-      <GlobalKanbanBoard />
-    </main>
-
-    <template v-if="activeView === 'pipeline'">
 
     <div v-if="isLoading" class="flex flex-col items-center justify-center py-32">
       <svg class="h-8 w-8 animate-spin text-purple-400 mb-3" fill="none" viewBox="0 0 24 24">
@@ -195,10 +160,12 @@
             <option value="IN_PROGRESS">In progress</option>
             <option value="PENDING">Pending</option>
             <option value="READY_FOR_TEST">Ready for test</option>
+            <option value="WAIT_FOR_DEPLOY">Wait for deploy</option>
             <option value="REVIEW_PENDING">Review pending</option>
             <option value="READY_FOR_UAT">Ready for UAT</option>
             <option value="BLOCKED">Blocked</option>
             <option value="COMPLETED">Completed</option>
+            <option value="DONE">Done</option>
           </select>
         </div>
         <button
@@ -294,8 +261,8 @@
               class="absolute -top-2 right-4 rounded-md bg-amber-500 px-2.5 py-0.5 text-xs font-bold text-black"
             >Urgent</div>
 
-            <DevBoardTaskMeta :task="task" status-label="In progress" detailed />
-            <p v-if="task.description" class="mt-2 line-clamp-2 text-sm text-gray-400">{{ task.description }}</p>
+            <DevBoardTaskMeta :task="task" status-label="In progress" detailed class="min-w-0" />
+            <p v-if="task.description" class="mt-2 line-clamp-2 break-all text-sm text-gray-400">{{ getTaskDescriptionPreview(task.description) }}</p>
 
             <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500">
               <span>Est: <span class="font-semibold text-purple-400">{{ (task.estimated_minutes / 60).toFixed(1) }}h</span></span>
@@ -328,7 +295,7 @@
                 {{ markingReadyId === task.id ? 'Submitting…' : 'Ready for Test' }}
               </button>
               <NuxtLink
-                :to="`/task/${task.code || task.id}?from=dashboard&from_tab=${activeView}`"
+                :to="`/task/${task.code || task.id}?from=dashboard&from_tab=pipeline`"
                 class="rounded-lg border border-gray-700 bg-gray-800/60 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
                 @click.stop
               >
@@ -420,7 +387,7 @@
         </div>
       </section>
 
-      <!-- My board (3 columns — respects sprint/project/status filters) -->
+      <!-- My board (6 columns — respects sprint/project/status filters) -->
       <section v-if="myTasks.length > 0">
         <div class="flex items-center justify-between mb-4">
           <h2 class="section-label mb-0">My board</h2>
@@ -428,7 +395,7 @@
             {{ filteredMyTasks.length }} in view
           </span>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
           <div class="rounded-2xl border border-gray-700 bg-gray-800/40 flex flex-col">
             <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
               <span class="h-2 w-2 rounded-full bg-amber-400"></span>
@@ -439,9 +406,15 @@
               <div
                 v-for="task in boardPending"
                 :key="task.id"
+                draggable="true"
                 class="rounded-xl border border-gray-700 bg-gray-800/60 p-3 cursor-pointer hover:border-amber-500/40 hover:bg-amber-950/10 transition-all"
-                :class="getDeadlineUrgency(task) === 'overdue' ? 'border-red-500/40 bg-red-950/10' : getDeadlineUrgency(task) === 'urgent' ? 'border-amber-500/40 bg-amber-950/10' : ''"
+                :class="[
+                  getDeadlineUrgency(task) === 'overdue' ? 'border-red-500/40 bg-red-950/10' : getDeadlineUrgency(task) === 'urgent' ? 'border-amber-500/40 bg-amber-950/10' : '',
+                  dragTaskId === task.id ? 'opacity-60 ring-2 ring-purple-500/40' : ''
+                ]"
                 @click="goToTask(task)"
+                @dragstart="onPendingDragStart($event, task.id)"
+                @dragend="onPendingDragEnd"
               >
                 <DevBoardTaskMeta :task="task" status-label="Pending" dense />
                 <p class="text-sm font-semibold text-white line-clamp-2 mt-1">{{ task.title }}</p>
@@ -452,12 +425,30 @@
                     :class="getDeadlineUrgency(task) === 'overdue' ? 'text-red-400 font-semibold' : getDeadlineUrgency(task) === 'urgent' ? 'text-amber-400 font-semibold' : 'text-gray-600'"
                   >{{ getDeadlineCountdown(task.due_at) }}</span>
                 </div>
+                <button
+                  type="button"
+                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-3 py-1 text-xs font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="startingTaskId === task.id"
+                  @click.stop="startTask(task)"
+                >
+                  <svg v-if="startingTaskId === task.id" class="inline mr-1 h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  {{ startingTaskId === task.id ? 'Starting…' : 'Start' }}
+                </button>
               </div>
               <p v-if="boardPending.length === 0" class="text-center text-xs text-gray-600 py-6">No pending</p>
             </div>
           </div>
 
-          <div class="rounded-2xl border border-purple-500/30 bg-purple-950/10 flex flex-col">
+          <div
+            class="rounded-2xl border border-purple-500/30 bg-purple-950/10 flex flex-col transition-colors"
+            :class="isInProgressDropActive ? 'ring-2 ring-purple-400/60 border-purple-400/60 bg-purple-900/20' : ''"
+            @dragover="onInProgressDragOver"
+            @dragleave="onInProgressDragLeave"
+            @drop="onInProgressDrop"
+          >
             <div class="flex items-center gap-2 px-4 py-3 border-b border-purple-500/20">
               <span class="h-2 w-2 rounded-full bg-purple-400 animate-pulse"></span>
               <span class="text-xs font-bold uppercase tracking-widest text-purple-400">In progress</span>
@@ -494,6 +485,66 @@
                 </button>
               </div>
               <p v-if="boardInProgress.length === 0" class="text-center text-xs text-gray-600 py-6">Nothing in progress</p>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-cyan-500/25 bg-cyan-950/10 flex flex-col">
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-cyan-500/20">
+              <span class="h-2 w-2 rounded-full bg-cyan-400"></span>
+              <span class="text-xs font-bold uppercase tracking-widest text-cyan-400">Ready for test</span>
+              <span class="ml-auto text-xs font-semibold text-cyan-400 tabular-nums">{{ boardReadyForTest.length }}</span>
+            </div>
+            <div class="flex-1 p-3 space-y-2 overflow-y-auto max-h-[480px]">
+              <div
+                v-for="task in boardReadyForTest"
+                :key="task.id"
+                class="rounded-xl border border-cyan-500/30 bg-gray-800/60 p-3 cursor-pointer hover:border-cyan-400/60 hover:bg-cyan-950/20 transition-all"
+                @click="goToTask(task)"
+              >
+                <DevBoardTaskMeta :task="task" status-label="Ready for test" dense />
+                <p class="text-sm font-semibold text-white line-clamp-2 mt-1">{{ task.title }}</p>
+              </div>
+              <p v-if="boardReadyForTest.length === 0" class="text-center text-xs text-gray-600 py-6">No tasks waiting for test</p>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-indigo-500/25 bg-indigo-950/10 flex flex-col">
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-indigo-500/20">
+              <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
+              <span class="text-xs font-bold uppercase tracking-widest text-indigo-400">Wait for deploy</span>
+              <span class="ml-auto text-xs font-semibold text-indigo-400 tabular-nums">{{ boardWaitForDeploy.length }}</span>
+            </div>
+            <div class="flex-1 p-3 space-y-2 overflow-y-auto max-h-[480px]">
+              <div
+                v-for="task in boardWaitForDeploy"
+                :key="task.id"
+                class="rounded-xl border border-indigo-500/30 bg-gray-800/60 p-3 cursor-pointer hover:border-indigo-400/60 hover:bg-indigo-950/20 transition-all"
+                @click="goToTask(task)"
+              >
+                <DevBoardTaskMeta :task="task" status-label="Wait for deploy" dense />
+                <p class="text-sm font-semibold text-white line-clamp-2 mt-1">{{ task.title }}</p>
+              </div>
+              <p v-if="boardWaitForDeploy.length === 0" class="text-center text-xs text-gray-600 py-6">No tasks waiting for deploy</p>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-sky-500/25 bg-sky-950/10 flex flex-col">
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-sky-500/20">
+              <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+              <span class="text-xs font-bold uppercase tracking-widest text-sky-400">Ready for UAT</span>
+              <span class="ml-auto text-xs font-semibold text-sky-400 tabular-nums">{{ boardReadyForUAT.length }}</span>
+            </div>
+            <div class="flex-1 p-3 space-y-2 overflow-y-auto max-h-[480px]">
+              <div
+                v-for="task in boardReadyForUAT"
+                :key="task.id"
+                class="rounded-xl border border-sky-500/30 bg-gray-800/60 p-3 cursor-pointer hover:border-sky-400/60 hover:bg-sky-950/20 transition-all"
+                @click="goToTask(task)"
+              >
+                <DevBoardTaskMeta :task="task" status-label="Ready for UAT" dense />
+                <p class="text-sm font-semibold text-white line-clamp-2 mt-1">{{ task.title }}</p>
+              </div>
+              <p v-if="boardReadyForUAT.length === 0" class="text-center text-xs text-gray-600 py-6">No tasks ready for UAT</p>
             </div>
           </div>
 
@@ -543,8 +594,6 @@
       </section>
     </main>
 
-    </template>
-
     <DailyCheckinModal :forced="isDailyPulseForced" />
 
     <Teleport to="body">
@@ -564,13 +613,7 @@
 <script setup lang="ts">
 import { usePerformanceStore } from '~/core/modules/performance/performance-store'
 import DailyCheckinModal from '~/core/modules/pulse/ui/DailyCheckinModal.vue'
-import GlobalKanbanBoard from '~/components/tasks/GlobalKanbanBoard.vue'
-import TeamFinancialWidget from '~/components/dashboard/TeamFinancialWidget.vue'
 import DevBoardTaskMeta from '~/components/dashboard/DevBoardTaskMeta.vue'
-import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
-import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
-import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
-import type { ProjectCapitalResponse } from '~/core/modules/projects/infrastructure/projects-api'
 
 interface Task {
   id: string
@@ -610,60 +653,11 @@ const DONE_PREVIEW_LIMIT = 12
 
 const PRI_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
 
-const { fetchWithAuth, currentUser } = useAuth()
+const { fetchWithAuth } = useAuth()
 
 /** Daily check-in is optional on first entry; open manually from Pulse page/dashboard actions. */
 const isDailyPulseForced = computed(() => false)
 const performanceStore = usePerformanceStore()
-const teamsStore = useTeamsStore()
-const { getTeams } = useTeamsApi()
-const { getProjects, getProjectCapital } = useProjectsApi()
-
-const myTeamMemberIds = ref<number[]>([])
-const myTeamName = ref<string>('')
-const squadProjectCapitals = ref<Record<string, ProjectCapitalResponse>>({})
-
-const squadTotalCapital = computed(() =>
-  Object.values(squadProjectCapitals.value).reduce((s, c) => s + (c.capital_balance ?? 0), 0)
-)
-const squadLoadedBurnRate = computed(() => {
-  const vals = Object.values(squadProjectCapitals.value)
-  if (!vals.length) return 0
-  return vals.reduce((sum, c) => sum + c.team_monthly_cost, 0)
-})
-const squadProjectCapitalCount = computed(() => Object.keys(squadProjectCapitals.value).length)
-
-const fetchSquadFinancials = async () => {
-  try {
-    const userId = currentUser.value?.user_id
-    const [teams, projects] = await Promise.all([getTeams(), getProjects()])
-    const myTeam = teams.find(t => t.users?.some(u => u.id === userId))
-    myTeamMemberIds.value = myTeam?.users?.map(u => u.id) ?? []
-    myTeamName.value = myTeam?.name ?? ''
-
-    const capitals = await Promise.allSettled(
-      projects.map(p => getProjectCapital(p.id).then(c => ({ id: p.id, capital: c })))
-    )
-    const map: Record<string, ProjectCapitalResponse> = {}
-    for (const r of capitals) {
-      if (r.status === 'fulfilled') map[r.value.id] = r.value.capital
-    }
-    squadProjectCapitals.value = map
-  } catch {
-    // non-fatal
-  }
-}
-
-const route = useRoute()
-const router = useRouter()
-
-const activeView = ref<'board' | 'pipeline'>(
-  route.query.tab === 'pipeline' ? 'pipeline' : 'board'
-)
-
-watch(activeView, (tab) => {
-  router.replace({ query: { ...route.query, tab } })
-}, { immediate: true })
 
 const myTasks = ref<Task[]>([])
 const activeSprints = ref<ActiveSprint[]>([])
@@ -678,6 +672,9 @@ const doneSectionOpen = ref(false)
 const showSuccess = ref(false)
 const successMessage = ref('')
 const markingReadyId = ref<string | null>(null)
+const startingTaskId = ref<string | null>(null)
+const dragTaskId = ref<string | null>(null)
+const isInProgressDropActive = ref(false)
 
 function effectiveSprintKey(task: Task): string {
   return task.effective_sprint_id || task.sprint_id || ''
@@ -757,6 +754,20 @@ const boardInProgress = computed(() =>
   filteredMyTasks.value.filter(t => t.status === 'IN_PROGRESS').sort(sortByDueThenPriority)
 )
 
+const boardReadyForTest = computed(() =>
+  filteredMyTasks.value.filter(t => t.status === 'READY_FOR_TEST').sort(sortByDueThenPriority)
+)
+
+const boardWaitForDeploy = computed(() =>
+  filteredMyTasks.value
+    .filter(t => t.status === 'WAIT_FOR_DEPLOY' || t.status === 'REVIEW_PENDING')
+    .sort(sortByDueThenPriority)
+)
+
+const boardReadyForUAT = computed(() =>
+  filteredMyTasks.value.filter(t => t.status === 'READY_FOR_UAT').sort(sortByDueThenPriority)
+)
+
 const boardDone = computed(() =>
   filteredMyTasks.value
     .filter(t => t.status === 'COMPLETED' || t.status === 'DONE')
@@ -774,7 +785,7 @@ function clearFilters() {
 
 function statusLabel(status: string): string {
   if (status === 'READY_FOR_TEST') return 'Ready for test'
-  if (status === 'REVIEW_PENDING') return 'Review pending'
+  if (status === 'WAIT_FOR_DEPLOY' || status === 'REVIEW_PENDING') return 'Wait for deploy'
   if (status === 'READY_FOR_UAT') return 'Ready for UAT'
   return status.replace(/_/g, ' ')
 }
@@ -873,6 +884,14 @@ function getDeadlineCountdown(dueAt: string) {
   return 'Due soon!'
 }
 
+function getTaskDescriptionPreview(description?: string) {
+  if (!description) return ''
+  return description
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const markReadyForTest = async (task: Task) => {
   markingReadyId.value = task.id
   try {
@@ -892,17 +911,72 @@ const markReadyForTest = async (task: Task) => {
   }
 }
 
+const startTask = async (task: Task) => {
+  if (startingTaskId.value || !task.id) return
+  startingTaskId.value = task.id
+  try {
+    await fetchWithAuth('/sentinel/tasks/bulk-status', {
+      method: 'PATCH',
+      body: { task_ids: [task.id], status: 'IN_PROGRESS' }
+    })
+    myTasks.value = myTasks.value.map(t =>
+      t.id === task.id ? { ...t, status: 'IN_PROGRESS', started_at: t.started_at || new Date().toISOString() } : t
+    )
+    successMessage.value = `Started: ${task.title}`
+    showSuccess.value = true
+    setTimeout(() => { showSuccess.value = false }, 2500)
+  } catch (err: any) {
+    successMessage.value = err.data?.message || err.message || 'Failed to start task'
+    showSuccess.value = true
+    setTimeout(() => { showSuccess.value = false }, 4000)
+  } finally {
+    startingTaskId.value = null
+  }
+}
+
+function onPendingDragStart(event: DragEvent, taskId: string) {
+  dragTaskId.value = taskId
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/task-id', taskId)
+  }
+}
+
+function onPendingDragEnd() {
+  dragTaskId.value = null
+  isInProgressDropActive.value = false
+}
+
+function onInProgressDragOver(event: DragEvent) {
+  event.preventDefault()
+  isInProgressDropActive.value = true
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+}
+
+function onInProgressDragLeave() {
+  isInProgressDropActive.value = false
+}
+
+async function onInProgressDrop(event: DragEvent) {
+  event.preventDefault()
+  isInProgressDropActive.value = false
+  const taskId = event.dataTransfer?.getData('text/task-id') || dragTaskId.value
+  if (!taskId) return
+  const task = myTasks.value.find(t => t.id === taskId)
+  if (!task || task.status !== 'PENDING') return
+  await startTask(task)
+  dragTaskId.value = null
+}
+
 const goToTask = (task: { id: string; code?: string }) => {
-  navigateTo(`/task/${task?.code || task?.id}?from=dashboard&from_tab=${activeView.value}`)
+  navigateTo(`/task/${task?.code || task?.id}?from=dashboard&from_tab=pipeline`)
 }
 
 onMounted(async () => {
   fetchTasks()
-  await teamsStore.fetchTeamsFeatureEnabled()
-  if (teamsStore.teamsFeatureEnabled) {
-    fetchSquadFinancials()
-  }
-  performanceStore.fetchAll(currentUser.value?.role || 'ENGINEER')
+  performanceStore.fetchAll('ENGINEER')
 })
 </script>
 

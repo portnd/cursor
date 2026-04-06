@@ -103,11 +103,11 @@ func (h *Handler) GetOverview(c *gin.Context) {
 }
 
 // GetDiscipline returns daily discipline stats for all employees in a date range.
-// GET /api/v1/performance/discipline?from=YYYY-MM-DD&to=YYYY-MM-DD (CEO + Product Owner)
+// GET /api/v1/performance/discipline?from=YYYY-MM-DD&to=YYYY-MM-DD (CEO + Product Owner + Manager + Engineer + Chief Engineer + Support)
 func (h *Handler) GetDiscipline(c *gin.Context) {
 	role := getRole(c)
-	if role != "CEO" && role != authDomain.RoleProductOwner {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and Product Owner only"})
+	if role != "CEO" && role != authDomain.RoleProductOwner && role != authDomain.RoleManager && role != authDomain.RoleEngineer && role != authDomain.RoleChiefEngineer && role != authDomain.RoleSupport {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO, Product Owner, Manager, Engineer, Chief Engineer and Support only"})
 		return
 	}
 
@@ -127,11 +127,11 @@ func (h *Handler) GetDiscipline(c *gin.Context) {
 }
 
 // GetDisciplineDayDetail returns drill-down activity for one user on one day.
-// GET /api/v1/performance/discipline/detail?user_id=X&date=YYYY-MM-DD (CEO + Product Owner)
+// GET /api/v1/performance/discipline/detail?user_id=X&date=YYYY-MM-DD (CEO + Product Owner + Manager + Engineer + Chief Engineer + Support)
 func (h *Handler) GetDisciplineDayDetail(c *gin.Context) {
 	role := getRole(c)
-	if role != "CEO" && role != authDomain.RoleProductOwner {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO and Product Owner only"})
+	if role != "CEO" && role != authDomain.RoleProductOwner && role != authDomain.RoleManager && role != authDomain.RoleEngineer && role != authDomain.RoleChiefEngineer && role != authDomain.RoleSupport {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO, Product Owner, Manager, Engineer, Chief Engineer and Support only"})
 		return
 	}
 

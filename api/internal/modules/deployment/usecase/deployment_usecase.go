@@ -45,7 +45,7 @@ func canSubmit(role string) bool {
 func canViewAll(role string) bool {
 	r := strings.ToUpper(strings.TrimSpace(role))
 	switch r {
-	case authDomain.RoleCEO, authDomain.RoleManager, authDomain.RoleChiefEngineer:
+	case authDomain.RoleCEO, authDomain.RoleChiefEngineer:
 		return true
 	}
 	return false

@@ -39,6 +39,7 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Dashboard</span>
         </NuxtLink>
         <NuxtLink
+          v-if="currentUser?.role !== 'SUPPORT'"
           to="/create"
           class="nav-link"
           active-class="bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
@@ -48,6 +49,7 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Create Task</span>
         </NuxtLink>
         <NuxtLink
+          v-if="currentUser?.role !== 'SUPPORT'"
           to="/projects"
           class="nav-link"
           active-class="bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
@@ -68,6 +70,7 @@
 
         <!-- Work Log (timer + quick log + EOD + history) -->
         <NuxtLink
+          v-if="currentUser?.role !== 'SUPPORT'"
           to="/logtime"
           class="nav-link"
           active-class="bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg"
@@ -117,7 +120,7 @@
           >{{ deploymentPendingCount }}</span>
         </NuxtLink>
         <NuxtLink
-          v-if="['CEO', 'PRODUCT_OWNER', 'PM'].includes(currentUser?.role ?? '')"
+          v-if="['CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM', 'ENGINEER', 'CHIEF_ENGINEER', 'SUPPORT'].includes(currentUser?.role ?? '')"
           to="/discipline"
           class="nav-link"
           active-class="bg-gradient-to-r from-orange-600 to-red-600 shadow-lg"
@@ -157,7 +160,43 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Cost Configuration</span>
         </NuxtLink>
         <NuxtLink
-          v-if="['CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
+          v-if="['CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM', 'ENGINEER', 'CHIEF_ENGINEER', 'DEV', 'SUPPORT'].includes(currentUser?.role ?? '')"
+          to="/attendance"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-teal-600 to-emerald-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Attendance' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-12 9h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Attendance</span>
+        </NuxtLink>
+        <NuxtLink
+          v-if="['CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM', 'ENGINEER', 'CHIEF_ENGINEER', 'DEV', 'SUPPORT'].includes(currentUser?.role ?? '')"
+          to="/leave"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-cyan-600 to-blue-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Leave' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Leave</span>
+        </NuxtLink>
+        <NuxtLink
+          v-if="['CEO', 'SUPPORT'].includes(currentUser?.role ?? '')"
+          to="/admin/leave"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-cyan-600 to-blue-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Leave Admin' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Leave Admin</span>
+        </NuxtLink>
+        <NuxtLink
+          v-if="['CEO'].includes(currentUser?.role ?? '')"
           to="/admin/attendance-config"
           class="nav-link"
           active-class="bg-gradient-to-r from-teal-600 to-emerald-600 shadow-lg"

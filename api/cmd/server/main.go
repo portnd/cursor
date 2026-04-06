@@ -101,6 +101,11 @@ func main() {
 		&pulseDomain.DailyStandup{},
 		&attendanceDomain.OfficeConfig{},
 		&attendanceDomain.AttendanceRecord{},
+		&attendanceDomain.LeaveRequest{},
+		&attendanceDomain.LeavePolicy{},
+		&attendanceDomain.HolidayCalendar{},
+		&attendanceDomain.LeaveAuditLog{},
+		&attendanceDomain.LeaveNotification{},
 		&deploymentDomain.DeploymentRequest{},
 	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)

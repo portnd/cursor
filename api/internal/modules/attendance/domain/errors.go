@@ -12,4 +12,8 @@ var (
 	ErrForbiddenAdmin    = errors.New("forbidden: CEO or MANAGER only")
 	ErrInvalidCursor     = errors.New("invalid or tampered pagination cursor")
 	ErrInvalidSchedule   = errors.New("at least one office day or WFH day is required")
+	ErrInvalidDateRange  = errors.New("invalid leave date range")
+	ErrLeaveNotFound     = errors.New("leave request not found")
+	ErrLeaveNotPending   = errors.New("leave request is already reviewed")
+	ErrUserNotFound      = errors.New("user not found")
 )

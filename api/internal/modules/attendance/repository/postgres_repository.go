@@ -2,12 +2,13 @@ package repository
 
 import (
 	"errors"
+	"strings"
 	"time"
 
+	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
 	"gorm.io/gorm"
 )
-
 type postgresRepository struct {
 	db *gorm.DB
 }
@@ -193,4 +194,233 @@ func (r *postgresRepository) ListRecordsByDate(attendanceDate time.Time) ([]doma
 		})
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) CreateLeaveRequest(req *domain.LeaveRequest) error {
+	return r.db.Create(req).Error
+}
+
+func (r *postgresRepository) GetLeaveRequestByID(id int64) (*domain.LeaveRequest, error) {
+	var req domain.LeaveRequest
+	err := r.db.First(&req, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &req, nil
+}
+
+func (r *postgresRepository) ListLeaveRequestsByUser(userID uint) ([]domain.LeaveRequest, error) {
+	type row struct {
+		domain.LeaveRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var raw []row
+	err := r.db.Raw(`
+		SELECT lr.*, 
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM leave_requests lr
+		JOIN users u ON u.id = lr.user_id
+		LEFT JOIN users au ON au.id = lr.approver_id
+		WHERE lr.user_id = ?
+		ORDER BY lr.created_at DESC, lr.id DESC
+	`, userID).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.LeaveRequest, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.LeaveRequest
+		item.UserEmail = rw.UserEmail
+		item.UserDisplayName = rw.UserDisplayName
+		item.ApproverEmail = rw.ApproverEmail
+		item.ApproverName = rw.ApproverName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListPendingLeaveRequests() ([]domain.LeaveRequest, error) {
+	type row struct {
+		domain.LeaveRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var raw []row
+	err := r.db.Raw(`
+		SELECT lr.*, 
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM leave_requests lr
+		JOIN users u ON u.id = lr.user_id
+		LEFT JOIN users au ON au.id = lr.approver_id
+		WHERE lr.status = ?
+		ORDER BY lr.created_at ASC, lr.id ASC
+	`, domain.LeaveStatusPending).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.LeaveRequest, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.LeaveRequest
+		item.UserEmail = rw.UserEmail
+		item.UserDisplayName = rw.UserDisplayName
+		item.ApproverEmail = rw.ApproverEmail
+		item.ApproverName = rw.ApproverName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) UpdateLeaveRequest(req *domain.LeaveRequest) error {
+	return r.db.Save(req).Error
+}
+
+func (r *postgresRepository) ListLeavePolicies() ([]domain.LeavePolicy, error) {
+	var out []domain.LeavePolicy
+	err := r.db.Order("leave_type ASC").Find(&out).Error
+	return out, err
+}
+
+func (r *postgresRepository) UpsertLeavePolicy(req *domain.LeavePolicy) error {
+	var existing domain.LeavePolicy
+	err := r.db.Where("leave_type = ?", req.LeaveType).First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return r.db.Create(req).Error
+	}
+	if err != nil {
+		return err
+	}
+	req.ID = existing.ID
+	req.CreatedAt = existing.CreatedAt
+	return r.db.Save(req).Error
+}
+
+func (r *postgresRepository) ListHolidayCalendars(fromDate, toDate time.Time) ([]domain.HolidayCalendar, error) {
+	var out []domain.HolidayCalendar
+	err := r.db.Where("date >= ? AND date <= ?", fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).Order("date ASC").Find(&out).Error
+	return out, err
+}
+
+func (r *postgresRepository) UpsertHolidayCalendar(item *domain.HolidayCalendar) error {
+	day := time.Date(item.Date.Year(), item.Date.Month(), item.Date.Day(), 0, 0, 0, 0, time.UTC)
+	var existing domain.HolidayCalendar
+	err := r.db.Where("date = ?", day.Format("2006-01-02")).First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		item.Date = day
+		return r.db.Create(item).Error
+	}
+	if err != nil {
+		return err
+	}
+	item.ID = existing.ID
+	item.Date = day
+	item.CreatedAt = existing.CreatedAt
+	return r.db.Save(item).Error
+}
+
+func (r *postgresRepository) CreateLeaveAuditLog(logItem *domain.LeaveAuditLog) error {
+	return r.db.Create(logItem).Error
+}
+
+func (r *postgresRepository) ListLeaveAuditLogs(leaveID int64) ([]domain.LeaveAuditLog, error) {
+	type row struct {
+		domain.LeaveAuditLog
+		ActorEmail string `gorm:"column:actor_email"`
+		ActorName  string `gorm:"column:actor_name"`
+	}
+	var raw []row
+	err := r.db.Raw(`
+		SELECT l.*, u.email AS actor_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS actor_name
+		FROM leave_audit_logs l
+		LEFT JOIN users u ON u.id = l.actor_id
+		WHERE l.leave_id = ?
+		ORDER BY l.created_at DESC, l.id DESC
+	`, leaveID).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.LeaveAuditLog, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.LeaveAuditLog
+		item.ActorEmail = rw.ActorEmail
+		item.ActorName = rw.ActorName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) CreateLeaveNotification(item *domain.LeaveNotification) error {
+	now := time.Now().UTC()
+	item.DeliveredAt = &now
+	return r.db.Create(item).Error
+}
+
+func (r *postgresRepository) ListLeaveNotifications(userID uint, unreadOnly bool) ([]domain.LeaveNotification, error) {
+	q := r.db.Where("user_id = ?", userID).Order("created_at DESC, id DESC")
+	if unreadOnly {
+		q = q.Where("is_read = ?", false)
+	}
+	var out []domain.LeaveNotification
+	err := q.Find(&out).Error
+	return out, err
+}
+
+func (r *postgresRepository) MarkLeaveNotificationRead(userID uint, notificationID int64) error {
+	return r.db.Model(&domain.LeaveNotification{}).Where("id = ? AND user_id = ?", notificationID, userID).Update("is_read", true).Error
+}
+
+func (r *postgresRepository) GetLeaveTrendByMonth(role string, fromDate, toDate time.Time) ([]domain.LeaveTrendPoint, error) {
+	var out []domain.LeaveTrendPoint
+	isAdmin := strings.EqualFold(role, authDomain.RoleCEO) || strings.EqualFold(role, authDomain.RoleManager)
+	if !isAdmin {
+		return out, nil
+	}
+	err := r.db.Raw(`
+		SELECT to_char(date_trunc('month', lr.created_at), 'YYYY-MM') AS month,
+		       u.team_id AS team_id,
+		       COALESCE(t.name, 'Unassigned') AS team_name,
+		       COUNT(*) AS requested,
+		       SUM(CASE WHEN lr.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved,
+		       SUM(CASE WHEN lr.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+		       COALESCE(SUM(lr.days_requested), 0) AS total_days
+		FROM leave_requests lr
+		JOIN users u ON u.id = lr.user_id
+		LEFT JOIN teams t ON t.id = u.team_id
+		WHERE lr.created_at::date >= ? AND lr.created_at::date <= ?
+		GROUP BY 1, 2, 3
+		ORDER BY 1 ASC, 3 ASC
+	`, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).Scan(&out).Error
+	return out, err
+}
+
+func (r *postgresRepository) ListAdminApproverUserIDs() ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&authDomain.User{}).Where("upper(role) IN ?", []string{authDomain.RoleCEO, authDomain.RoleManager}).Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *postgresRepository) FindUserIDByEmail(email string) (uint, error) {
+	var u authDomain.User
+	err := r.db.Where("lower(email) = lower(?)", strings.TrimSpace(email)).First(&u).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, domain.ErrUserNotFound
+		}
+		return 0, err
+	}
+	return u.ID, nil
 }

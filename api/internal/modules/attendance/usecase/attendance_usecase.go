@@ -294,10 +294,336 @@ func (u *attendanceUsecase) UpsertOfficeConfig(role string, req *domain.UpsertOf
 }
 
 func (u *attendanceUsecase) ListAdminRecordsByDate(role string, date time.Time) ([]domain.AttendanceRecord, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	return u.repo.ListRecordsByDate(date)
+}
+
+func (u *attendanceUsecase) CreateLeaveRequest(userID uint, req *domain.CreateLeaveRequest) (*domain.LeaveRequest, error) {
+	start, err := time.Parse("2006-01-02", strings.TrimSpace(req.StartDate))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	end, err := time.Parse("2006-01-02", strings.TrimSpace(req.EndDate))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	if end.Before(start) {
+		return nil, domain.ErrInvalidDateRange
+	}
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
+	days := int(end.Sub(start).Hours()/24) + 1
+	if days <= 0 || days > 365 {
+		return nil, domain.ErrInvalidDateRange
+	}
+	leaveType := strings.ToUpper(strings.TrimSpace(req.LeaveType))
+	if leaveType == "" {
+		leaveType = "ANNUAL"
+	}
+	if leaveType == "ANNUAL" {
+		summary, berr := u.GetLeaveBalanceSummary(userID, start.Year())
+		if berr == nil {
+			for _, s := range summary {
+				if s.LeaveType == "ANNUAL" && days > s.RemainingDays {
+					return nil, domain.ErrInvalidDateRange
+				}
+			}
+		}
+	}
+	leave := &domain.LeaveRequest{
+		UserID:        userID,
+		StartDate:     start,
+		EndDate:       end,
+		DaysRequested: days,
+		LeaveType:     leaveType,
+		Reason:        strings.TrimSpace(req.Reason),
+		Status:        domain.LeaveStatusPending,
+	}
+	if err := u.repo.CreateLeaveRequest(leave); err != nil {
+		return nil, err
+	}
+	created, gerr := u.repo.GetLeaveRequestByID(leave.ID)
+	if gerr != nil {
+		return nil, gerr
+	}
+	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leave.ID, Action: "LEAVE_CREATED", ActorID: &userID, ActorRole: "EMPLOYEE", OldStatus: "", NewStatus: domain.LeaveStatusPending, Comment: strings.TrimSpace(req.Reason)})
+	_ = u.notifyLeaveRequested(leave.ID, userID, leaveType, days)
+	return created, nil
+}
+
+func (u *attendanceUsecase) ListMyLeaveRequests(userID uint) ([]domain.LeaveRequest, error) {
+	return u.repo.ListLeaveRequestsByUser(userID)
+}
+
+func (u *attendanceUsecase) ListPendingLeaveRequests(role string) ([]domain.LeaveRequest, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	return u.repo.ListPendingLeaveRequests()
+}
+
+func (u *attendanceUsecase) ReviewLeaveRequest(role string, approverID uint, leaveID int64, req *domain.ReviewLeaveRequest) (*domain.LeaveRequest, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	leave, err := u.repo.GetLeaveRequestByID(leaveID)
+	if err != nil {
+		return nil, err
+	}
+	if leave == nil {
+		return nil, domain.ErrLeaveNotFound
+	}
+	if leave.Status != domain.LeaveStatusPending {
+		return nil, domain.ErrLeaveNotPending
+	}
+	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	if status != domain.LeaveStatusApproved && status != domain.LeaveStatusRejected {
+		return nil, domain.ErrLeaveNotPending
+	}
+	now := time.Now().UTC()
+	old := leave.Status
+	leave.Status = status
+	leave.ApproverID = &approverID
+	leave.ManagerComment = strings.TrimSpace(req.Comment)
+	leave.ApprovedAt = &now
+	if err := u.repo.UpdateLeaveRequest(leave); err != nil {
+		return nil, err
+	}
+	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leaveID, Action: "LEAVE_REVIEWED", ActorID: &approverID, ActorRole: strings.ToUpper(strings.TrimSpace(role)), OldStatus: old, NewStatus: status, Comment: leave.ManagerComment})
+	_ = u.notifyLeaveReviewed(leaveID, leave.UserID, status)
+	return u.repo.GetLeaveRequestByID(leaveID)
+}
+
+func (u *attendanceUsecase) GetLeaveBalanceSummary(userID uint, year int) ([]domain.LeaveBalanceSummary, error) {
+	if year <= 0 {
+		year = time.Now().Year()
+	}
+	policies, err := u.repo.ListLeavePolicies()
+	if err != nil {
+		return nil, err
+	}
+	items, err := u.repo.ListLeaveRequestsByUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.LeaveBalanceSummary, 0, len(policies))
+	for _, p := range policies {
+		if !p.IsActive {
+			continue
+		}
+		taken := 0
+		for _, it := range items {
+			if it.Status != domain.LeaveStatusApproved || it.LeaveType != p.LeaveType {
+				continue
+			}
+			if it.StartDate.Year() == year {
+				taken += it.DaysRequested
+			}
+		}
+		carry := p.MaxCarryForwardDays
+		remaining := p.AnnualQuotaDays + carry - taken
+		if remaining < 0 {
+			remaining = 0
+		}
+		out = append(out, domain.LeaveBalanceSummary{
+			LeaveType:         p.LeaveType,
+			AnnualQuotaDays:   p.AnnualQuotaDays,
+			CarryForwardDays:  carry,
+			ApprovedDaysTaken: taken,
+			RemainingDays:     remaining,
+		})
+	}
+	return out, nil
+}
+
+func (u *attendanceUsecase) ListLeavePolicies(role string) ([]domain.LeavePolicy, error) {
+	if role == "" {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	return u.repo.ListLeavePolicies()
+}
+
+func (u *attendanceUsecase) UpsertLeavePolicy(role string, req *domain.LeavePolicyUpsertRequest) (*domain.LeavePolicy, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	item := &domain.LeavePolicy{LeaveType: strings.ToUpper(strings.TrimSpace(req.LeaveType)), AnnualQuotaDays: req.AnnualQuotaDays, MaxCarryForwardDays: req.MaxCarryForwardDays, IsActive: req.IsActive}
+	if err := u.repo.UpsertLeavePolicy(item); err != nil {
+		return nil, err
+	}
+	all, err := u.repo.ListLeavePolicies()
+	if err != nil {
+		return item, nil
+	}
+	for _, p := range all {
+		if p.LeaveType == item.LeaveType {
+			cp := p
+			return &cp, nil
+		}
+	}
+	return item, nil
+}
+
+func (u *attendanceUsecase) ListHolidayCalendars(role string, fromDate, toDate time.Time) ([]domain.HolidayCalendar, error) {
+	if role == "" {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	if fromDate.IsZero() || toDate.IsZero() || toDate.Before(fromDate) {
+		fromDate = time.Now().UTC().AddDate(0, -1, 0)
+		toDate = time.Now().UTC().AddDate(0, 6, 0)
+	}
+	return u.repo.ListHolidayCalendars(fromDate, toDate)
+}
+
+func (u *attendanceUsecase) UpsertHolidayCalendar(role string, req *domain.HolidayUpsertRequest) (*domain.HolidayCalendar, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	d, err := time.Parse("2006-01-02", strings.TrimSpace(req.Date))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	item := &domain.HolidayCalendar{Date: d.UTC(), Name: strings.TrimSpace(req.Name)}
+	if err := u.repo.UpsertHolidayCalendar(item); err != nil {
+		return nil, err
+	}
+	list, _ := u.repo.ListHolidayCalendars(item.Date, item.Date)
+	if len(list) > 0 {
+		return &list[0], nil
+	}
+	return item, nil
+}
+
+func (u *attendanceUsecase) ListLeaveAuditLogs(role string, leaveID int64) ([]domain.LeaveAuditLog, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	return u.repo.ListLeaveAuditLogs(leaveID)
+}
+
+func (u *attendanceUsecase) ListMyNotifications(userID uint, unreadOnly bool) ([]domain.LeaveNotification, error) {
+	return u.repo.ListLeaveNotifications(userID, unreadOnly)
+}
+
+func (u *attendanceUsecase) MarkMyNotificationRead(userID uint, notificationID int64) error {
+	return u.repo.MarkLeaveNotificationRead(userID, notificationID)
+}
+
+func (u *attendanceUsecase) GetLeaveTrend(role string, fromDate, toDate time.Time) ([]domain.LeaveTrendPoint, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	if fromDate.IsZero() || toDate.IsZero() || toDate.Before(fromDate) {
+		fromDate = time.Now().UTC().AddDate(0, -11, 0)
+		toDate = time.Now().UTC()
+	}
+	return u.repo.GetLeaveTrendByMonth(role, fromDate, toDate)
+}
+
+func (u *attendanceUsecase) BackfillLeave(role string, actorID uint, req *domain.LeaveBackfillRequest) (*domain.LeaveRequest, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	it := req.Item
+	userID, err := u.repo.FindUserIDByEmail(strings.TrimSpace(it.EmployeeEmail))
+	if err != nil {
+		return nil, err
+	}
+	start, err := time.Parse("2006-01-02", strings.TrimSpace(it.StartDate))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	end, err := time.Parse("2006-01-02", strings.TrimSpace(it.EndDate))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	if end.Before(start) {
+		return nil, domain.ErrInvalidDateRange
+	}
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
+	days := int(end.Sub(start).Hours()/24) + 1
+	if days <= 0 || days > 365 {
+		return nil, domain.ErrInvalidDateRange
+	}
+	status := strings.ToUpper(strings.TrimSpace(it.Status))
+	if status == "" {
+		status = domain.LeaveStatusApproved
+	}
+	if status != domain.LeaveStatusPending && status != domain.LeaveStatusApproved && status != domain.LeaveStatusRejected {
+		return nil, domain.ErrInvalidDateRange
+	}
+	leaveType := strings.ToUpper(strings.TrimSpace(it.LeaveType))
+	if leaveType == "" {
+		leaveType = "ANNUAL"
+	}
+	now := time.Now().UTC()
+	leave := &domain.LeaveRequest{
+		UserID:         userID,
+		StartDate:      start,
+		EndDate:        end,
+		DaysRequested:  days,
+		LeaveType:      leaveType,
+		Reason:         strings.TrimSpace(it.Reason),
+		Status:         status,
+		ManagerComment: strings.TrimSpace(it.Comment),
+	}
+	if status == domain.LeaveStatusApproved || status == domain.LeaveStatusRejected {
+		leave.ApproverID = &actorID
+		leave.ApprovedAt = &now
+	}
+	if err := u.repo.CreateLeaveRequest(leave); err != nil {
+		return nil, err
+	}
+	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leave.ID, Action: "LEAVE_BACKFILL_CREATED", ActorID: &actorID, ActorRole: strings.ToUpper(strings.TrimSpace(role)), OldStatus: "", NewStatus: status, Comment: strings.TrimSpace(it.Comment), Metadata: "source=admin-backfill"})
+	return u.repo.GetLeaveRequestByID(leave.ID)
+}
+
+func (u *attendanceUsecase) BackfillLeaveBulk(role string, actorID uint, req *domain.LeaveBackfillBulkRequest) (*domain.LeaveBackfillBulkResponse, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	resp := &domain.LeaveBackfillBulkResponse{Total: len(req.Items), Results: make([]domain.LeaveBackfillBulkResultItem, 0, len(req.Items))}
+	for i, it := range req.Items {
+		out, err := u.BackfillLeave(role, actorID, &domain.LeaveBackfillRequest{Item: it})
+		if err != nil {
+			resp.Failed++
+			resp.Results = append(resp.Results, domain.LeaveBackfillBulkResultItem{Index: i, Email: it.EmployeeEmail, Status: "failed", Error: err.Error()})
+			continue
+		}
+		resp.Succeeded++
+		resp.Results = append(resp.Results, domain.LeaveBackfillBulkResultItem{Index: i, Email: it.EmployeeEmail, Status: "created", LeaveID: out.ID})
+	}
+	return resp, nil
+}
+
+func (u *attendanceUsecase) notifyLeaveRequested(leaveID int64, requesterID uint, leaveType string, days int) error {
+	approvers, err := u.repo.ListAdminApproverUserIDs()
+	if err != nil {
+		return err
+	}
+	for _, uid := range approvers {
+		if uid == requesterID {
+			continue
+		}
+		title := "Leave request pending approval"
+		msg := fmt.Sprintf("Employee #%d requested %s leave (%d day(s)).", requesterID, leaveType, days)
+		_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: uid, LeaveID: leaveID, Channel: "IN_APP", Event: "LEAVE_REQUESTED", Title: title, Message: msg})
+		_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: uid, LeaveID: leaveID, Channel: "EMAIL", Event: "LEAVE_REQUESTED", Title: title, Message: msg})
+		_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: uid, LeaveID: leaveID, Channel: "LINE", Event: "LEAVE_REQUESTED", Title: title, Message: msg})
+	}
+	return nil
+}
+
+func (u *attendanceUsecase) notifyLeaveReviewed(leaveID int64, requesterID uint, status string) error {
+	title := "Your leave request has been reviewed"
+	msg := fmt.Sprintf("Leave request #%d is now %s.", leaveID, status)
+	_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: requesterID, LeaveID: leaveID, Channel: "IN_APP", Event: "LEAVE_REVIEWED", Title: title, Message: msg})
+	_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: requesterID, LeaveID: leaveID, Channel: "EMAIL", Event: "LEAVE_REVIEWED", Title: title, Message: msg})
+	_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: requesterID, LeaveID: leaveID, Channel: "LINE", Event: "LEAVE_REVIEWED", Title: title, Message: msg})
+	return nil
 }
 
 func calendarDateUTC(nowLocal time.Time) time.Time {

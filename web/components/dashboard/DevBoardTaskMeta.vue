@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2" :class="dense ? '' : 'mb-2'">
+  <div class="min-w-0 flex flex-wrap items-center gap-2" :class="dense ? '' : 'mb-2'">
     <span
       class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold max-w-[200px] truncate"
       :style="pillStyle"
@@ -10,7 +10,7 @@
     <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-700/80 text-gray-300">{{ statusLabel }}</span>
     <span v-if="detailed && task.code" class="text-[10px] font-mono text-gray-600">{{ task.code }}</span>
   </div>
-  <h3 v-if="detailed" class="text-lg font-bold text-white">{{ task.title }}</h3>
+  <h3 v-if="detailed" class="text-lg font-bold leading-snug text-white break-words">{{ task.title }}</h3>
 </template>
 
 <script setup lang="ts">

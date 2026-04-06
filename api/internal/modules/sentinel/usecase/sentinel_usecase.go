@@ -461,12 +461,20 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 	return task, nil
 }
 
-// authorizeTaskAssign allows CEO / Product Owner / MANAGER for any task; for subtasks also parent assignee/creator or current subtask assignee.
-func (u *sentinelUsecase) authorizeTaskAssign(task *domain.Task, assignerID uint, assignerRole string) error {
+// authorizeTaskAssign allows CEO / Product Owner / MANAGER for any task.
+// Engineer / Chief Engineer can claim an unassigned task only for themselves.
+// For subtasks, parent assignee/creator or current subtask assignee can assign/reassign.
+func (u *sentinelUsecase) authorizeTaskAssign(task *domain.Task, devID uint, assignerID uint, assignerRole string) error {
 	role := strings.ToUpper(strings.TrimSpace(assignerRole))
 	if role == domain.RoleCEO || role == domain.RoleProductOwner || role == domain.RoleManager {
 		return nil
 	}
+
+	// Claim flow: Engineer / Chief Engineer can self-assign only when task is currently unassigned.
+	if (role == domain.RoleEngineer || role == domain.RoleChiefEngineer || role == "CHIEF") && devID == assignerID && task.AssignedTo == nil {
+		return nil
+	}
+
 	if task.ParentID == nil {
 		return fmt.Errorf("unauthorized: only CEO, Product Owner, or Manager can assign top-level tasks")
 	}
@@ -499,7 +507,7 @@ func (u *sentinelUsecase) AssignTask(taskID uuid.UUID, devID uint, assignerID ui
 		return errors.New("task not found")
 	}
 
-	if err := u.authorizeTaskAssign(task, assignerID, assignerRole); err != nil {
+	if err := u.authorizeTaskAssign(task, devID, assignerID, assignerRole); err != nil {
 		return err
 	}
 

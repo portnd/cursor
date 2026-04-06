@@ -7,8 +7,10 @@
 
 <script setup lang="ts">
 import CeoView from '~/components/dashboard/CeoView.vue'
+import ManagerView from '~/components/dashboard/ManagerView.vue'
 import PmView from '~/components/dashboard/PmView.vue'
 import DevView from '~/components/dashboard/DevView.vue'
+import SupportView from '~/components/dashboard/SupportView.vue'
 
 definePageMeta({
   layout: 'default',
@@ -20,12 +22,13 @@ const { currentUser } = useAuth()
 // Role to Component Mapping
 const roleViewMap: Record<string, any> = {
   CEO: CeoView,
-  MANAGER: CeoView,
+  MANAGER: ManagerView,
   PRODUCT_OWNER: PmView,
   PM: PmView,
   ENGINEER: DevView,
   CHIEF_ENGINEER: DevView,
-  DEV: DevView
+  DEV: DevView,
+  SUPPORT: SupportView
 }
 
 // Determine current view based on user role
