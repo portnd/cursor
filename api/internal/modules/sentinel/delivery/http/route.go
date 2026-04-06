@@ -5,7 +5,7 @@ import (
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 )
 
-// RegisterRoutes registers all Sentinel module routes
+// RegisterRoutes registers all Sentinel module routes (handlers are split across sentinel_handler*.go in this package).
 func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, projectFinanceUsecase domain.ProjectFinanceUsecase, googleAPIKey, canvaAccessToken string) {
 	handler := NewSentinelHandler(usecase, googleAPIKey, canvaAccessToken)
 	financeHandler := NewProjectFinanceHandler(projectFinanceUsecase)
@@ -20,6 +20,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/projects/import-backup", backupHandler.ImportProjectFromBackup) // must be before /:id
 		sentinelGroup.GET("/projects", handler.GetProjects)
 		sentinelGroup.GET("/projects/:id/details", handler.GetProjectDetails) // Combined payload (1 round-trip) — must be before /:id
+		sentinelGroup.GET("/projects/:id/tasks", handler.GetProjectTasksPage) // Page 2+ loading for tasks via cursor/offset
 		sentinelGroup.GET("/projects/:id", handler.GetProjectByID)
 		sentinelGroup.PATCH("/projects/:id", handler.UpdateProject)
 		sentinelGroup.DELETE("/projects/:id", handler.DeleteProject)
@@ -99,6 +100,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.GET("/projects/:id/analytics", handler.GetProjectAnalytics)
 
 		// Project Finance (Internal VC — per-project capital)
+		sentinelGroup.GET("/projects/finance/capital", financeHandler.GetProjectCapitals) // bulk: ?project_ids=uuid1,uuid2
 		sentinelGroup.GET("/projects/:id/finance/capital", financeHandler.GetProjectCapital)
 		sentinelGroup.POST("/projects/:id/finance/inject", financeHandler.InjectProjectCapital)
 		sentinelGroup.PUT("/projects/:id/finance/capital", financeHandler.EditProjectCapital)

@@ -480,9 +480,18 @@
 
           <!-- Backlog Table Header + Add Task + Import Slides -->
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
               <h3 class="text-base font-semibold text-gray-200">Product Backlog</h3>
               <span class="text-xs text-gray-500">{{ allTasks.filter(t => !t.parent_id).length }} tasks</span>
+              <span v-if="projectDetailsTasksMeta?.has_more" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5">
+                Showing first {{ projectDetailsTasksMeta.returned }} tasks (server-limited)
+              </span>
+              <span
+                v-if="projectDetailsTasksMeta?.has_more && isLoadingMoreProjectTasks"
+                class="text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded px-2 py-0.5"
+              >
+                Auto loading more tasks…
+              </span>
             </div>
             <div class="flex items-center gap-2">
               <!-- Selection toolbar when items selected -->
@@ -976,6 +985,16 @@
                   </div>
                 </template>
               </template>
+
+              <!-- Auto-load sentinel for infinite scroll (backlog tab only) -->
+              <div
+                v-if="projectDetailsTasksMeta?.has_more"
+                ref="backlogAutoLoadSentinelRef"
+                class="py-4 text-center text-xs text-gray-500"
+              >
+                <span v-if="isLoadingMoreProjectTasks">Loading more tasks…</span>
+                <span v-else>Scroll down to auto-load more tasks</span>
+              </div>
 
               <!-- Empty State -->
               <div v-if="!allTasks.filter(t => !t.parent_id).length" class="py-16 text-center text-gray-500">
@@ -2511,10 +2530,11 @@ const FeatureRoadmapBoard = defineAsyncComponent(() => import('~/components/task
 import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Task, Epic } from '~/core/modules/projects/infrastructure/projects-api'
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 import { effortHoursToMinutes } from '~/utils/effortHours'
-import { isTaskAssigneeRole } from '~/utils/roles'
-import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
+import { buildTaskDisplayCodeMap, sortBacklogTasks, taskCodeSuffix } from '~/utils/backlog-task-utils'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
+import { useProjectSprints } from '~/composables/useProjectSprints'
+import { useProjectImports } from '~/composables/useProjectImports'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -2584,6 +2604,12 @@ watch(activeTab, async (tab) => {
   }
   if (tab === 'analytics' && !analytics.value && project.value) {
     loadAnalytics()
+  }
+  if (tab === 'backlog') {
+    nextTick(() => setupBacklogInfiniteScroll())
+  } else if (backlogAutoLoadObserver) {
+    backlogAutoLoadObserver.disconnect()
+    backlogAutoLoadObserver = null
   }
 })
 
@@ -3387,6 +3413,12 @@ const analytics = ref<AnalyticsType | null>(null)
 const isLoading = ref(true)
 // Task IDs that already have a deployment request (used to show warning on WAIT_FOR_DEPLOY kanban cards)
 const deployedTaskIds = ref<string[]>([])
+const projectDetailsTasksMeta = ref<{ limit: number; returned: number; has_more: boolean } | null>(null)
+const projectTasksNextCursor = ref<{ created_at: string; id: string } | null>(null)
+const projectTasksNextOffset = ref<number>(0)
+const isLoadingMoreProjectTasks = ref(false)
+const backlogAutoLoadSentinelRef = ref<HTMLElement | null>(null)
+let backlogAutoLoadObserver: IntersectionObserver | null = null
 const analyticsLoading = ref(false)
 const error = ref('')
 const ganttView = ref('week')
@@ -3411,14 +3443,6 @@ const EPIC_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b
 
 // Computed
 const activeSprint = computed(() => sprints.value.find((s) => s.status === 'ACTIVE') ?? null)
-/** Sprints ordered by sort_order (for drag-and-drop reorder). Display uses this. */
-const sprintsOrdered = computed(() =>
-  [...sprints.value].sort(
-    (a, b) =>
-      (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  )
-)
 const totalTasks = computed(() => allTasks.value.length)
 const completedCount = computed(() => allTasks.value.filter((t) => t.status === 'COMPLETED').length)
 const inProgressCount = computed(() => allTasks.value.filter((t) => t.status === 'IN_PROGRESS').length)
@@ -3516,43 +3540,15 @@ const allTasksInBacklogOrder = computed(() => {
   return list
 })
 
-/** Code suffix as 3 digits for A/B/C prefix (matches task detail page: A084, B084, C084). */
-function codeSuffix3(code: string | undefined): string {
-  if (!code) return '???'
-  const suffix = code.split('-').pop()
-  return (suffix && /^\d+$/.test(suffix)) ? String(Number(suffix)).padStart(3, '0') : (suffix || '???')
-}
-
 /** Top-level: A084. Sub-tasks: B084. Sub-tasks of B: C084. Uses task.code suffix so backlog and task page match. */
-const taskDisplayCodeMap = computed(() => {
-  const m: Record<string, string> = {}
-  const byId = Object.fromEntries(allTasks.value.map((t) => [t.id, t]))
-  allTasksInBacklogOrder.value.forEach((t) => {
-    const num = codeSuffix3(t.code)
-    if (!t.parent_id) {
-      m[t.id] = 'A' + num
-    } else {
-      const parent = byId[t.parent_id]
-      if (parent && parent.parent_id) {
-        m[t.id] = 'C' + num
-      } else {
-        m[t.id] = 'B' + num
-      }
-    }
-  })
-  return m
-})
+const taskDisplayCodeMap = computed(() =>
+  buildTaskDisplayCodeMap(allTasksInBacklogOrder.value, allTasks.value)
+)
 
 function taskDisplayCode(task: { id: string; code?: string }) {
   return taskDisplayCodeMap.value[task.id] ?? taskCodeSuffix(task.code)
 }
 
-/** Show only numeric part for display (e.g. "hdmap-001" → "001"). */
-function taskCodeSuffix(code: string | undefined): string {
-  if (!code) return '–'
-  const suffix = code.split('-').pop()
-  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(4, '0') : code
-}
 
 function sprintTaskCount(type: 'total' | 'done' | 'sp') {
   if (!activeSprint.value) return 0
@@ -3563,14 +3559,6 @@ function sprintTaskCount(type: 'total' | 'done' | 'sp') {
   return 0
 }
 
-function getSprintStats(sprintId: string) {
-  const tasks = allTasks.value.filter((t) => !t.parent_id && t.sprint_id === sprintId)
-  return {
-    total: tasks.length,
-    done: tasks.filter((t) => t.status === 'COMPLETED').length,
-    sp: tasks.reduce((s, t) => s + (t.story_points || 0), 0),
-  }
-}
 
 function statusClass(status: string) {
   if (status === 'ACTIVE') return 'bg-green-500/10 text-green-400 border-green-500/30'
@@ -3619,147 +3607,6 @@ function isoToDatetimeLocal(iso: string | null | undefined): string {
   return `${y}-${m}-${day}T${h}:${min}`
 }
 
-/** `datetime-local` string → Date, or null */
-function parseDatetimeLocal(s: string): Date | null {
-  if (!s?.trim()) return null
-  const d = new Date(s)
-  return isNaN(d.getTime()) ? null : d
-}
-
-/** Format for `datetime-local` inputs (local timezone). */
-function dateToDatetimeLocal(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const h = String(d.getHours()).padStart(2, '0')
-  const min = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${h}:${min}`
-}
-
-/**
- * Next sprint start: upcoming Monday 09:00 local (today if already Monday).
- * Sunday → next calendar Monday; Tue–Sat → following Monday.
- */
-function nextSprintMondayStart(base: Date = new Date(), hour = 9, minute = 0): Date {
-  const d = new Date(base)
-  d.setSeconds(0, 0)
-  d.setMilliseconds(0)
-  d.setHours(hour, minute, 0, 0)
-  const dow = d.getDay()
-  let add = 0
-  if (dow === 0) add = 1
-  else if (dow !== 1) add = 8 - dow
-  d.setDate(d.getDate() + add)
-  return d
-}
-
-function startOfLocalDay(d: Date): Date {
-  const x = new Date(d)
-  x.setHours(0, 0, 0, 0)
-  x.setMilliseconds(0)
-  return x
-}
-
-function addLocalCalendarDays(d: Date, n: number): Date {
-  const x = new Date(d)
-  x.setDate(x.getDate() + n)
-  return x
-}
-
-/** First Monday at hour:minute local on or after the calendar day of `day`. */
-function mondayOnOrAfterCalendarDay(day: Date, hour = 9, minute = 0): Date {
-  const x = startOfLocalDay(day)
-  const dow = x.getDay()
-  let add = 0
-  if (dow === 0) add = 1
-  else if (dow !== 1) add = 8 - dow
-  x.setDate(x.getDate() + add)
-  x.setHours(hour, minute, 0, 0)
-  x.setSeconds(0, 0)
-  return x
-}
-
-/** Latest end instant for overlap checks; if no end_date, approximate from start (+13d @17:00). */
-function sprintEffectiveEndTime(s: Sprint): number | null {
-  if (s.end_date) {
-    const t = new Date(s.end_date).getTime()
-    return Number.isNaN(t) ? null : t
-  }
-  if (s.start_date) {
-    const st = new Date(s.start_date)
-    if (Number.isNaN(st.getTime())) return null
-    const end = addLocalCalendarDays(startOfLocalDay(st), 13)
-    end.setHours(17, 0, 0, 0)
-    return end.getTime()
-  }
-  return null
-}
-
-/**
- * Default Monday 09:00 for a new sprint in this project: the later of
- * (a) next Monday from `now`, and (b) first Monday on/after the day after the latest existing sprint end.
- */
-function defaultNextSprintMondayStart(existing: Sprint[], now: Date = new Date()): Date {
-  const fromToday = nextSprintMondayStart(now)
-  let latestEndMs: number | null = null
-  for (const sp of existing) {
-    const t = sprintEffectiveEndTime(sp)
-    if (t == null) continue
-    if (latestEndMs == null || t > latestEndMs) latestEndMs = t
-  }
-  if (latestEndMs == null) return fromToday
-  const latestEnd = new Date(latestEndMs)
-  const dayAfterLast = addLocalCalendarDays(startOfLocalDay(latestEnd), 1)
-  const afterPreviousSprints = mondayOnOrAfterCalendarDay(dayAfterLast)
-  return new Date(Math.max(fromToday.getTime(), afterPreviousSprints.getTime()))
-}
-
-/** Last day of sprint: Monday start + (weeks × 7 − 1) days at 17:00 local. */
-function sprintEndFromMondayStart(start: Date, weeks: number): Date {
-  const w = Math.max(1, Math.floor(weeks))
-  const end = new Date(start)
-  end.setDate(end.getDate() + w * 7 - 1)
-  end.setHours(17, 0, 0, 0)
-  return end
-}
-
-/** Inclusive calendar days between local midnights (Mon→Sun = 7 for a one-week sprint). */
-function sprintInclusiveCalendarDays(start: Date, end: Date): number {
-  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
-  return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
-}
-
-/** Compact range for sprint title, e.g. "Mar 30 – Apr 12, 2026" or cross-year with both years. */
-function formatSprintDateRangeForName(start: Date, end: Date): string {
-  const sy = start.getFullYear()
-  const ey = end.getFullYear()
-  const short: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-  const startPart =
-    sy === ey
-      ? start.toLocaleDateString('en-US', short)
-      : start.toLocaleDateString('en-US', { ...short, year: 'numeric' })
-  const endPart = end.toLocaleDateString('en-US', { ...short, year: 'numeric' })
-  return `${startPart} – ${endPart}`
-}
-
-function defaultSprintDisplayName(
-  projectName: string,
-  ordinal: number,
-  start?: Date | null,
-  end?: Date | null,
-): string {
-  const pn = projectName.trim() || 'Project'
-  const base = `${pn} — Sprint ${ordinal}`
-  if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
-    return `${base} (${formatSprintDateRangeForName(start, end)})`
-  }
-  return base
-}
-
-function nextSprintOrdinal(existing: Sprint[]): number {
-  return existing.length + 1
-}
 
 const BACKLOG_EXPANDED_STORAGE_KEY = 'sentinel-backlog-expanded'
 const BACKLOG_EXPECT_RETURN_KEY = 'sentinel-backlog-expect-return'
@@ -3850,7 +3697,8 @@ async function loadAll() {
   let timelineOk = false
   try {
     // When timeline tab: fetch details and timeline in parallel (both support id/code)
-    const detailsPromise = projectsApi.getProjectDetails(idOrCode)
+    const isHeavyBoardTab = activeTab.value === 'backlog' || activeTab.value === 'board' || activeTab.value === 'timeline'
+    const detailsPromise = projectsApi.getProjectDetails(idOrCode, { tasksLimit: isHeavyBoardTab ? 1200 : 600 })
     const timelinePromise =
       isTimelineTab
         ? (timelineMode.value === 'epic'
@@ -3861,6 +3709,15 @@ async function loadAll() {
     const details = await detailsPromise
     project.value = details.project
     allTasks.value = details.tasks
+    projectDetailsTasksMeta.value = details.tasks_meta ?? null
+    if (details.tasks.length > 0) {
+      const last = details.tasks[details.tasks.length - 1]
+      projectTasksNextCursor.value = { created_at: last.created_at, id: last.id }
+      projectTasksNextOffset.value = details.tasks.length
+    } else {
+      projectTasksNextCursor.value = null
+      projectTasksNextOffset.value = 0
+    }
     sprints.value = details.sprints
     milestones.value = details.milestones
     epics.value = details.epics
@@ -3937,6 +3794,61 @@ async function loadAll() {
     else if (timelineMode.value === 'sprint') await loadSprintTimeline()
   }
   if (activeTab.value === 'analytics') loadAnalytics()
+}
+
+async function loadMoreProjectTasks() {
+  if (!project.value || isLoadingMoreProjectTasks.value) return
+  if (!projectDetailsTasksMeta.value?.has_more) return
+  isLoadingMoreProjectTasks.value = true
+  try {
+    const page = await projectsApi.getProjectTasksPage(project.value.id, {
+      limit: projectDetailsTasksMeta.value.limit || 600,
+      cursorCreatedAt: projectTasksNextCursor.value?.created_at,
+      cursorId: projectTasksNextCursor.value?.id,
+      offset: projectTasksNextOffset.value,
+    })
+    if (page.tasks.length > 0) {
+      const merged = [...allTasks.value]
+      const seen = new Set(merged.map((t) => t.id))
+      for (const t of page.tasks) {
+        if (!seen.has(t.id)) {
+          merged.push(t)
+          seen.add(t.id)
+        }
+      }
+      allTasks.value = merged
+      const last = page.tasks[page.tasks.length - 1]
+      projectTasksNextCursor.value = { created_at: last.created_at, id: last.id }
+    }
+    projectTasksNextOffset.value = page.next_offset ?? (projectTasksNextOffset.value + page.returned)
+    projectDetailsTasksMeta.value = {
+      limit: page.limit,
+      returned: allTasks.value.length,
+      has_more: page.has_more,
+    }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to load more tasks'
+  } finally {
+    isLoadingMoreProjectTasks.value = false
+  }
+}
+
+function setupBacklogInfiniteScroll() {
+  if (typeof window === 'undefined') return
+  if (backlogAutoLoadObserver) {
+    backlogAutoLoadObserver.disconnect()
+    backlogAutoLoadObserver = null
+  }
+  const el = backlogAutoLoadSentinelRef.value
+  if (!el) return
+  backlogAutoLoadObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0]
+    if (!entry?.isIntersecting) return
+    if (activeTab.value !== 'backlog') return
+    if (!projectDetailsTasksMeta.value?.has_more) return
+    void loadMoreProjectTasks()
+  }, { root: null, rootMargin: '300px 0px 300px 0px', threshold: 0 })
+  backlogAutoLoadObserver.observe(el)
 }
 
 async function loadGanttDataForProject() {
@@ -4150,376 +4062,72 @@ async function saveEditProject() {
   }
 }
 
-// Sprint operations
-const showSprintModal = ref(false)
-const editingSprint = ref<Sprint | null>(null)
-const sprintForm = ref({ name: '', goal: '', start_date: '', end_date: '' })
-const sprintDurationWeeks = ref(2)
-/** 1–12 weeks for create flow */
-const sprintDurationOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-const isCreatingSprint = ref(false)
-const sprintError = ref('')
-
-function fillCreateSprintFormDefaults() {
-  const w = 2
-  const start = defaultNextSprintMondayStart(sprints.value, new Date())
-  const end = sprintEndFromMondayStart(start, w)
-  const pname = project.value?.name ?? ''
-  sprintForm.value = {
-    name: pname
-      ? defaultSprintDisplayName(pname, nextSprintOrdinal(sprints.value), start, end)
-      : '',
-    goal: '',
-    start_date: dateToDatetimeLocal(start),
-    end_date: dateToDatetimeLocal(end),
-  }
-  sprintDurationWeeks.value = w
-}
-
-/** Keep auto title `(start – end)` in sync when duration or start changes (create only). */
-function refreshCreateSprintNameFromDates(start: Date, end: Date) {
-  if (!project.value || editingSprint.value) return
-  sprintForm.value.name = defaultSprintDisplayName(
-    project.value.name,
-    nextSprintOrdinal(sprints.value),
-    start,
-    end,
-  )
-}
-
-function syncSprintEndFromStartAndDuration() {
-  if (editingSprint.value) return
-  const start = parseDatetimeLocal(sprintForm.value.start_date)
-  if (!start) return
-  const w = Math.max(1, sprintDurationWeeks.value)
-  const end = sprintEndFromMondayStart(start, w)
-  sprintForm.value.end_date = dateToDatetimeLocal(end)
-  refreshCreateSprintNameFromDates(start, end)
-}
-
-function onSprintDurationWeeksChange(ev: Event) {
-  const raw = Number((ev.target as HTMLSelectElement).value)
-  sprintDurationWeeks.value = Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1
-  syncSprintEndFromStartAndDuration()
-}
-
-function applySuggestedSprintName() {
-  if (!project.value || editingSprint.value) return
-  const start = parseDatetimeLocal(sprintForm.value.start_date)
-  const end = parseDatetimeLocal(sprintForm.value.end_date)
-  sprintForm.value.name = defaultSprintDisplayName(
-    project.value.name,
-    nextSprintOrdinal(sprints.value),
-    start,
-    end,
-  )
-}
-
-function resetSprintModalToDefaults() {
-  if (editingSprint.value) return
-  fillCreateSprintFormDefaults()
-  sprintError.value = ''
-}
-
-function openSprintModal() {
-  editingSprint.value = null
-  sprintError.value = ''
-  fillCreateSprintFormDefaults()
-  showSprintModal.value = true
-}
-
-function openEditSprintModal(sprint: Sprint) {
-  editingSprint.value = sprint
-  sprintForm.value = {
-    name: sprint.name,
-    goal: sprint.goal || '',
-    start_date: isoToDatetimeLocal(sprint.start_date),
-    end_date: isoToDatetimeLocal(sprint.end_date),
-  }
-  sprintError.value = ''
-  showSprintModal.value = true
-}
-
-function closeSprintModal() {
-  showSprintModal.value = false
-  editingSprint.value = null
-}
-
-async function submitSprint() {
-  if (!project.value) {
-    sprintError.value = 'Project not loaded. Please refresh the page.'
-    return
-  }
-  isCreatingSprint.value = true
-  sprintError.value = ''
-  try {
-    const name = sprintForm.value.name.trim()
-    const goal = sprintForm.value.goal?.trim() || undefined
-    let start_date: string | undefined
-    let end_date: string | undefined
-    const startD = parseDatetimeLocal(sprintForm.value.start_date)
-    const endD = parseDatetimeLocal(sprintForm.value.end_date)
-    if (startD) start_date = startD.toISOString()
-    if (endD) end_date = endD.toISOString()
-
-    if (startD && endD) {
-      if (endD.getTime() <= startD.getTime()) {
-        sprintError.value = 'End must be after start.'
-        return
-      }
-      if (!editingSprint.value && sprintInclusiveCalendarDays(startD, endD) < 7) {
-        sprintError.value = 'Sprint must span at least 1 full week (7 calendar days, Mon–Sun style).'
-        return
-      }
-    }
-
-    if (editingSprint.value) {
-      const updated = await projectsApi.updateSprint(editingSprint.value.id, { name, goal, start_date, end_date })
-      const idx = sprints.value.findIndex((s) => s.id === editingSprint.value!.id)
-      if (idx !== -1) sprints.value[idx] = updated
-      closeSprintModal()
-    } else {
-      const sprint = await projectsApi.createSprint({
-        project_id: project.value.id,
-        name,
-        goal,
-        start_date,
-        end_date,
-      })
-      sprints.value.unshift(sprint)
-      closeSprintModal()
-    }
-  } catch (e: any) {
-    const msg = e?.data?.message ?? e?.data?.error ?? e?.message ?? (editingSprint.value ? 'Failed to update sprint' : 'Failed to create sprint')
-    sprintError.value = typeof msg === 'string' ? msg : 'Failed to save sprint'
-  } finally {
-    isCreatingSprint.value = false
-  }
-}
-
-// Sprint drag-and-drop reorder
-const sprintDragId = ref<string | null>(null)
-function onSprintDragStart(e: DragEvent, sprintId: string) {
-  sprintDragId.value = sprintId
-  e.dataTransfer?.setData?.('application/json', JSON.stringify({ type: 'sprint', id: sprintId }))
-  e.dataTransfer!.effectAllowed = 'move'
-}
-function onSprintDragOver(e: DragEvent) {
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-}
-function onSprintDrop(e: DragEvent, dropIndex: number) {
-  e.preventDefault()
-  sprintDragId.value = null
-  let dragId: string | null = null
-  try {
-    const raw = e.dataTransfer?.getData('application/json')
-    if (raw) {
-      const p = JSON.parse(raw) as { type: string; id: string }
-      if (p.type === 'sprint') dragId = p.id
-    }
-  } catch {}
-  if (!dragId) return
-  const ordered = [...sprintsOrdered.value]
-  const fromIndex = ordered.findIndex((x) => x.id === dragId)
-  if (fromIndex < 0 || fromIndex === dropIndex) return
-  const [removed] = ordered.splice(fromIndex, 1)
-  ordered.splice(dropIndex, 0, removed)
-  reorderSprints(ordered)
-}
-
-async function reorderSprints(newOrder: Sprint[]) {
-  try {
-    for (let i = 0; i < newOrder.length; i++) {
-      const s = newOrder[i]
-      if ((s.sort_order ?? 0) === i) continue
-      const updated = await projectsApi.updateSprint(s.id, { sort_order: i })
-      const idx = sprints.value.findIndex((x) => x.id === s.id)
-      if (idx !== -1) (sprints.value[idx] as Sprint).sort_order = updated.sort_order ?? i
-    }
-  } catch {
-    await loadAll()
-  }
-}
-
-// Add tasks to Sprint
-const showAddTasksToSprintModal = ref(false)
-const sprintForAddTasks = ref<Sprint | null>(null)
-const selectedTaskIdsForSprint = ref<string[]>([])
-const addTasksToSprintError = ref('')
-const isAddingTasksToSprint = ref(false)
-
-const tasksNotInSprint = computed(() => {
-  const sprintId = sprintForAddTasks.value?.id
-  if (!sprintId) return []
-  return allTasks.value
-    .filter((t) => t.sprint_id !== sprintId)
-    .sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true }))
+const {
+  sprintsOrdered,
+  getSprintStats,
+  showSprintModal,
+  editingSprint,
+  sprintForm,
+  sprintDurationWeeks,
+  sprintDurationOptions,
+  isCreatingSprint,
+  sprintError,
+  syncSprintEndFromStartAndDuration,
+  onSprintDurationWeeksChange,
+  applySuggestedSprintName,
+  resetSprintModalToDefaults,
+  openSprintModal,
+  openEditSprintModal,
+  closeSprintModal,
+  submitSprint,
+  sprintDragId,
+  onSprintDragStart,
+  onSprintDragOver,
+  onSprintDrop,
+  showAddTasksToSprintModal,
+  sprintForAddTasks,
+  selectedTaskIdsForSprint,
+  addTasksToSprintError,
+  isAddingTasksToSprint,
+  tasksNotInSprint,
+  openAddTasksToSprintModal,
+  closeAddTasksToSprintModal,
+  confirmAddTasksToSprint,
+  showDeleteSprintModal,
+  sprintToDelete,
+  deleteSprintError,
+  isDeletingSprint,
+  openDeleteSprintModal,
+  closeDeleteSprintModal,
+  confirmDeleteSprint,
+  showCompleteSprintModal,
+  sprintToComplete,
+  completeSprintError,
+  isCompletingSprint,
+  openCompleteSprintModal,
+  closeCompleteSprintModal,
+  confirmCompleteSprint,
+  showReopenSprintModal,
+  sprintToReopen,
+  reopenSprintError,
+  isReopeningSprint,
+  openReopenSprintModal,
+  closeReopenSprintModal,
+  confirmReopenSprint,
+  handleStartSprint,
+} = useProjectSprints({
+  project,
+  sprints,
+  allTasks,
+  activeSprint,
+  projectsApi,
+  tasksApi,
+  loadAll,
+  loadSprintTimeline,
+  updateTaskInTimelineData,
+  taskDatesInSprintRange,
+  showError,
 })
-
-function openAddTasksToSprintModal(sprint: Sprint) {
-  sprintForAddTasks.value = sprint
-  selectedTaskIdsForSprint.value = []
-  addTasksToSprintError.value = ''
-  showAddTasksToSprintModal.value = true
-}
-
-function closeAddTasksToSprintModal() {
-  showAddTasksToSprintModal.value = false
-  sprintForAddTasks.value = null
-  selectedTaskIdsForSprint.value = []
-  addTasksToSprintError.value = ''
-}
-
-async function confirmAddTasksToSprint() {
-  if (!sprintForAddTasks.value || selectedTaskIdsForSprint.value.length === 0) return
-  const sprint = sprintForAddTasks.value
-  isAddingTasksToSprint.value = true
-  addTasksToSprintError.value = ''
-  try {
-    await projectsApi.addTasksToSprint(sprint.id, selectedTaskIdsForSprint.value)
-    for (const id of selectedTaskIdsForSprint.value) {
-      const t = allTasks.value.find((x) => x.id === id)
-      if (t) {
-        t.sprint_id = sprint.id
-        const dates = taskDatesInSprintRange(t, sprint)
-        if (dates) {
-          try {
-            await tasksApi.updateTask(id, { start_date: dates.start_date, end_date: dates.end_date })
-            t.start_date = dates.start_date
-            t.end_date = dates.end_date
-            updateTaskInTimelineData(id, dates.start_date, dates.end_date)
-          } catch {
-            // ignore per-task date update failure
-          }
-        }
-      }
-    }
-    await loadSprintTimeline()
-    closeAddTasksToSprintModal()
-  } catch (e: any) {
-    const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'เพิ่มงานไม่สำเร็จ'
-    addTasksToSprintError.value = typeof err === 'string' ? err : 'เพิ่มงานไม่สำเร็จ'
-  } finally {
-    isAddingTasksToSprint.value = false
-  }
-}
-
-// Delete Sprint: use modal so confirmation always shows (browser may block confirm())
-const showDeleteSprintModal = ref(false)
-const sprintToDelete = ref<Sprint | null>(null)
-const deleteSprintError = ref('')
-const isDeletingSprint = ref(false)
-
-function openDeleteSprintModal(sprint: Sprint) {
-  sprintToDelete.value = sprint
-  deleteSprintError.value = ''
-  showDeleteSprintModal.value = true
-}
-
-function closeDeleteSprintModal() {
-  showDeleteSprintModal.value = false
-  sprintToDelete.value = null
-  deleteSprintError.value = ''
-}
-
-async function confirmDeleteSprint() {
-  if (!sprintToDelete.value) return
-  isDeletingSprint.value = true
-  deleteSprintError.value = ''
-  try {
-    await projectsApi.deleteSprint(sprintToDelete.value.id)
-    sprints.value = sprints.value.filter((s) => s.id !== sprintToDelete.value!.id)
-    closeDeleteSprintModal()
-  } catch (e: any) {
-    const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'ลบไม่สำเร็จ'
-    deleteSprintError.value = typeof err === 'string' ? err : 'ลบไม่สำเร็จ'
-  } finally {
-    isDeletingSprint.value = false
-  }
-}
-
-// Complete Sprint: use modal so confirmation always shows
-const showCompleteSprintModal = ref(false)
-const sprintToComplete = ref<Sprint | null>(null)
-const completeSprintError = ref('')
-const isCompletingSprint = ref(false)
-
-function openCompleteSprintModal(sprint: Sprint) {
-  sprintToComplete.value = sprint
-  completeSprintError.value = ''
-  showCompleteSprintModal.value = true
-}
-
-function closeCompleteSprintModal() {
-  showCompleteSprintModal.value = false
-  sprintToComplete.value = null
-  completeSprintError.value = ''
-}
-
-async function confirmCompleteSprint() {
-  if (!sprintToComplete.value) return
-  isCompletingSprint.value = true
-  completeSprintError.value = ''
-  try {
-    const updated = await projectsApi.completeSprint(sprintToComplete.value.id)
-    const idx = sprints.value.findIndex((s) => s.id === sprintToComplete.value!.id)
-    if (idx !== -1) sprints.value[idx] = updated
-    closeCompleteSprintModal()
-  } catch (e: any) {
-    const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'ปิด sprint ไม่สำเร็จ'
-    completeSprintError.value = typeof err === 'string' ? err : 'ปิด sprint ไม่สำเร็จ'
-  } finally {
-    isCompletingSprint.value = false
-  }
-}
-
-// Reopen Sprint: use modal so confirmation always shows
-const showReopenSprintModal = ref(false)
-const sprintToReopen = ref<Sprint | null>(null)
-const reopenSprintError = ref('')
-const isReopeningSprint = ref(false)
-
-function openReopenSprintModal(sprint: Sprint) {
-  sprintToReopen.value = sprint
-  reopenSprintError.value = ''
-  showReopenSprintModal.value = true
-}
-
-function closeReopenSprintModal() {
-  showReopenSprintModal.value = false
-  sprintToReopen.value = null
-  reopenSprintError.value = ''
-}
-
-async function confirmReopenSprint() {
-  if (!sprintToReopen.value) return
-  isReopeningSprint.value = true
-  reopenSprintError.value = ''
-  try {
-    const updated = await projectsApi.reopenSprint(sprintToReopen.value.id)
-    const idx = sprints.value.findIndex((s) => s.id === sprintToReopen.value!.id)
-    if (idx !== -1) sprints.value[idx] = updated
-    closeReopenSprintModal()
-  } catch (e: any) {
-    const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'เปิด sprint กลับไม่สำเร็จ'
-    reopenSprintError.value = typeof err === 'string' ? err : 'เปิด sprint กลับไม่สำเร็จ'
-  } finally {
-    isReopeningSprint.value = false
-  }
-}
-
-async function handleStartSprint(id: string) {
-  if (activeSprint.value) return
-  try {
-    const updated = await projectsApi.startSprint(id)
-    const idx = sprints.value.findIndex((s) => s.id === id)
-    if (idx !== -1) sprints.value[idx] = updated
-  } catch (e: any) {
-    const msg = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'Failed to start sprint'
-    showError(typeof msg === 'string' ? msg : 'Failed to start sprint', 'Start sprint failed')
-  }
-}
 
 // Milestone operations
 const showMilestoneModal = ref(false)
@@ -4632,607 +4240,92 @@ function openCreateTaskModal(parentId?: string, epicId?: string) {
 
 function closeCreateTaskModal() { showCreateTaskModal.value = false }
 
-// Backlog Import from Google Slides
-interface BacklogImportAssignee { id: number; email: string; display_name: string; role: string }
-interface BacklogTriagedSlide { title: string; assignee_id: number | null; estimated_minutes: number; priority: string }
-
-const showBacklogImportModal = ref(false)
-const backlogImportStep = ref<'form' | 'select' | 'result'>('form')
-const isBacklogImporting = ref(false)
-const isBacklogLoadingPreview = ref(false)
-const backlogImportError = ref('')
-const backlogImportResult = ref<{ created_count: number; slide_count: number; presentation_title: string; tasks: any[] } | null>(null)
-const backlogImportPreview = ref<{
-  presentation_title: string
-  slides: { index: number; title: string; hidden?: boolean; suggested_task_title?: string }[]
-  already_imported_slide_indices?: number[]
-} | null>(null)
-const backlogImportSelectedIndices = ref<number[]>([])
-// Per-slide triage data keyed by slide index (1-based)
-const backlogImportTriagedSlides = ref<Record<number, BacklogTriagedSlide>>({})
-const backlogImportAssignees = ref<BacklogImportAssignee[]>([])
-const backlogImportForm = ref({
-  presentation_url: '',
-  priority: 'MEDIUM' as const,
-  story_points: 1,
-  epic_id: '',
-  parent_id: '',
+const {
+  showBacklogImportModal,
+  backlogImportStep,
+  isBacklogImporting,
+  isBacklogLoadingPreview,
+  backlogImportError,
+  backlogImportResult,
+  backlogImportPreview,
+  backlogImportSelectedIndices,
+  backlogImportTriagedSlides,
+  backlogImportAssignees,
+  backlogImportForm,
+  backlogParentTaskOptions,
+  onBacklogImportEpicChange,
+  openBacklogImportModal,
+  closeBacklogImportModal,
+  loadBacklogImportPreview,
+  backlogImportSelectAll,
+  backlogImportDeselectAll,
+  backlogImportSelectOnlyNew,
+  submitBacklogImport,
+  showPPTXImportModal,
+  pptxImportStep,
+  isPPTXImporting,
+  isPPTXLoadingPreview,
+  pptxImportError,
+  pptxImportResult,
+  pptxImportPreview,
+  pptxImportFile,
+  pptxDragOver,
+  pptxImportSelectedIndices,
+  pptxImportTriagedSlides,
+  pptxImportForm,
+  pptxParentTaskOptions,
+  onPPTXImportEpicChange,
+  onPPTXFileChange,
+  onPPTXFileDrop,
+  openPPTXImportModal,
+  closePPTXImportModal,
+  pptxImportSelectAll,
+  pptxImportDeselectAll,
+  pptxImportSelectOnlyVisible,
+  loadPPTXImportPreview,
+  submitPPTXImport,
+  showSheetsImportModal,
+  sheetsImportStep,
+  isSheetsImporting,
+  isSheetsLoadingPreview,
+  sheetsImportError,
+  sheetsImportResult,
+  sheetsImportPreview,
+  sheetsImportSelectedRowIndices,
+  sheetsImportTriagedRows,
+  sheetsImportForm,
+  sheetsParentTaskOptions,
+  onSheetsImportEpicChange,
+  openSheetsImportModal,
+  closeSheetsImportModal,
+  sheetsImportSelectAll,
+  sheetsImportDeselectAll,
+  loadSheetsImportPreview,
+  submitSheetsImport,
+  showIODImportModal,
+  iodImportStep,
+  isIODImporting,
+  isIODLoadingPreview,
+  iodImportError,
+  iodImportResult,
+  iodImportPreview,
+  iodImportSelectedRowIndices,
+  iodImportTriagedRows,
+  iodImportForm,
+  iodParentTaskOptions,
+  onIODImportEpicChange,
+  openIODImportModal,
+  closeIODImportModal,
+  loadIODImportPreview,
+  submitIODImport,
+} = useProjectImports({
+  allTasks,
+  project,
+  currentUser,
+  tasksApi,
+  teamsStore,
+  loadAll,
 })
-
-// Top-level tasks (no parent) for "Target Parent Task" dropdown
-// When an epic is selected, show only tasks belonging to that epic
-const backlogParentTaskOptions = computed(() => {
-  const epicId = backlogImportForm.value.epic_id
-  return allTasks.value
-    .filter((t) => {
-      if (t.parent_id) return false
-      if (epicId) return t.epic_id === epicId
-      return true
-    })
-    .sort((a, b) => a.title.localeCompare(b.title))
-})
-
-function onBacklogImportEpicChange() {
-  // Reset parent_id if it no longer belongs to the newly selected epic
-  const currentParent = backlogParentTaskOptions.value.find((t) => t.id === backlogImportForm.value.parent_id)
-  if (!currentParent) backlogImportForm.value.parent_id = ''
-}
-
-async function loadBacklogImportAssignees() {
-  if (backlogImportAssignees.value.length > 0) return
-  try {
-    const { fetchWithAuth: fw } = useAuth()
-    const role = (currentUser.value?.role || '').toUpperCase()
-    if (role === 'PRODUCT_OWNER' || role === 'PM') {
-      await teamsStore.fetchTeamsFeatureEnabled()
-      if (teamsStore.teamsFeatureEnabled) {
-        const { getTeams } = useTeamsApi()
-        const teams = await getTeams()
-        const userId = currentUser.value?.user_id
-        const myTeam = teams.find((t: any) => t.users?.some((u: any) => u.id === userId))
-        backlogImportAssignees.value = (myTeam?.users ?? [])
-          .filter((u: any) => isTaskAssigneeRole(u.role))
-          .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
-      } else {
-        const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
-        backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>
-          isTaskAssigneeRole(u.role)
-        )
-      }
-    } else {
-      const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
-      backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) =>
-        isTaskAssigneeRole(u.role)
-      )
-    }
-  } catch {
-    // non-critical
-  }
-}
-
-function openBacklogImportModal() {
-  backlogImportForm.value = { presentation_url: '', priority: 'MEDIUM', story_points: 1, epic_id: '', parent_id: '' }
-  backlogImportStep.value = 'form'
-  backlogImportError.value = ''
-  backlogImportResult.value = null
-  backlogImportPreview.value = null
-  backlogImportSelectedIndices.value = []
-  backlogImportTriagedSlides.value = {}
-  showBacklogImportModal.value = true
-  loadBacklogImportAssignees()
-}
-
-function closeBacklogImportModal() {
-  showBacklogImportModal.value = false
-  if (backlogImportResult.value) loadAll()
-}
-
-// PPTX File Upload Import
-const showPPTXImportModal = ref(false)
-const pptxImportStep = ref<'form' | 'select' | 'result'>('form')
-const isPPTXImporting = ref(false)
-const isPPTXLoadingPreview = ref(false)
-const pptxImportError = ref('')
-const pptxImportResult = ref<{ created_count: number; page_count: number; title: string; tasks: any[] } | null>(null)
-const pptxImportPreview = ref<{ title: string; slides: { index: number; title: string; hidden?: boolean; suggested_task_title?: string }[] } | null>(null)
-const pptxImportFile = ref<File | null>(null)
-const pptxDragOver = ref(false)
-const pptxImportSelectedIndices = ref<number[]>([])
-const pptxImportTriagedSlides = ref<Record<number, BacklogTriagedSlide>>({})
-const pptxImportForm = ref({ epic_id: '', parent_id: '' })
-
-const pptxParentTaskOptions = computed(() => {
-  const epicId = pptxImportForm.value.epic_id
-  return allTasks.value
-    .filter((t) => {
-      if (t.parent_id) return false
-      if (epicId) return t.epic_id === epicId
-      return true
-    })
-    .sort((a, b) => a.title.localeCompare(b.title))
-})
-
-function onPPTXImportEpicChange() {
-  const currentParent = pptxParentTaskOptions.value.find((t) => t.id === pptxImportForm.value.parent_id)
-  if (!currentParent) pptxImportForm.value.parent_id = ''
-}
-
-function onPPTXFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    pptxImportFile.value = input.files[0]
-    pptxImportError.value = ''
-  }
-}
-
-function onPPTXFileDrop(e: DragEvent) {
-  pptxDragOver.value = false
-  const file = e.dataTransfer?.files[0]
-  if (file && (file.name.endsWith('.pptx') || file.type.includes('presentationml'))) {
-    pptxImportFile.value = file
-    pptxImportError.value = ''
-  } else {
-    pptxImportError.value = 'กรุณาเลือกไฟล์ .pptx เท่านั้น'
-  }
-}
-
-function openPPTXImportModal() {
-  pptxImportForm.value = { epic_id: '', parent_id: '' }
-  pptxImportStep.value = 'form'
-  pptxImportError.value = ''
-  pptxImportResult.value = null
-  pptxImportPreview.value = null
-  pptxImportFile.value = null
-  pptxImportSelectedIndices.value = []
-  pptxImportTriagedSlides.value = {}
-  showPPTXImportModal.value = true
-  loadBacklogImportAssignees()
-}
-
-function closePPTXImportModal() {
-  showPPTXImportModal.value = false
-  if (pptxImportResult.value) loadAll()
-}
-
-function pptxImportSelectAll() {
-  if (pptxImportPreview.value) pptxImportSelectedIndices.value = pptxImportPreview.value.slides.map((s) => s.index)
-}
-
-function pptxImportDeselectAll() {
-  pptxImportSelectedIndices.value = []
-}
-
-function pptxImportSelectOnlyVisible() {
-  if (pptxImportPreview.value) {
-    pptxImportSelectedIndices.value = pptxImportPreview.value.slides.filter((s) => !s.hidden).map((s) => s.index)
-  }
-}
-
-async function loadPPTXImportPreview() {
-  if (!pptxImportFile.value) return
-  isPPTXLoadingPreview.value = true
-  pptxImportError.value = ''
-  try {
-    const data = await tasksApi.previewPPTXUpload(pptxImportFile.value)
-    pptxImportPreview.value = data
-    pptxImportSelectedIndices.value = data.slides.filter((s) => !s.hidden).map((s) => s.index)
-    const triagedMap: Record<number, BacklogTriagedSlide> = {}
-    for (const s of data.slides) {
-      triagedMap[s.index] = {
-        title: s.suggested_task_title?.trim() || `Slide ${s.index}`,
-        assignee_id: null,
-        estimated_minutes: 0,
-        priority: 'MEDIUM',
-      }
-    }
-    pptxImportTriagedSlides.value = triagedMap
-    pptxImportStep.value = 'select'
-  } catch (e: any) {
-    pptxImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
-  } finally {
-    isPPTXLoadingPreview.value = false
-  }
-}
-
-async function submitPPTXImport() {
-  if (!project.value || !pptxImportFile.value) return
-  isPPTXImporting.value = true
-  pptxImportError.value = ''
-  try {
-    const pages = pptxImportSelectedIndices.value.map((idx) => {
-      const t = pptxImportTriagedSlides.value[idx]
-      return {
-        slide_index: idx,
-        title: t?.title || `Slide ${idx}`,
-        assignee_id: t?.assignee_id ?? null,
-        estimated_minutes: t?.estimated_minutes ?? 0,
-        priority: t?.priority || 'MEDIUM',
-      }
-    })
-    const payload: Record<string, unknown> = {
-      project_id: project.value.id,
-      priority: 'MEDIUM',
-      story_points: 1,
-      pages,
-    }
-    if (pptxImportForm.value.epic_id) payload.epic_id = pptxImportForm.value.epic_id
-    if (pptxImportForm.value.parent_id) payload.parent_id = pptxImportForm.value.parent_id
-    pptxImportResult.value = await tasksApi.importPPTXUpload(pptxImportFile.value, payload as any)
-    pptxImportStep.value = 'result'
-  } catch (e: any) {
-    pptxImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
-  } finally {
-    isPPTXImporting.value = false
-  }
-}
-
-// Backlog Import from Google Sheets
-interface SheetsTriagedRow {
-  title: string
-  priority: string
-  estimated_minutes: number
-  due_date: string
-  status: string
-  notes: string
-}
-
-const showSheetsImportModal = ref(false)
-const sheetsImportStep = ref<'form' | 'select' | 'result'>('form')
-const isSheetsImporting = ref(false)
-const isSheetsLoadingPreview = ref(false)
-const sheetsImportError = ref('')
-const sheetsImportResult = ref<{ created_count: number; sheet_title: string; tasks: any[] } | null>(null)
-const sheetsImportPreview = ref<{
-  sheet_title: string
-  sheet_id: string
-  rows: { row_index: number; title: string; due_date: string; status: string; raw_status: string; notes: string }[]
-} | null>(null)
-const sheetsImportSelectedRowIndices = ref<number[]>([])
-const sheetsImportTriagedRows = ref<Record<number, SheetsTriagedRow>>({})
-const sheetsImportForm = ref({
-  sheet_url: '',
-  epic_id: '',
-  parent_id: '',
-})
-
-const sheetsParentTaskOptions = computed(() => {
-  const epicId = sheetsImportForm.value.epic_id
-  return allTasks.value
-    .filter((t) => {
-      if (t.parent_id) return false
-      if (epicId) return t.epic_id === epicId
-      return true
-    })
-    .sort((a, b) => a.title.localeCompare(b.title))
-})
-
-function onSheetsImportEpicChange() {
-  const currentParent = sheetsParentTaskOptions.value.find((t) => t.id === sheetsImportForm.value.parent_id)
-  if (!currentParent) sheetsImportForm.value.parent_id = ''
-}
-
-function openSheetsImportModal() {
-  sheetsImportForm.value = { sheet_url: '', epic_id: '', parent_id: '' }
-  sheetsImportStep.value = 'form'
-  sheetsImportError.value = ''
-  sheetsImportResult.value = null
-  sheetsImportPreview.value = null
-  sheetsImportSelectedRowIndices.value = []
-  sheetsImportTriagedRows.value = {}
-  showSheetsImportModal.value = true
-}
-
-function closeSheetsImportModal() {
-  showSheetsImportModal.value = false
-  if (sheetsImportResult.value) loadAll()
-}
-
-function sheetsImportSelectAll() {
-  if (sheetsImportPreview.value) {
-    sheetsImportSelectedRowIndices.value = sheetsImportPreview.value.rows.map((r) => r.row_index)
-  }
-}
-
-function sheetsImportDeselectAll() {
-  sheetsImportSelectedRowIndices.value = []
-}
-
-async function loadSheetsImportPreview() {
-  if (!sheetsImportForm.value.sheet_url.trim()) return
-  isSheetsLoadingPreview.value = true
-  sheetsImportError.value = ''
-  try {
-    const data = await tasksApi.previewGoogleSheets({
-      sheet_url: sheetsImportForm.value.sheet_url.trim(),
-    })
-    sheetsImportPreview.value = data
-    const triagedMap: Record<number, SheetsTriagedRow> = {}
-    const selected: number[] = []
-    for (const r of data.rows) {
-      selected.push(r.row_index)
-      triagedMap[r.row_index] = {
-        title: r.title,
-        priority: 'MEDIUM',
-        estimated_minutes: 0,
-        due_date: r.due_date || '',
-        status: r.status,
-        notes: r.notes,
-      }
-    }
-    sheetsImportTriagedRows.value = triagedMap
-    sheetsImportSelectedRowIndices.value = selected
-    sheetsImportStep.value = 'select'
-  } catch (e: any) {
-    sheetsImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
-  } finally {
-    isSheetsLoadingPreview.value = false
-  }
-}
-
-async function submitSheetsImport() {
-  if (!project.value || !sheetsImportPreview.value) return
-  sheetsImportError.value = ''
-  isSheetsImporting.value = true
-  try {
-    const rows = sheetsImportSelectedRowIndices.value.map((rowIndex) => {
-      const t = sheetsImportTriagedRows.value[rowIndex]
-      const rawEst = Number(t?.estimated_minutes)
-      const estimatedMinutes = Number.isFinite(rawEst) && rawEst >= 0 ? Math.floor(rawEst) : 0
-      return {
-        row_index: rowIndex,
-        title: t?.title?.trim() || '',
-        priority: t?.priority || 'MEDIUM',
-        estimated_minutes: estimatedMinutes,
-        due_date: t?.due_date?.trim() || '',
-        status: t?.status || 'PENDING',
-        notes: t?.notes?.trim() || '',
-      }
-    })
-    const payload: Record<string, unknown> = {
-      sheet_url: sheetsImportForm.value.sheet_url.trim(),
-      sheet_title: sheetsImportPreview.value.sheet_title,
-      project_id: project.value.id,
-      rows,
-    }
-    if (sheetsImportForm.value.epic_id) payload.epic_id = sheetsImportForm.value.epic_id
-    if (sheetsImportForm.value.parent_id) payload.parent_id = sheetsImportForm.value.parent_id
-    sheetsImportResult.value = await tasksApi.importGoogleSheets(payload as any)
-    sheetsImportStep.value = 'result'
-  } catch (e: any) {
-    sheetsImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
-  } finally {
-    isSheetsImporting.value = false
-  }
-}
-
-// ─── IOD Import State & Functions ───────────────────────────────────────────
-interface IODTriagedRow {
-  title: string
-  priority: string
-  estimated_minutes: number
-  status: string
-  notes: string
-  header: string
-  header_link: string
-  request_method: string
-  payload: string
-  image_ref: string
-}
-
-const showIODImportModal = ref(false)
-const iodImportStep = ref<'form' | 'select' | 'result'>('form')
-const isIODImporting = ref(false)
-const isIODLoadingPreview = ref(false)
-const iodImportError = ref('')
-const iodImportResult = ref<{ created_count: number; sheet_title: string; tasks: any[] } | null>(null)
-const iodImportPreview = ref<{
-  sheet_title: string
-  sheet_id: string
-  rows: {
-    row_index: number
-    title: string
-    status: string
-    raw_status: string
-    notes: string
-    header?: string
-    header_link?: string
-    request_method?: string
-    payload?: string
-    image_ref?: string
-  }[]
-} | null>(null)
-const iodImportSelectedRowIndices = ref<number[]>([])
-const iodImportTriagedRows = ref<Record<number, IODTriagedRow>>({})
-const iodImportForm = ref({ sheet_url: '', epic_id: '', parent_id: '' })
-
-const iodParentTaskOptions = computed(() => {
-  const epicId = iodImportForm.value.epic_id
-  return allTasks.value
-    .filter((t) => { if (t.parent_id) return false; if (epicId) return t.epic_id === epicId; return true })
-    .sort((a, b) => a.title.localeCompare(b.title))
-})
-
-function onIODImportEpicChange() {
-  const cur = iodParentTaskOptions.value.find((t) => t.id === iodImportForm.value.parent_id)
-  if (!cur) iodImportForm.value.parent_id = ''
-}
-
-function openIODImportModal() {
-  iodImportForm.value = { sheet_url: '', epic_id: '', parent_id: '' }
-  iodImportStep.value = 'form'
-  iodImportError.value = ''
-  iodImportResult.value = null
-  iodImportPreview.value = null
-  iodImportSelectedRowIndices.value = []
-  iodImportTriagedRows.value = {}
-  showIODImportModal.value = true
-}
-
-function closeIODImportModal() {
-  showIODImportModal.value = false
-  if (iodImportResult.value) loadAll()
-}
-
-async function loadIODImportPreview() {
-  if (!iodImportForm.value.sheet_url.trim()) return
-  isIODLoadingPreview.value = true
-  iodImportError.value = ''
-  try {
-    const data = await tasksApi.previewGoogleSheets({ sheet_url: iodImportForm.value.sheet_url.trim() })
-    iodImportPreview.value = data as any
-    const triagedMap: Record<number, IODTriagedRow> = {}
-    const selected: number[] = []
-    for (const r of data.rows) {
-      selected.push(r.row_index)
-      triagedMap[r.row_index] = {
-        title: r.title,
-        priority: 'MEDIUM',
-        estimated_minutes: 0,
-        status: r.status,
-        notes: r.notes,
-        header: r.header || '',
-        header_link: r.header_link || '',
-        request_method: r.request_method || '',
-        payload: r.payload || '',
-        image_ref: r.image_ref || '',
-        detail_links: r.detail_links || [],
-      }
-    }
-    iodImportTriagedRows.value = triagedMap
-    iodImportSelectedRowIndices.value = selected
-    iodImportStep.value = 'select'
-  } catch (e: any) {
-    iodImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
-  } finally {
-    isIODLoadingPreview.value = false
-  }
-}
-
-async function submitIODImport() {
-  if (!project.value || !iodImportPreview.value) return
-  iodImportError.value = ''
-  isIODImporting.value = true
-  try {
-    const rows = iodImportSelectedRowIndices.value.map((rowIndex) => {
-      const t = iodImportTriagedRows.value[rowIndex]
-      const rawEst = Number(t?.estimated_minutes)
-      const estimatedMinutes = Number.isFinite(rawEst) && rawEst >= 0 ? Math.floor(rawEst) : 0
-      return {
-        row_index: rowIndex,
-        title: t?.title?.trim() || '',
-        priority: t?.priority || 'MEDIUM',
-        estimated_minutes: estimatedMinutes,
-        due_date: '',
-        status: t?.status || 'PENDING',
-        notes: t?.notes?.trim() || '',
-        header: t?.header || '',
-        header_link: t?.header_link || '',
-        request_method: t?.request_method || '',
-        payload: t?.payload || '',
-        image_ref: t?.image_ref || '',
-        detail_links: t?.detail_links || [],
-      }
-    })
-    const payload: Record<string, unknown> = {
-      sheet_url: iodImportForm.value.sheet_url.trim(),
-      sheet_title: iodImportPreview.value.sheet_title,
-      project_id: project.value.id,
-      rows,
-    }
-    if (iodImportForm.value.epic_id) payload.epic_id = iodImportForm.value.epic_id
-    if (iodImportForm.value.parent_id) payload.parent_id = iodImportForm.value.parent_id
-    iodImportResult.value = await tasksApi.importGoogleSheets(payload as any)
-    iodImportStep.value = 'result'
-  } catch (e: any) {
-    iodImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
-  } finally {
-    isIODImporting.value = false
-  }
-}
-// ─── End IOD Import ──────────────────────────────────────────────────────────
-
-async function loadBacklogImportPreview() {
-  if (!backlogImportForm.value.presentation_url.trim()) return
-  isBacklogLoadingPreview.value = true
-  backlogImportError.value = ''
-  try {
-    const data = await tasksApi.previewGoogleSlides({
-      presentation_url: backlogImportForm.value.presentation_url.trim(),
-    })
-    backlogImportPreview.value = data
-    const alreadySet = new Set(data.already_imported_slide_indices ?? [])
-    backlogImportSelectedIndices.value = data.slides
-      .filter((s: { index: number; hidden?: boolean }) => !s.hidden && !alreadySet.has(s.index))
-      .map((s: { index: number }) => s.index)
-
-    // Initialise per-slide triage data
-    const triagedMap: Record<number, BacklogTriagedSlide> = {}
-    for (const s of data.slides) {
-      const st = s.suggested_task_title?.trim()
-      triagedMap[s.index] = {
-        title: st || `Slide ${s.index}`,
-        assignee_id: null,
-        estimated_minutes: 0,
-        priority: backlogImportForm.value.priority || 'MEDIUM',
-      }
-    }
-    backlogImportTriagedSlides.value = triagedMap
-    backlogImportStep.value = 'select'
-  } catch (e: any) {
-    backlogImportError.value = e?.data?.message ?? e?.message ?? 'โหลดรายการไม่สำเร็จ'
-  } finally {
-    isBacklogLoadingPreview.value = false
-  }
-}
-
-function backlogImportSelectAll() {
-  if (backlogImportPreview.value) backlogImportSelectedIndices.value = backlogImportPreview.value.slides.map((s) => s.index)
-}
-
-function backlogImportDeselectAll() {
-  backlogImportSelectedIndices.value = []
-}
-
-function backlogImportSelectOnlyNew() {
-  if (!backlogImportPreview.value) return
-  const alreadySet = new Set(backlogImportPreview.value.already_imported_slide_indices ?? [])
-  backlogImportSelectedIndices.value = backlogImportPreview.value.slides
-    .filter((s: { index: number; hidden?: boolean }) => !s.hidden && !alreadySet.has(s.index))
-    .map((s: { index: number }) => s.index)
-}
-
-async function submitBacklogImport() {
-  if (!project.value) return
-  isBacklogImporting.value = true
-  backlogImportError.value = ''
-  try {
-    // Build per-slide triage array for selected slides
-    const triageSlides = backlogImportSelectedIndices.value.map((idx) => {
-      const t = backlogImportTriagedSlides.value[idx]
-      return {
-        slide_index: idx,
-        title: t?.title || `Slide ${idx}`,
-        assignee_id: t?.assignee_id ?? null,
-        estimated_minutes: t?.estimated_minutes ?? 0,
-        priority: t?.priority || 'MEDIUM',
-      }
-    })
-
-    const payload: any = {
-      presentation_url: backlogImportForm.value.presentation_url.trim(),
-      project_id: project.value.id,
-      slides: triageSlides,
-    }
-    if (backlogImportForm.value.epic_id) payload.epic_id = backlogImportForm.value.epic_id
-    if (backlogImportForm.value.parent_id) payload.parent_id = backlogImportForm.value.parent_id
-    backlogImportResult.value = await tasksApi.importGoogleSlides(payload)
-    backlogImportStep.value = 'result'
-  } catch (e: any) {
-    backlogImportError.value = e?.data?.message ?? e?.message ?? 'Import failed'
-  } finally {
-    isBacklogImporting.value = false
-  }
-}
 
 async function submitCreateTask() {
   if (!project.value) return
@@ -5404,12 +4497,6 @@ function collapseAllBacklog() {
   expandedEpics.value = {}
 }
 
-/** Backlog task sort: by sprint order (Backlog first, then Sprint 1, 2, …), then sort_order, then created_at. */
-function backlogSprintOrderIndex(task: { sprint_id?: string | null }) {
-  if (!task.sprint_id) return 0
-  const idx = sprintsOrdered.value.findIndex((s) => s.id === task.sprint_id)
-  return idx === -1 ? 9999 : idx + 1
-}
 
 /** After duplicate: place new task right below original until refresh. */
 function applyDuplicatePlacement<T extends { id: string }>(tasks: T[]): T[] {
@@ -5426,26 +4513,20 @@ function applyDuplicatePlacement<T extends { id: string }>(tasks: T[]): T[] {
 }
 
 function getTasksForEpic(epicId: string) {
-  const sorted = allTasks.value
-    .filter((t) => t.epic_id === epicId && !t.parent_id)
-    .sort(
-      (a, b) =>
-        backlogSprintOrderIndex(a) - backlogSprintOrderIndex(b) ||
-        (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    )
+  const sprintOrderIds = sprintsOrdered.value.map((s) => s.id)
+  const sorted = sortBacklogTasks(
+    allTasks.value.filter((t) => t.epic_id === epicId && !t.parent_id),
+    sprintOrderIds,
+  )
   return applyDuplicatePlacement(sorted)
 }
 
 function getUnassignedTasks() {
-  const sorted = allTasks.value
-    .filter((t) => !t.epic_id && !t.parent_id)
-    .sort(
-      (a, b) =>
-        backlogSprintOrderIndex(a) - backlogSprintOrderIndex(b) ||
-        (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    )
+  const sprintOrderIds = sprintsOrdered.value.map((s) => s.id)
+  const sorted = sortBacklogTasks(
+    allTasks.value.filter((t) => !t.epic_id && !t.parent_id),
+    sprintOrderIds,
+  )
   return applyDuplicatePlacement(sorted)
 }
 
@@ -5591,7 +4672,27 @@ function onTaskDrop(e: DragEvent, epicId: string | null, dropIndex: number) {
   reorderTasksInBacklog(next)
 }
 
+watch(
+  () => [activeTab.value, projectDetailsTasksMeta.value?.has_more, backlogAutoLoadSentinelRef.value] as const,
+  ([tab, hasMore]) => {
+    if (tab === 'backlog' && hasMore) {
+      nextTick(() => setupBacklogInfiniteScroll())
+      return
+    }
+    if (backlogAutoLoadObserver) {
+      backlogAutoLoadObserver.disconnect()
+      backlogAutoLoadObserver = null
+    }
+  }
+)
+
 onMounted(loadAll)
+onBeforeUnmount(() => {
+  if (backlogAutoLoadObserver) {
+    backlogAutoLoadObserver.disconnect()
+    backlogAutoLoadObserver = null
+  }
+})
 </script>
 
 <style scoped>

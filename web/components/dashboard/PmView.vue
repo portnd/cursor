@@ -119,10 +119,17 @@
 
       <PmPerformanceSection :projects="teamProjects" />
 
+      <div v-if="isLoadingDeferred" class="rounded-2xl border border-gray-700/60 bg-gray-800/40 p-4">
+        <p class="text-xs text-gray-400">Loading advanced analytics & finance widgets…</p>
+        <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-700/70">
+          <div class="h-full w-1/3 animate-pulse rounded-full bg-blue-500/60" />
+        </div>
+      </div>
+
       <!-- ════════════════════════════════════════════════════════════════════════
            TEAM MODE — Squad financial & capacity widgets
            ════════════════════════════════════════════════════════════════════════ -->
-      <template v-if="teamsEnabled && myTeam">
+      <template v-if="teamsEnabled && myTeam && !isLoadingDeferred">
         <!-- Squad P&L (includes Total Capital) -->
         <TeamFinancialWidget
           :team-member-ids="myTeamMemberIds"
@@ -250,10 +257,10 @@
       </template>
 
       <!-- Active Sprints (full width — both modes) — reuses project list from bootstrap (no duplicate getProjects) -->
-      <ActiveSprintsOverview :projects="teamProjects" />
+      <ActiveSprintsOverview v-if="!isLoadingDeferred" :projects="teamProjects" />
 
       <!-- ── Project Capital Deep-dive (Squad mode only — teams have dedicated capital) -->
-      <section v-if="teamsEnabled && teamProjects.length > 0">
+      <section v-if="teamsEnabled && teamProjects.length > 0 && !isLoadingDeferred">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500">Project Capital</h2>
           <div class="flex items-center gap-2 text-xs text-gray-500">
@@ -320,6 +327,7 @@
 
       <!-- Estimation Delta Chart: squad projects when teams on; Product Owner–owned projects when teams off -->
       <EstimationDeltaChart
+        v-if="!isLoadingDeferred"
         :team-project-ids="estimationDeltaProjectIds"
         :initial-tasks="allTasks"
         :section-title="estimationDeltaSectionTitle"
@@ -349,11 +357,12 @@ import type { Project, ProjectCapitalResponse } from '~/core/modules/projects/in
 const { currentUser } = useAuth()
 const performanceStore = usePerformanceStore()
 const { getTeams } = useTeamsApi()
-const { getProjects, getProjectCapital } = useProjectsApi()
+const { getProjects, getProjectCapitals } = useProjectsApi()
 const { fetchWithAuth } = useAuth()
 const teamsStore = useTeamsStore()
 
 const isBootstrapping = ref(true)
+const isLoadingDeferred = ref(false)
 const bootstrapError = ref('')
 const myTeam = ref<Team | null>(null)
 const teamProjects = ref<Project[]>([])
@@ -435,41 +444,50 @@ function formatMoney(v: number) {
 
 const bootstrap = async () => {
   isBootstrapping.value = true
+  isLoadingDeferred.value = false
   bootstrapError.value = ''
   try {
-    // Feature flag + project list + tasks in parallel (was serial: flag → then projects/tasks)
-    const [, projects, tasksRes] = await Promise.all([
-      teamsStore.fetchTeamsFeatureEnabled(),
-      getProjects(),
-      fetchWithAuth<{ data: any[] }>('/sentinel/tasks').catch(() => ({ data: [] })),
-    ])
-
-    allTasks.value = (tasksRes as any)?.data ?? []
+    // Critical path only: feature flag + project list + (if enabled) team lookup
+    await teamsStore.fetchTeamsFeatureEnabled()
+    const projects = await getProjects()
     teamProjects.value = projects
 
-    // Squad mode: resolve team + per-project capital in parallel (was: teams then N capitals)
     if (teamsStore.teamsFeatureEnabled) {
       const userId = currentUser.value?.user_id
-      const [teams, capitals] = await Promise.all([
-        getTeams(),
-        Promise.allSettled(
-          projects.map(p => getProjectCapital(p.id).then(c => ({ id: p.id, capital: c })))
-        ),
-      ])
+      const teams = await getTeams()
       myTeam.value = teams.find(t => t.users?.some(u => u.id === userId)) ?? null
-      const map: Record<string, ProjectCapitalResponse> = {}
-      for (const r of capitals) {
-        if (r.status === 'fulfilled') map[r.value.id] = r.value.capital
-      }
-      projectCapitals.value = map
     } else {
       myTeam.value = null
       projectCapitals.value = {}
+    }
+
+    // Release shell quickly, then load expensive/secondary widgets
+    isBootstrapping.value = false
+    isLoadingDeferred.value = true
+
+    const projectIds = projects.map(p => p.id)
+    const [tasksRes, capitals] = await Promise.all([
+      projectIds.length
+        ? fetchWithAuth<{ data: any[] }>(`/sentinel/tasks?project_ids=${encodeURIComponent(projectIds.join(','))}`).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] as any[] }),
+      teamsStore.teamsFeatureEnabled && projectIds.length
+        ? getProjectCapitals(projectIds).catch(() => [])
+        : Promise.resolve([] as ProjectCapitalResponse[]),
+    ])
+
+    allTasks.value = (tasksRes as any)?.data ?? []
+    if (teamsStore.teamsFeatureEnabled) {
+      const map: Record<string, ProjectCapitalResponse> = {}
+      for (const cap of capitals as ProjectCapitalResponse[]) {
+        map[cap.project_id] = cap
+      }
+      projectCapitals.value = map
     }
   } catch (err: any) {
     bootstrapError.value = err?.data?.message || err?.message || 'Failed to load data'
   } finally {
     isBootstrapping.value = false
+    isLoadingDeferred.value = false
   }
 }
 

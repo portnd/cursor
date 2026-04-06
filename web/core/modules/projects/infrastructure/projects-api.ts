@@ -183,6 +183,26 @@ export interface Task {
   updated_at: string
 }
 
+export interface ProjectDetailsTasksMeta {
+  limit: number
+  returned: number
+  has_more: boolean
+}
+
+export interface ProjectTaskPageCursor {
+  created_at: string
+  id: string
+}
+
+export interface ProjectTasksPageResponse {
+  tasks: Task[]
+  limit: number
+  returned: number
+  has_more: boolean
+  next_cursor?: ProjectTaskPageCursor
+  next_offset?: number
+}
+
 export interface ProjectAnalytics {
   project_id: string
   total_tasks: number
@@ -217,9 +237,27 @@ function useProjectsApi() {
     return data.data
   }
 
-  /** Combined project + tasks + sprints + milestones + epics (1 round-trip, use for project page) */
-  async function getProjectDetails(idOrCode: string): Promise<{ project: Project; tasks: Task[]; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] }> {
-    const data = await fetchWithAuth<{ data: { project: Project; tasks: Task[]; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] } }>(`/sentinel/projects/${encodeURIComponent(idOrCode)}/details`)
+  /** Combined project + tasks + sprints + milestones + epics (1 round-trip, use for project page). */
+  async function getProjectDetails(idOrCode: string, opts?: { tasksLimit?: number }): Promise<{ project: Project; tasks: Task[]; tasks_meta: ProjectDetailsTasksMeta; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] }> {
+    const q = typeof opts?.tasksLimit === 'number' && opts.tasksLimit > 0
+      ? `?tasks_limit=${Math.floor(opts.tasksLimit)}`
+      : ''
+    const data = await fetchWithAuth<{ data: { project: Project; tasks: Task[]; tasks_meta: ProjectDetailsTasksMeta; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] } }>(`/sentinel/projects/${encodeURIComponent(idOrCode)}/details${q}`)
+    return data.data
+  }
+
+  /** Load additional project tasks page (page 2+) using cursor or offset. */
+  async function getProjectTasksPage(idOrCode: string, opts?: { limit?: number; cursorCreatedAt?: string; cursorId?: string; offset?: number }): Promise<ProjectTasksPageResponse> {
+    const params = new URLSearchParams()
+    if (typeof opts?.limit === 'number' && opts.limit > 0) params.set('limit', String(Math.floor(opts.limit)))
+    if (opts?.cursorCreatedAt && opts?.cursorId) {
+      params.set('cursor_created_at', opts.cursorCreatedAt)
+      params.set('cursor_id', opts.cursorId)
+    } else if (typeof opts?.offset === 'number' && opts.offset >= 0) {
+      params.set('offset', String(Math.floor(opts.offset)))
+    }
+    const qs = params.toString()
+    const data = await fetchWithAuth<{ data: ProjectTasksPageResponse }>(`/sentinel/projects/${encodeURIComponent(idOrCode)}/tasks${qs ? `?${qs}` : ''}`)
     return data.data
   }
 
@@ -418,6 +456,14 @@ function useProjectsApi() {
     return data.data
   }
 
+  async function getProjectCapitals(projectIds: string[]): Promise<ProjectCapitalResponse[]> {
+    if (!projectIds.length) return []
+    const uniqueIds = [...new Set(projectIds.filter(Boolean))]
+    const query = encodeURIComponent(uniqueIds.join(','))
+    const data = await fetchWithAuth<{ data: ProjectCapitalResponse[] }>(`/sentinel/projects/finance/capital?project_ids=${query}`)
+    return data.data || []
+  }
+
   async function injectProjectCapital(projectId: string, payload: InjectProjectCapitalPayload): Promise<Project> {
     const data = await fetchWithAuth<{ data: Project }>(`/sentinel/projects/${projectId}/finance/inject`, {
       method: 'POST',
@@ -491,6 +537,7 @@ function useProjectsApi() {
     getProjects,
     getProject,
     getProjectDetails,
+    getProjectTasksPage,
     createProject,
     updateProject,
     deleteProject,
@@ -518,6 +565,7 @@ function useProjectsApi() {
     scheduleProjectWithAI,
     generateProjectPlan,
     getProjectCapital,
+    getProjectCapitals,
     injectProjectCapital,
     editProjectCapital,
     closeProjectCycle,

@@ -149,6 +149,7 @@ type CloseProjectCycleResponse struct {
 // ProjectFinanceUsecase defines business logic for per-project Internal VC model
 type ProjectFinanceUsecase interface {
 	GetProjectCapital(projectID uuid.UUID) (*ProjectCapitalResponse, error)
+	GetProjectCapitals(projectIDs []uuid.UUID) ([]ProjectCapitalResponse, error)
 	InjectProjectCapital(projectID uuid.UUID, req *InjectProjectCapitalRequest) (*Project, error)
 	EditProjectCapital(projectID uuid.UUID, req *EditProjectCapitalRequest) (*Project, error)
 	CloseProjectCycleAndPayout(projectID uuid.UUID) (*CloseProjectCycleResponse, error)
@@ -294,13 +295,37 @@ type TeamCapacityRow struct {
 
 func (Project) TableName() string { return "projects" }
 
+// ProjectDetailsTasksMeta describes task paging metadata for project details response.
+type ProjectDetailsTasksMeta struct {
+	Limit    int  `json:"limit"`
+	Returned int  `json:"returned"`
+	HasMore  bool `json:"has_more"`
+}
+
+// ProjectTaskPageCursor is cursor metadata for project task paging.
+type ProjectTaskPageCursor struct {
+	CreatedAt string `json:"created_at"`
+	ID        string `json:"id"`
+}
+
+// ProjectTasksPageResponse is paginated task response for project details page 2+ loading.
+type ProjectTasksPageResponse struct {
+	Tasks       []Task                 `json:"tasks"`
+	Limit       int                    `json:"limit"`
+	Returned    int                    `json:"returned"`
+	HasMore     bool                   `json:"has_more"`
+	NextCursor  *ProjectTaskPageCursor `json:"next_cursor,omitempty"`
+	NextOffset  *int                   `json:"next_offset,omitempty"`
+}
+
 // ProjectDetailsResponse is the combined payload for GET /projects/:id/details (project page - 1 round-trip).
 type ProjectDetailsResponse struct {
-	Project    *Project    `json:"project"`
-	Tasks      []Task      `json:"tasks"`
-	Sprints    []Sprint    `json:"sprints"`
-	Milestones []Milestone `json:"milestones"`
-	Epics      []Epic      `json:"epics"`
+	Project    *Project                `json:"project"`
+	Tasks      []Task                  `json:"tasks"`
+	TasksMeta  ProjectDetailsTasksMeta `json:"tasks_meta"`
+	Sprints    []Sprint                `json:"sprints"`
+	Milestones []Milestone             `json:"milestones"`
+	Epics      []Epic                  `json:"epics"`
 }
 
 // Task represents a work assignment
@@ -496,8 +521,10 @@ type SentinelRepository interface {
 	GetProjectByID(id uuid.UUID, ctx CallerContext) (*Project, error)
 	GetProjectByCode(code string, ctx CallerContext) (*Project, error)
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
-	// GetTasksByProjectIDForProjectPage returns tasks without large columns (description, resource_urls, negotiation text, uat_payload) for GET /projects/:id/details — smaller payload and faster DB I/O.
-	GetTasksByProjectIDForProjectPage(projectID uuid.UUID) ([]Task, error)
+	// GetTasksByProjectIDForProjectPage returns tasks without large columns (description, resource_urls, negotiation text, uat_payload)
+	// for GET /projects/:id/details and supports limit+1 pagination probe (returned tasks are at most limit+1 before caller trims).
+	GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]Task, error)
+	GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]Task, error)
 	UpdateProject(p *Project) error
 	DeleteProject(id uuid.UUID) error
 	DeleteProjectPlan(projectID uuid.UUID) error               // Remove all tasks, sprints, milestones, epics for the project
@@ -516,6 +543,7 @@ type SentinelRepository interface {
 	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-engineer time logging)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
+	GetTasksByProjectIDs(projectIDs []uuid.UUID) ([]Task, error)
 	GetTasksRequiringApproval() ([]Task, error) // Tasks with PENDING appeals or time negotiations
 	UpdateTask(task *Task) error
 	DeleteTask(id uuid.UUID) error // Delete a task by ID
@@ -634,7 +662,8 @@ type SentinelUsecase interface {
 	GetProjects(ctx CallerContext) ([]Project, error)
 	GetProjectDetails(id uuid.UUID, ctx CallerContext) (*Project, error)
 	GetProjectByIDOrCode(idOrCode string, ctx CallerContext) (*Project, error)                 // UUID or project code (e.g. mims-hdmap-main)
-	GetProjectDetailsPage(idOrCode string, ctx CallerContext) (*ProjectDetailsResponse, error) // Combined project + tasks + sprints + milestones + epics (1 round-trip)
+	GetProjectDetailsPage(idOrCode string, taskLimit int, ctx CallerContext) (*ProjectDetailsResponse, error) // Combined project + tasks + sprints + milestones + epics (1 round-trip)
+	GetProjectTasksPage(idOrCode string, limit int, cursorCreatedAt, cursorID string, offset int, ctx CallerContext) (*ProjectTasksPageResponse, error)
 	UpdateProject(projectID uuid.UUID, name, description, status string, updateCode bool) (*Project, error)
 	DeleteProject(id uuid.UUID) error
 	AssignProjectTeam(projectID uuid.UUID, teamID *uint, requesterRole string) (*Project, error) // CEO only
@@ -654,6 +683,7 @@ type SentinelUsecase interface {
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
+	GetTasksByProjectIDs(projectIDs []uuid.UUID) ([]Task, error)
 	GetGanttData(projectID *uuid.UUID) (*GanttData, error) // All tasks + dependencies; if projectID set, filter by project
 	GetPendingApprovals(userRole string) ([]Task, error)   // Approvals inbox for Product Owner/CEO
 

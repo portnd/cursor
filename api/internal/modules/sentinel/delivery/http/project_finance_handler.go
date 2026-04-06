@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -30,6 +31,40 @@ func (h *projectFinanceHandler) GetProjectCapital(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": resp})
+}
+
+// GetProjectCapitals GET /sentinel/projects/finance/capital?project_ids=uuid1,uuid2
+func (h *projectFinanceHandler) GetProjectCapitals(c *gin.Context) {
+	idsCSV := strings.TrimSpace(c.Query("project_ids"))
+	if idsCSV == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project_ids query param is required"})
+		return
+	}
+	parts := strings.Split(idsCSV, ",")
+	projectIDs := make([]uuid.UUID, 0, len(parts))
+	seen := make(map[uuid.UUID]struct{}, len(parts))
+	for _, part := range parts {
+		idStr := strings.TrimSpace(part)
+		if idStr == "" {
+			continue
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "project_ids must be comma-separated UUIDs"})
+			return
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		projectIDs = append(projectIDs, id)
+	}
+	items, err := h.usecase.GetProjectCapitals(projectIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
 }
 
 // InjectProjectCapital POST /sentinel/projects/:id/finance/inject

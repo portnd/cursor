@@ -234,20 +234,44 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 // projectPageTaskColumns is tasks.* minus heavy TEXT/JSONB columns not needed for board/backlog/overview lists.
 const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.negotiation_status, tasks.proposed_minutes, tasks.negotiation_ai_recommendation, tasks.negotiation_ai_confidence, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.assigned_by_id, tasks.created_by, tasks.created_at, tasks.updated_at`
 
-func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID) ([]domain.Task, error) {
+func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]domain.Task, error) {
+	return r.GetTasksByProjectIDForProjectPageCursor(projectID, limit, nil, nil, 0)
+}
+
+func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]domain.Task, error) {
 	type taskRow struct {
 		domain.Task
 		DisplayName string `gorm:"column:assigned_to_display_name"`
 		Email       string `gorm:"column:assigned_to_email"`
 	}
-	var rows []taskRow
-	err := r.db.Table("tasks").
+	const defaultLimit = 600
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+	// Hard cap to protect DB/response size for very large projects.
+	if limit > 5000 {
+		limit = 5000
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	q := r.db.Table("tasks").
 		Select(projectPageTaskColumns+`,
 			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
 			COALESCE(u.email, '') AS assigned_to_email`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
-		Where("tasks.project_id = ?", projectID).
-		Order("tasks.created_at desc").
+		Where("tasks.project_id = ?", projectID)
+
+	if cursorCreatedAt != nil && cursorID != nil {
+		q = q.Where("(tasks.created_at < ?) OR (tasks.created_at = ? AND tasks.id < ?)", *cursorCreatedAt, *cursorCreatedAt, *cursorID)
+	} else if offset > 0 {
+		q = q.Offset(offset)
+	}
+
+	var rows []taskRow
+	err := q.Order("tasks.created_at desc, tasks.id desc").
+		Limit(limit + 1).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -715,6 +739,17 @@ func (r *postgresRepository) GetAllTasks() ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.Order("created_at desc").
 		Limit(maxAllTasksLimit).
+		Find(&tasks).Error
+	return tasks, err
+}
+
+func (r *postgresRepository) GetTasksByProjectIDs(projectIDs []uuid.UUID) ([]domain.Task, error) {
+	if len(projectIDs) == 0 {
+		return []domain.Task{}, nil
+	}
+	var tasks []domain.Task
+	err := r.db.Where("project_id IN ?", projectIDs).
+		Order("created_at desc").
 		Find(&tasks).Error
 	return tasks, err
 }

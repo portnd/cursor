@@ -3,6 +3,7 @@ package usecase
 import (
 	"crypto/rand"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"strings"
@@ -26,10 +27,16 @@ type authUsecase struct {
 // NewAuthUsecase creates a new authentication usecase instance
 // Follows Dependency Injection pattern
 func NewAuthUsecase(repo domain.Repository) domain.Usecase {
-	// Load JWT secret from environment (must match internal/core/config default and docker-compose)
+	// Load JWT secret from environment.
+	// Keep legacy fallback for compatibility, but surface a loud warning so it is not missed in non-dev environments.
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "default_jwt_secret_change_in_production"
+		if env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))); env == "production" || env == "prod" {
+			log.Println("[SECURITY][CRITICAL] JWT_SECRET is not set in production; using insecure default secret")
+		} else {
+			log.Println("[SECURITY][WARN] JWT_SECRET is not set; using development fallback secret")
+		}
 	}
 
 	return &authUsecase{

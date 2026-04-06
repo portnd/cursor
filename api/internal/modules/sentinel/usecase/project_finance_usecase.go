@@ -117,6 +117,53 @@ func (u *projectFinanceUsecase) GetProjectCapital(projectID uuid.UUID) (*sentine
 	}, nil
 }
 
+func (u *projectFinanceUsecase) GetProjectCapitals(projectIDs []uuid.UUID) ([]sentinelDomain.ProjectCapitalResponse, error) {
+	if len(projectIDs) == 0 {
+		return []sentinelDomain.ProjectCapitalResponse{}, nil
+	}
+
+	ctx := sentinelDomain.CallerContext{Role: sentinelDomain.RoleCEO}
+	teamCostCache := map[uint]float64{}
+	responses := make([]sentinelDomain.ProjectCapitalResponse, 0, len(projectIDs))
+
+	for _, projectID := range projectIDs {
+		project, err := u.sentinelRepo.GetProjectByID(projectID, ctx)
+		if err != nil {
+			continue
+		}
+
+		var teamMonthlyCost float64
+		if project.TeamID != nil {
+			if cached, ok := teamCostCache[*project.TeamID]; ok {
+				teamMonthlyCost = cached
+			} else {
+				c, costErr := u.teamMonthlyCost(*project.TeamID)
+				if costErr == nil {
+					teamMonthlyCost = c
+					teamCostCache[*project.TeamID] = c
+				}
+			}
+		}
+
+		var runwayMonths float64
+		if teamMonthlyCost > 0 {
+			runwayMonths = project.CapitalBalance / teamMonthlyCost
+		}
+
+		responses = append(responses, sentinelDomain.ProjectCapitalResponse{
+			ProjectID:       project.ID,
+			ProjectName:     project.Name,
+			TeamID:          project.TeamID,
+			TeamMonthlyCost: teamMonthlyCost,
+			CapitalBalance:  project.CapitalBalance,
+			BonusPercentage: project.BonusPercentage,
+			RunwayMonths:    runwayMonths,
+		})
+	}
+
+	return responses, nil
+}
+
 // InjectProjectCapital adds capital to the project and records an INJECTION transaction.
 func (u *projectFinanceUsecase) InjectProjectCapital(projectID uuid.UUID, req *sentinelDomain.InjectProjectCapitalRequest) (*sentinelDomain.Project, error) {
 	ctx := sentinelDomain.CallerContext{Role: sentinelDomain.RoleCEO}
