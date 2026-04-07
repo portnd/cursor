@@ -3,7 +3,6 @@ package usecase
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -64,11 +63,15 @@ func (u *attendanceUsecase) CheckIn(userID uint, lat, lng float64, clientIP stri
 		method = "wfh"
 	} else {
 		gpsOK := u.gpsWithinOffice(lat, lng, cfg)
-		netOK := clientIPAllowed(strings.TrimSpace(clientIP), []string(cfg.AllowedIPs))
-		if !gpsOK && !netOK {
-			return nil, domain.ErrOutsideOffice
+		if !gpsOK {
+			return nil, domain.ErrOutsideOfficeGPS
 		}
-		method = checkInMethod(gpsOK, netOK)
+		method = "gps"
+	}
+
+	halfDaySession, err := u.getApprovedHalfDaySessionForDate(userID, attDate)
+	if err != nil {
+		return nil, err
 	}
 
 	workStart, err := u.workStartOnDate(cfg, now)
@@ -76,6 +79,10 @@ func (u *attendanceUsecase) CheckIn(userID uint, lat, lng float64, clientIP stri
 		return nil, fmt.Errorf("work_start_time: %w", err)
 	}
 	isLate := now.After(workStart.Add(lateGraceMinutes * time.Minute))
+	if halfDaySession == "AM" {
+		deadline := time.Date(now.Year(), now.Month(), now.Day(), 13, 0, 0, 0, u.loc)
+		isLate = !now.Before(deadline)
+	}
 	status := "present"
 	if isLate {
 		status = "late"
@@ -130,12 +137,21 @@ func (u *attendanceUsecase) CheckOut(userID uint) (*domain.AttendanceRecord, err
 		return nil, domain.ErrAlreadyCheckedOut
 	}
 
+	halfDaySession, err := u.getApprovedHalfDaySessionForDate(userID, attDate)
+	if err != nil {
+		return nil, err
+	}
+
 	workEnd, err := u.workEndOnDate(cfg, now)
 	if err != nil {
 		return nil, fmt.Errorf("work_end_time: %w", err)
 	}
 	nowUTC := time.Now().UTC()
 	early := now.In(u.loc).Before(workEnd)
+	if halfDaySession == "PM" {
+		minCheckout := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, u.loc)
+		early = now.Before(minCheckout)
+	}
 
 	rec.CheckOutAt = &nowUTC
 	rec.EarlyCheckout = early
@@ -197,7 +213,7 @@ func (u *attendanceUsecase) GetOfficeConfigForAdmin() (*domain.OfficeConfig, err
 }
 
 func (u *attendanceUsecase) UpsertOfficeConfig(role string, req *domain.UpsertOfficeConfigRequest) (*domain.OfficeConfig, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 
@@ -300,6 +316,16 @@ func (u *attendanceUsecase) ListAdminRecordsByDate(role string, date time.Time) 
 	return u.repo.ListRecordsByDate(date)
 }
 
+func (u *attendanceUsecase) DeleteAdminRecordByID(role string, id int64) error {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
+		return domain.ErrForbiddenAdmin
+	}
+	if id <= 0 {
+		return domain.ErrAttendanceRecordNotFound
+	}
+	return u.repo.DeleteRecordByID(id)
+}
+
 func (u *attendanceUsecase) CreateLeaveRequest(userID uint, req *domain.CreateLeaveRequest) (*domain.LeaveRequest, error) {
 	start, err := time.Parse("2006-01-02", strings.TrimSpace(req.StartDate))
 	if err != nil {
@@ -314,10 +340,26 @@ func (u *attendanceUsecase) CreateLeaveRequest(userID uint, req *domain.CreateLe
 	}
 	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
 	end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
-	days := int(end.Sub(start).Hours()/24) + 1
+
+	isHalfDay := req.IsHalfDay
+	halfDaySession := strings.ToUpper(strings.TrimSpace(req.HalfDaySession))
+	if isHalfDay {
+		if !start.Equal(end) {
+			return nil, domain.ErrInvalidDateRange
+		}
+		if halfDaySession != "AM" && halfDaySession != "PM" {
+			return nil, domain.ErrInvalidDateRange
+		}
+	}
+
+	days := float64(int(end.Sub(start).Hours()/24) + 1)
+	if isHalfDay {
+		days = 0.5
+	}
 	if days <= 0 || days > 365 {
 		return nil, domain.ErrInvalidDateRange
 	}
+
 	leaveType := strings.ToUpper(strings.TrimSpace(req.LeaveType))
 	if leaveType == "" {
 		leaveType = "ANNUAL"
@@ -332,14 +374,17 @@ func (u *attendanceUsecase) CreateLeaveRequest(userID uint, req *domain.CreateLe
 			}
 		}
 	}
+
 	leave := &domain.LeaveRequest{
-		UserID:        userID,
-		StartDate:     start,
-		EndDate:       end,
-		DaysRequested: days,
-		LeaveType:     leaveType,
-		Reason:        strings.TrimSpace(req.Reason),
-		Status:        domain.LeaveStatusPending,
+		UserID:         userID,
+		StartDate:      start,
+		EndDate:        end,
+		DaysRequested:  days,
+		LeaveType:      leaveType,
+		IsHalfDay:      isHalfDay,
+		HalfDaySession: halfDaySession,
+		Reason:         strings.TrimSpace(req.Reason),
+		Status:         domain.LeaveStatusPending,
 	}
 	if err := u.repo.CreateLeaveRequest(leave); err != nil {
 		return nil, err
@@ -365,7 +410,7 @@ func (u *attendanceUsecase) ListPendingLeaveRequests(role string) ([]domain.Leav
 }
 
 func (u *attendanceUsecase) ReviewLeaveRequest(role string, approverID uint, leaveID int64, req *domain.ReviewLeaveRequest) (*domain.LeaveRequest, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	leave, err := u.repo.GetLeaveRequestByID(leaveID)
@@ -413,7 +458,7 @@ func (u *attendanceUsecase) GetLeaveBalanceSummary(userID uint, year int) ([]dom
 		if !p.IsActive {
 			continue
 		}
-		taken := 0
+		taken := 0.0
 		for _, it := range items {
 			if it.Status != domain.LeaveStatusApproved || it.LeaveType != p.LeaveType {
 				continue
@@ -422,15 +467,15 @@ func (u *attendanceUsecase) GetLeaveBalanceSummary(userID uint, year int) ([]dom
 				taken += it.DaysRequested
 			}
 		}
-		carry := p.MaxCarryForwardDays
-		remaining := p.AnnualQuotaDays + carry - taken
+		carry := float64(p.MaxCarryForwardDays)
+		remaining := float64(p.AnnualQuotaDays) + carry - taken
 		if remaining < 0 {
 			remaining = 0
 		}
 		out = append(out, domain.LeaveBalanceSummary{
 			LeaveType:         p.LeaveType,
 			AnnualQuotaDays:   p.AnnualQuotaDays,
-			CarryForwardDays:  carry,
+			CarryForwardDays:  p.MaxCarryForwardDays,
 			ApprovedDaysTaken: taken,
 			RemainingDays:     remaining,
 		})
@@ -446,7 +491,7 @@ func (u *attendanceUsecase) ListLeavePolicies(role string) ([]domain.LeavePolicy
 }
 
 func (u *attendanceUsecase) UpsertLeavePolicy(role string, req *domain.LeavePolicyUpsertRequest) (*domain.LeavePolicy, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	item := &domain.LeavePolicy{LeaveType: strings.ToUpper(strings.TrimSpace(req.LeaveType)), AnnualQuotaDays: req.AnnualQuotaDays, MaxCarryForwardDays: req.MaxCarryForwardDays, IsActive: req.IsActive}
@@ -478,7 +523,7 @@ func (u *attendanceUsecase) ListHolidayCalendars(role string, fromDate, toDate t
 }
 
 func (u *attendanceUsecase) UpsertHolidayCalendar(role string, req *domain.HolidayUpsertRequest) (*domain.HolidayCalendar, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	d, err := time.Parse("2006-01-02", strings.TrimSpace(req.Date))
@@ -544,7 +589,20 @@ func (u *attendanceUsecase) BackfillLeave(role string, actorID uint, req *domain
 	}
 	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
 	end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
-	days := int(end.Sub(start).Hours()/24) + 1
+	isHalfDay := it.IsHalfDay
+	halfDaySession := strings.ToUpper(strings.TrimSpace(it.HalfDaySession))
+	if isHalfDay {
+		if !start.Equal(end) {
+			return nil, domain.ErrInvalidDateRange
+		}
+		if halfDaySession != "AM" && halfDaySession != "PM" {
+			return nil, domain.ErrInvalidDateRange
+		}
+	}
+	days := float64(int(end.Sub(start).Hours()/24) + 1)
+	if isHalfDay {
+		days = 0.5
+	}
 	if days <= 0 || days > 365 {
 		return nil, domain.ErrInvalidDateRange
 	}
@@ -566,6 +624,8 @@ func (u *attendanceUsecase) BackfillLeave(role string, actorID uint, req *domain
 		EndDate:        end,
 		DaysRequested:  days,
 		LeaveType:      leaveType,
+		IsHalfDay:      isHalfDay,
+		HalfDaySession: halfDaySession,
 		Reason:         strings.TrimSpace(it.Reason),
 		Status:         status,
 		ManagerComment: strings.TrimSpace(it.Comment),
@@ -599,7 +659,7 @@ func (u *attendanceUsecase) BackfillLeaveBulk(role string, actorID uint, req *do
 	return resp, nil
 }
 
-func (u *attendanceUsecase) notifyLeaveRequested(leaveID int64, requesterID uint, leaveType string, days int) error {
+func (u *attendanceUsecase) notifyLeaveRequested(leaveID int64, requesterID uint, leaveType string, days float64) error {
 	approvers, err := u.repo.ListAdminApproverUserIDs()
 	if err != nil {
 		return err
@@ -609,7 +669,7 @@ func (u *attendanceUsecase) notifyLeaveRequested(leaveID int64, requesterID uint
 			continue
 		}
 		title := "Leave request pending approval"
-		msg := fmt.Sprintf("Employee #%d requested %s leave (%d day(s)).", requesterID, leaveType, days)
+		msg := fmt.Sprintf("Employee #%d requested %s leave (%.1f day(s)).", requesterID, leaveType, days)
 		_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: uid, LeaveID: leaveID, Channel: "IN_APP", Event: "LEAVE_REQUESTED", Title: title, Message: msg})
 		_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: uid, LeaveID: leaveID, Channel: "EMAIL", Event: "LEAVE_REQUESTED", Title: title, Message: msg})
 		_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: uid, LeaveID: leaveID, Channel: "LINE", Event: "LEAVE_REQUESTED", Title: title, Message: msg})
@@ -624,6 +684,28 @@ func (u *attendanceUsecase) notifyLeaveReviewed(leaveID int64, requesterID uint,
 	_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: requesterID, LeaveID: leaveID, Channel: "EMAIL", Event: "LEAVE_REVIEWED", Title: title, Message: msg})
 	_ = u.repo.CreateLeaveNotification(&domain.LeaveNotification{UserID: requesterID, LeaveID: leaveID, Channel: "LINE", Event: "LEAVE_REVIEWED", Title: title, Message: msg})
 	return nil
+}
+
+func (u *attendanceUsecase) getApprovedHalfDaySessionForDate(userID uint, attDate time.Time) (string, error) {
+	items, err := u.repo.ListLeaveRequestsByUser(userID)
+	if err != nil {
+		return "", err
+	}
+	for _, it := range items {
+		if it.Status != domain.LeaveStatusApproved || !it.IsHalfDay {
+			continue
+		}
+		sy, sm, sd := it.StartDate.In(time.UTC).Date()
+		ey, em, ed := it.EndDate.In(time.UTC).Date()
+		ay, am, ad := attDate.In(time.UTC).Date()
+		if sy == ay && sm == am && sd == ad && ey == ay && em == am && ed == ad {
+			s := strings.ToUpper(strings.TrimSpace(it.HalfDaySession))
+			if s == "AM" || s == "PM" {
+				return s, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func calendarDateUTC(nowLocal time.Time) time.Time {
@@ -745,47 +827,3 @@ func (u *attendanceUsecase) gpsWithinOffice(lat, lng float64, cfg *domain.Office
 	return d <= cfg.RadiusMeters
 }
 
-func checkInMethod(gpsOK, netOK bool) string {
-	switch {
-	case gpsOK && netOK:
-		return "both"
-	case gpsOK:
-		return "gps"
-	case netOK:
-		return "network"
-	default:
-		return ""
-	}
-}
-
-func clientIPAllowed(clientIP string, cidrs []string) bool {
-	if len(cidrs) == 0 {
-		return false
-	}
-	host, _, err := net.SplitHostPort(clientIP)
-	if err == nil {
-		clientIP = host
-	}
-	ip := net.ParseIP(clientIP)
-	if ip == nil {
-		return false
-	}
-	for _, c := range cidrs {
-		c = strings.TrimSpace(c)
-		if c == "" {
-			continue
-		}
-		_, network, perr := net.ParseCIDR(c)
-		if perr == nil {
-			if network.Contains(ip) {
-				return true
-			}
-			continue
-		}
-		single := net.ParseIP(c)
-		if single != nil && single.Equal(ip) {
-			return true
-		}
-	}
-	return false
-}

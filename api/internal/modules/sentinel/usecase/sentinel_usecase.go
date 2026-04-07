@@ -18,13 +18,13 @@ import (
 )
 
 type sentinelUsecase struct {
-	repo        domain.SentinelRepository
-	aiService   domain.AIService
-	authRepo    authDomain.Repository
+	repo         domain.SentinelRepository
+	aiService    domain.AIService
+	authRepo     authDomain.Repository
 	usageTracker domain.UsageTracker
-	aiLimitRPM  int
-	aiLimitRPD  int
-	timeout     time.Duration
+	aiLimitRPM   int
+	aiLimitRPD   int
+	timeout      time.Duration
 }
 
 // NewSentinelUsecase creates the usecase. usageTracker may be nil (GetAIUsage will return zeros). aiLimitRPM/aiLimitRPD 0 = use tracker defaults.
@@ -918,8 +918,9 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 }
 
 // UpdateTask updates a task with access control (no AI).
-// Creator, CEO, or Product Owner can update. Gantt fields applied when provided.
-func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
+// Creator, CEO, MANAGER, or Product Owner can update all fields.
+// Assigned user can update description only.
+func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -927,10 +928,31 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
+	isManager := requestingUserRole == authDomain.RoleManager
+	isSelectedProjectPO := u.isSelectedProjectProductOwner(task.ProjectID, requestingUserID, requestingUserRole)
+	isAssignee := task.AssignedTo != nil && *task.AssignedTo == requestingUserID
 
-	if !isCreator && !isCEO && !isProductOwner {
-		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can update this task")
+	onlyDescriptionUpdate := description != "" &&
+		title == "" &&
+		taskType == "" &&
+		parentID == nil &&
+		dueAt == nil &&
+		startDate == nil &&
+		endDate == nil &&
+		progress == nil &&
+		priority == "" &&
+		storyPoints == nil &&
+		!applySprint &&
+		milestoneID == nil &&
+		!applyEpic &&
+		sortOrder == nil &&
+		estimatedMinutes == nil
+
+	canFullyUpdate := isCreator || isCEO || isManager || isSelectedProjectPO
+	canAssigneeUpdateDescription := isAssignee && onlyDescriptionUpdate
+
+	if !canFullyUpdate && !canAssigneeUpdateDescription {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, MANAGER, selected Product Owner, or assignee (description only) can update this task")
 	}
 
 	if title != "" {
@@ -950,12 +972,14 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 	if parentID != nil {
 		task.ParentID = parentID
 	}
+	if dueAt != nil {
+		task.DueAt = dueAt
+	}
 	if startDate != nil {
 		task.StartDate = startDate
 	}
 	if endDate != nil {
 		task.EndDate = endDate
-		task.DueAt = endDate
 	}
 	if progress != nil {
 		if *progress < 0 || *progress > 100 {
@@ -1008,9 +1032,10 @@ func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUse
 	}
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
-	if !isCreator && !isCEO && !isProductOwner {
-		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can update this task")
+	isManager := requestingUserRole == authDomain.RoleManager
+	isSelectedProjectPO := u.isSelectedProjectProductOwner(task.ProjectID, requestingUserID, requestingUserRole)
+	if !isCreator && !isCEO && !isManager && !isSelectedProjectPO {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, MANAGER, or selected Product Owner can update this task")
 	}
 	task.ResourceURLs = resourceURLs
 	if err := u.repo.UpdateTask(task); err != nil {
@@ -1020,7 +1045,7 @@ func (u *sentinelUsecase) UpdateTaskResourceURLs(taskID uuid.UUID, requestingUse
 }
 
 // EstimateTask uses AI to estimate task effort (title + description) and updates task.estimated_minutes.
-// Used internally by ScheduleProjectWithAI. Only task creator, CEO, or Product Owner can run estimate.
+// Used internally by ScheduleProjectWithAI. Task creator, CEO, MANAGER, or Product Owner can run estimate.
 func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -1028,9 +1053,10 @@ func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, 
 	}
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
-	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
-	if !isCreator && !isCEO && !isProductOwner {
-		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can run AI estimate")
+	isManager := requestingUserRole == authDomain.RoleManager
+	isSelectedProjectPO := u.isSelectedProjectProductOwner(task.ProjectID, requestingUserID, requestingUserRole)
+	if !isCreator && !isCEO && !isManager && !isSelectedProjectPO {
+		return nil, fmt.Errorf("unauthorized: only the task creator, CEO, MANAGER, or selected Product Owner can run AI estimate")
 	}
 	minutes, _, err := u.aiService.EstimateEffort(task.Title, task.Description)
 	if err != nil {
@@ -1194,9 +1220,15 @@ func (u *sentinelUsecase) ScheduleProjectWithAI(projectID uuid.UUID, requestingU
 		}
 	}
 	// Sort by Order (1, 2, 3...) to assign timeline
-	ordered := make([]struct{ taskIdx int; res domain.TaskEstimateAndOrder }, 0, len(byIndex))
+	ordered := make([]struct {
+		taskIdx int
+		res     domain.TaskEstimateAndOrder
+	}, 0, len(byIndex))
 	for idx, res := range byIndex {
-		ordered = append(ordered, struct{ taskIdx int; res domain.TaskEstimateAndOrder }{idx, res})
+		ordered = append(ordered, struct {
+			taskIdx int
+			res     domain.TaskEstimateAndOrder
+		}{idx, res})
 	}
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].res.Order < ordered[j].res.Order })
 	// Start from start of today (UTC) or next midnight local; use simple "today" for cursor
@@ -1226,8 +1258,8 @@ func (u *sentinelUsecase) ScheduleProjectWithAI(projectID uuid.UUID, requestingU
 	return updated, nil
 }
 
-// DeleteTask deletes a task with access control
-// Only the Creator OR CEO can delete a task
+// DeleteTask deletes a task with access control.
+// Creator, CEO, MANAGER, or selected Product Owner can delete.
 func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) error {
 	// 1️⃣ Fetch the task to check ownership
 	task, err := u.repo.GetTaskByID(taskID)
@@ -1235,13 +1267,14 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 		return fmt.Errorf("task not found: %w", err)
 	}
 
-	// 2️⃣ ACCESS CONTROL: Creator, CEO, or Product Owner can delete
+	// 2️⃣ ACCESS CONTROL: Creator, CEO, MANAGER, or Product Owner can delete.
 	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
 	isCEO := requestingUserRole == "CEO"
+	isManager := requestingUserRole == authDomain.RoleManager
 	isProductOwner := requestingUserRole == authDomain.RoleProductOwner
 
-	if !isCreator && !isCEO && !isProductOwner {
-		return fmt.Errorf("unauthorized: only the task creator, CEO, or Product Owner can delete this task")
+	if !isCreator && !isCEO && !isManager && !isProductOwner {
+		return fmt.Errorf("unauthorized: only the task creator, CEO, MANAGER, or Product Owner can delete this task")
 	}
 
 	// 3️⃣ Cannot delete if task has sub-tasks (FK constraint)
@@ -2131,7 +2164,6 @@ func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status strin
 	return u.repo.BulkUpdateTaskStatus(taskIDs, status)
 }
 
-
 // SplitTask decomposes one task into N new sub-tasks (inheriting same parent_id, project, epic, sprint)
 // then deletes the original task. The caller must be CEO, Product Owner, or the task creator.
 func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskItem, requestingUserID uint, requestingUserRole string) ([]*domain.Task, error) {
@@ -2197,7 +2229,7 @@ func (u *sentinelUsecase) SplitTask(taskID uuid.UUID, splits []domain.SplitTaskI
 			Priority:         priority,
 			EstimatedMinutes: item.EstimatedMinutes,
 			ProjectID:        orig.ProjectID,
-			ParentID:         orig.ParentID,   // same parent as the original
+			ParentID:         orig.ParentID, // same parent as the original
 			EpicID:           orig.EpicID,
 			SprintID:         orig.SprintID,
 			ResourceURLs:     orig.ResourceURLs,
@@ -2285,7 +2317,6 @@ func (u *sentinelUsecase) DeleteEpic(epicID uuid.UUID) error {
 	return u.repo.DeleteEpic(epicID)
 }
 
-
 func truncate(s string, max int) string {
 	runes := []rune(s)
 	if len(runes) <= max {
@@ -2326,6 +2357,25 @@ func (u *sentinelUsecase) CreateB2BRequest(title, description string, estimatedM
 		return nil, fmt.Errorf("create b2b request: %w", err)
 	}
 	return req, nil
+}
+
+func (u *sentinelUsecase) isSelectedProjectProductOwner(projectID *uuid.UUID, userID uint, role string) bool {
+	if strings.ToUpper(strings.TrimSpace(role)) != authDomain.RoleProductOwner {
+		return false
+	}
+	if projectID == nil || userID == 0 {
+		return false
+	}
+	proj, err := u.repo.GetProjectByID(*projectID, domain.CallerContext{Role: domain.RoleCEO})
+	if err != nil || proj == nil {
+		return false
+	}
+	for _, owner := range proj.PmOwners {
+		if owner.UserID == userID {
+			return true
+		}
+	}
+	return false
 }
 
 func (u *sentinelUsecase) GetB2BRequests(callerTeamID uint, direction string) ([]domain.B2BRequest, error) {
@@ -2425,14 +2475,14 @@ func (u *sentinelUsecase) AcceptB2BRequest(id uuid.UUID, callerTeamID uint, acce
 		req.Description,
 		"TASK",
 		accepterUserID,
-		nil,           // no due date
+		nil, // no due date
 		&project.ID,
-		nil,           // no parent
-		nil, nil,      // no start/end date
+		nil,      // no parent
+		nil, nil, // no start/end date
 		"MEDIUM",
-		0,             // no story points
-		nil, nil,      // no sprint/milestone
-		nil,           // no epic
+		0,        // no story points
+		nil, nil, // no sprint/milestone
+		nil, // no epic
 		&minutes,
 	)
 	if err != nil {
@@ -2446,4 +2496,3 @@ func (u *sentinelUsecase) AcceptB2BRequest(id uuid.UUID, callerTeamID uint, acce
 	}
 	return task, nil
 }
-

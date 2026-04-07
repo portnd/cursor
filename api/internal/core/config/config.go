@@ -35,6 +35,7 @@ type Config struct {
 	// Optional: AI quota limits for usage display (defaults in code: 15 RPM, 250 RPD if unset)
 	AILimitRPM int // e.g. 15 free, 1000 paid
 	AILimitRPD int // e.g. 250 free, 10000 paid
+
 }
 
 func Load() (*Config, error) {
@@ -95,3 +96,4 @@ func getEnvInt(key string, fallback int) int {
 	}
 	return fallback
 }
+

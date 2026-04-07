@@ -21,7 +21,7 @@
         <section class="lg:col-span-2 rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
           <h2 class="text-sm font-semibold mb-4">ส่งคำขออนุมัติลา</h2>
           <form class="space-y-4" @submit.prevent="submitLeave">
-            <div class="grid sm:grid-cols-3 gap-3">
+            <div class="grid sm:grid-cols-4 gap-3">
               <div>
                 <label class="label">ประเภทการลา</label>
                 <select v-model="form.leave_type" class="input">
@@ -36,7 +36,15 @@
               </div>
               <div>
                 <label class="label">วันที่สิ้นสุดลา</label>
-                <input v-model="form.end_date" type="date" class="input" required>
+                <input v-model="form.end_date" type="date" class="input" :disabled="form.is_half_day" required>
+              </div>
+              <div>
+                <label class="label">รูปแบบวันลา</label>
+                <select v-model="leaveDurationMode" class="input">
+                  <option value="FULL">เต็มวัน</option>
+                  <option value="HALF_AM">ครึ่งวันเช้า</option>
+                  <option value="HALF_PM">ครึ่งวันบ่าย</option>
+                </select>
               </div>
             </div>
             <div>
@@ -85,8 +93,8 @@
             <tbody>
               <tr v-for="item in requests" :key="item.id" class="border-b border-gray-800/70">
                 <td class="py-2 text-gray-300">{{ fmt(item.start_date) }} → {{ fmt(item.end_date) }}</td>
-                <td class="py-2 text-gray-300">{{ item.leave_type }}</td>
-                <td class="py-2 text-gray-300">{{ item.days_requested }}</td>
+                <td class="py-2 text-gray-300">{{ item.leave_type }}<span v-if="item.is_half_day" class="ml-1 text-xs text-cyan-300">({{ item.half_day_session === 'AM' ? 'ครึ่งเช้า' : 'ครึ่งบ่าย' }})</span></td>
+                <td class="py-2 text-gray-300">{{ formatDays(item.days_requested) }}</td>
                 <td class="py-2">
                   <span class="text-xs px-2 py-0.5 rounded-full" :class="statusCls(item.status)">{{ item.status }}</span>
                 </td>
@@ -143,7 +151,24 @@ const form = reactive({
   leave_type: 'ANNUAL' as 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID',
   start_date: '',
   end_date: '',
+  is_half_day: false,
+  half_day_session: 'AM' as 'AM' | 'PM',
   reason: '',
+})
+
+const leaveDurationMode = computed({
+  get: () => {
+    if (!form.is_half_day) return 'FULL'
+    return form.half_day_session === 'PM' ? 'HALF_PM' : 'HALF_AM'
+  },
+  set: (v: 'FULL' | 'HALF_AM' | 'HALF_PM') => {
+    if (v === 'FULL') {
+      form.is_half_day = false
+      return
+    }
+    form.is_half_day = true
+    form.half_day_session = v === 'HALF_PM' ? 'PM' : 'AM'
+  }
 })
 
 const balance = ref<LeaveBalanceSummary[]>([])
@@ -151,8 +176,15 @@ const requests = ref<LeaveRequest[]>([])
 const holidays = ref<HolidayCalendar[]>([])
 const notifications = ref<LeaveNotification[]>([])
 
+watch(() => [form.is_half_day, form.start_date] as const, ([isHalf, start]) => {
+  if (isHalf && start) {
+    form.end_date = start
+  }
+})
+
 const fmt = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 const fmtDateTime = (s: string) => new Date(s).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+const formatDays = (days: number) => Number.isInteger(days) ? `${days}` : `${days.toFixed(1)}`
 
 function statusCls(status: string) {
   if (status === 'APPROVED') return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
@@ -184,12 +216,15 @@ async function submitLeave() {
   if (!form.start_date || !form.end_date || !form.reason.trim()) return
   submitting.value = true
   try {
-    await api.createLeaveRequest({
+    const payload = {
       leave_type: form.leave_type,
       start_date: form.start_date,
-      end_date: form.end_date,
+      end_date: form.is_half_day ? form.start_date : form.end_date,
+      is_half_day: form.is_half_day,
+      half_day_session: form.is_half_day ? form.half_day_session : undefined,
       reason: form.reason.trim(),
-    })
+    }
+    await api.createLeaveRequest(payload)
     showSuccess('Leave request submitted successfully')
     form.reason = ''
     await refresh()

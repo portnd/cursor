@@ -256,6 +256,7 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	hasTaskType := req.TaskType != ""
 	hasParent := req.ParentID != nil && *req.ParentID != ""
 	hasEpicKey := req.EpicID != nil
+	hasDueAt := req.DueAt != nil && *req.DueAt != ""
 	hasStart := req.StartDate != nil && *req.StartDate != ""
 	hasEnd := req.EndDate != nil && *req.EndDate != ""
 	hasProgress := req.Progress != nil
@@ -265,7 +266,7 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	hasMilestone := req.MilestoneID != nil
 	hasSortOrder := req.SortOrder != nil
 	hasEstMins := req.EstimatedMinutes != nil
-	if !hasTitle && !hasDesc && !hasTaskType && !hasParent && !hasEpicKey && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone && !hasSortOrder && !hasEstMins {
+	if !hasTitle && !hasDesc && !hasTaskType && !hasParent && !hasEpicKey && !hasDueAt && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone && !hasSortOrder && !hasEstMins {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Bad Request",
 			"message": "At least one field must be provided",
@@ -295,7 +296,15 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 			epicIDUpd = &eid
 		}
 	}
-	var startDate, endDate *time.Time
+	var dueAt, startDate, endDate *time.Time
+	if hasDueAt {
+		t, err := time.Parse(time.RFC3339, *req.DueAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format", "message": "due_at must be ISO8601/RFC3339"})
+			return
+		}
+		dueAt = &t
+	}
 	if hasStart {
 		t, err := time.Parse(time.RFC3339, *req.StartDate)
 		if err != nil {
@@ -350,7 +359,7 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 		sortOrderUpd = req.SortOrder
 	}
 
-	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, hasSprint, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
+	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, dueAt, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, hasSprint, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
 	if err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {

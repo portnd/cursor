@@ -73,6 +73,7 @@ type updateTaskReq struct {
 	ParentID         *string `json:"parent_id"`
 	EpicID           *string `json:"epic_id"`
 	SortOrder        *int    `json:"sort_order"`
+	DueAt            *string `json:"due_at"`
 	StartDate        *string `json:"start_date"`
 	EndDate          *string `json:"end_date"`
 	Progress         *int    `json:"progress"`

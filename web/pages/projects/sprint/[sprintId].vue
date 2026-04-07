@@ -121,11 +121,11 @@
                 v-if="selectedTaskIds.length > 0"
                 type="button"
                 class="px-3 py-1.5 text-sm font-medium text-red-300 bg-red-900/30 hover:bg-red-900/50 border border-red-800 rounded-lg transition-colors flex items-center gap-2"
-                :disabled="isDeletingTasks"
-                @click="confirmDeleteSelected"
+                :disabled="isRemovingTasks"
+                @click="confirmRemoveSelected"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                Delete ({{ selectedTaskIds.length }})
+                Remove ({{ selectedTaskIds.length }})
               </button>
             </template>
           </div>
@@ -399,26 +399,26 @@
       </div>
     </div>
 
-    <!-- Delete selected tasks confirmation -->
-    <div v-if="showDeleteConfirmModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeDeleteConfirmModal">
+    <!-- Remove selected tasks from sprint confirmation -->
+    <div v-if="showRemoveConfirmModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeRemoveConfirmModal">
       <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-        <h3 class="text-lg font-bold text-white mb-2">Delete {{ selectedTaskIds.length }} task(s)?</h3>
-        <p class="text-sm text-gray-400 mb-4">This cannot be undone.</p>
-        <div v-if="deleteError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm mb-4">{{ deleteError }}</div>
+        <h3 class="text-lg font-bold text-white mb-2">Remove {{ selectedTaskIds.length }} task(s) from sprint?</h3>
+        <p class="text-sm text-gray-400 mb-4">Task จะยังคงอยู่ในโปรเจกต์และถูกย้ายกลับไป Backlog</p>
+        <div v-if="removeError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm mb-4">{{ removeError }}</div>
         <div class="flex gap-3">
           <button
             type="button"
             class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
-            :disabled="isDeletingTasks"
-            @click="deleteSelectedTasks"
+            :disabled="isRemovingTasks"
+            @click="removeSelectedFromSprint"
           >
-            {{ isDeletingTasks ? 'Deleting...' : 'Delete' }}
+            {{ isRemovingTasks ? 'Removing...' : 'Remove' }}
           </button>
           <button
             type="button"
             class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors"
-            :disabled="isDeletingTasks"
-            @click="closeDeleteConfirmModal"
+            :disabled="isRemovingTasks"
+            @click="closeRemoveConfirmModal"
           >
             Cancel
           </button>
@@ -685,34 +685,39 @@ function toggleCheckAll() {
   else selectedTaskIds.value = sprintTasks.value.map((t) => t.id)
 }
 
-// Delete selected: confirmation modal + API
-const showDeleteConfirmModal = ref(false)
-const isDeletingTasks = ref(false)
-const deleteError = ref('')
-function confirmDeleteSelected() {
+// Remove selected from sprint: confirmation modal + API
+const showRemoveConfirmModal = ref(false)
+const isRemovingTasks = ref(false)
+const removeError = ref('')
+function confirmRemoveSelected() {
   if (selectedTaskIds.value.length === 0) return
-  deleteError.value = ''
-  showDeleteConfirmModal.value = true
+  removeError.value = ''
+  showRemoveConfirmModal.value = true
 }
-function closeDeleteConfirmModal() {
-  showDeleteConfirmModal.value = false
-  deleteError.value = ''
+function closeRemoveConfirmModal() {
+  showRemoveConfirmModal.value = false
+  removeError.value = ''
 }
-async function deleteSelectedTasks() {
+async function removeSelectedFromSprint() {
   if (selectedTaskIds.value.length === 0) return
-  isDeletingTasks.value = true
-  deleteError.value = ''
+  isRemovingTasks.value = true
+  removeError.value = ''
   try {
     for (const id of selectedTaskIds.value) {
-      await tasksApi.deleteTask(id)
+      await tasksApi.updateTask(id, { sprint_id: '' })
     }
-    allTasks.value = allTasks.value.filter((t) => !selectedTaskIds.value.includes(t.id))
+    const selectedIds = new Set(selectedTaskIds.value)
+    allTasks.value = allTasks.value.map((t) => (
+      selectedIds.has(t.id)
+        ? { ...t, sprint_id: null }
+        : t
+    ))
     selectedTaskIds.value = []
-    closeDeleteConfirmModal()
+    closeRemoveConfirmModal()
   } catch (e: any) {
-    deleteError.value = e?.message ?? 'Failed to delete tasks'
+    removeError.value = e?.message ?? 'Failed to remove tasks from sprint'
   } finally {
-    isDeletingTasks.value = false
+    isRemovingTasks.value = false
   }
 }
 

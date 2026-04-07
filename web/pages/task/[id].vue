@@ -421,7 +421,7 @@
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                   Open in Slides
                 </a>
-                <template v-if="canEditOrDelete">
+                <template v-if="canEditDescription">
                   <template v-if="!isEditingDescription">
                     <button @click="startInlineEdit" class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-400 px-2 py-1 rounded-lg hover:bg-blue-900/20 transition-colors">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -716,16 +716,16 @@
           </div>
           <div>
             <label class="label">Due Date</label>
-            <input v-model="editForm.deadline" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
+            <input v-model="editForm.deadline" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="editForm.start_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
+              <input v-model="editForm.start_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="editForm.end_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" />
+              <input v-model="editForm.end_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
             </div>
           </div>
         </div>
@@ -1280,7 +1280,7 @@ const canEditOrDelete = computed(() => {
   if (!task.value || !effectiveUser.value) return false
   const user = effectiveUser.value
   const role = (user.role || '').trim().toUpperCase()
-  if (role === 'CEO' || role === 'PRODUCT_OWNER' || role === 'PM') return true
+  if (role === 'CEO' || role === 'PRODUCT_OWNER' || role === 'PM' || role === 'MANAGER') return true
   const creatorId = Number(task.value.created_by)
   const userId = Number(user.id ?? authStore.userId ?? 0)
   return creatorId === userId && !Number.isNaN(userId)
@@ -1296,6 +1296,7 @@ const isCurrentUserAssignee = computed(() => {
 })
 
 const canManageSubtasks = computed(() => canEditOrDelete.value || isCurrentUserAssignee.value)
+const canEditDescription = computed(() => canEditOrDelete.value || isCurrentUserAssignee.value)
 
 const currentRole = computed(() => (effectiveUser.value?.role || '').trim().toUpperCase())
 
@@ -1803,6 +1804,20 @@ const closeEditModal = () => {
   editError.value = ''
 }
 
+const closeDateTimePicker = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  // Native datetime picker behaves differently across browsers; do both immediate and delayed blur.
+  target.blur()
+  window.requestAnimationFrame(() => target.blur())
+  window.setTimeout(() => {
+    target.blur()
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
+    const fallback = document.querySelector('.edit-task-modal') as HTMLElement | null
+    fallback?.focus?.()
+  }, 10)
+}
+
 const submitEdit = async () => {
   if (!task.value) return
   
@@ -1846,11 +1861,13 @@ const submitEdit = async () => {
     if (editForm.value.start_date !== currentStart && editForm.value.start_date) {
       body.start_date = new Date(editForm.value.start_date).toISOString()
     }
+    const currentDue = toDatetimeLocal(task.value.due_at)
+    if (editForm.value.deadline !== currentDue && editForm.value.deadline) {
+      body.due_at = new Date(editForm.value.deadline).toISOString()
+    }
     const currentEnd = toDatetimeLocal(task.value.end_date)
-    const newEnd = editForm.value.end_date || editForm.value.deadline
-    const newEndStr = newEnd ? new Date(newEnd).toISOString() : ''
-    if (newEnd && toDatetimeLocal(newEndStr) !== currentEnd) {
-      body.end_date = newEndStr
+    if (editForm.value.end_date !== currentEnd && editForm.value.end_date) {
+      body.end_date = new Date(editForm.value.end_date).toISOString()
     }
     const currentEst = task.value.estimated_minutes ?? 0
     const newEst = effortHoursToMinutes(Number(editForm.value.estimated_hours) || 0)

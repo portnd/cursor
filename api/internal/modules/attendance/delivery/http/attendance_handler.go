@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -55,9 +56,10 @@ func respondAttendanceErr(c *gin.Context, err error) {
 	c.JSON(status, gin.H{"error": code})
 }
 
+
 func mapAttendanceErr(err error) (string, int) {
 	switch {
-	case errors.Is(err, domain.ErrOutsideOffice):
+	case errors.Is(err, domain.ErrOutsideOffice), errors.Is(err, domain.ErrOutsideOfficeGPS), errors.Is(err, domain.ErrOutsideOfficeIP), errors.Is(err, domain.ErrOutsideOfficeBoth):
 		return err.Error(), http.StatusForbidden
 	case errors.Is(err, domain.ErrNoOfficeConfig):
 		return err.Error(), http.StatusServiceUnavailable
@@ -69,13 +71,15 @@ func mapAttendanceErr(err error) (string, int) {
 		return err.Error(), http.StatusConflict
 	case errors.Is(err, domain.ErrNotWorkDay):
 		return err.Error(), http.StatusForbidden
+	case errors.Is(err, domain.ErrHalfDayAMLateCheckIn), errors.Is(err, domain.ErrHalfDayPMEarlyCheckOut):
+		return err.Error(), http.StatusForbidden
 	case errors.Is(err, domain.ErrForbiddenAdmin):
 		return err.Error(), http.StatusForbidden
 	case errors.Is(err, domain.ErrInvalidCursor):
 		return err.Error(), http.StatusBadRequest
 	case errors.Is(err, domain.ErrInvalidSchedule), errors.Is(err, domain.ErrInvalidDateRange):
 		return err.Error(), http.StatusBadRequest
-	case errors.Is(err, domain.ErrLeaveNotFound), errors.Is(err, domain.ErrUserNotFound):
+	case errors.Is(err, domain.ErrLeaveNotFound), errors.Is(err, domain.ErrUserNotFound), errors.Is(err, domain.ErrAttendanceRecordNotFound):
 		return err.Error(), http.StatusNotFound
 	case errors.Is(err, domain.ErrLeaveNotPending):
 		return err.Error(), http.StatusConflict
@@ -99,7 +103,7 @@ func (h *attendanceHandler) checkIn(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	rec, err := h.uc.CheckIn(userID, req.Lat, req.Lng, c.ClientIP())
+	rec, err := h.uc.CheckIn(userID, req.Lat, req.Lng, strings.TrimSpace(c.ClientIP()))
 	if err != nil {
 		respondAttendanceErr(c, err)
 		return
@@ -205,6 +209,21 @@ func (h *attendanceHandler) adminRecords(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"date": ds, "records": rows})
+}
+
+// DELETE /api/v1/attendance/admin/records/:id
+func (h *attendanceHandler) adminDeleteRecord(c *gin.Context) {
+	role := roleFromContext(c)
+	recordID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || recordID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid record id"})
+		return
+	}
+	if err := h.uc.DeleteAdminRecordByID(role, recordID); err != nil {
+		respondAttendanceErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // POST /api/v1/attendance/leaves

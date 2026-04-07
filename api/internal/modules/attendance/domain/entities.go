@@ -57,8 +57,10 @@ type LeaveRequest struct {
 	UserID           uint       `json:"user_id" gorm:"not null;index"`
 	StartDate        time.Time  `json:"start_date" gorm:"type:date;not null"`
 	EndDate          time.Time  `json:"end_date" gorm:"type:date;not null"`
-	DaysRequested    int        `json:"days_requested" gorm:"not null;default:1"`
+	DaysRequested    float64    `json:"days_requested" gorm:"type:numeric(5,1);not null;default:1"`
 	LeaveType        string     `json:"leave_type" gorm:"type:varchar(20);not null;default:ANNUAL"`
+	IsHalfDay        bool       `json:"is_half_day" gorm:"not null;default:false"`
+	HalfDaySession   string     `json:"half_day_session,omitempty" gorm:"type:varchar(10);not null;default:''"`
 	Reason           string     `json:"reason" gorm:"type:text;not null;default:''"`
 	Status           string     `json:"status" gorm:"type:varchar(20);not null;default:PENDING"`
 	ApproverID       *uint      `json:"approver_id,omitempty" gorm:"index"`
@@ -142,8 +144,8 @@ type LeaveBalanceSummary struct {
 	LeaveType         string `json:"leave_type"`
 	AnnualQuotaDays   int    `json:"annual_quota_days"`
 	CarryForwardDays  int    `json:"carry_forward_days"`
-	ApprovedDaysTaken int    `json:"approved_days_taken"`
-	RemainingDays     int    `json:"remaining_days"`
+	ApprovedDaysTaken float64 `json:"approved_days_taken"`
+	RemainingDays     float64 `json:"remaining_days"`
 }
 
 type LeaveTrendPoint struct {
@@ -153,7 +155,7 @@ type LeaveTrendPoint struct {
 	Requested  int    `json:"requested"`
 	Approved   int    `json:"approved"`
 	Rejected   int    `json:"rejected"`
-	TotalDays  int    `json:"total_days"`
+	TotalDays  float64 `json:"total_days"`
 }
 
 // UpsertOfficeConfigRequest is the admin payload for office settings.
@@ -190,6 +192,7 @@ type AttendanceRepository interface {
 	SaveRecord(rec *AttendanceRecord) error
 	ListUserRecordsAfterID(userID uint, afterID int64, limit int) ([]AttendanceRecord, error)
 	ListRecordsByDate(attendanceDate time.Time) ([]AttendanceRecord, error)
+	DeleteRecordByID(id int64) error
 
 	CreateLeaveRequest(req *LeaveRequest) error
 	GetLeaveRequestByID(id int64) (*LeaveRequest, error)
@@ -213,10 +216,12 @@ type AttendanceRepository interface {
 
 // CreateLeaveRequest is employee payload to request leave.
 type CreateLeaveRequest struct {
-	StartDate string `json:"start_date" binding:"required"` // YYYY-MM-DD
-	EndDate   string `json:"end_date" binding:"required"`   // YYYY-MM-DD
-	LeaveType string `json:"leave_type" binding:"required,oneof=ANNUAL SICK PERSONAL UNPAID"`
-	Reason    string `json:"reason" binding:"required,min=3,max=1000"`
+	StartDate      string `json:"start_date" binding:"required"` // YYYY-MM-DD
+	EndDate        string `json:"end_date" binding:"required"`   // YYYY-MM-DD
+	LeaveType      string `json:"leave_type" binding:"required,oneof=ANNUAL SICK PERSONAL UNPAID"`
+	IsHalfDay      bool   `json:"is_half_day"`
+	HalfDaySession string `json:"half_day_session" binding:"omitempty,oneof=AM PM"`
+	Reason         string `json:"reason" binding:"required,min=3,max=1000"`
 }
 
 // ReviewLeaveRequest is manager payload to approve/reject leave request.
@@ -232,8 +237,8 @@ type LeaveListResponse struct {
 
 type LeavePolicyUpsertRequest struct {
 	LeaveType           string `json:"leave_type" binding:"required,oneof=ANNUAL SICK PERSONAL UNPAID"`
-	AnnualQuotaDays     int    `json:"annual_quota_days" binding:"required,gte=0,lte=365"`
-	MaxCarryForwardDays int    `json:"max_carry_forward_days" binding:"required,gte=0,lte=365"`
+	AnnualQuotaDays     int    `json:"annual_quota_days" binding:"gte=0,lte=365"`
+	MaxCarryForwardDays int    `json:"max_carry_forward_days" binding:"gte=0,lte=365"`
 	IsActive            bool   `json:"is_active"`
 }
 
@@ -247,13 +252,15 @@ type LeaveTrendResponse struct {
 }
 
 type LeaveBackfillItem struct {
-	EmployeeEmail string `json:"employee_email"`
-	StartDate     string `json:"start_date"`
-	EndDate       string `json:"end_date"`
-	LeaveType     string `json:"leave_type"`
-	Status        string `json:"status"`
-	Reason        string `json:"reason"`
-	Comment       string `json:"comment"`
+	EmployeeEmail   string `json:"employee_email"`
+	StartDate       string `json:"start_date"`
+	EndDate         string `json:"end_date"`
+	LeaveType       string `json:"leave_type"`
+	IsHalfDay       bool   `json:"is_half_day"`
+	HalfDaySession  string `json:"half_day_session"`
+	Status          string `json:"status"`
+	Reason          string `json:"reason"`
+	Comment         string `json:"comment"`
 }
 
 type LeaveBackfillRequest struct {
@@ -289,6 +296,7 @@ type AttendanceUsecase interface {
 	GetOfficeConfigForAdmin() (*OfficeConfig, error)
 	UpsertOfficeConfig(role string, req *UpsertOfficeConfigRequest) (*OfficeConfig, error)
 	ListAdminRecordsByDate(role string, date time.Time) ([]AttendanceRecord, error)
+	DeleteAdminRecordByID(role string, id int64) error
 
 	CreateLeaveRequest(userID uint, req *CreateLeaveRequest) (*LeaveRequest, error)
 	ListMyLeaveRequests(userID uint) ([]LeaveRequest, error)

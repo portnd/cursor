@@ -49,7 +49,6 @@ export interface UpsertOfficeConfigPayload {
   latitude: number
   longitude: number
   radius_meters: number
-  allowed_ips: string[]
   work_start_time: string
   work_end_time: string
   work_days: number[]
@@ -69,6 +68,8 @@ export interface LeaveRequest {
   end_date: string
   days_requested: number
   leave_type: 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID'
+  is_half_day?: boolean
+  half_day_session?: 'AM' | 'PM' | ''
   reason: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   approver_id?: number | null
@@ -90,6 +91,8 @@ export interface CreateLeaveRequestPayload {
   start_date: string
   end_date: string
   leave_type: 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID'
+  is_half_day?: boolean
+  half_day_session?: 'AM' | 'PM'
   reason: string
 }
 
@@ -200,6 +203,8 @@ export interface LeaveBackfillItem {
   start_date: string
   end_date: string
   leave_type: 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID'
+  is_half_day?: boolean
+  half_day_session?: 'AM' | 'PM'
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   reason: string
   comment?: string
@@ -270,6 +275,12 @@ function useAttendanceApi() {
   async function adminRecords(date?: string): Promise<AdminRecordsResponse> {
     const q = date ? `?date=${encodeURIComponent(date)}` : ''
     return await fetchWithAuth<AdminRecordsResponse>(`/attendance/admin/records${q}`)
+  }
+
+  async function adminDeleteRecord(id: number): Promise<{ ok: boolean }> {
+    return await fetchWithAuth<{ ok: boolean }>(`/attendance/admin/records/${id}`, {
+      method: 'DELETE',
+    })
   }
 
   async function createLeaveRequest(payload: CreateLeaveRequestPayload): Promise<LeaveRequest> {
@@ -369,6 +380,7 @@ function useAttendanceApi() {
     adminGetConfig,
     adminPutConfig,
     adminRecords,
+    adminDeleteRecord,
     createLeaveRequest,
     getMyLeaveRequests,
     getPendingLeaveRequests,

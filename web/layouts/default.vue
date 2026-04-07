@@ -196,7 +196,7 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Leave Admin</span>
         </NuxtLink>
         <NuxtLink
-          v-if="['CEO'].includes(currentUser?.role ?? '')"
+          v-if="['CEO', 'SUPPORT'].includes(currentUser?.role ?? '')"
           to="/admin/attendance-config"
           class="nav-link"
           active-class="bg-gradient-to-r from-teal-600 to-emerald-600 shadow-lg"

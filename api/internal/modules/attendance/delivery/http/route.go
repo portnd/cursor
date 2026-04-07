@@ -27,6 +27,7 @@ func RegisterRoutes(r *gin.RouterGroup, uc domain.AttendanceUsecase) {
 			admin.GET("/config", h.adminGetConfig)
 			admin.PUT("/config", h.adminPutConfig)
 			admin.GET("/records", h.adminRecords)
+			admin.DELETE("/records/:id", h.adminDeleteRecord)
 			admin.GET("/leaves/pending", h.listPendingLeaves)
 			admin.PATCH("/leaves/:id/review", h.reviewLeave)
 			admin.GET("/leaves/policies", h.adminListLeavePolicies)

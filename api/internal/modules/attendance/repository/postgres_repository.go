@@ -196,6 +196,17 @@ func (r *postgresRepository) ListRecordsByDate(attendanceDate time.Time) ([]doma
 	return out, nil
 }
 
+func (r *postgresRepository) DeleteRecordByID(id int64) error {
+	res := r.db.Delete(&domain.AttendanceRecord{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrAttendanceRecordNotFound
+	}
+	return nil
+}
+
 func (r *postgresRepository) CreateLeaveRequest(req *domain.LeaveRequest) error {
 	return r.db.Create(req).Error
 }

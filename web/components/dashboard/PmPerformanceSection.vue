@@ -3,8 +3,8 @@
     <div>
       <h2 class="section-label text-blue-400/90">Performance</h2>
       <p class="text-xs text-gray-500 -mt-2 mb-4 max-w-3xl leading-relaxed">
-        Portfolio metrics use projects on this dashboard. Developer KPIs are scoped to tasks
-        <span class="text-gray-400">assigned by you</span> (same logic as the engineering leaderboard).
+        Portfolio metrics use projects on this dashboard.
+        <span class="text-gray-400">{{ audienceDescription }}</span>
       </p>
     </div>
 
@@ -60,7 +60,7 @@
         </div>
 
         <div class="rounded-2xl border border-gray-700 bg-gradient-to-br from-blue-900/25 to-indigo-900/20 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">Squad delivery index</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">{{ deliveryIndexLabel }}</p>
           <p
             class="text-xl font-black tabular-nums"
             :class="squadIndex === null ? 'text-gray-500' : scoreColor(squadIndex)"
@@ -73,9 +73,9 @@
 
       <PerformanceTeamLeaderboard
         :members="performanceStore.team"
-        title="Developers you assign"
-        description="Delivery, quality, rework & velocity — only work assigned by you"
-        empty-message="No developers yet with tasks assigned by you. Assign work to start tracking squad KPIs."
+        :title="leaderboardTitle"
+        :description="leaderboardDescription"
+        :empty-message="leaderboardEmptyMessage"
         @refresh="performanceStore.fetchTeam()"
       />
     </template>
@@ -88,9 +88,11 @@ import { usePerformanceStore } from '~/core/modules/performance/performance-stor
 
 const props = defineProps<{
   projects: Project[]
+  audience?: 'po' | 'manager'
 }>()
 
 const performanceStore = usePerformanceStore()
+const audience = computed(() => props.audience ?? 'po')
 
 const portfolioCompletionPct = computed(() => {
   let completed = 0
@@ -117,6 +119,32 @@ const squadIndex = computed(() => {
   const sum = members.reduce((acc, m) => acc + m.composite_score, 0)
   return sum / members.length
 })
+
+const audienceDescription = computed(() =>
+  audience.value === 'manager'
+    ? 'Developer KPIs are shown in company-wide scope for manager command visibility.'
+    : 'Developer KPIs are scoped to tasks assigned by you (same logic as the engineering leaderboard).',
+)
+
+const deliveryIndexLabel = computed(() =>
+  audience.value === 'manager' ? 'Company delivery index' : 'Squad delivery index',
+)
+
+const leaderboardTitle = computed(() =>
+  audience.value === 'manager' ? 'Company engineering leaderboard' : 'Developers you assign',
+)
+
+const leaderboardDescription = computed(() =>
+  audience.value === 'manager'
+    ? 'Delivery, quality, rework & velocity across the company engineering scope'
+    : 'Delivery, quality, rework & velocity — only work assigned by you',
+)
+
+const leaderboardEmptyMessage = computed(() =>
+  audience.value === 'manager'
+    ? 'No engineering KPI data available in company scope yet.'
+    : 'No developers yet with tasks assigned by you. Assign work to start tracking squad KPIs.',
+)
 
 function pctColor(pct: number): string {
   if (pct >= 85) return 'text-emerald-400'

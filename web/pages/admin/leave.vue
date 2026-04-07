@@ -130,7 +130,15 @@
             </div>
             <div>
               <label class="label">วันที่สิ้นสุด</label>
-              <input v-model="backfillForm.end_date" type="date" class="input" required />
+              <input v-model="backfillForm.end_date" type="date" class="input" :disabled="backfillForm.is_half_day" required />
+            </div>
+            <div>
+              <label class="label">รูปแบบวันลา</label>
+              <select v-model="backfillDurationMode" class="input">
+                <option value="FULL">เต็มวัน</option>
+                <option value="HALF_AM">ครึ่งวันเช้า</option>
+                <option value="HALF_PM">ครึ่งวันบ่าย</option>
+              </select>
             </div>
             <div>
               <label class="label">ประเภทลา</label>
@@ -168,7 +176,7 @@
             <button class="btn" type="button" @click="downloadBackfillTemplate">ดาวน์โหลด CSV Template</button>
           </div>
           <p class="text-xs text-gray-500 mb-2 mt-2">
-            Header ที่รองรับ: employee_email,start_date,end_date,leave_type,status,reason,comment
+            Header ที่รองรับ: employee_email,start_date,end_date,leave_type,is_half_day,half_day_session,status,reason,comment
           </p>
           <input class="input" type="file" accept=".csv,text/csv" :disabled="backfillBulkSubmitting" @change="onBulkCsvSelected" />
 
@@ -277,9 +285,32 @@ const backfillForm = reactive({
   start_date: '',
   end_date: '',
   leave_type: 'ANNUAL' as 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID',
+  is_half_day: false,
+  half_day_session: 'AM' as 'AM' | 'PM',
   status: 'APPROVED' as 'PENDING' | 'APPROVED' | 'REJECTED',
   reason: '',
   comment: '',
+})
+
+const backfillDurationMode = computed({
+  get: () => {
+    if (!backfillForm.is_half_day) return 'FULL'
+    return backfillForm.half_day_session === 'PM' ? 'HALF_PM' : 'HALF_AM'
+  },
+  set: (v: 'FULL' | 'HALF_AM' | 'HALF_PM') => {
+    if (v === 'FULL') {
+      backfillForm.is_half_day = false
+      return
+    }
+    backfillForm.is_half_day = true
+    backfillForm.half_day_session = v === 'HALF_PM' ? 'PM' : 'AM'
+  }
+})
+
+watch(() => [backfillForm.is_half_day, backfillForm.start_date] as const, ([isHalf, start]) => {
+  if (isHalf && start) {
+    backfillForm.end_date = start
+  }
 })
 
 function leaveTypeLabel(t: string) {
@@ -374,8 +405,10 @@ async function submitBackfillSingle() {
     const item = {
       employee_email: backfillForm.employee_email.trim(),
       start_date: backfillForm.start_date,
-      end_date: backfillForm.end_date,
+      end_date: backfillForm.is_half_day ? backfillForm.start_date : backfillForm.end_date,
       leave_type: backfillForm.leave_type,
+      is_half_day: backfillForm.is_half_day,
+      half_day_session: backfillForm.is_half_day ? backfillForm.half_day_session : undefined,
       status: backfillForm.status,
       reason: backfillForm.reason.trim(),
       comment: backfillForm.comment.trim(),
@@ -398,20 +431,27 @@ function parseCsvRows(csvText: string) {
     .filter(Boolean)
   if (!rows.length) return []
   const header = rows[0].split(',').map(h => h.trim().toLowerCase())
-  const required = ['employee_email', 'start_date', 'end_date', 'leave_type', 'status', 'reason', 'comment']
+  const required = ['employee_email', 'start_date', 'end_date', 'leave_type', 'is_half_day', 'half_day_session', 'status', 'reason', 'comment']
   const missing = required.filter(k => !header.includes(k))
   if (missing.length) {
     throw new Error(`CSV header missing: ${missing.join(', ')}`)
   }
   const idx = (k: string) => header.indexOf(k)
-  const out = [] as Array<{ employee_email: string; start_date: string; end_date: string; leave_type: 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID'; status: 'PENDING' | 'APPROVED' | 'REJECTED'; reason: string; comment: string }>
+  const out = [] as Array<{ employee_email: string; start_date: string; end_date: string; leave_type: 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID'; is_half_day: boolean; half_day_session?: 'AM' | 'PM'; status: 'PENDING' | 'APPROVED' | 'REJECTED'; reason: string; comment: string }>
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i].split(',').map(c => c.trim())
+    const isHalfRaw = (cols[idx('is_half_day')] || '').toLowerCase()
+    const isHalfDay = ['true', '1', 'yes', 'y'].includes(isHalfRaw)
+    const halfDaySessionRaw = (cols[idx('half_day_session')] || '').toUpperCase()
+    const halfDaySession = halfDaySessionRaw === 'PM' ? 'PM' : 'AM'
+    const startDate = cols[idx('start_date')] || ''
     out.push({
       employee_email: cols[idx('employee_email')] || '',
-      start_date: cols[idx('start_date')] || '',
-      end_date: cols[idx('end_date')] || '',
+      start_date: startDate,
+      end_date: isHalfDay ? startDate : (cols[idx('end_date')] || ''),
       leave_type: ((cols[idx('leave_type')] || 'ANNUAL').toUpperCase() as any),
+      is_half_day: isHalfDay,
+      half_day_session: isHalfDay ? halfDaySession : undefined,
       status: ((cols[idx('status')] || 'APPROVED').toUpperCase() as any),
       reason: cols[idx('reason')] || '',
       comment: cols[idx('comment')] || '',
@@ -448,10 +488,10 @@ async function onBulkCsvSelected(e: Event) {
 
 function downloadBackfillTemplate() {
   const lines = [
-    'employee_email,start_date,end_date,leave_type,status,reason,comment',
-    'alice@company.com,2026-01-15,2026-01-16,ANNUAL,APPROVED,ลาพักร้อนต้นปี,อนุมัติย้อนหลังโดย HR',
-    'bob@company.com,2026-02-03,2026-02-03,SICK,APPROVED,ป่วยไข้หวัด,มีใบรับรองแพทย์',
-    'carol@company.com,2026-03-10,2026-03-10,PERSONAL,PENDING,ธุระส่วนตัว,รอหัวหน้าอนุมัติ',
+    'employee_email,start_date,end_date,leave_type,is_half_day,half_day_session,status,reason,comment',
+    'alice@company.com,2026-01-15,2026-01-16,ANNUAL,false,,APPROVED,ลาพักร้อนต้นปี,อนุมัติย้อนหลังโดย HR',
+    'bob@company.com,2026-02-03,2026-02-03,SICK,true,AM,APPROVED,ป่วยไข้หวัดครึ่งวันเช้า,มีใบรับรองแพทย์',
+    'carol@company.com,2026-03-10,2026-03-10,PERSONAL,true,PM,PENDING,ธุระส่วนตัวครึ่งวันบ่าย,รอหัวหน้าอนุมัติ',
   ]
   const csv = `${lines.join('\n')}\n`
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })

@@ -73,6 +73,8 @@
         </div>
       </section>
 
+      <PmPerformanceSection :projects="projects" audience="manager" />
+
       <section class="grid gap-6 lg:grid-cols-3">
         <div class="lg:col-span-2 rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
           <div class="flex items-center justify-between mb-4">
@@ -240,9 +242,12 @@
 <script setup lang="ts">
 import { useAttendanceApi, type LeaveRequest, type LeaveTrendPoint, type LeavePolicy, type HolidayCalendar, type LeaveAuditLog } from '~/core/modules/attendance/infrastructure/attendance-api'
 import { useProjectsApi, type Project } from '~/core/modules/projects/infrastructure/projects-api'
+import { usePerformanceStore } from '~/core/modules/performance/performance-store'
+import PmPerformanceSection from '~/components/dashboard/PmPerformanceSection.vue'
 
 const attendanceApi = useAttendanceApi()
 const projectsApi = useProjectsApi()
+const performanceStore = usePerformanceStore()
 
 const isLoading = ref(true)
 const error = ref('')
@@ -358,7 +363,10 @@ async function refresh() {
   }
 }
 
-onMounted(refresh)
+onMounted(() => {
+  performanceStore.fetchAll('CEO')
+  refresh()
+})
 </script>
 
 <style scoped>

@@ -3,7 +3,10 @@ package domain
 import "errors"
 
 var (
-	ErrOutsideOffice     = errors.New("check-in denied: not within office GPS radius or allowed office network")
+	ErrOutsideOffice     = errors.New("check-in denied: outside office GPS radius")
+	ErrOutsideOfficeGPS  = errors.New("check-in denied: outside office GPS radius")
+	ErrOutsideOfficeIP   = errors.New("check-in denied: client IP is not in allowed office network")
+	ErrOutsideOfficeBoth = errors.New("check-in denied: outside office GPS radius and client IP is not in allowed office network")
 	ErrNoOfficeConfig    = errors.New("office attendance is not configured")
 	ErrAlreadyCheckedIn  = errors.New("already checked in today")
 	ErrNotCheckedIn      = errors.New("no check-in today to check out")
@@ -16,4 +19,7 @@ var (
 	ErrLeaveNotFound     = errors.New("leave request not found")
 	ErrLeaveNotPending   = errors.New("leave request is already reviewed")
 	ErrUserNotFound      = errors.New("user not found")
+	ErrAttendanceRecordNotFound = errors.New("attendance record not found")
+	ErrHalfDayAMLateCheckIn = errors.New("half-day morning leave: check-in must be before 13:00")
+	ErrHalfDayPMEarlyCheckOut = errors.New("half-day afternoon leave: check-out allowed from 12:00")
 )
