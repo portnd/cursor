@@ -339,110 +339,11 @@ func isWorkingDay(t time.Time) bool {
 	return !isThaiPublicHoliday(t)
 }
 
-// isThaiPublicHoliday returns true for fixed Thai public holidays.
-// Covers years 2024–2030 with the most commonly observed national holidays.
-// Substitution days (วันหยุดชดเชย) are not included as they vary per royal gazette.
+// isThaiPublicHoliday returns true only for New Year's Day (1 Jan).
+// All other weekdays are counted as working days for costing.
 func isThaiPublicHoliday(t time.Time) bool {
-	y, m, d := t.Year(), t.Month(), t.Day()
-
-	// Fixed-date holidays observed every year
-	switch {
-	// New Year's Day
-	case m == time.January && d == 1:
-		return true
-	// Chakri Day
-	case m == time.April && d == 6:
-		return true
-	// Songkran (Thai New Year) — 13–15 April
-	case m == time.April && (d == 13 || d == 14 || d == 15):
-		return true
-	// National Labour Day
-	case m == time.May && d == 1:
-		return true
-	// Coronation Day (Rama X, since 2019)
-	case m == time.May && d == 4:
-		return true
-	// H.M. Queen Suthida's Birthday
-	case m == time.June && d == 3:
-		return true
-	// H.M. King Vajiralongkorn's Birthday
-	case m == time.July && d == 28:
-		return true
-	// H.M. Queen Mother's Birthday / Mother's Day
-	case m == time.August && d == 12:
-		return true
-	// H.M. King Bhumibol Memorial Day
-	case m == time.October && d == 13:
-		return true
-	// Chulalongkorn Day
-	case m == time.October && d == 23:
-		return true
-	// H.M. King Bhumibol's Birthday / Father's Day / National Day
-	case m == time.December && d == 5:
-		return true
-	// Constitution Day
-	case m == time.December && d == 10:
-		return true
-	// New Year's Eve
-	case m == time.December && d == 31:
-		return true
-	}
-
-	// Year-specific lunar/variable holidays
-	type md struct{ m time.Month; d int }
-	yearHolidays := map[int][]md{
-		2024: {
-			{time.February, 24}, // Makha Bucha
-			{time.May, 22},      // Visakha Bucha
-			{time.July, 22},     // Asanha Bucha
-			{time.July, 23},     // Buddhist Lent Day (Khao Phansa)
-		},
-		2025: {
-			{time.February, 12}, // Makha Bucha
-			{time.May, 11},      // Visakha Bucha
-			{time.July, 10},     // Asanha Bucha
-			{time.July, 11},     // Buddhist Lent Day (Khao Phansa)
-		},
-		2026: {
-			{time.March, 3},  // Makha Bucha
-			{time.May, 31},   // Visakha Bucha
-			{time.July, 29},  // Asanha Bucha
-			{time.July, 30},  // Buddhist Lent Day (Khao Phansa)
-		},
-		2027: {
-			{time.February, 20}, // Makha Bucha
-			{time.May, 20},      // Visakha Bucha
-			{time.July, 18},     // Asanha Bucha
-			{time.July, 19},     // Buddhist Lent Day (Khao Phansa)
-		},
-		2028: {
-			{time.February, 9}, // Makha Bucha
-			{time.May, 9},      // Visakha Bucha
-			{time.July, 7},     // Asanha Bucha
-			{time.July, 8},     // Buddhist Lent Day (Khao Phansa)
-		},
-		2029: {
-			{time.February, 27}, // Makha Bucha
-			{time.May, 27},      // Visakha Bucha
-			{time.July, 25},     // Asanha Bucha
-			{time.July, 26},     // Buddhist Lent Day (Khao Phansa)
-		},
-		2030: {
-			{time.February, 17}, // Makha Bucha
-			{time.May, 16},      // Visakha Bucha
-			{time.July, 15},     // Asanha Bucha
-			{time.July, 16},     // Buddhist Lent Day (Khao Phansa)
-		},
-	}
-
-	if holidays, ok := yearHolidays[y]; ok {
-		for _, h := range holidays {
-			if m == h.m && d == h.d {
-				return true
-			}
-		}
-	}
-	return false
+	m, d := t.Month(), t.Day()
+	return m == time.January && d == 1
 }
 
 func round2(v float64) float64 {
