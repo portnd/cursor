@@ -702,9 +702,12 @@ async function openTaskSelectionModal() {
 async function loadEpicsAndTasks() {
   loadingEpics.value = true
   try {
+    const project = await projectsApi.getProject(props.projectId)
+    const resolvedProjectId = project.id
+
     const [epics, allTasks] = await Promise.all([
-      projectsApi.getEpics(props.projectId),
-      tasksApi.getTasksByProject(props.projectId),
+      projectsApi.getEpics(resolvedProjectId),
+      tasksApi.getTasksByProject(resolvedProjectId),
     ])
 
     const epicMap = new Map(epics.map(e => [e.id, { ...e, tasks: [] as Task[] }]))
