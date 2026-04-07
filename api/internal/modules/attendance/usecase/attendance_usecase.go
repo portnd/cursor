@@ -175,6 +175,18 @@ func (u *attendanceUsecase) GetTodayStatus(userID uint) (*domain.AttendanceRecor
 	return rec, cfg, nil
 }
 
+func (u *attendanceUsecase) GetTodayOffsiteCheckInRequest(userID uint) (*domain.OffsiteCheckInRequest, error) {
+	now := time.Now().In(u.loc)
+	attDate := calendarDateUTC(now)
+	return u.repo.GetLatestOffsiteCheckInRequestByUserAndDate(userID, attDate)
+}
+
+func (u *attendanceUsecase) GetTodayOffsiteCheckOutRequest(userID uint) (*domain.OffsiteCheckOutRequest, error) {
+	now := time.Now().In(u.loc)
+	attDate := calendarDateUTC(now)
+	return u.repo.GetLatestOffsiteCheckOutRequestByUserAndDate(userID, attDate)
+}
+
 func (u *attendanceUsecase) GetHistory(userID uint, cursor string, limit int) (*domain.AttendanceHistoryResponse, error) {
 	limit = domain.CapAttendanceLimit(limit)
 	afterID, err := domain.DecodeAttendanceCursor(cursor, u.secret)
@@ -199,6 +211,288 @@ func (u *attendanceUsecase) GetHistory(userID uint, cursor string, limit int) (*
 		resp.NextCursor = next
 	}
 	return resp, nil
+}
+
+func (u *attendanceUsecase) RequestOffsiteCheckIn(userID uint, lat, lng float64, reason string) (*domain.OffsiteCheckInRequest, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, domain.ErrOffsiteReasonRequired
+	}
+
+	cfg, err := u.repo.GetActiveOfficeConfig()
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		return nil, domain.ErrNoOfficeConfig
+	}
+
+	now := time.Now().In(u.loc)
+	if !u.isAttendanceRequiredDay(cfg, now) {
+		return nil, domain.ErrNotWorkDay
+	}
+	if u.isWFHDay(cfg, now) {
+		return nil, domain.ErrOffsiteWFHNotAllowed
+	}
+	if u.gpsWithinOffice(lat, lng, cfg) {
+		return nil, domain.ErrOffsiteApprovalNotRequired
+	}
+
+	attDate := calendarDateUTC(now)
+	rec, err := u.repo.GetRecordByUserAndDate(userID, attDate)
+	if err != nil {
+		return nil, err
+	}
+	if rec != nil && rec.CheckInAt != nil {
+		return nil, domain.ErrAlreadyCheckedIn
+	}
+
+	existing, err := u.repo.GetLatestOffsiteCheckInRequestByUserAndDate(userID, attDate)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.Status == domain.OffsiteStatusPending {
+		return nil, domain.ErrOffsiteAlreadyRequested
+	}
+
+	item := &domain.OffsiteCheckInRequest{
+		UserID:         userID,
+		OfficeConfigID: cfg.ID,
+		AttendanceDate: attDate,
+		RequestLat:     lat,
+		RequestLng:     lng,
+		Reason:         reason,
+		Status:         domain.OffsiteStatusPending,
+		RequestedAt:    time.Now().UTC(),
+	}
+	if err := u.repo.CreateOffsiteCheckInRequest(item); err != nil {
+		return nil, err
+	}
+	return u.repo.GetOffsiteCheckInRequestByID(item.ID)
+}
+
+func (u *attendanceUsecase) ListPendingOffsiteCheckInRequests(role string) ([]domain.OffsiteCheckInRequest, error) {
+	if role != authDomain.RoleCEO {
+		return nil, domain.ErrForbiddenCEOOnly
+	}
+	return u.repo.ListPendingOffsiteCheckInRequests()
+}
+
+func (u *attendanceUsecase) ReviewOffsiteCheckInRequest(role string, approverID uint, requestID int64, status, note string) (*domain.OffsiteCheckInRequest, error) {
+	if role != authDomain.RoleCEO {
+		return nil, domain.ErrForbiddenCEOOnly
+	}
+	if requestID <= 0 {
+		return nil, domain.ErrOffsiteRequestNotFound
+	}
+
+	item, err := u.repo.GetOffsiteCheckInRequestByID(requestID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, domain.ErrOffsiteRequestNotFound
+	}
+	if item.Status != domain.OffsiteStatusPending {
+		return nil, domain.ErrOffsiteRequestNotPending
+	}
+
+	status = strings.ToUpper(strings.TrimSpace(status))
+	if status != domain.OffsiteStatusApproved && status != domain.OffsiteStatusRejected {
+		return nil, domain.ErrOffsiteRequestNotPending
+	}
+
+	now := time.Now().UTC()
+	item.Status = status
+	item.ApproverID = &approverID
+	item.ApproverNote = strings.TrimSpace(note)
+	item.ApprovedAt = &now
+	if err := u.repo.UpdateOffsiteCheckInRequest(item); err != nil {
+		return nil, err
+	}
+
+	if status == domain.OffsiteStatusApproved {
+		existingRec, err := u.repo.GetRecordByUserAndDate(item.UserID, item.AttendanceDate)
+		if err != nil {
+			return nil, err
+		}
+		if existingRec == nil || existingRec.CheckInAt == nil {
+			cfg, err := u.repo.GetOfficeConfigByID(item.OfficeConfigID)
+			if err != nil {
+				return nil, err
+			}
+			if cfg == nil {
+				return nil, domain.ErrNoOfficeConfig
+			}
+			reqLocal := item.RequestedAt.In(u.loc)
+			workStart, err := u.workStartOnDate(cfg, reqLocal)
+			if err != nil {
+				return nil, fmt.Errorf("work_start_time: %w", err)
+			}
+			isLate := reqLocal.After(workStart.Add(lateGraceMinutes * time.Minute))
+			recStatus := "present"
+			if isLate {
+				recStatus = "late"
+			}
+			latCopy, lngCopy := item.RequestLat, item.RequestLng
+			checkInAt := item.RequestedAt.UTC()
+			newRec := &domain.AttendanceRecord{
+				UserID:         item.UserID,
+				OfficeConfigID: item.OfficeConfigID,
+				AttendanceDate: item.AttendanceDate,
+				CheckInAt:      &checkInAt,
+				CheckInLat:     &latCopy,
+				CheckInLng:     &lngCopy,
+				CheckInMethod:  "offsite_approved",
+				CheckInIP:      "",
+				IsLate:         isLate,
+				EarlyCheckout:  false,
+				Status:         recStatus,
+			}
+			if err := u.repo.SaveRecord(newRec); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return u.repo.GetOffsiteCheckInRequestByID(item.ID)
+}
+
+func (u *attendanceUsecase) RequestOffsiteCheckOut(userID uint, lat, lng float64, reason string) (*domain.OffsiteCheckOutRequest, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, domain.ErrOffsiteCheckOutReasonRequired
+	}
+
+	cfg, err := u.repo.GetActiveOfficeConfig()
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		return nil, domain.ErrNoOfficeConfig
+	}
+
+	now := time.Now().In(u.loc)
+	attDate := calendarDateUTC(now)
+
+	rec, err := u.repo.GetRecordByUserAndDate(userID, attDate)
+	if err != nil {
+		return nil, err
+	}
+	if rec == nil || rec.CheckInAt == nil {
+		return nil, domain.ErrNotCheckedIn
+	}
+	if rec.CheckOutAt != nil {
+		return nil, domain.ErrAlreadyCheckedOut
+	}
+
+	existing, err := u.repo.GetLatestOffsiteCheckOutRequestByUserAndDate(userID, attDate)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.Status == domain.OffsiteStatusPending {
+		return nil, domain.ErrOffsiteCheckOutAlreadyRequested
+	}
+
+	item := &domain.OffsiteCheckOutRequest{
+		UserID:         userID,
+		OfficeConfigID: cfg.ID,
+		AttendanceDate: attDate,
+		RequestLat:     lat,
+		RequestLng:     lng,
+		Reason:         reason,
+		Status:         domain.OffsiteStatusPending,
+		RequestedAt:    time.Now().UTC(),
+	}
+	if err := u.repo.CreateOffsiteCheckOutRequest(item); err != nil {
+		return nil, err
+	}
+	return u.repo.GetOffsiteCheckOutRequestByID(item.ID)
+}
+
+func (u *attendanceUsecase) ListPendingOffsiteCheckOutRequests(role string) ([]domain.OffsiteCheckOutRequest, error) {
+	if role != authDomain.RoleCEO {
+		return nil, domain.ErrForbiddenCEOOnly
+	}
+	return u.repo.ListPendingOffsiteCheckOutRequests()
+}
+
+func (u *attendanceUsecase) ReviewOffsiteCheckOutRequest(role string, approverID uint, requestID int64, status, note string) (*domain.OffsiteCheckOutRequest, error) {
+	if role != authDomain.RoleCEO {
+		return nil, domain.ErrForbiddenCEOOnly
+	}
+	if requestID <= 0 {
+		return nil, domain.ErrOffsiteCheckOutRequestNotFound
+	}
+
+	item, err := u.repo.GetOffsiteCheckOutRequestByID(requestID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, domain.ErrOffsiteCheckOutRequestNotFound
+	}
+	if item.Status != domain.OffsiteStatusPending {
+		return nil, domain.ErrOffsiteCheckOutRequestNotPending
+	}
+
+	status = strings.ToUpper(strings.TrimSpace(status))
+	if status != domain.OffsiteStatusApproved && status != domain.OffsiteStatusRejected {
+		return nil, domain.ErrOffsiteCheckOutRequestNotPending
+	}
+
+	now := time.Now().UTC()
+	item.Status = status
+	item.ApproverID = &approverID
+	item.ApproverNote = strings.TrimSpace(note)
+	item.ApprovedAt = &now
+	if err := u.repo.UpdateOffsiteCheckOutRequest(item); err != nil {
+		return nil, err
+	}
+
+	if status == domain.OffsiteStatusApproved {
+		rec, err := u.repo.GetRecordByUserAndDate(item.UserID, item.AttendanceDate)
+		if err != nil {
+			return nil, err
+		}
+		if rec == nil || rec.CheckInAt == nil {
+			return nil, domain.ErrNotCheckedIn
+		}
+		if rec.CheckOutAt == nil {
+			cfg, err := u.repo.GetOfficeConfigByID(item.OfficeConfigID)
+			if err != nil {
+				return nil, err
+			}
+			if cfg == nil {
+				return nil, domain.ErrNoOfficeConfig
+			}
+
+			halfDaySession, err := u.getApprovedHalfDaySessionForDate(item.UserID, item.AttendanceDate)
+			if err != nil {
+				return nil, err
+			}
+
+			reqLocal := item.RequestedAt.In(u.loc)
+			workEnd, err := u.workEndOnDate(cfg, reqLocal)
+			if err != nil {
+				return nil, fmt.Errorf("work_end_time: %w", err)
+			}
+			early := reqLocal.Before(workEnd)
+			if halfDaySession == "PM" {
+				minCheckout := time.Date(reqLocal.Year(), reqLocal.Month(), reqLocal.Day(), 12, 0, 0, 0, u.loc)
+				early = reqLocal.Before(minCheckout)
+			}
+
+			checkOutAt := item.RequestedAt.UTC()
+			rec.CheckOutAt = &checkOutAt
+			rec.EarlyCheckout = early
+			if err := u.repo.SaveRecord(rec); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return u.repo.GetOffsiteCheckOutRequestByID(item.ID)
 }
 
 func (u *attendanceUsecase) GetOfficeConfigForAdmin() (*domain.OfficeConfig, error) {
@@ -826,4 +1120,3 @@ func (u *attendanceUsecase) gpsWithinOffice(lat, lng float64, cfg *domain.Office
 	d := domain.HaversineDistanceMeters(lat, lng, cfg.Latitude, cfg.Longitude)
 	return d <= cfg.RadiusMeters
 }
-

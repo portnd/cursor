@@ -51,27 +51,81 @@ type AttendanceRecord struct {
 
 func (AttendanceRecord) TableName() string { return "attendance_records" }
 
+type OffsiteCheckInRequest struct {
+	ID             int64      `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserID         uint       `json:"user_id" gorm:"not null;index"`
+	OfficeConfigID uint       `json:"office_config_id" gorm:"not null"`
+	AttendanceDate time.Time  `json:"attendance_date" gorm:"type:date;column:attendance_date;not null;index"`
+	RequestLat     float64    `json:"request_lat" gorm:"not null"`
+	RequestLng     float64    `json:"request_lng" gorm:"not null"`
+	Reason         string     `json:"reason" gorm:"type:text;not null;default:''"`
+	Status         string     `json:"status" gorm:"type:varchar(20);not null;default:PENDING;index"`
+	ApproverID     *uint      `json:"approver_id,omitempty" gorm:"index"`
+	ApproverNote   string     `json:"approver_note" gorm:"type:text;not null;default:''"`
+	RequestedAt    time.Time  `json:"requested_at" gorm:"autoCreateTime"`
+	ApprovedAt     *time.Time `json:"approved_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+
+	UserEmail       string `json:"user_email,omitempty" gorm:"-"`
+	UserDisplayName string `json:"user_display_name,omitempty" gorm:"-"`
+	ApproverEmail   string `json:"approver_email,omitempty" gorm:"-"`
+	ApproverName    string `json:"approver_name,omitempty" gorm:"-"`
+}
+
+func (OffsiteCheckInRequest) TableName() string { return "offsite_checkin_requests" }
+
+const (
+	OffsiteStatusPending  = "PENDING"
+	OffsiteStatusApproved = "APPROVED"
+	OffsiteStatusRejected = "REJECTED"
+)
+
+type OffsiteCheckOutRequest struct {
+	ID             int64      `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserID         uint       `json:"user_id" gorm:"not null;index"`
+	OfficeConfigID uint       `json:"office_config_id" gorm:"not null"`
+	AttendanceDate time.Time  `json:"attendance_date" gorm:"type:date;column:attendance_date;not null;index"`
+	RequestLat     float64    `json:"request_lat" gorm:"not null"`
+	RequestLng     float64    `json:"request_lng" gorm:"not null"`
+	Reason         string     `json:"reason" gorm:"type:text;not null;default:''"`
+	Status         string     `json:"status" gorm:"type:varchar(20);not null;default:PENDING;index"`
+	ApproverID     *uint      `json:"approver_id,omitempty" gorm:"index"`
+	ApproverNote   string     `json:"approver_note" gorm:"type:text;not null;default:''"`
+	RequestedAt    time.Time  `json:"requested_at" gorm:"autoCreateTime"`
+	ApprovedAt     *time.Time `json:"approved_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+
+	UserEmail       string `json:"user_email,omitempty" gorm:"-"`
+	UserDisplayName string `json:"user_display_name,omitempty" gorm:"-"`
+	ApproverEmail   string `json:"approver_email,omitempty" gorm:"-"`
+	ApproverName    string `json:"approver_name,omitempty" gorm:"-"`
+}
+
+func (OffsiteCheckOutRequest) TableName() string { return "offsite_checkout_requests" }
+
 // LeaveRequest is employee leave workflow record.
 type LeaveRequest struct {
 	ID              int64      `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserID           uint       `json:"user_id" gorm:"not null;index"`
-	StartDate        time.Time  `json:"start_date" gorm:"type:date;not null"`
-	EndDate          time.Time  `json:"end_date" gorm:"type:date;not null"`
-	DaysRequested    float64    `json:"days_requested" gorm:"type:numeric(5,1);not null;default:1"`
-	LeaveType        string     `json:"leave_type" gorm:"type:varchar(20);not null;default:ANNUAL"`
-	IsHalfDay        bool       `json:"is_half_day" gorm:"not null;default:false"`
-	HalfDaySession   string     `json:"half_day_session,omitempty" gorm:"type:varchar(10);not null;default:''"`
-	Reason           string     `json:"reason" gorm:"type:text;not null;default:''"`
-	Status           string     `json:"status" gorm:"type:varchar(20);not null;default:PENDING"`
-	ApproverID       *uint      `json:"approver_id,omitempty" gorm:"index"`
-	ManagerComment   string     `json:"manager_comment" gorm:"type:text;default:''"`
-	ApprovedAt       *time.Time `json:"approved_at,omitempty"`
-	CreatedAt        time.Time  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt        time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
-	UserEmail        string     `json:"user_email,omitempty" gorm:"-"`
-	UserDisplayName  string     `json:"user_display_name,omitempty" gorm:"-"`
-	ApproverEmail    string     `json:"approver_email,omitempty" gorm:"-"`
-	ApproverName     string     `json:"approver_name,omitempty" gorm:"-"`
+	UserID          uint       `json:"user_id" gorm:"not null;index"`
+	StartDate       time.Time  `json:"start_date" gorm:"type:date;not null"`
+	EndDate         time.Time  `json:"end_date" gorm:"type:date;not null"`
+	DaysRequested   float64    `json:"days_requested" gorm:"type:numeric(5,1);not null;default:1"`
+	LeaveType       string     `json:"leave_type" gorm:"type:varchar(20);not null;default:ANNUAL"`
+	IsHalfDay       bool       `json:"is_half_day" gorm:"not null;default:false"`
+	HalfDaySession  string     `json:"half_day_session,omitempty" gorm:"type:varchar(10);not null;default:''"`
+	Reason          string     `json:"reason" gorm:"type:text;not null;default:''"`
+	Status          string     `json:"status" gorm:"type:varchar(20);not null;default:PENDING"`
+	ApproverID      *uint      `json:"approver_id,omitempty" gorm:"index"`
+	ManagerComment  string     `json:"manager_comment" gorm:"type:text;default:''"`
+	ApprovedAt      *time.Time `json:"approved_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+	UserEmail       string     `json:"user_email,omitempty" gorm:"-"`
+	UserDisplayName string     `json:"user_display_name,omitempty" gorm:"-"`
+	ApproverEmail   string     `json:"approver_email,omitempty" gorm:"-"`
+	ApproverName    string     `json:"approver_name,omitempty" gorm:"-"`
 }
 
 func (LeaveRequest) TableName() string { return "leave_requests" }
@@ -108,18 +162,18 @@ func (HolidayCalendar) TableName() string { return "holiday_calendars" }
 
 // LeaveAuditLog tracks all state transitions and comments for compliance.
 type LeaveAuditLog struct {
-	ID          int64     `json:"id" gorm:"primaryKey;autoIncrement"`
-	LeaveID     int64     `json:"leave_id" gorm:"not null;index"`
-	Action      string    `json:"action" gorm:"type:varchar(50);not null"`
-	ActorID     *uint     `json:"actor_id,omitempty" gorm:"index"`
-	ActorRole   string    `json:"actor_role" gorm:"type:varchar(20);not null;default:''"`
-	OldStatus   string    `json:"old_status" gorm:"type:varchar(20);not null;default:''"`
-	NewStatus   string    `json:"new_status" gorm:"type:varchar(20);not null;default:''"`
-	Comment     string    `json:"comment" gorm:"type:text;not null;default:''"`
-	Metadata    string    `json:"metadata" gorm:"type:text;not null;default:''"`
-	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
-	ActorEmail  string    `json:"actor_email,omitempty" gorm:"-"`
-	ActorName   string    `json:"actor_name,omitempty" gorm:"-"`
+	ID         int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	LeaveID    int64     `json:"leave_id" gorm:"not null;index"`
+	Action     string    `json:"action" gorm:"type:varchar(50);not null"`
+	ActorID    *uint     `json:"actor_id,omitempty" gorm:"index"`
+	ActorRole  string    `json:"actor_role" gorm:"type:varchar(20);not null;default:''"`
+	OldStatus  string    `json:"old_status" gorm:"type:varchar(20);not null;default:''"`
+	NewStatus  string    `json:"new_status" gorm:"type:varchar(20);not null;default:''"`
+	Comment    string    `json:"comment" gorm:"type:text;not null;default:''"`
+	Metadata   string    `json:"metadata" gorm:"type:text;not null;default:''"`
+	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime"`
+	ActorEmail string    `json:"actor_email,omitempty" gorm:"-"`
+	ActorName  string    `json:"actor_name,omitempty" gorm:"-"`
 }
 
 func (LeaveAuditLog) TableName() string { return "leave_audit_logs" }
@@ -141,21 +195,21 @@ type LeaveNotification struct {
 func (LeaveNotification) TableName() string { return "leave_notifications" }
 
 type LeaveBalanceSummary struct {
-	LeaveType         string `json:"leave_type"`
-	AnnualQuotaDays   int    `json:"annual_quota_days"`
-	CarryForwardDays  int    `json:"carry_forward_days"`
+	LeaveType         string  `json:"leave_type"`
+	AnnualQuotaDays   int     `json:"annual_quota_days"`
+	CarryForwardDays  int     `json:"carry_forward_days"`
 	ApprovedDaysTaken float64 `json:"approved_days_taken"`
 	RemainingDays     float64 `json:"remaining_days"`
 }
 
 type LeaveTrendPoint struct {
-	Month      string `json:"month"`
-	TeamID     *uint  `json:"team_id,omitempty"`
-	TeamName   string `json:"team_name,omitempty"`
-	Requested  int    `json:"requested"`
-	Approved   int    `json:"approved"`
-	Rejected   int    `json:"rejected"`
-	TotalDays  float64 `json:"total_days"`
+	Month     string  `json:"month"`
+	TeamID    *uint   `json:"team_id,omitempty"`
+	TeamName  string  `json:"team_name,omitempty"`
+	Requested int     `json:"requested"`
+	Approved  int     `json:"approved"`
+	Rejected  int     `json:"rejected"`
+	TotalDays float64 `json:"total_days"`
 }
 
 // UpsertOfficeConfigRequest is the admin payload for office settings.
@@ -193,6 +247,16 @@ type AttendanceRepository interface {
 	ListUserRecordsAfterID(userID uint, afterID int64, limit int) ([]AttendanceRecord, error)
 	ListRecordsByDate(attendanceDate time.Time) ([]AttendanceRecord, error)
 	DeleteRecordByID(id int64) error
+	CreateOffsiteCheckInRequest(req *OffsiteCheckInRequest) error
+	GetLatestOffsiteCheckInRequestByUserAndDate(userID uint, attendanceDate time.Time) (*OffsiteCheckInRequest, error)
+	ListPendingOffsiteCheckInRequests() ([]OffsiteCheckInRequest, error)
+	GetOffsiteCheckInRequestByID(id int64) (*OffsiteCheckInRequest, error)
+	UpdateOffsiteCheckInRequest(req *OffsiteCheckInRequest) error
+	CreateOffsiteCheckOutRequest(req *OffsiteCheckOutRequest) error
+	GetLatestOffsiteCheckOutRequestByUserAndDate(userID uint, attendanceDate time.Time) (*OffsiteCheckOutRequest, error)
+	ListPendingOffsiteCheckOutRequests() ([]OffsiteCheckOutRequest, error)
+	GetOffsiteCheckOutRequestByID(id int64) (*OffsiteCheckOutRequest, error)
+	UpdateOffsiteCheckOutRequest(req *OffsiteCheckOutRequest) error
 
 	CreateLeaveRequest(req *LeaveRequest) error
 	GetLeaveRequestByID(id int64) (*LeaveRequest, error)
@@ -252,15 +316,15 @@ type LeaveTrendResponse struct {
 }
 
 type LeaveBackfillItem struct {
-	EmployeeEmail   string `json:"employee_email"`
-	StartDate       string `json:"start_date"`
-	EndDate         string `json:"end_date"`
-	LeaveType       string `json:"leave_type"`
-	IsHalfDay       bool   `json:"is_half_day"`
-	HalfDaySession  string `json:"half_day_session"`
-	Status          string `json:"status"`
-	Reason          string `json:"reason"`
-	Comment         string `json:"comment"`
+	EmployeeEmail  string `json:"employee_email"`
+	StartDate      string `json:"start_date"`
+	EndDate        string `json:"end_date"`
+	LeaveType      string `json:"leave_type"`
+	IsHalfDay      bool   `json:"is_half_day"`
+	HalfDaySession string `json:"half_day_session"`
+	Status         string `json:"status"`
+	Reason         string `json:"reason"`
+	Comment        string `json:"comment"`
 }
 
 type LeaveBackfillRequest struct {
@@ -291,7 +355,15 @@ type AttendanceUsecase interface {
 	CheckIn(userID uint, lat, lng float64, clientIP string) (*AttendanceRecord, error)
 	CheckOut(userID uint) (*AttendanceRecord, error)
 	GetTodayStatus(userID uint) (*AttendanceRecord, *OfficeConfig, error)
+	GetTodayOffsiteCheckInRequest(userID uint) (*OffsiteCheckInRequest, error)
+	GetTodayOffsiteCheckOutRequest(userID uint) (*OffsiteCheckOutRequest, error)
 	GetHistory(userID uint, cursor string, limit int) (*AttendanceHistoryResponse, error)
+	RequestOffsiteCheckIn(userID uint, lat, lng float64, reason string) (*OffsiteCheckInRequest, error)
+	ListPendingOffsiteCheckInRequests(role string) ([]OffsiteCheckInRequest, error)
+	ReviewOffsiteCheckInRequest(role string, approverID uint, requestID int64, status, note string) (*OffsiteCheckInRequest, error)
+	RequestOffsiteCheckOut(userID uint, lat, lng float64, reason string) (*OffsiteCheckOutRequest, error)
+	ListPendingOffsiteCheckOutRequests(role string) ([]OffsiteCheckOutRequest, error)
+	ReviewOffsiteCheckOutRequest(role string, approverID uint, requestID int64, status, note string) (*OffsiteCheckOutRequest, error)
 
 	GetOfficeConfigForAdmin() (*OfficeConfig, error)
 	UpsertOfficeConfig(role string, req *UpsertOfficeConfigRequest) (*OfficeConfig, error)
@@ -314,4 +386,26 @@ type AttendanceUsecase interface {
 	GetLeaveTrend(role string, fromDate, toDate time.Time) ([]LeaveTrendPoint, error)
 	BackfillLeave(role string, actorID uint, req *LeaveBackfillRequest) (*LeaveRequest, error)
 	BackfillLeaveBulk(role string, actorID uint, req *LeaveBackfillBulkRequest) (*LeaveBackfillBulkResponse, error)
+}
+
+type RequestOffsiteCheckInPayload struct {
+	Lat    float64 `json:"lat" binding:"required"`
+	Lng    float64 `json:"lng" binding:"required"`
+	Reason string  `json:"reason" binding:"required,min=5,max=1000"`
+}
+
+type ReviewOffsiteCheckInPayload struct {
+	Status string `json:"status" binding:"required,oneof=APPROVED REJECTED"`
+	Note   string `json:"note" binding:"max=1000"`
+}
+
+type RequestOffsiteCheckOutPayload struct {
+	Lat    float64 `json:"lat" binding:"required"`
+	Lng    float64 `json:"lng" binding:"required"`
+	Reason string  `json:"reason" binding:"required,min=5,max=1000"`
+}
+
+type ReviewOffsiteCheckOutPayload struct {
+	Status string `json:"status" binding:"required,oneof=APPROVED REJECTED"`
+	Note   string `json:"note" binding:"max=1000"`
 }

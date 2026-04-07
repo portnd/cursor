@@ -2081,12 +2081,12 @@ async function fetchCommentsAndLogs() {
   }
 }
 
-async function handleAddComment(content: string) {
+async function handleAddComment(payload: { content: string; attachments: File[] }) {
   const taskId = route.params.id as string
   const tasksApi = useTasksApi()
   commentsLoading.value = true
   try {
-    const comment = await tasksApi.addComment(taskId, content)
+    const comment = await tasksApi.addComment(taskId, payload.content, payload.attachments)
     comments.value.push(comment)
   } catch (e: any) {
     console.error('Failed to add comment:', e)

@@ -11,6 +11,13 @@ export interface TaskComment {
   user_id: number
   user_email: string
   content: string
+  attachments?: Array<{
+    file_name: string
+    mime_type: string
+    size: number
+    data_url: string
+    is_image: boolean
+  }>
   created_at: string
 }
 
@@ -181,10 +188,19 @@ function useTasksApi() {
     return data.data || []
   }
 
-  async function addComment(taskId: string, content: string): Promise<TaskComment> {
+  async function addComment(taskId: string, content: string, attachments: File[] = []): Promise<TaskComment> {
+    const hasAttachments = attachments.length > 0
+    const body = hasAttachments
+      ? (() => {
+        const formData = new FormData()
+        formData.append('content', content)
+        for (const file of attachments) formData.append('attachments', file)
+        return formData
+      })()
+      : { content }
     const data = await fetchWithAuth<{ data: TaskComment }>(`/sentinel/tasks/${taskId}/comments`, {
       method: 'POST',
-      body: { content },
+      body,
     })
     return data.data
   }

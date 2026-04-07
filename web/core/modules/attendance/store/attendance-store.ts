@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import {
   useAttendanceApi,
   type AttendanceRecord,
+  type OffsiteCheckInRequest,
+  type OffsiteCheckOutRequest,
   type OfficeConfig,
   type UpsertOfficeConfigPayload,
 } from '../infrastructure/attendance-api'
@@ -9,6 +11,8 @@ import {
 interface AttendanceState {
   todayRecord: AttendanceRecord | null
   officeConfig: OfficeConfig | null
+  todayOffsiteRequest: OffsiteCheckInRequest | null
+  todayOffsiteCheckOutRequest: OffsiteCheckOutRequest | null
   history: AttendanceRecord[]
   historyCursor: string | null
   historyHasMore: boolean
@@ -21,6 +25,8 @@ export const useAttendanceStore = defineStore('attendance', {
   state: (): AttendanceState => ({
     todayRecord: null,
     officeConfig: null,
+    todayOffsiteRequest: null,
+    todayOffsiteCheckOutRequest: null,
     history: [],
     historyCursor: null,
     historyHasMore: false,
@@ -47,6 +53,8 @@ export const useAttendanceStore = defineStore('attendance', {
         const res = await api.getToday()
         this.todayRecord = res.record
         this.officeConfig = res.office_config
+        this.todayOffsiteRequest = res.offsite_checkin_request
+        this.todayOffsiteCheckOutRequest = res.offsite_checkout_request
       } catch (e: any) {
         this.error = e?.data?.error ?? e?.message ?? 'Failed to load attendance'
       } finally {
@@ -106,6 +114,38 @@ export const useAttendanceStore = defineStore('attendance', {
         return true
       } catch (e: any) {
         this.error = e?.data?.error ?? e?.message ?? 'Check-out failed'
+        return false
+      } finally {
+        this.actionLoading = false
+      }
+    },
+
+    async requestOffsiteCheckIn(lat: number, lng: number, reason: string) {
+      const api = useAttendanceApi()
+      this.actionLoading = true
+      this.error = null
+      try {
+        this.todayOffsiteRequest = await api.requestOffsiteCheckIn({ lat, lng, reason })
+        await this.fetchToday()
+        return true
+      } catch (e: any) {
+        this.error = e?.data?.error ?? e?.message ?? 'Offsite check-in request failed'
+        return false
+      } finally {
+        this.actionLoading = false
+      }
+    },
+
+    async requestOffsiteCheckOut(lat: number, lng: number, reason: string) {
+      const api = useAttendanceApi()
+      this.actionLoading = true
+      this.error = null
+      try {
+        this.todayOffsiteCheckOutRequest = await api.requestOffsiteCheckOut({ lat, lng, reason })
+        await this.fetchToday()
+        return true
+      } catch (e: any) {
+        this.error = e?.data?.error ?? e?.message ?? 'Offsite check-out request failed'
         return false
       } finally {
         this.actionLoading = false

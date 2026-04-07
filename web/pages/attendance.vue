@@ -56,6 +56,26 @@
         <p class="text-gray-500 text-xs">Method: {{ store.todayRecord.check_in_method || '—' }}</p>
       </div>
 
+      <div
+        v-if="store.todayOffsiteRequest && !store.todayRecord?.check_in_at"
+        class="rounded-xl border border-amber-800/50 bg-amber-950/20 p-4 text-sm space-y-1"
+      >
+        <p class="text-amber-300 font-medium">Offsite check-in request</p>
+        <p class="text-gray-300">Status: {{ store.todayOffsiteRequest.status }}</p>
+        <p class="text-gray-400">Reason: {{ store.todayOffsiteRequest.reason }}</p>
+        <p class="text-gray-500 text-xs">Requested at: {{ fmtTime(store.todayOffsiteRequest.requested_at) }}</p>
+      </div>
+
+      <div
+        v-if="store.todayOffsiteCheckOutRequest && store.todayRecord?.check_in_at && !store.todayRecord?.check_out_at"
+        class="rounded-xl border border-amber-800/50 bg-amber-950/20 p-4 text-sm space-y-1"
+      >
+        <p class="text-amber-300 font-medium">Offsite check-out request</p>
+        <p class="text-gray-300">Status: {{ store.todayOffsiteCheckOutRequest.status }}</p>
+        <p class="text-gray-400">Reason: {{ store.todayOffsiteCheckOutRequest.reason }}</p>
+        <p class="text-gray-500 text-xs">Requested at: {{ fmtTime(store.todayOffsiteCheckOutRequest.requested_at) }}</p>
+      </div>
+
       <CheckInPanel v-if="store.officeConfig" />
 
       <section class="rounded-xl border border-gray-700 bg-gray-800/40 p-6">

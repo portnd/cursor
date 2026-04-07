@@ -93,6 +93,56 @@
       </button>
     </div>
 
+    <div class="rounded-lg border border-amber-800/60 bg-amber-950/20 p-3 space-y-2">
+      <p class="text-sm text-amber-200">อยู่นอกสถานที่?</p>
+      <p class="text-xs text-gray-400">
+        ส่งคำขอ check-in นอกสถานที่พร้อมเหตุผล แล้วรอ CEO อนุมัติ เมื่ออนุมัติแล้วจะบันทึก check-in ให้อัตโนมัติ
+      </p>
+      <textarea
+        v-model.trim="offsiteReason"
+        rows="2"
+        maxlength="1000"
+        placeholder="เหตุผลที่ต้อง check-in นอกสถานที่"
+        class="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+      />
+      <button
+        type="button"
+        :disabled="store.actionLoading || !store.canCheckIn || offsiteReason.length < 5 || pendingOffsiteRequest"
+        class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        @click="onRequestOffsite"
+      >
+        {{ store.actionLoading ? 'Submitting…' : 'ขอ check-in นอกสถานที่' }}
+      </button>
+      <p v-if="pendingOffsiteRequest" class="text-xs text-sky-300">
+        มีคำขอค้างอนุมัติอยู่แล้ว ({{ pendingOffsiteRequest.status }})
+      </p>
+    </div>
+
+    <div v-if="store.todayRecord?.check_in_at" class="rounded-lg border border-amber-800/60 bg-amber-950/20 p-3 space-y-2">
+      <p class="text-sm text-amber-200">ต้อง check-out นอกสถานที่?</p>
+      <p class="text-xs text-gray-400">
+        ส่งคำขอ check-out นอกสถานที่พร้อมเหตุผล แล้วรอ CEO อนุมัติ เมื่ออนุมัติแล้วจะบันทึก check-out ให้อัตโนมัติ
+      </p>
+      <textarea
+        v-model.trim="offsiteCheckoutReason"
+        rows="2"
+        maxlength="1000"
+        placeholder="เหตุผลที่ต้อง check-out นอกสถานที่"
+        class="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+      />
+      <button
+        type="button"
+        :disabled="store.actionLoading || !store.canCheckOut || offsiteCheckoutReason.length < 5 || pendingOffsiteCheckoutRequest"
+        class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        @click="onRequestOffsiteCheckout"
+      >
+        {{ store.actionLoading ? 'Submitting…' : 'ขอ check-out นอกสถานที่' }}
+      </button>
+      <p v-if="pendingOffsiteCheckoutRequest" class="text-xs text-sky-300">
+        มีคำขอ check-out ค้างอนุมัติอยู่แล้ว ({{ pendingOffsiteCheckoutRequest.status }})
+      </p>
+    </div>
+
     <p v-if="store.error" class="text-sm text-red-400">{{ store.error }}</p>
   </div>
 </template>
@@ -146,6 +196,22 @@ const isWfhToday = computed(() => {
 const geoStatus = ref<string | null>(null)
 const geoError = ref(false)
 const lastPosition = ref<LatLng | null>(null)
+const offsiteReason = ref('')
+const offsiteCheckoutReason = ref('')
+
+const pendingOffsiteRequest = computed(() => {
+  const req = store.todayOffsiteRequest
+  if (!req) return null
+  if (req.status !== 'PENDING') return null
+  return req
+})
+
+const pendingOffsiteCheckoutRequest = computed(() => {
+  const req = store.todayOffsiteCheckOutRequest
+  if (!req) return null
+  if (req.status !== 'PENDING') return null
+  return req
+})
 
 const officeMap = computed(() => {
   const cfg = store.officeConfig
@@ -266,5 +332,45 @@ async function onCheckOut() {
   geoError.value = false
   geoStatus.value = null
   await store.checkOut()
+}
+
+async function onRequestOffsite() {
+  geoError.value = false
+  geoStatus.value = 'Requesting GPS position for offsite request…'
+  try {
+    const pos = await readPosition()
+    const lat = pos.coords.latitude
+    const lng = pos.coords.longitude
+    lastPosition.value = { lat, lng }
+    geoStatus.value = 'Submitting offsite check-in request…'
+    const ok = await store.requestOffsiteCheckIn(lat, lng, offsiteReason.value)
+    if (ok) {
+      geoStatus.value = 'ส่งคำขอสำเร็จ รอ CEO อนุมัติ'
+      offsiteReason.value = ''
+    }
+  } catch (e: any) {
+    geoError.value = true
+    geoStatus.value = e?.message || 'Could not read GPS. Allow location access and try again.'
+  }
+}
+
+async function onRequestOffsiteCheckout() {
+  geoError.value = false
+  geoStatus.value = 'Requesting GPS position for offsite check-out request…'
+  try {
+    const pos = await readPosition()
+    const lat = pos.coords.latitude
+    const lng = pos.coords.longitude
+    lastPosition.value = { lat, lng }
+    geoStatus.value = 'Submitting offsite check-out request…'
+    const ok = await store.requestOffsiteCheckOut(lat, lng, offsiteCheckoutReason.value)
+    if (ok) {
+      geoStatus.value = 'ส่งคำขอ check-out สำเร็จ รอ CEO อนุมัติ'
+      offsiteCheckoutReason.value = ''
+    }
+  } catch (e: any) {
+    geoError.value = true
+    geoStatus.value = e?.message || 'Could not read GPS. Allow location access and try again.'
+  }
 }
 </script>

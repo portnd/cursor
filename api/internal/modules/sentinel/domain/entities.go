@@ -206,10 +206,20 @@ type TaskComment struct {
 	UserID    uint      `json:"user_id" gorm:"not null"`
 	UserEmail string    `json:"user_email,omitempty" gorm:"-"`
 	Content   string    `json:"content" gorm:"type:text;not null"`
+	// Attachments stores serialized []TaskCommentAttachment in JSONB.
+	Attachments datatypes.JSON `json:"attachments,omitempty" gorm:"type:jsonb;default:'[]'"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 }
 
 func (TaskComment) TableName() string { return "task_comments" }
+
+type TaskCommentAttachment struct {
+	FileName string `json:"file_name"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
+	DataURL  string `json:"data_url"`
+	IsImage  bool   `json:"is_image"`
+}
 
 // TimeLog represents actual time logged by a developer on a task
 type TimeLog struct {
@@ -740,7 +750,7 @@ type SentinelUsecase interface {
 	DeleteMilestone(id uuid.UUID) error
 
 	// Comments
-	AddComment(taskID uuid.UUID, userID uint, content string) (*TaskComment, error)
+	AddComment(taskID uuid.UUID, userID uint, content string, attachments []TaskCommentAttachment) (*TaskComment, error)
 	GetComments(taskID uuid.UUID) ([]TaskComment, error)
 
 	// Time Logging

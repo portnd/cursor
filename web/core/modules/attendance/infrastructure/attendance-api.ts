@@ -37,6 +37,8 @@ export interface AttendanceRecord {
 export interface TodayResponse {
   record: AttendanceRecord | null
   office_config: OfficeConfig | null
+  offsite_checkin_request: OffsiteCheckInRequest | null
+  offsite_checkout_request: OffsiteCheckOutRequest | null
 }
 
 export interface AttendanceHistoryResponse {
@@ -59,6 +61,74 @@ export interface UpsertOfficeConfigPayload {
 export interface AdminRecordsResponse {
   date: string
   records: AttendanceRecord[]
+}
+
+export interface OffsiteCheckInRequest {
+  id: number
+  user_id: number
+  office_config_id: number
+  attendance_date: string
+  request_lat: number
+  request_lng: number
+  reason: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  approver_id?: number | null
+  approver_note?: string
+  requested_at: string
+  approved_at?: string | null
+  user_email?: string
+  user_display_name?: string
+  approver_email?: string
+  approver_name?: string
+}
+
+export interface OffsiteCheckInListResponse {
+  items: OffsiteCheckInRequest[]
+}
+
+export interface OffsiteCheckOutRequest {
+  id: number
+  user_id: number
+  office_config_id: number
+  attendance_date: string
+  request_lat: number
+  request_lng: number
+  reason: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  approver_id?: number | null
+  approver_note?: string
+  requested_at: string
+  approved_at?: string | null
+  user_email?: string
+  user_display_name?: string
+  approver_email?: string
+  approver_name?: string
+}
+
+export interface OffsiteCheckOutListResponse {
+  items: OffsiteCheckOutRequest[]
+}
+
+export interface RequestOffsiteCheckInPayload {
+  lat: number
+  lng: number
+  reason: string
+}
+
+export interface ReviewOffsiteCheckInPayload {
+  status: 'APPROVED' | 'REJECTED'
+  note?: string
+}
+
+export interface RequestOffsiteCheckOutPayload {
+  lat: number
+  lng: number
+  reason: string
+}
+
+export interface ReviewOffsiteCheckOutPayload {
+  status: 'APPROVED' | 'REJECTED'
+  note?: string
 }
 
 export interface LeaveRequest {
@@ -249,6 +319,20 @@ function useAttendanceApi() {
     })
   }
 
+  async function requestOffsiteCheckIn(payload: RequestOffsiteCheckInPayload): Promise<OffsiteCheckInRequest> {
+    return await fetchWithAuth<OffsiteCheckInRequest>('/attendance/offsite-check-in/request', {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
+  async function requestOffsiteCheckOut(payload: RequestOffsiteCheckOutPayload): Promise<OffsiteCheckOutRequest> {
+    return await fetchWithAuth<OffsiteCheckOutRequest>('/attendance/offsite-check-out/request', {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
   async function getToday(): Promise<TodayResponse> {
     return await fetchWithAuth<TodayResponse>('/attendance/today')
   }
@@ -280,6 +364,28 @@ function useAttendanceApi() {
   async function adminDeleteRecord(id: number): Promise<{ ok: boolean }> {
     return await fetchWithAuth<{ ok: boolean }>(`/attendance/admin/records/${id}`, {
       method: 'DELETE',
+    })
+  }
+
+  async function adminListPendingOffsiteCheckIn(): Promise<OffsiteCheckInListResponse> {
+    return await fetchWithAuth<OffsiteCheckInListResponse>('/attendance/admin/offsite-check-in/pending')
+  }
+
+  async function adminReviewOffsiteCheckIn(id: number, payload: ReviewOffsiteCheckInPayload): Promise<OffsiteCheckInRequest> {
+    return await fetchWithAuth<OffsiteCheckInRequest>(`/attendance/admin/offsite-check-in/${id}/review`, {
+      method: 'PATCH',
+      body: payload,
+    })
+  }
+
+  async function adminListPendingOffsiteCheckOut(): Promise<OffsiteCheckOutListResponse> {
+    return await fetchWithAuth<OffsiteCheckOutListResponse>('/attendance/admin/offsite-check-out/pending')
+  }
+
+  async function adminReviewOffsiteCheckOut(id: number, payload: ReviewOffsiteCheckOutPayload): Promise<OffsiteCheckOutRequest> {
+    return await fetchWithAuth<OffsiteCheckOutRequest>(`/attendance/admin/offsite-check-out/${id}/review`, {
+      method: 'PATCH',
+      body: payload,
     })
   }
 
@@ -375,12 +481,18 @@ function useAttendanceApi() {
   return {
     checkIn,
     checkOut,
+    requestOffsiteCheckIn,
+    requestOffsiteCheckOut,
     getToday,
     getHistory,
     adminGetConfig,
     adminPutConfig,
     adminRecords,
     adminDeleteRecord,
+    adminListPendingOffsiteCheckIn,
+    adminReviewOffsiteCheckIn,
+    adminListPendingOffsiteCheckOut,
+    adminReviewOffsiteCheckOut,
     createLeaveRequest,
     getMyLeaveRequests,
     getPendingLeaveRequests,

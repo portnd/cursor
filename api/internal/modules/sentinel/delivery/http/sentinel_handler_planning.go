@@ -2,13 +2,25 @@
 package http
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
+)
+
+const (
+	maxCommentAttachmentCount = 5
+	maxCommentAttachmentBytes = 8 * 1024 * 1024 // 8 MiB per file
 )
 
 func (h *SentinelHandler) CreateSprint(c *gin.Context) {
@@ -303,17 +315,81 @@ func (h *SentinelHandler) AddComment(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
 		return
 	}
-	var req addCommentReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
-		return
+	content := ""
+	attachments := make([]domain.TaskCommentAttachment, 0)
+	contentType := c.ContentType()
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		content = strings.TrimSpace(c.PostForm("content"))
+		form, err := c.MultipartForm()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "invalid multipart payload"})
+			return
+		}
+		files := form.File["attachments"]
+		if len(files) > maxCommentAttachmentCount {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": fmt.Sprintf("最多上传 %d 个附件", maxCommentAttachmentCount)})
+			return
+		}
+		for _, fileHeader := range files {
+			attachment, err := toTaskCommentAttachment(fileHeader)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid attachment", "message": err.Error()})
+				return
+			}
+			attachments = append(attachments, attachment)
+		}
+	} else {
+		var req addCommentReq
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+			return
+		}
+		content = req.Content
 	}
-	comment, err := h.usecase.AddComment(task.ID, userID, req.Content)
+
+	comment, err := h.usecase.AddComment(task.ID, userID, content, attachments)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add comment", "message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Comment added", "data": comment})
+}
+
+func toTaskCommentAttachment(fileHeader *multipart.FileHeader) (domain.TaskCommentAttachment, error) {
+	if fileHeader == nil {
+		return domain.TaskCommentAttachment{}, errors.New("empty file")
+	}
+	if fileHeader.Size <= 0 {
+		return domain.TaskCommentAttachment{}, errors.New("附件为空文件")
+	}
+	if fileHeader.Size > maxCommentAttachmentBytes {
+		return domain.TaskCommentAttachment{}, fmt.Errorf("附件 %s 超过 8MB 限制", fileHeader.Filename)
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		return domain.TaskCommentAttachment{}, fmt.Errorf("无法读取附件 %s", fileHeader.Filename)
+	}
+	defer file.Close()
+
+	raw, err := io.ReadAll(file)
+	if err != nil {
+		return domain.TaskCommentAttachment{}, fmt.Errorf("读取附件失败: %s", fileHeader.Filename)
+	}
+	mimeType := fileHeader.Header.Get("Content-Type")
+	if strings.TrimSpace(mimeType) == "" {
+		mimeType = mime.TypeByExtension(strings.ToLower(filepath.Ext(fileHeader.Filename)))
+	}
+	if strings.TrimSpace(mimeType) == "" {
+		mimeType = "application/octet-stream"
+	}
+	dataURL := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(raw)
+	return domain.TaskCommentAttachment{
+		FileName: fileHeader.Filename,
+		MimeType: mimeType,
+		Size:     fileHeader.Size,
+		DataURL:  dataURL,
+		IsImage:  strings.HasPrefix(mimeType, "image/"),
+	}, nil
 }
 
 func (h *SentinelHandler) GetComments(c *gin.Context) {

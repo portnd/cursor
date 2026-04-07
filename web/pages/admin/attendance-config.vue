@@ -32,6 +32,100 @@
       </div>
 
       <section v-if="activeTab === 'dashboard'" class="space-y-5">
+        <div v-if="currentUser?.role === 'CEO'" class="rounded-xl border border-amber-800/50 bg-amber-950/20 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-amber-900/40">
+            <h3 class="text-sm font-semibold text-amber-200">Pending offsite check-in requests</h3>
+            <button type="button" class="text-xs text-amber-300 hover:text-amber-200" @click="loadPendingOffsite">Refresh</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-amber-900/20 text-amber-100/90">
+                <tr>
+                  <th class="text-left px-4 py-3 font-medium">Employee</th>
+                  <th class="text-left px-4 py-3 font-medium">Date</th>
+                  <th class="text-left px-4 py-3 font-medium">Reason</th>
+                  <th class="text-right px-4 py-3 font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!pendingOffsite.length">
+                  <td colspan="4" class="px-4 py-6 text-center text-gray-400">No pending offsite requests.</td>
+                </tr>
+                <tr v-for="r in pendingOffsite" :key="r.id" class="border-t border-amber-900/30">
+                  <td class="px-4 py-3 text-gray-100">{{ r.user_display_name || r.user_email || `User ${r.user_id}` }}</td>
+                  <td class="px-4 py-3 text-gray-300">{{ r.attendance_date?.slice(0, 10) }}</td>
+                  <td class="px-4 py-3 text-gray-300">{{ r.reason }}</td>
+                  <td class="px-4 py-3 text-right space-x-2">
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium disabled:opacity-50"
+                      :disabled="reviewingOffsiteId === r.id"
+                      @click="reviewOffsite(r.id, 'APPROVED')"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 rounded-md bg-rose-700 hover:bg-rose-600 text-white text-xs font-medium disabled:opacity-50"
+                      :disabled="reviewingOffsiteId === r.id"
+                      @click="reviewOffsite(r.id, 'REJECTED')"
+                    >
+                      Reject
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div v-if="currentUser?.role === 'CEO'" class="rounded-xl border border-amber-800/50 bg-amber-950/20 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-amber-900/40">
+            <h3 class="text-sm font-semibold text-amber-200">Pending offsite check-out requests</h3>
+            <button type="button" class="text-xs text-amber-300 hover:text-amber-200" @click="loadPendingOffsiteCheckout">Refresh</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-amber-900/20 text-amber-100/90">
+                <tr>
+                  <th class="text-left px-4 py-3 font-medium">Employee</th>
+                  <th class="text-left px-4 py-3 font-medium">Date</th>
+                  <th class="text-left px-4 py-3 font-medium">Reason</th>
+                  <th class="text-right px-4 py-3 font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!pendingOffsiteCheckout.length">
+                  <td colspan="4" class="px-4 py-6 text-center text-gray-400">No pending offsite check-out requests.</td>
+                </tr>
+                <tr v-for="r in pendingOffsiteCheckout" :key="r.id" class="border-t border-amber-900/30">
+                  <td class="px-4 py-3 text-gray-100">{{ r.user_display_name || r.user_email || `User ${r.user_id}` }}</td>
+                  <td class="px-4 py-3 text-gray-300">{{ r.attendance_date?.slice(0, 10) }}</td>
+                  <td class="px-4 py-3 text-gray-300">{{ r.reason }}</td>
+                  <td class="px-4 py-3 text-right space-x-2">
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium disabled:opacity-50"
+                      :disabled="reviewingOffsiteCheckoutId === r.id"
+                      @click="reviewOffsiteCheckout(r.id, 'APPROVED')"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 rounded-md bg-rose-700 hover:bg-rose-600 text-white text-xs font-medium disabled:opacity-50"
+                      :disabled="reviewingOffsiteCheckoutId === r.id"
+                      @click="reviewOffsiteCheckout(r.id, 'REJECTED')"
+                    >
+                      Reject
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="rounded-xl border border-gray-800 bg-gray-850/70 p-4">
           <div class="flex flex-wrap items-end gap-3">
             <label class="block">
@@ -194,7 +288,7 @@
 </template>
 
 <script setup lang="ts">
-import { useAttendanceApi, type AttendanceRecord } from '~/core/modules/attendance/infrastructure/attendance-api'
+import { useAttendanceApi, type AttendanceRecord, type OffsiteCheckInRequest, type OffsiteCheckOutRequest } from '~/core/modules/attendance/infrastructure/attendance-api'
 import { useAttendanceStore } from '~/core/modules/attendance/store/attendance-store'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
@@ -234,8 +328,12 @@ const form = reactive({
 
 const recordsDate = ref(new Date().toISOString().slice(0, 10))
 const adminRecords = ref<AttendanceRecord[]>([])
+const pendingOffsite = ref<OffsiteCheckInRequest[]>([])
+const pendingOffsiteCheckout = ref<OffsiteCheckOutRequest[]>([])
 const recordsLoading = ref(false)
 const deletingId = ref<number | null>(null)
+const reviewingOffsiteId = ref<number | null>(null)
+const reviewingOffsiteCheckoutId = ref<number | null>(null)
 
 const checkedInCount = computed(() => adminRecords.value.filter((r) => !!r.check_in_at).length)
 const checkedOutCount = computed(() => adminRecords.value.filter((r) => !!r.check_out_at).length)
@@ -301,6 +399,8 @@ onMounted(async () => {
     form.is_active = c.is_active
   }
   await loadRecords()
+  await loadPendingOffsite()
+  await loadPendingOffsiteCheckout()
 })
 
 async function onSave() {
@@ -345,6 +445,56 @@ async function loadRecords() {
     adminRecords.value = []
   } finally {
     recordsLoading.value = false
+  }
+}
+
+async function loadPendingOffsite() {
+  if (currentUser.value?.role !== 'CEO') {
+    pendingOffsite.value = []
+    return
+  }
+  try {
+    const res = await api.adminListPendingOffsiteCheckIn()
+    pendingOffsite.value = res.items || []
+  } catch {
+    pendingOffsite.value = []
+  }
+}
+
+async function loadPendingOffsiteCheckout() {
+  if (currentUser.value?.role !== 'CEO') {
+    pendingOffsiteCheckout.value = []
+    return
+  }
+  try {
+    const res = await api.adminListPendingOffsiteCheckOut()
+    pendingOffsiteCheckout.value = res.items || []
+  } catch {
+    pendingOffsiteCheckout.value = []
+  }
+}
+
+async function reviewOffsite(id: number, status: 'APPROVED' | 'REJECTED') {
+  const note = window.prompt(status === 'APPROVED' ? 'Note for approval (optional)' : 'Reason for rejection (optional)') ?? ''
+  reviewingOffsiteId.value = id
+  try {
+    await api.adminReviewOffsiteCheckIn(id, { status, note })
+    await loadPendingOffsite()
+    await loadRecords()
+  } finally {
+    reviewingOffsiteId.value = null
+  }
+}
+
+async function reviewOffsiteCheckout(id: number, status: 'APPROVED' | 'REJECTED') {
+  const note = window.prompt(status === 'APPROVED' ? 'Note for approval (optional)' : 'Reason for rejection (optional)') ?? ''
+  reviewingOffsiteCheckoutId.value = id
+  try {
+    await api.adminReviewOffsiteCheckOut(id, { status, note })
+    await loadPendingOffsiteCheckout()
+    await loadRecords()
+  } finally {
+    reviewingOffsiteCheckoutId.value = null
   }
 }
 </script>

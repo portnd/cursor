@@ -56,7 +56,6 @@ func respondAttendanceErr(c *gin.Context, err error) {
 	c.JSON(status, gin.H{"error": code})
 }
 
-
 func mapAttendanceErr(err error) (string, int) {
 	switch {
 	case errors.Is(err, domain.ErrOutsideOffice), errors.Is(err, domain.ErrOutsideOfficeGPS), errors.Is(err, domain.ErrOutsideOfficeIP), errors.Is(err, domain.ErrOutsideOfficeBoth):
@@ -79,10 +78,24 @@ func mapAttendanceErr(err error) (string, int) {
 		return err.Error(), http.StatusBadRequest
 	case errors.Is(err, domain.ErrInvalidSchedule), errors.Is(err, domain.ErrInvalidDateRange):
 		return err.Error(), http.StatusBadRequest
+	case errors.Is(err, domain.ErrOffsiteReasonRequired), errors.Is(err, domain.ErrOffsiteApprovalNotRequired), errors.Is(err, domain.ErrOffsiteWFHNotAllowed):
+		return err.Error(), http.StatusBadRequest
+	case errors.Is(err, domain.ErrOffsiteCheckOutReasonRequired):
+		return err.Error(), http.StatusBadRequest
 	case errors.Is(err, domain.ErrLeaveNotFound), errors.Is(err, domain.ErrUserNotFound), errors.Is(err, domain.ErrAttendanceRecordNotFound):
+		return err.Error(), http.StatusNotFound
+	case errors.Is(err, domain.ErrOffsiteRequestNotFound):
+		return err.Error(), http.StatusNotFound
+	case errors.Is(err, domain.ErrOffsiteCheckOutRequestNotFound):
 		return err.Error(), http.StatusNotFound
 	case errors.Is(err, domain.ErrLeaveNotPending):
 		return err.Error(), http.StatusConflict
+	case errors.Is(err, domain.ErrOffsiteAlreadyRequested), errors.Is(err, domain.ErrOffsiteRequestNotPending):
+		return err.Error(), http.StatusConflict
+	case errors.Is(err, domain.ErrOffsiteCheckOutAlreadyRequested), errors.Is(err, domain.ErrOffsiteCheckOutRequestNotPending):
+		return err.Error(), http.StatusConflict
+	case errors.Is(err, domain.ErrForbiddenCEOOnly):
+		return err.Error(), http.StatusForbidden
 	default:
 		return err.Error(), http.StatusInternalServerError
 	}
@@ -138,10 +151,134 @@ func (h *attendanceHandler) today(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	offsiteReq, err := h.uc.GetTodayOffsiteCheckInRequest(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	offsiteOutReq, err := h.uc.GetTodayOffsiteCheckOutRequest(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"record":        rec,
-		"office_config": cfg,
+		"record":                   rec,
+		"office_config":            cfg,
+		"offsite_checkin_request":  offsiteReq,
+		"offsite_checkout_request": offsiteOutReq,
 	})
+}
+
+// POST /api/v1/attendance/offsite-check-out/request
+func (h *attendanceHandler) requestOffsiteCheckOut(c *gin.Context) {
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req domain.RequestOffsiteCheckOutPayload
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, err := h.uc.RequestOffsiteCheckOut(userID, req.Lat, req.Lng, req.Reason)
+	if err != nil {
+		respondAttendanceErr(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, out)
+}
+
+// GET /api/v1/attendance/admin/offsite-check-out/pending
+func (h *attendanceHandler) adminListPendingOffsiteCheckOut(c *gin.Context) {
+	items, err := h.uc.ListPendingOffsiteCheckOutRequests(roleFromContext(c))
+	if err != nil {
+		respondAttendanceErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// PATCH /api/v1/attendance/admin/offsite-check-out/:id/review
+func (h *attendanceHandler) adminReviewOffsiteCheckOut(c *gin.Context) {
+	role := roleFromContext(c)
+	approverID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || requestID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request id"})
+		return
+	}
+	var req domain.ReviewOffsiteCheckOutPayload
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, uerr := h.uc.ReviewOffsiteCheckOutRequest(role, approverID, requestID, req.Status, req.Note)
+	if uerr != nil {
+		respondAttendanceErr(c, uerr)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// POST /api/v1/attendance/offsite-check-in/request
+func (h *attendanceHandler) requestOffsiteCheckIn(c *gin.Context) {
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req domain.RequestOffsiteCheckInPayload
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, err := h.uc.RequestOffsiteCheckIn(userID, req.Lat, req.Lng, req.Reason)
+	if err != nil {
+		respondAttendanceErr(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, out)
+}
+
+// GET /api/v1/attendance/admin/offsite-check-in/pending
+func (h *attendanceHandler) adminListPendingOffsiteCheckIn(c *gin.Context) {
+	items, err := h.uc.ListPendingOffsiteCheckInRequests(roleFromContext(c))
+	if err != nil {
+		respondAttendanceErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// PATCH /api/v1/attendance/admin/offsite-check-in/:id/review
+func (h *attendanceHandler) adminReviewOffsiteCheckIn(c *gin.Context) {
+	role := roleFromContext(c)
+	approverID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || requestID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request id"})
+		return
+	}
+	var req domain.ReviewOffsiteCheckInPayload
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, uerr := h.uc.ReviewOffsiteCheckInRequest(role, approverID, requestID, req.Status, req.Note)
+	if uerr != nil {
+		respondAttendanceErr(c, uerr)
+		return
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // GET /api/v1/attendance/history?cursor=&limit=

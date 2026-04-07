@@ -1863,16 +1863,26 @@ func (u *sentinelUsecase) DeleteMilestone(id uuid.UUID) error {
 
 // --- Comment Operations ---
 
-func (u *sentinelUsecase) AddComment(taskID uuid.UUID, userID uint, content string) (*domain.TaskComment, error) {
+func (u *sentinelUsecase) AddComment(taskID uuid.UUID, userID uint, content string, attachments []domain.TaskCommentAttachment) (*domain.TaskComment, error) {
 	content = strings.TrimSpace(content)
-	if content == "" {
-		return nil, errors.New("comment content cannot be empty")
+	if content == "" && len(attachments) == 0 {
+		return nil, errors.New("comment content or attachments are required")
+	}
+
+	attachmentsJSON := datatypes.JSON([]byte("[]"))
+	if len(attachments) > 0 {
+		raw, err := json.Marshal(attachments)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode attachments: %w", err)
+		}
+		attachmentsJSON = datatypes.JSON(raw)
 	}
 	c := &domain.TaskComment{
-		ID:      uuid.New(),
-		TaskID:  taskID,
-		UserID:  userID,
-		Content: content,
+		ID:          uuid.New(),
+		TaskID:      taskID,
+		UserID:      userID,
+		Content:     content,
+		Attachments: attachmentsJSON,
 	}
 	if err := u.repo.CreateTaskComment(c); err != nil {
 		return nil, fmt.Errorf("failed to add comment: %w", err)

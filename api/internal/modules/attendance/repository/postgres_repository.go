@@ -5,10 +5,11 @@ import (
 	"strings"
 	"time"
 
-	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
+	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"gorm.io/gorm"
 )
+
 type postgresRepository struct {
 	db *gorm.DB
 }
@@ -205,6 +206,194 @@ func (r *postgresRepository) DeleteRecordByID(id int64) error {
 		return domain.ErrAttendanceRecordNotFound
 	}
 	return nil
+}
+
+func (r *postgresRepository) CreateOffsiteCheckInRequest(req *domain.OffsiteCheckInRequest) error {
+	return r.db.Create(req).Error
+}
+
+func (r *postgresRepository) GetLatestOffsiteCheckInRequestByUserAndDate(userID uint, attendanceDate time.Time) (*domain.OffsiteCheckInRequest, error) {
+	d := attendanceDate.UTC()
+	day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+	var item domain.OffsiteCheckInRequest
+	err := r.db.Where("user_id = ? AND attendance_date = ?", userID, day.Format("2006-01-02")).
+		Order("id DESC").
+		First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *postgresRepository) ListPendingOffsiteCheckInRequests() ([]domain.OffsiteCheckInRequest, error) {
+	type row struct {
+		domain.OffsiteCheckInRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var raw []row
+	err := r.db.Raw(`
+		SELECT o.*,
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM offsite_checkin_requests o
+		JOIN users u ON u.id = o.user_id
+		LEFT JOIN users au ON au.id = o.approver_id
+		WHERE o.status = ?
+		ORDER BY o.requested_at ASC, o.id ASC
+	`, domain.OffsiteStatusPending).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.OffsiteCheckInRequest, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.OffsiteCheckInRequest
+		item.UserEmail = rw.UserEmail
+		item.UserDisplayName = rw.UserDisplayName
+		item.ApproverEmail = rw.ApproverEmail
+		item.ApproverName = rw.ApproverName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) GetOffsiteCheckInRequestByID(id int64) (*domain.OffsiteCheckInRequest, error) {
+	type row struct {
+		domain.OffsiteCheckInRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var rw row
+	err := r.db.Raw(`
+		SELECT o.*,
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM offsite_checkin_requests o
+		JOIN users u ON u.id = o.user_id
+		LEFT JOIN users au ON au.id = o.approver_id
+		WHERE o.id = ?
+	`, id).Scan(&rw).Error
+	if err != nil {
+		return nil, err
+	}
+	if rw.ID == 0 {
+		return nil, nil
+	}
+	item := rw.OffsiteCheckInRequest
+	item.UserEmail = rw.UserEmail
+	item.UserDisplayName = rw.UserDisplayName
+	item.ApproverEmail = rw.ApproverEmail
+	item.ApproverName = rw.ApproverName
+	return &item, nil
+}
+
+func (r *postgresRepository) UpdateOffsiteCheckInRequest(req *domain.OffsiteCheckInRequest) error {
+	return r.db.Save(req).Error
+}
+
+func (r *postgresRepository) CreateOffsiteCheckOutRequest(req *domain.OffsiteCheckOutRequest) error {
+	return r.db.Create(req).Error
+}
+
+func (r *postgresRepository) GetLatestOffsiteCheckOutRequestByUserAndDate(userID uint, attendanceDate time.Time) (*domain.OffsiteCheckOutRequest, error) {
+	d := attendanceDate.UTC()
+	day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+	var item domain.OffsiteCheckOutRequest
+	err := r.db.Where("user_id = ? AND attendance_date = ?", userID, day.Format("2006-01-02")).
+		Order("id DESC").
+		First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *postgresRepository) ListPendingOffsiteCheckOutRequests() ([]domain.OffsiteCheckOutRequest, error) {
+	type row struct {
+		domain.OffsiteCheckOutRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var raw []row
+	err := r.db.Raw(`
+		SELECT o.*,
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM offsite_checkout_requests o
+		JOIN users u ON u.id = o.user_id
+		LEFT JOIN users au ON au.id = o.approver_id
+		WHERE o.status = ?
+		ORDER BY o.requested_at ASC, o.id ASC
+	`, domain.OffsiteStatusPending).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.OffsiteCheckOutRequest, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.OffsiteCheckOutRequest
+		item.UserEmail = rw.UserEmail
+		item.UserDisplayName = rw.UserDisplayName
+		item.ApproverEmail = rw.ApproverEmail
+		item.ApproverName = rw.ApproverName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) GetOffsiteCheckOutRequestByID(id int64) (*domain.OffsiteCheckOutRequest, error) {
+	type row struct {
+		domain.OffsiteCheckOutRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var rw row
+	err := r.db.Raw(`
+		SELECT o.*,
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM offsite_checkout_requests o
+		JOIN users u ON u.id = o.user_id
+		LEFT JOIN users au ON au.id = o.approver_id
+		WHERE o.id = ?
+	`, id).Scan(&rw).Error
+	if err != nil {
+		return nil, err
+	}
+	if rw.ID == 0 {
+		return nil, nil
+	}
+	item := rw.OffsiteCheckOutRequest
+	item.UserEmail = rw.UserEmail
+	item.UserDisplayName = rw.UserDisplayName
+	item.ApproverEmail = rw.ApproverEmail
+	item.ApproverName = rw.ApproverName
+	return &item, nil
+}
+
+func (r *postgresRepository) UpdateOffsiteCheckOutRequest(req *domain.OffsiteCheckOutRequest) error {
+	return r.db.Save(req).Error
 }
 
 func (r *postgresRepository) CreateLeaveRequest(req *domain.LeaveRequest) error {
