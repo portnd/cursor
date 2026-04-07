@@ -164,16 +164,20 @@ func (h *SentinelHandler) GetEpicTimeline(c *gin.Context) {
 		return
 	}
 
-	epicCount := len(data.Epics)
-	taskCount := 0
-	subTaskCount := 0
-	for _, e := range data.Epics {
-		taskCount += len(e.Tasks)
-		for _, t := range e.Tasks {
-			subTaskCount += len(t.SubTasks)
+	totalElapsedMs := time.Since(startedAt).Milliseconds()
+	slowThresholdMs := int64(300)
+	if totalElapsedMs >= slowThresholdMs {
+		epicCount := len(data.Epics)
+		taskCount := 0
+		subTaskCount := 0
+		for _, e := range data.Epics {
+			taskCount += len(e.Tasks)
+			for _, t := range e.Tasks {
+				subTaskCount += len(t.SubTasks)
+			}
 		}
+		log.Printf("[timeline][epic] slow project_id=%s id_or_code=%s epics=%d tasks=%d subtasks=%d project_lookup_ms=%d timeline_fetch_ms=%d total_ms=%d threshold_ms=%d", project.ID, idStr, epicCount, taskCount, subTaskCount, projectLookupElapsedMs, timelineFetchElapsedMs, totalElapsedMs, slowThresholdMs)
 	}
-	log.Printf("[timeline][epic] success project_id=%s id_or_code=%s epics=%d tasks=%d subtasks=%d project_lookup_ms=%d timeline_fetch_ms=%d total_ms=%d", project.ID, idStr, epicCount, taskCount, subTaskCount, projectLookupElapsedMs, timelineFetchElapsedMs, time.Since(startedAt).Milliseconds())
 
 	c.JSON(http.StatusOK, gin.H{"message": "Epic timeline retrieved successfully", "data": data})
 }
