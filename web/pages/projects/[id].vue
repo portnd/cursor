@@ -406,7 +406,7 @@
               <div :class="timelineFullscreen ? 'timeline-fullscreen-scroll min-h-0 flex-1 overflow-auto' : ''">
               <div class="timeline-inner relative flex flex-col" :style="matrixChartWidth > 0 ? { width: (220 + matrixChartWidth) + 'px', minWidth: (220 + matrixChartWidth) + 'px' } : { minWidth: '100%' }">
                 <GanttMilestoneRow v-if="matrixDateRangeStart && matrixDateRangeEnd && matrixChartWidth > 0" :milestones="milestones" :date-range-start="matrixDateRangeStart" :date-range-end="matrixDateRangeEnd" :grid-width="matrixChartWidth" :grid-offset="220" @milestone-click="openEditMilestoneModal" @milestone-drag-move="onMilestoneDragMove" @milestone-drag-end="onMilestoneDragEnd" />
-                <g-gantt-chart :chart-start="matrixChartStart" :chart-end="matrixChartEnd" :precision="matrixGanttPrecision" bar-start="barStart" bar-end="barEnd" date-format="YYYY-MM-DD" :width="matrixChartWidth + 'px'" :row-height="52" :grid="true" :current-time="true" current-time-label="Now" color-scheme="dark" :label-column-title="timelineMode === 'epic' ? 'Epic / Task' : 'Sprint / Task'" label-column-width="220px" class="gantt-chart-vue gantt-enterprise" @click-bar="onMatrixGanttClickBar" @dragstart-bar="onMatrixGanttDragStart" @dragend-bar="onGanttDragEnd">
+                <g-gantt-chart :chart-start="matrixChartStart" :chart-end="matrixChartEnd" :precision="matrixGanttPrecision" bar-start="barStart" bar-end="barEnd" date-format="YYYY-MM-DD" :width="matrixChartWidth + 'px'" :row-height="52" :grid="true" :current-time="true" current-time-label="Now" color-scheme="dark" :label-column-title="timelineMode === 'epic' ? 'Epic / Task' : 'Sprint / Task'" label-column-width="220px" class="gantt-chart-vue gantt-enterprise" @click-bar="onMatrixGanttClickBar" @dragstart-bar="onMatrixGanttDragStart" @dragend-bar="onGanttDragEnd" @mouseenter-bar="onMatrixGanttMouseEnter" @mouseleave-bar="onMatrixGanttMouseLeave">
                   <template #timeunit="{ label, date }">
                     <span v-if="ganttView === 'week' && date" class="whitespace-nowrap">{{ weekRangeLabel(date) }}</span>
                     <span v-else>{{ label }}</span>
@@ -414,12 +414,28 @@
                   <template #label-column-row="{ label }">
                     <span class="cursor-pointer w-full block min-w-0 whitespace-normal break-words text-[13px] leading-tight py-0.5" @click.stop="onMatrixLabelClickByLabel(label)">{{ label }}</span>
                   </template>
+                  <template #bar-tooltip="{ bar }">
+                    <div v-if="bar" class="rounded-md border border-slate-600 bg-slate-900/95 px-3 py-2 text-xs text-slate-200 shadow-lg">
+                      <p class="font-semibold text-white mb-1">{{ bar.ganttBarConfig?.label || 'Timeline item' }}</p>
+                      <p>
+                        {{ formatGanttTooltipDate(bar.barStart) }} → {{ formatGanttTooltipInclusiveEnd(bar.barEnd) }}
+                      </p>
+                    </div>
+                  </template>
                   <g-gantt-row v-for="row in matrixGanttRows" :key="row.taskId" :label="row.label" :bars="row.bars" :class="row.taskId.startsWith('epic-') ? 'gantt-row-epic' : row.taskId.startsWith('sprint-') ? 'gantt-row-sprint' : 'gantt-row-task'" />
                 </g-gantt-chart>
                 <div v-if="matrixMilestoneLinePositions.length > 0" class="pointer-events-none absolute inset-0 z-[5]" aria-hidden="true">
                   <div v-for="{ id, left } in matrixMilestoneLinePositions" :key="id" class="absolute top-0 bottom-0 w-px bg-purple-500/50" :style="{ left: left + 'px' }" />
                 </div>
               </div>
+              </div>
+              <div
+                v-if="matrixHoveredBar"
+                class="pointer-events-none fixed z-[80] rounded-md border border-slate-600 bg-slate-900/95 px-3 py-2 text-xs text-slate-200 shadow-xl"
+                :style="{ left: matrixTooltipPos.x + 'px', top: matrixTooltipPos.y + 'px' }"
+              >
+                <p class="font-semibold text-white mb-1">{{ matrixHoveredBar?.ganttBarConfig?.label || 'Timeline item' }}</p>
+                <p>{{ formatGanttTooltipDate(matrixHoveredBar?.barStart) }} → {{ formatGanttTooltipInclusiveEnd(matrixHoveredBar?.barEnd) }}</p>
               </div>
             </div>
             <template #fallback>
@@ -2653,6 +2669,39 @@ function toYMD(d: string) {
   return d.split('T')[0]
 }
 
+function addDaysYMD(ymd: string, days: number) {
+  const d = new Date(ymd + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
+  return toYMD(d.toISOString())
+}
+
+/** Persisted end_date is inclusive; Gantt barEnd must be exclusive. */
+function inclusiveEndToExclusiveYMD(isoOrYmd: string) {
+  return addDaysYMD(toYMD(isoOrYmd), 1)
+}
+
+function formatGanttTooltipDate(v: unknown): string {
+  const iso = barDateToISO(v)
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatGanttTooltipInclusiveEnd(v: unknown): string {
+  const iso = barDateToISO(v)
+  if (!iso) return '—'
+  const d = new Date(iso)
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 /** Set task start/end to full sprint range so the bar size matches the sprint bar. Returns ISO strings (noon UTC) for API. */
 function taskDatesInSprintRange(
   _task: { start_date?: string | null; end_date?: string | null; due_at?: string | null },
@@ -2741,7 +2790,7 @@ const ganttRows = computed(() => {
   }
   return timelineFilteredTasks.value.map((t) => {
     let start = t.start_date ? toYMD(t.start_date) : (t.due_at ? toYMD(t.due_at) : today)
-    let end = t.end_date ? toYMD(t.end_date) : (t.due_at ? toYMD(t.due_at) : tomorrow)
+    let end = t.end_date ? inclusiveEndToExclusiveYMD(t.end_date) : (t.due_at ? toYMD(t.due_at) : tomorrow)
     if (start === end) end = addDays(start, 1)
     if (end < start) end = addDays(start, 1)
     const label = `${t.code || ''} ${t.title}`.trim() || t.title
@@ -2944,7 +2993,7 @@ function buildMatrixGanttRows() {
         const taskBarClass = `gantt-bar-task gantt-bar-task-epic-${epicBarClassSuffix(ep.id)}`
         for (const task of ep.tasks || []) {
           let start = task.start_date ? toYMD(task.start_date) : (task.due_at ? toYMD(task.due_at) : today)
-          let end = task.end_date ? toYMD(task.end_date) : (task.due_at ? toYMD(task.due_at) : tomorrow)
+          let end = task.end_date ? inclusiveEndToExclusiveYMD(task.end_date) : (task.due_at ? toYMD(task.due_at) : tomorrow)
           if (end <= start) end = addDays(start, 1)
           const label = task.title || ''
           rows.push({
@@ -2958,7 +3007,7 @@ function buildMatrixGanttRows() {
   } else if (timelineMode.value === 'sprint' && sprintTimelineData.value?.sprints?.length) {
     for (const sp of sprintTimelineData.value.sprints) {
       const spStart = sp.start_date ? toYMD(sp.start_date) : today
-      let spEnd = sp.end_date ? toYMD(sp.end_date) : tomorrow
+      let spEnd = sp.end_date ? inclusiveEndToExclusiveYMD(sp.end_date) : tomorrow
       if (spEnd <= spStart) spEnd = addDays(spStart, 1)
       const taskCount = (sp.tasks || []).length
       const expanded = timelineExpandedSprints.value[sp.id]
@@ -2971,7 +3020,7 @@ function buildMatrixGanttRows() {
       if (expanded) {
         for (const task of sp.tasks || []) {
           let start = task.start_date ? toYMD(task.start_date) : (task.due_at ? toYMD(task.due_at) : today)
-          let end = task.end_date ? toYMD(task.end_date) : (task.due_at ? toYMD(task.due_at) : tomorrow)
+          let end = task.end_date ? inclusiveEndToExclusiveYMD(task.end_date) : (task.due_at ? toYMD(task.due_at) : tomorrow)
           if (end <= start) end = addDays(start, 1)
           const label = task.title || ''
           rows.push({
@@ -3048,6 +3097,20 @@ const matrixMilestoneLinePositions = computed(() => {
 })
 
 const ganttBarJustDragged = ref(false)
+const matrixHoveredBar = ref<any | null>(null)
+const matrixTooltipPos = ref({ x: 0, y: 0 })
+
+function onMatrixGanttMouseEnter(payload: { bar: any; e: MouseEvent }) {
+  matrixHoveredBar.value = payload?.bar || null
+  matrixTooltipPos.value = {
+    x: (payload?.e?.clientX || 0) + 12,
+    y: (payload?.e?.clientY || 0) + 12,
+  }
+}
+
+function onMatrixGanttMouseLeave() {
+  matrixHoveredBar.value = null
+}
 
 function onMatrixGanttDragStart() {
   ganttBarJustDragged.value = true
@@ -3127,6 +3190,18 @@ function barDateToISO(v: unknown): string {
   }
   if (v instanceof Date) return v.toISOString()
   return ''
+}
+
+/**
+ * Vue-Ganttastic emits barEnd as exclusive boundary in day/week views.
+ * Persist inclusive end_date by subtracting 1 day from barEnd.
+ */
+function barEndToInclusiveISO(v: unknown): string {
+  const iso = barDateToISO(v)
+  if (!iso) return ''
+  const d = new Date(iso)
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toISOString()
 }
 
 /** อัปเดตข้อมูล timeline ในเครื่อง (ไม่โหลดใหม่) เพื่อไม่ให้ scroll กระโดด */
@@ -3267,7 +3342,7 @@ async function onGanttDragEnd(payload: { bar?: { barStart?: unknown; barEnd?: un
     const barId = bar?.ganttBarConfig?.id
     if (!barId) continue
     const start = barDateToISO(bar.barStart)
-    const end = barDateToISO(bar.barEnd)
+    const end = barEndToInclusiveISO(bar.barEnd)
     if (!start || !end) continue
     try {
       if (barId.startsWith('epic-')) {
@@ -5093,5 +5168,17 @@ onBeforeUnmount(() => {
 
 .gantt-enterprise :deep(.g-gantt-tooltip:before) {
   border-bottom-color: rgb(30 41 59);
+}
+
+/* Hide default tooltip color dot from vue-ganttastic */
+.gantt-enterprise :deep(.g-gantt-tooltip-color-dot) {
+  display: none !important;
+}
+</style>
+
+<style>
+/* Global override because vue-ganttastic tooltip is teleported to <body> */
+.g-gantt-tooltip {
+  display: none !important;
 }
 </style>
