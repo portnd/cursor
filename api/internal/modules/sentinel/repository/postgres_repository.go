@@ -1423,10 +1423,18 @@ func (r *postgresRepository) DeleteEpic(id uuid.UUID) error {
 // GetEpicTimelineData returns all epics for a project with their tasks preloaded (including sub_tasks for epic bar span), ordered by start_date.
 func (r *postgresRepository) GetEpicTimelineData(projectID uuid.UUID) (*domain.EpicTimelineData, error) {
 	var epics []domain.Epic
-	err := r.db.Where("project_id = ?", projectID).
+	err := r.db.
+		Select("id", "project_id", "title", "description", "status", "color", "sort_order", "start_date", "end_date", "created_at", "updated_at").
+		Where("project_id = ?", projectID).
 		Order("sort_order asc, start_date asc NULLS LAST, created_at asc").
 		Preload("Tasks", func(db *gorm.DB) *gorm.DB {
-			return db.Where("parent_id IS NULL").Order("start_date asc NULLS LAST, created_at asc").Preload("SubTasks")
+			return db.
+				Select("id", "code", "title", "project_id", "epic_id", "milestone_id", "task_type", "priority", "story_points", "parent_id", "sort_order", "start_date", "end_date", "progress", "due_at", "status", "assigned_to", "created_at", "updated_at").
+				Where("parent_id IS NULL").
+				Order("start_date asc NULLS LAST, created_at asc").
+				Preload("SubTasks", func(subDB *gorm.DB) *gorm.DB {
+					return subDB.Select("id", "title", "project_id", "epic_id", "parent_id", "task_type", "priority", "story_points", "sort_order", "start_date", "end_date", "progress", "due_at", "status", "assigned_to", "created_at", "updated_at").Order("start_date asc NULLS LAST, created_at asc")
+				})
 		}).
 		Find(&epics).Error
 	if err != nil {

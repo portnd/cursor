@@ -132,25 +132,49 @@ func (h *SentinelHandler) DeleteEpic(c *gin.Context) {
 
 // GetEpicTimeline handles GET /sentinel/projects/:id/timeline/epic-view — :id may be UUID or project code (e.g. mims-hd-map).
 func (h *SentinelHandler) GetEpicTimeline(c *gin.Context) {
+	startedAt := time.Now()
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "project id or code is required"})
 		return
 	}
+
+	projectLookupStartedAt := time.Now()
 	project, err := h.usecase.GetProjectByIDOrCode(idStr, callerCtx(c))
+	projectLookupElapsedMs := time.Since(projectLookupStartedAt).Milliseconds()
 	if err != nil || project == nil {
 		if err != nil && (err.Error() == "project not found" || contains(err.Error(), "not found")) {
+			log.Printf("[timeline][epic] project_not_found id_or_code=%s project_lookup_ms=%d total_ms=%d", idStr, projectLookupElapsedMs, time.Since(startedAt).Milliseconds())
 			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
 			return
+		}
+		if err != nil {
+			log.Printf("[timeline][epic] project_lookup_error id_or_code=%s error=%v project_lookup_ms=%d total_ms=%d", idStr, err, projectLookupElapsedMs, time.Since(startedAt).Milliseconds())
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project", "message": err.Error()})
 		return
 	}
+
+	timelineFetchStartedAt := time.Now()
 	data, err := h.usecase.GetEpicTimelineData(project.ID)
+	timelineFetchElapsedMs := time.Since(timelineFetchStartedAt).Milliseconds()
 	if err != nil {
+		log.Printf("[timeline][epic] timeline_fetch_error project_id=%s id_or_code=%s error=%v project_lookup_ms=%d timeline_fetch_ms=%d total_ms=%d", project.ID, idStr, err, projectLookupElapsedMs, timelineFetchElapsedMs, time.Since(startedAt).Milliseconds())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve epic timeline", "message": err.Error()})
 		return
 	}
+
+	epicCount := len(data.Epics)
+	taskCount := 0
+	subTaskCount := 0
+	for _, e := range data.Epics {
+		taskCount += len(e.Tasks)
+		for _, t := range e.Tasks {
+			subTaskCount += len(t.SubTasks)
+		}
+	}
+	log.Printf("[timeline][epic] success project_id=%s id_or_code=%s epics=%d tasks=%d subtasks=%d project_lookup_ms=%d timeline_fetch_ms=%d total_ms=%d", project.ID, idStr, epicCount, taskCount, subTaskCount, projectLookupElapsedMs, timelineFetchElapsedMs, time.Since(startedAt).Milliseconds())
+
 	c.JSON(http.StatusOK, gin.H{"message": "Epic timeline retrieved successfully", "data": data})
 }
 
