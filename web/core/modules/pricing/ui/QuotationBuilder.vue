@@ -167,6 +167,110 @@
       </button>
     </div>
 
+    <!-- ── MA Quotation Calculator ───────────────────────────────────────── -->
+    <div class="rounded-2xl border border-slate-700/80 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40 p-5 shadow-2xl shadow-indigo-500/10">
+      <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-700/70 pb-4">
+        <div>
+          <h3 class="text-base font-bold text-white">MA Quotation Builder</h3>
+          <p class="mt-1 text-xs text-slate-400">
+            คำนวณใบเสนอราคา MA จากราคาโครงการและเปอร์เซ็นต์ MA เพื่อใช้เสนอราคาอย่างมืออาชีพ
+          </p>
+        </div>
+        <span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+          Premium Proposal Style
+        </span>
+      </div>
+
+      <div class="mt-5 grid gap-4 md:grid-cols-3">
+        <label class="space-y-2">
+          <span class="text-xs font-semibold uppercase tracking-widest text-slate-400">Project Price (THB)</span>
+          <input
+            v-model.number="maForm.projectPrice"
+            type="number"
+            min="0"
+            step="1000"
+            class="input-field"
+            placeholder="เช่น 1500000"
+          >
+        </label>
+        <label class="space-y-2">
+          <span class="text-xs font-semibold uppercase tracking-widest text-slate-400">MA %</span>
+          <input
+            v-model.number="maForm.maPercent"
+            type="number"
+            min="0"
+            step="0.1"
+            class="input-field"
+            placeholder="เช่น 15"
+          >
+        </label>
+        <div class="flex items-end">
+          <button class="btn-primary w-full justify-center" @click="calculateMAQuotation">
+            Cal MA Quotation
+          </button>
+        </div>
+      </div>
+
+      <div v-if="maResult" class="mt-5 overflow-hidden rounded-2xl border border-slate-600/70 bg-slate-950/60">
+        <div class="bg-gradient-to-r from-indigo-600/20 via-cyan-500/10 to-emerald-500/20 px-5 py-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 class="text-sm font-bold uppercase tracking-[0.18em] text-slate-200">Maintenance Agreement Quotation</h4>
+              <p class="mt-1 text-xs text-slate-400">เอกสารเสนอราคา MA รายปีในรูปแบบบริษัทชั้นนำ</p>
+            </div>
+            <button
+              :disabled="exportingMA"
+              class="btn-secondary"
+              @click="exportMAPDF"
+            >
+              <svg v-if="exportingMA" class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <svg v-else class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              {{ exportingMA ? 'Generating MA PDF…' : 'Export MA PDF' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="grid gap-3 border-b border-slate-700/70 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="premium-kpi-card">
+            <p class="premium-kpi-label">Project Value</p>
+            <p class="premium-kpi-value">{{ formatTHB(maResult.projectPrice) }}</p>
+          </div>
+          <div class="premium-kpi-card">
+            <p class="premium-kpi-label">MA Rate</p>
+            <p class="premium-kpi-value">{{ formatPercent(maResult.maPercent) }}</p>
+          </div>
+          <div class="premium-kpi-card">
+            <p class="premium-kpi-label">MA Annual Fee</p>
+            <p class="premium-kpi-value text-cyan-300">{{ formatTHB(maResult.annualFee) }}</p>
+          </div>
+          <div class="premium-kpi-card">
+            <p class="premium-kpi-label">Monthly Fee</p>
+            <p class="premium-kpi-value text-emerald-300">{{ formatTHB(maResult.monthlyFee) }}</p>
+          </div>
+        </div>
+
+        <div class="divide-y divide-slate-700/60 px-5 py-2 text-sm">
+          <div class="flex items-center justify-between py-3">
+            <span class="text-slate-400">Annual MA Fee (before VAT)</span>
+            <span class="font-semibold text-slate-100">{{ formatTHB(maResult.annualFee) }}</span>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <span class="text-slate-400">VAT 7%</span>
+            <span class="font-semibold text-slate-200">{{ formatTHB(maResult.vat) }}</span>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <span class="text-sm font-bold uppercase tracking-wide text-white">Grand Total (Annual)</span>
+            <span class="text-lg font-black text-white">{{ formatTHB(maResult.grandTotal) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Results ───────────────────────────────────────────────────────── -->
     <template v-if="store.hasResult && store.result">
       <!-- Model Metrics -->
@@ -501,6 +605,7 @@
 </template>
 
 <script setup lang="ts">
+import { jsPDF } from 'jspdf'
 import { useCostingStore } from '../store/costing-store'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
@@ -521,6 +626,21 @@ const tasksApi = useTasksApi()
 const pricingApi = usePricingApi()
 
 const exportingCustomer = ref(false)
+const exportingMA = ref(false)
+
+const maForm = reactive({
+  projectPrice: 0,
+  maPercent: 15,
+})
+
+const maResult = ref<{
+  projectPrice: number
+  maPercent: number
+  annualFee: number
+  monthlyFee: number
+  vat: number
+  grandTotal: number
+} | null>(null)
 
 // ── Form state ──────────────────────────────────────────────────────────────
 
@@ -858,6 +978,195 @@ async function exportCustomerPDF() {
   }
 }
 
+async function exportMAPDF() {
+  if (!maResult.value) {
+    store.error = 'กรุณากด Cal MA Quotation ก่อน export PDF'
+    return
+  }
+
+  // Open preview tab immediately in user gesture (same UX as customer PDF export)
+  const previewTab = window.open('', '_blank')
+  if (!previewTab) {
+    store.error = 'Popup blocked. Please allow popups and try again.'
+    return
+  }
+
+  exportingMA.value = true
+  store.error = null
+
+  try {
+    const quoteNo = `MA-${props.projectId.slice(0, 8).toUpperCase()}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+    const issueDate = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+
+    const pdfBlob = exportMAPdfBlob({
+      quoteNo,
+      issueDate,
+      projectName: props.projectName ?? 'Enterprise Project',
+      projectPrice: maResult.value.projectPrice,
+      maPercent: maResult.value.maPercent,
+      annualFee: maResult.value.annualFee,
+      monthlyFee: maResult.value.monthlyFee,
+      vat: maResult.value.vat,
+      grandTotal: maResult.value.grandTotal,
+    })
+
+    const objectUrl = URL.createObjectURL(pdfBlob)
+    previewTab.location.href = objectUrl
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (e: any) {
+    previewTab.close()
+    store.error = e?.message ?? 'MA PDF export failed'
+  } finally {
+    exportingMA.value = false
+  }
+}
+
+function exportMAPdfBlob(payload: {
+  quoteNo: string
+  issueDate: string
+  projectName: string
+  projectPrice: number
+  maPercent: number
+  annualFee: number
+  monthlyFee: number
+  vat: number
+  grandTotal: number
+}): Blob {
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' })
+
+  const companyName = 'Komgrip Technologies'
+  const companyTagline = 'Software Engineering & Digital Solutions'
+  const now = payload.issueDate
+
+  // Header line (styleเดียวกับ template เดิม)
+  doc.setDrawColor(30, 58, 95)
+  doc.setLineWidth(1.2)
+  doc.line(14, 14, 196, 14)
+
+  doc.setTextColor(30, 58, 95)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.text(companyName.toUpperCase(), 14, 23)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(74, 111, 165)
+  doc.text(companyTagline, 14, 28)
+
+  doc.setTextColor(75, 85, 99)
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.text('MA Quotation', 196, 22, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Date: ${now}`, 196, 27, { align: 'right' })
+  doc.text(`Project: ${payload.projectName}`, 196, 32, { align: 'right' })
+  doc.text(`Quote No: ${payload.quoteNo}`, 196, 37, { align: 'right' })
+
+  // Section title
+  doc.setDrawColor(199, 216, 237)
+  doc.setLineWidth(0.3)
+  doc.line(14, 46, 196, 46)
+  doc.setTextColor(30, 58, 95)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text('SCOPE OF MA SERVICE', 14, 44)
+
+  // Table header
+  const tableTop = 52
+  doc.setFillColor(30, 58, 95)
+  doc.rect(14, tableTop, 182, 8, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(8)
+  doc.text('#', 18, tableTop + 5.3)
+  doc.text('Description', 26, tableTop + 5.3)
+  doc.text('Amount (THB)', 190, tableTop + 5.3, { align: 'right' })
+
+  const rows: Array<[string, string, string]> = [
+    ['1', 'Project Value', formatTHB(payload.projectPrice)],
+    ['2', `MA Rate (${formatPercent(payload.maPercent)})`, formatTHB(payload.annualFee)],
+    ['3', 'Monthly Fee (Annual ÷ 12)', formatTHB(payload.monthlyFee)],
+  ]
+
+  let y = tableTop + 8
+  rows.forEach((row, idx) => {
+    if (idx % 2 === 1) {
+      doc.setFillColor(245, 249, 255)
+      doc.rect(14, y, 182, 8, 'F')
+    }
+    doc.setDrawColor(221, 232, 244)
+    doc.line(14, y + 8, 196, y + 8)
+
+    doc.setTextColor(26, 32, 53)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(row[0], 18, y + 5.3)
+    doc.text(row[1], 26, y + 5.3)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(30, 58, 95)
+    doc.text(row[2], 190, y + 5.3, { align: 'right' })
+    y += 8
+  })
+
+  // Summary box (โครงเดียวกับ customer quotation)
+  const boxX = 112
+  const boxW = 84
+  const rowH = 8
+  const sumTop = y + 10
+
+  doc.setDrawColor(199, 216, 237)
+  doc.rect(boxX, sumTop, boxW, rowH * 3)
+
+  // row 1
+  doc.setFillColor(245, 249, 255)
+  doc.rect(boxX, sumTop, boxW, rowH, 'F')
+  doc.setTextColor(55, 65, 81)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.text('Total (before VAT)', boxX + 4, sumTop + 5.3)
+  doc.setFont('helvetica', 'bold')
+  doc.text(formatTHB(payload.annualFee), boxX + boxW - 3, sumTop + 5.3, { align: 'right' })
+
+  // row 2
+  doc.setFillColor(255, 255, 255)
+  doc.rect(boxX, sumTop + rowH, boxW, rowH, 'F')
+  doc.setFont('helvetica', 'normal')
+  doc.text('VAT (7%)', boxX + 4, sumTop + rowH + 5.3)
+  doc.setFont('helvetica', 'bold')
+  doc.text(formatTHB(payload.vat), boxX + boxW - 3, sumTop + rowH + 5.3, { align: 'right' })
+
+  // grand total row
+  doc.setFillColor(30, 58, 95)
+  doc.rect(boxX, sumTop + rowH * 2, boxW, rowH, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text('Grand Total', boxX + 4, sumTop + rowH * 2 + 5.3)
+  doc.text(formatTHB(payload.grandTotal), boxX + boxW - 3, sumTop + rowH * 2 + 5.3, { align: 'right' })
+
+  // Validity note
+  doc.setDrawColor(199, 216, 237)
+  doc.setFillColor(240, 245, 251)
+  doc.roundedRect(14, sumTop + 30, 182, 18, 1.5, 1.5, 'FD')
+  doc.setTextColor(75, 85, 99)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text('Validity: This MA quotation is valid for 30 days from issue date.', 18, sumTop + 36)
+  doc.text('Prices are quoted in THB and inclusive of VAT at 7%.', 18, sumTop + 41)
+
+  // Footer
+  doc.setDrawColor(221, 232, 244)
+  doc.line(14, 280, 196, 280)
+  doc.setTextColor(156, 163, 175)
+  doc.setFontSize(7.5)
+  doc.text(`Prepared by ${companyName} · ${now}`, 14, 284)
+
+  return doc.output('blob')
+}
+
 // ── Formatting ───────────────────────────────────────────────────────────────
 
 function formatTHB(val: number): string {
@@ -880,6 +1189,38 @@ function formatNumber(val: number): string {
 function formatDate(d: string | null): string {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
+function calculateMAQuotation() {
+  const projectPrice = Number(maForm.projectPrice) || 0
+  const maPercent = Number(maForm.maPercent) || 0
+
+  if (projectPrice <= 0 || maPercent < 0) {
+    store.error = 'กรุณาระบุราคาโครงการให้มากกว่า 0 และ % MA ที่ถูกต้อง'
+    maResult.value = null
+    return
+  }
+
+  store.error = null
+  const annualFee = projectPrice * (maPercent / 100)
+  const vat = annualFee * 0.07
+  const grandTotal = annualFee + vat
+
+  maResult.value = {
+    projectPrice,
+    maPercent,
+    annualFee,
+    monthlyFee: annualFee / 12,
+    vat,
+    grandTotal,
+  }
+}
+
+function formatPercent(val: number): string {
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  }).format(val)}%`
 }
 
 function priorityClass(priority: string): string {
@@ -932,6 +1273,18 @@ function priorityClass(priority: string): string {
 }
 .summary-amount {
   @apply text-sm font-semibold text-gray-200 tabular-nums;
+}
+
+.premium-kpi-card {
+  @apply rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3;
+}
+
+.premium-kpi-label {
+  @apply text-[11px] font-semibold uppercase tracking-widest text-slate-400;
+}
+
+.premium-kpi-value {
+  @apply mt-1 text-lg font-black text-white tabular-nums;
 }
 
 .modal-fade-enter-active,

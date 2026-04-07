@@ -2,8 +2,10 @@ package http
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/portnd/the-sentinel-core/internal/modules/pricing/domain"
@@ -21,6 +23,7 @@ func newPricingHandler(uc domain.Usecase) *pricingHandler {
 
 // Calculate godoc — POST /api/v1/sentinel/projects/:id/quotation/calculate
 func (h *pricingHandler) Calculate(c *gin.Context) {
+	startedAt := time.Now()
 	projectID := c.Param("id")
 	if projectID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "project id is required"})
@@ -31,11 +34,16 @@ func (h *pricingHandler) Calculate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request: %s", err.Error())})
 		return
 	}
+
 	result, err := h.usecase.CalculateQuotation(projectID, &req)
+	elapsedMs := time.Since(startedAt).Milliseconds()
 	if err != nil {
+		log.Printf("[pricing][quotation] calculate_error project_id=%s task_ids=%d epic_ids=%d dev_ids=%d total_ms=%d error=%v", projectID, len(req.TaskIDs), len(req.EpicIDs), len(req.DevUserIDs), elapsedMs, err)
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
+
+	log.Printf("[pricing][quotation] calculate_success project_id=%s task_ids=%d epic_ids=%d dev_ids=%d result_tasks=%d total_mandays=%.2f total_ms=%d", projectID, len(req.TaskIDs), len(req.EpicIDs), len(req.DevUserIDs), len(result.Tasks), result.TotalMandays, elapsedMs)
 	c.JSON(http.StatusOK, result)
 }
 

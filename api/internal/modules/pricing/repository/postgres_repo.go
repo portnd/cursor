@@ -242,7 +242,10 @@ func (r *postgresRepository) GetProjectTasks(projectID string, taskIDs []string,
 		SELECT t.id::text, t.title, COALESCE(e.title, '') AS epic_title, t.start_date, t.end_date
 		FROM tasks t
 		LEFT JOIN epics e ON e.id = t.epic_id
-		WHERE t.project_id = ?::uuid`
+		WHERE t.project_id = ?::uuid
+		  AND t.parent_id IS NULL
+		  AND t.start_date IS NOT NULL
+		  AND t.end_date IS NOT NULL`
 
 	var (
 		rows []row
