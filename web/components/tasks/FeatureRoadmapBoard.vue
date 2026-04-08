@@ -357,11 +357,14 @@ const props = withDefaults(
     scopeProjectId?: string
     scopeProjectCode?: string
     scopeProjectName?: string
+    /** Optional preloaded feature list from parent page to avoid duplicate fetch. */
+    prefetchedFeatures?: FeatureRoadmapItem[] | null
   }>(),
   {
     scopeProjectId: '',
     scopeProjectCode: '',
     scopeProjectName: '',
+    prefetchedFeatures: null,
   }
 )
 
@@ -499,7 +502,12 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    features.value = await getActiveFeatures()
+    if (props.prefetchedFeatures) {
+      features.value = props.prefetchedFeatures
+      return
+    }
+    const scopedProjectId = props.scopeProjectId?.trim()
+    features.value = await getActiveFeatures(scopedProjectId || undefined)
   } catch (e: any) {
     error.value = e?.data?.message || e?.message || 'Failed to load feature roadmap'
   } finally {

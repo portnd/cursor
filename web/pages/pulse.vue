@@ -30,6 +30,28 @@
             </div>
 
             <button
+              class="flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-700 disabled:opacity-50"
+              :disabled="store.loading"
+              @click="store.fetchDailyPulse(today)"
+            >
+              <svg v-if="!store.loading" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6M20 20v-6h-6" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 9A9 9 0 103 15" />
+              </svg>
+              <svg
+                v-else
+                class="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              <span v-if="!store.loading">Refresh</span>
+              <span v-else>Refreshing…</span>
+            </button>
+
+            <button
               v-if="!exemptFromPulse && !hasCheckedIn"
               @click="checkinModal?.open()"
               class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-violet-500 hover:to-indigo-500"

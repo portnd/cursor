@@ -647,12 +647,9 @@ func (r *postgresRepository) GetTeamActiveTasks(teamID uint) ([]domain.GlobalAct
 	return results, nil
 }
 
-// GetActiveFeatures returns all FEATURE-type tasks across projects for a given team.
-// Each feature is enriched with project identity and a computed roll-up progress
-// calculated from its direct child tasks (TASK/BUG). Product Owners and CEOs use this for
-// the Feature Roadmap Board — a non-draggable, management-level view.
-// teamID=0 means no team filter (CEO sees all).
-func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoadmapItem, error) {
+// GetActiveFeatures returns FEATURE-type tasks for roadmap view.
+// teamID=0 means no team filter (CEO/MANAGER). Optional projectID scopes to one project.
+func (r *postgresRepository) GetActiveFeatures(teamID uint, projectID *uuid.UUID) ([]domain.FeatureRoadmapItem, error) {
 	// Step 1: fetch all FEATURE tasks with project details
 	type featureRow struct {
 		domain.Task
@@ -669,6 +666,9 @@ func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoa
 	if teamID != 0 {
 		q = q.Where("projects.team_id = ?", teamID)
 	}
+	if projectID != nil {
+		q = q.Where("tasks.project_id = ?", *projectID)
+	}
 	if err := q.Scan(&features).Error; err != nil {
 		return nil, err
 	}
@@ -677,9 +677,9 @@ func (r *postgresRepository) GetActiveFeatures(teamID uint) ([]domain.FeatureRoa
 	}
 
 	// Step 2: collect feature IDs, then bulk-fetch child tasks
-	featureIDs := make([]string, 0, len(features))
+	featureIDs := make([]uuid.UUID, 0, len(features))
 	for _, f := range features {
-		featureIDs = append(featureIDs, f.ID.String())
+		featureIDs = append(featureIDs, f.ID)
 	}
 	var children []domain.Task
 	if err := r.db.Table("tasks").

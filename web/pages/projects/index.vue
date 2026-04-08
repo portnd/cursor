@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-white p-6">
+  <div class="projects-index-enterprise min-h-screen text-white p-6">
     <!-- Header -->
     <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
       <div>
@@ -48,27 +48,27 @@
     </div>
 
     <!-- System Metrics Row -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-      <div class="metric-card">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 projects-metrics-grid">
+      <div class="metric-card metric-card-enterprise">
         <div class="text-2xl font-bold text-purple-400">{{ totalActive }}</div>
         <div class="metric-label">Active Projects</div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="text-2xl font-bold text-green-400">{{ totalCompleted }}</div>
         <div class="metric-label">Completed</div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="text-2xl font-bold text-yellow-400">{{ onHold }}</div>
         <div class="metric-label">On Hold</div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="text-2xl font-bold text-purple-400">{{ totalProjects }}</div>
         <div class="metric-label">Total Projects</div>
       </div>
     </div>
 
     <!-- Filter & Search -->
-    <div class="flex flex-wrap items-center gap-3 mb-6">
+    <div class="projects-filter-enterprise flex flex-wrap items-center gap-3 mb-6">
       <input
         v-model="search"
         type="text"
@@ -117,7 +117,7 @@
       <div
         v-for="project in filteredProjects"
         :key="project.id"
-        class="project-card group block cursor-pointer"
+        class="project-card project-card-enterprise group block cursor-pointer"
         @click="navigateTo(`/projects/${project.code || project.id}`)"
       >
         <!-- Card Header -->
@@ -757,25 +757,54 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.projects-index-enterprise {
+  background:
+    radial-gradient(1200px 620px at 84% -16%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(960px 520px at -8% 0%, rgba(59, 130, 246, 0.16), transparent 56%),
+    linear-gradient(180deg, #070b17 0%, #0b1220 54%, #090f1a 100%);
+}
+
+.projects-metrics-grid {
+  @apply gap-4;
+}
+
 .metric-card {
-  @apply bg-gray-800/60 rounded-xl p-4 border border-gray-700/50;
+  @apply rounded-2xl p-4;
 }
+
+.metric-card-enterprise {
+  @apply bg-gradient-to-b from-slate-800/70 to-slate-900/80 border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm;
+}
+
 .metric-label {
-  @apply text-xs text-gray-500 mt-1 uppercase tracking-wide;
+  @apply text-[11px] text-slate-400 mt-1 uppercase tracking-[0.08em] font-medium;
 }
+
+.projects-filter-enterprise {
+  @apply rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 shadow-[0_14px_34px_rgba(2,6,23,0.34)] backdrop-blur-sm;
+}
+
 .project-card {
-  @apply bg-gray-800 border border-gray-700 rounded-2xl p-5 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5 transition-all cursor-pointer;
+  @apply rounded-2xl p-5 transition-all cursor-pointer;
 }
+
+.project-card-enterprise {
+  @apply bg-slate-900/75 border border-white/10 shadow-[0_16px_38px_rgba(2,6,23,0.42)] hover:border-violet-400/45 hover:shadow-[0_18px_40px_rgba(124,58,237,0.2)] backdrop-blur-sm;
+}
+
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/90 border border-slate-600/70 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
+
 .btn-primary {
-  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-[0_12px_25px_rgba(124,58,237,0.35)];
 }
+
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-medium rounded-lg transition-all shadow-[0_8px_20px_rgba(124,58,237,0.35)];
 }
+
 .btn-ghost-sm {
-  @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-medium rounded-lg border border-white/10 transition-colors;
 }
 </style>

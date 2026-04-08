@@ -1,5 +1,5 @@
 <template>
-  <div class="kanban-board w-full min-w-0">
+  <div class="kanban-board kanban-enterprise w-full min-w-0">
 
     <!-- ── Active Sprint Blinder (DEV role only) ──────────────────────────── -->
     <div v-if="activeSprint && isDev" class="relative overflow-hidden rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/60 via-gray-900/80 to-gray-900/60 px-6 py-5 mb-4 shadow-lg shadow-purple-500/10">
@@ -30,7 +30,7 @@
 
     <!-- Filter Bar (responsive: stack on narrow, wrap on wide) -->
     <!-- Sprint selector is hidden for DEV role — they are locked to their active sprint -->
-    <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-4 sm:mb-5 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+    <div class="kanban-toolbar flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-4 sm:mb-5 p-3 rounded-xl">
       <div v-if="!isDev" class="flex flex-wrap items-center gap-2 sm:gap-2">
         <label class="text-xs text-gray-400 uppercase tracking-wide font-medium w-14 sm:w-auto shrink-0">Sprint</label>
         <select v-model="filterSprint" class="input-select text-sm min-w-0 flex-1 sm:min-w-[160px] sm:flex-none max-w-full">
@@ -453,12 +453,20 @@ function isColumnDroppable(colStatus: string): boolean {
 </script>
 
 <style scoped>
+.kanban-enterprise {
+  @apply space-y-1;
+}
+
+.kanban-toolbar {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_14px_34px_rgba(2,6,23,0.34)] backdrop-blur-sm;
+}
+
 .kanban-col {
-  @apply bg-gray-800/50 rounded-xl p-3 flex flex-col border border-gray-700/50 transition-all;
+  @apply rounded-2xl p-3 flex flex-col border border-white/10 bg-slate-900/70 shadow-[0_12px_30px_rgba(2,6,23,0.34)] backdrop-blur-sm transition-all;
 }
 
 .drop-target {
-  @apply border-purple-500/60 bg-purple-500/5;
+  @apply border-violet-400/60 bg-violet-500/10 shadow-[0_0_0_1px_rgba(167,139,250,0.35)];
 }
 
 .col-locked {
@@ -466,7 +474,7 @@ function isColumnDroppable(colStatus: string): boolean {
 }
 
 .kanban-card {
-  @apply bg-gray-900 border border-gray-700 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/5 transition-all select-none;
+  @apply bg-gradient-to-b from-slate-800/70 to-slate-900/90 border border-white/10 rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-violet-400/55 hover:shadow-[0_10px_26px_rgba(124,58,237,0.24)] transition-all select-none;
 }
 
 .badge-count {
@@ -474,6 +482,6 @@ function isColumnDroppable(colStatus: string): boolean {
 }
 
 .input-select {
-  @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-200 focus:outline-none focus:border-purple-500 transition-colors;
+  @apply bg-slate-800/90 border border-slate-600/70 rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
 </style>

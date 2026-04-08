@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-white">
+  <div class="min-h-screen projects-enterprise-bg text-white">
     <!-- Loading -->
     <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-[60vh]">
       <div class="animate-spin text-6xl mb-4">⚙️</div>
@@ -73,12 +73,17 @@
       </div>
 
       <!-- Tab Content -->
-      <div class="p-3 sm:p-6">
+      <div class="relative mx-auto w-full max-w-[1600px] p-3 sm:p-6 lg:p-8">
         <!-- TAB 1: Overview -->
-        <div v-if="activeTab === 'overview'" class="space-y-6">
+        <div v-if="isTabMounted('overview')" v-show="activeTab === 'overview'" class="overview-enterprise space-y-6">
           <!-- Key Metrics -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="metric-card">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 overview-metrics-grid">
+            <button
+              type="button"
+              class="metric-card metric-card-enterprise text-left transition-all duration-200 cursor-pointer"
+              :class="activeSprint ? 'hover:border-violet-300/60 hover:bg-violet-500/10 hover:-translate-y-0.5' : 'cursor-default'"
+              @click="activeSprint && navigateToSprint(activeSprint.id)"
+            >
               <div class="text-2xl font-bold" :class="activeSprint ? 'text-purple-400' : 'text-gray-500'">
                 {{ activeSprint ? activeSprint.name : 'No sprint' }}
               </div>
@@ -86,30 +91,79 @@
               <div v-if="activeSprint" class="mt-2 text-xs text-gray-500">
                 {{ activeSprint.end_date ? `Ends ${formatDate(activeSprint.end_date)}` : 'No end date' }}
               </div>
-            </div>
-            <div class="metric-card">
+            </button>
+            <button
+              type="button"
+              class="metric-card metric-card-enterprise text-left transition-all duration-200 cursor-pointer"
+              :class="selectedOverviewFilter === 'done' ? 'ring-2 ring-emerald-300/70 border-emerald-300/70 bg-emerald-500/15 shadow-[0_0_0_1px_rgba(16,185,129,0.3)]' : 'hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:-translate-y-0.5'"
+              @click="toggleOverviewFilter('done')"
+            >
               <div class="text-2xl font-bold text-green-400">{{ completedCount }}/{{ totalTasks }}</div>
               <div class="metric-label">Tasks Done</div>
               <div class="mt-2 h-1 bg-gray-700 rounded-full overflow-hidden">
                 <div class="h-full bg-green-500 rounded-full" :style="{ width: completionPct + '%' }"></div>
               </div>
-            </div>
-            <div class="metric-card">
+            </button>
+            <button
+              type="button"
+              class="metric-card metric-card-enterprise text-left transition-all duration-200 cursor-pointer"
+              :class="selectedOverviewFilter === 'in_progress' ? 'ring-2 ring-amber-300/70 border-amber-300/70 bg-amber-500/15 shadow-[0_0_0_1px_rgba(245,158,11,0.3)]' : 'hover:border-amber-300/50 hover:bg-amber-500/10 hover:-translate-y-0.5'"
+              @click="toggleOverviewFilter('in_progress')"
+            >
               <div class="text-2xl font-bold text-yellow-400">{{ inProgressCount }}</div>
               <div class="metric-label">In Progress</div>
-            </div>
-            <div class="metric-card">
+            </button>
+            <button
+              type="button"
+              class="metric-card metric-card-enterprise text-left transition-all duration-200 cursor-pointer"
+              :class="selectedOverviewFilter === 'overdue' ? 'ring-2 ring-rose-300/70 border-rose-300/70 bg-rose-500/15 shadow-[0_0_0_1px_rgba(244,63,94,0.32)]' : 'hover:border-rose-300/50 hover:bg-rose-500/10 hover:-translate-y-0.5'"
+              @click="toggleOverviewFilter('overdue')"
+            >
               <div class="text-2xl font-bold" :class="overdueCount > 0 ? 'text-red-400' : 'text-green-400'">
                 {{ overdueCount }}
               </div>
               <div class="metric-label">Overdue</div>
+            </button>
+          </div>
+
+          <div v-if="selectedOverviewFilter" class="card overview-filter-panel">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h3 class="section-title">
+                {{ selectedOverviewFilter === 'overdue' ? 'Overdue Tasks' : selectedOverviewFilter === 'in_progress' ? 'In Progress Tasks' : 'Completed Tasks' }}
+              </h3>
+              <button
+                type="button"
+                class="text-xs text-gray-400 hover:text-white transition-colors"
+                @click="selectedOverviewFilter = null"
+              >
+                Close
+              </button>
             </div>
+            <div v-if="overviewFilteredTasks.length" class="space-y-2">
+              <div
+                v-for="t in overviewFilteredTasks"
+                :key="t.id"
+                class="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-700/40 transition-colors cursor-pointer"
+                @click="navigateToTask(t.id)"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xs font-mono text-gray-500 shrink-0">{{ t.code }}</span>
+                  <span class="text-sm text-gray-300 truncate max-w-xs">{{ t.title }}</span>
+                  <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
+                  <span v-if="t.due_at" class="text-[10px] text-gray-500">Due {{ formatDate(t.due_at) }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-8 text-gray-500 text-sm">No tasks in this group.</div>
           </div>
 
           <!-- Row 2: Active Sprint + Milestones -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Active Sprint Card -->
-            <div class="card">
+            <div class="card overview-enterprise-card">
               <div class="flex items-center justify-between mb-4">
                 <h3 class="section-title">Current Sprint</h3>
                 <div class="flex gap-2">
@@ -119,7 +173,15 @@
                   <button @click="openSprintModal()" class="btn-primary-sm shrink-0">+ Sprint</button>
                 </div>
               </div>
-              <div v-if="activeSprint" class="space-y-3">
+              <div
+                v-if="activeSprint"
+                class="space-y-3 cursor-pointer rounded-lg p-2 -m-2 transition-colors hover:bg-gray-700/25"
+                role="button"
+                tabindex="0"
+                @click="navigateToSprint(activeSprint.id)"
+                @keydown.enter.prevent="navigateToSprint(activeSprint.id)"
+                @keydown.space.prevent="navigateToSprint(activeSprint.id)"
+              >
                 <div>
                   <p class="text-sm font-semibold text-white mb-1">{{ activeSprint.name }}</p>
                   <p v-if="activeSprint.goal" class="text-xs text-gray-400">{{ activeSprint.goal }}</p>
@@ -232,7 +294,7 @@
             </div>
 
             <!-- Milestones -->
-            <div class="card">
+            <div class="card overview-enterprise-card">
               <h3 class="section-title mb-4">Milestone Tracker</h3>
               <MilestoneTimeline
                 :milestones="milestones"
@@ -243,7 +305,7 @@
           </div>
 
           <!-- Recent Activity -->
-          <div class="card">
+          <div class="card overview-enterprise-card">
             <h3 class="section-title mb-4">Recent Activity</h3>
             <div v-if="recentTasks.length" class="space-y-2">
               <div
@@ -267,7 +329,7 @@
         </div>
 
         <!-- TAB 2: Board (Kanban) -->
-        <div v-if="activeTab === 'board'">
+        <div v-if="isTabMounted('board')" v-show="activeTab === 'board'">
           <KanbanBoard
             :tasks="allTasks"
             :sprints="sprints"
@@ -281,9 +343,9 @@
         </div>
 
         <!-- TAB 3: Timeline (Gantt) - Enterprise design -->
-        <div v-if="activeTab === 'timeline'" class="timeline-tab space-y-5">
+        <div v-if="isTabMounted('timeline')" v-show="activeTab === 'timeline'" class="timeline-tab space-y-5">
           <!-- Toolbar: enterprise card -->
-          <div class="timeline-toolbar rounded-xl border border-slate-600/60 bg-slate-800/80 px-4 py-3 shadow-lg shadow-black/20">
+          <div class="timeline-toolbar timeline-enterprise-panel rounded-xl px-4 py-3">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div class="flex flex-wrap items-center gap-4">
                 <!-- Matrix Dimension Toggle: Epic Roadmap | Sprint Execution (both as Gantt) -->
@@ -341,20 +403,20 @@
             <p class="text-xs">{{ timelineMode === 'epic' ? 'Loading Epic Roadmap…' : 'Loading Sprint Execution…' }}</p>
           </div>
 
-          <div v-else-if="timelineMode === 'epic' && (!epicTimelineData || !epicTimelineData.epics.length)" class="flex flex-col items-center justify-center rounded-xl border border-slate-600/50 bg-slate-800/50 py-20 text-center">
+          <div v-else-if="timelineMode === 'epic' && (!epicTimelineData || !epicTimelineData.epics.length)" class="timeline-enterprise-empty flex flex-col items-center justify-center rounded-xl py-20 text-center">
             <div class="mb-3 text-4xl opacity-50">🗺</div>
             <p class="text-sm font-medium text-slate-400">No epics yet</p>
             <p class="mt-1 text-xs text-slate-500">Create Epics in the Backlog tab to see the Roadmap</p>
           </div>
 
-          <div v-else-if="timelineMode === 'sprint' && (!sprintTimelineData || !sprintTimelineData.sprints.length)" class="flex flex-col items-center justify-center rounded-xl border border-slate-600/50 bg-slate-800/50 py-20 text-center">
+          <div v-else-if="timelineMode === 'sprint' && (!sprintTimelineData || !sprintTimelineData.sprints.length)" class="timeline-enterprise-empty flex flex-col items-center justify-center rounded-xl py-20 text-center">
             <div class="mb-3 text-4xl opacity-50">🏃</div>
             <p class="text-sm font-medium text-slate-400">No sprints yet</p>
             <p class="mt-1 text-xs text-slate-500">Create Sprints to see the Execution View</p>
           </div>
 
           <ClientOnly v-else-if="matrixGanttRows.length > 0">
-            <div ref="timelineScrollWrapperRef" class="timeline-scroll-wrapper cursor-grab rounded-xl border border-slate-600/60 bg-slate-800/60 shadow-xl shadow-black/25 overflow-x-auto overflow-y-hidden active:cursor-grabbing" :class="{ 'timeline-fullscreen': timelineFullscreen, 'fixed inset-0 z-50 m-0 rounded-none flex flex-col overflow-hidden': timelineFullscreen }" @mousedown="onTimelinePanStart" @touchstart.passive="onTimelinePanStartTouch">
+            <div ref="timelineScrollWrapperRef" class="timeline-scroll-wrapper timeline-enterprise-frame cursor-grab rounded-xl overflow-x-auto overflow-y-hidden active:cursor-grabbing" :class="{ 'timeline-fullscreen': timelineFullscreen, 'fixed inset-0 z-50 m-0 rounded-none flex flex-col overflow-hidden': timelineFullscreen }" @mousedown="onTimelinePanStart" @touchstart.passive="onTimelinePanStartTouch">
               <!-- Exit fullscreen bar (only when expanded) -->
               <div v-if="timelineFullscreen" class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-600/60 bg-slate-800/95 px-4 py-2 shadow-md">
                 <span class="text-sm font-medium text-slate-300">Timeline — Fullscreen</span>
@@ -447,7 +509,7 @@
           </ClientOnly>
 
           <!-- Milestone legend (when chart is shown and we have milestones) -->
-          <div v-if="milestones.length && matrixGanttRows.length > 0" class="rounded-xl border border-slate-600/40 bg-slate-800/40 px-4 py-3 mt-4">
+          <div v-if="milestones.length && matrixGanttRows.length > 0" class="timeline-enterprise-legend rounded-xl px-4 py-3 mt-4">
             <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Milestones</p>
             <div class="flex flex-wrap gap-x-6 gap-y-2">
               <div v-for="m in milestones" :key="m.id" class="flex items-center gap-2">
@@ -460,9 +522,9 @@
         </div>
 
         <!-- TAB 4: Backlog (WBS + Sprint Planning) -->
-        <div v-if="activeTab === 'backlog'" class="space-y-5">
+        <div v-if="isTabMounted('backlog')" v-show="activeTab === 'backlog'" class="backlog-enterprise space-y-5">
           <!-- Epics Management Section -->
-          <div class="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
+          <div class="backlog-enterprise-card rounded-xl p-4">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-gray-200">Epics</span>
@@ -572,13 +634,13 @@
           </div>
 
           <!-- Backlog Table (horizontal scroll on small screens) -->
-          <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-x-auto overflow-y-hidden min-w-0">
+          <div class="backlog-enterprise-table rounded-xl overflow-x-auto overflow-y-hidden min-w-0">
             <div class="min-w-[640px]">
               <!-- Epic Groups: header = Task, SP, Priority, Sprint, Status (no Epic) -->
               <template v-for="(ep, epIdx) in epics" :key="ep.id">
                 <!-- Epic Group Header (draggable to reorder) -->
                 <div
-                  class="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-gray-700/60 bg-gray-900/40 cursor-pointer hover:bg-gray-900/60 group"
+                  class="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-white/10 bg-slate-900/45 cursor-pointer hover:bg-slate-800/55 group"
                   :class="{ 'opacity-60': backlogDrag?.type === 'epic' && backlogDrag?.id === ep.id }"
                   draggable="true"
                   @click="toggleEpicGroup(ep.id)"
@@ -802,7 +864,7 @@
               <template v-if="getUnassignedTasks().length">
                 <button
                   type="button"
-                  class="relative z-10 flex w-full items-center gap-2 px-3 sm:px-4 py-2 border-b border-gray-700/60 bg-gray-900/40 cursor-pointer hover:bg-gray-900/60 group text-left"
+                  class="relative z-10 flex w-full items-center gap-2 px-3 sm:px-4 py-2 border-b border-white/10 bg-slate-900/45 cursor-pointer hover:bg-slate-800/55 group text-left"
                   @click.stop="toggleEpicGroup('__unassigned__')"
                 >
                   <span class="text-gray-500 text-xs w-4">{{ expandedEpicGroups['__unassigned__'] !== false ? '▼' : '▶' }}</span>
@@ -1022,16 +1084,17 @@
         </div>
 
         <!-- TAB: Feature Roadmap (FEATURE tasks, scoped to this project) -->
-        <div v-if="activeTab === 'feature-roadmap'">
+        <div v-if="isTabMounted('feature-roadmap')" v-show="activeTab === 'feature-roadmap'">
           <FeatureRoadmapBoard
             :scope-project-id="project.id"
             :scope-project-code="project.code"
             :scope-project-name="project.name"
+            :prefetched-features="projectScopedFeatureRoadmap"
           />
         </div>
 
         <!-- TAB: Sprints (Sprint Management) -->
-        <div v-if="activeTab === 'sprints'" class="space-y-6">
+        <div v-if="isTabMounted('sprints')" v-show="activeTab === 'sprints'" class="space-y-6">
           <!-- Header + CTA -->
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -1044,7 +1107,15 @@
           </div>
 
           <!-- Active Sprint Hero (if any) -->
-          <div v-if="activeSprint" class="rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-900/30 to-gray-800/80 p-5 sm:p-6 shadow-xl">
+          <div
+            v-if="activeSprint"
+            class="sprints-enterprise-hero rounded-2xl p-5 sm:p-6 cursor-pointer"
+            role="button"
+            tabindex="0"
+            @click="navigateToSprint(activeSprint.id)"
+            @keydown.enter.prevent="navigateToSprint(activeSprint.id)"
+            @keydown.space.prevent="navigateToSprint(activeSprint.id)"
+          >
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div class="min-w-0">
                 <div class="flex items-center gap-2 mb-1">
@@ -1057,10 +1128,7 @@
                   <span v-if="activeSprint.end_date">End: {{ formatDate(activeSprint.end_date) }}</span>
                 </div>
               </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <NuxtLink :to="`/projects/sprint/${activeSprint.id}?project=${route.params.id}`" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors">
-                  Open Sprint →
-                </NuxtLink>
+              <div class="flex flex-wrap items-center gap-2" @click.stop>
                 <button type="button" @click="openAddTasksToSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-medium transition-colors">
                   + Add Tasks
                 </button>
@@ -1098,7 +1166,7 @@
           </div>
 
           <!-- All Sprints -->
-          <div class="rounded-2xl border border-gray-700 bg-gray-800/50 overflow-hidden">
+          <div class="sprints-enterprise-panel rounded-2xl overflow-hidden">
             <div class="px-4 sm:px-5 py-4 border-b border-gray-700">
               <h3 class="text-base font-semibold text-gray-200">All Sprints</h3>
               <p class="text-xs text-gray-500 mt-0.5">Start, add tasks, edit, or reopen from here.</p>
@@ -1113,9 +1181,12 @@
               <li
                 v-for="(s, sIdx) in sprintsOrdered"
                 :key="s.id"
-                class="flex flex-col sm:flex-row sm:items-center gap-4 px-4 sm:px-5 py-4 hover:bg-gray-700/30 transition-colors"
-                :class="{ 'bg-purple-500/5': s.status === 'ACTIVE', 'opacity-60': sprintDragId === s.id }"
+                class="flex flex-col sm:flex-row sm:items-center gap-4 px-4 sm:px-5 py-4 hover:bg-white/5 transition-colors cursor-pointer"
+                :class="{ 'bg-violet-500/10': s.status === 'ACTIVE', 'opacity-60': sprintDragId === s.id }"
                 draggable="true"
+                @click="navigateToSprint(s.id)"
+                @keydown.enter.prevent="navigateToSprint(s.id)"
+                @keydown.space.prevent="navigateToSprint(s.id)"
                 @dragstart="onSprintDragStart($event, s.id)"
                 @dragover="onSprintDragOver"
                 @drop.stop="onSprintDrop($event, sIdx)"
@@ -1141,7 +1212,7 @@
                   </div>
                 </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <div class="flex flex-wrap items-center gap-2 shrink-0" @click.stop>
                   <template v-if="s.status === 'PLANNING'">
                     <button type="button" :disabled="!!activeSprint" @click="!activeSprint && handleStartSprint(s.id)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors" :title="activeSprint ? 'Complete or reopen the active sprint first' : 'Start this sprint'">
                       Start
@@ -1171,7 +1242,7 @@
         </div>
 
         <!-- TAB 6: Analytics -->
-        <div v-if="activeTab === 'analytics'">
+        <div v-if="isTabMounted('analytics')" v-show="activeTab === 'analytics'">
           <div v-if="analyticsLoading" class="flex flex-col items-center justify-center py-20">
             <div class="animate-spin text-6xl mb-4">⚙️</div>
             <p class="text-sm text-gray-500">กำลังโหลด analytics...</p>
@@ -1181,17 +1252,17 @@
         </div>
 
         <!-- TAB: Capital (Internal VC — per-project capital tracking) — CEO only -->
-        <div v-if="activeTab === 'capital' && isProjectCeo">
+        <div v-if="isProjectCeo && isTabMounted('capital')" v-show="activeTab === 'capital'">
           <ProjectCapitalPanel :project-id="project.id" :team-id="project.team_id" />
         </div>
 
         <!-- TAB: Costing & Quotation — CEO only -->
-        <div v-if="activeTab === 'costing' && isProjectCeo">
+        <div v-if="isProjectCeo && isTabMounted('costing')" v-show="activeTab === 'costing'">
           <QuotationBuilder :project-id="project.id" :project-name="project.name" />
         </div>
 
         <!-- TAB: Backup & Restore — CEO only -->
-        <div v-if="activeTab === 'backup' && isProjectCeo">
+        <div v-if="isProjectCeo && isTabMounted('backup')" v-show="activeTab === 'backup'">
           <ProjectBackupPanel :project-id="project.id" @restored="onProjectRestored" />
         </div>
       </div>
@@ -2059,7 +2130,7 @@
 
     <!-- Create Task Modal -->
     <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto" @click.self="closeCreateTaskModal">
-      <div class="create-task-modal bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-7xl shadow-2xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
+      <div class="create-task-modal create-task-modal-enterprise rounded-2xl w-full max-w-7xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
         <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
           <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">{{ createTaskForm.parent_id ? 'Add Sub-task' : 'Add Task' }}</h2>
           <button type="button" @click="closeCreateTaskModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 text-xl leading-none" aria-label="Close">✕</button>
@@ -2534,6 +2605,7 @@
 import { useAuth } from '~/composables/useAuth'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
+import type { FeatureRoadmapItem } from '~/core/modules/tasks/infrastructure/tasks-api'
 import KanbanBoard from '~/components/projects/KanbanBoard.vue'
 import GanttMilestoneRow from '~/components/projects/GanttMilestoneRow.vue'
 import MilestoneTimeline from '~/components/projects/MilestoneTimeline.vue'
@@ -2586,6 +2658,11 @@ const tabs = computed(() => {
 })
 
 const activeTab = ref('overview')
+const mountedTabs = ref<Set<string>>(new Set())
+
+function isTabMounted(tabId: string): boolean {
+  return mountedTabs.value.has(tabId)
+}
 
 watch(
   () => [String(route.query.tab || ''), currentUser.value?.role ?? ''] as const,
@@ -2602,6 +2679,7 @@ watch(
     if (activeTab.value !== next) {
       activeTab.value = next
     }
+    mountedTabs.value.add(next)
     if (raw !== next) {
       router.replace({ query: { ...route.query, tab: next } })
     }
@@ -2610,6 +2688,7 @@ watch(
 )
 
 watch(activeTab, async (tab) => {
+  mountedTabs.value.add(tab)
   router.replace({ query: { tab } })
   if (tab === 'timeline' && project.value) {
     if (timelineMode.value === 'epic' && !epicTimelineData.value) await loadEpicTimeline()
@@ -2620,6 +2699,9 @@ watch(activeTab, async (tab) => {
   }
   if (tab === 'analytics' && !analytics.value && project.value) {
     loadAnalytics()
+  }
+  if (tab === 'feature-roadmap' && !projectScopedFeatureRoadmap.value && project.value) {
+    loadProjectScopedFeatureRoadmap()
   }
   if (tab === 'backlog') {
     nextTick(() => setupBacklogInfiniteScroll())
@@ -2644,6 +2726,8 @@ const sprintTimelineData = ref<import('~/core/modules/projects/infrastructure/pr
 const matrixTimelineLoading = ref(false)
 const timelineFullscreen = ref(false)
 const timelineRefreshing = ref(false)
+const loadingEpicTimeline = ref(false)
+const loadingSprintTimeline = ref(false)
 
 watch(timelineMode, async (mode) => {
   if (!project.value) return
@@ -3485,6 +3569,7 @@ const sprints = ref<Sprint[]>([])
 const milestones = ref<Milestone[]>([])
 const epics = ref<Epic[]>([])
 const analytics = ref<AnalyticsType | null>(null)
+const projectScopedFeatureRoadmap = ref<FeatureRoadmapItem[] | null>(null)
 const isLoading = ref(true)
 // Task IDs that already have a deployment request (used to show warning on WAIT_FOR_DEPLOY kanban cards)
 const deployedTaskIds = ref<string[]>([])
@@ -3594,6 +3679,33 @@ const recentTasks = computed(() =>
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 10)
 )
+
+type OverviewMetricFilter = 'overdue' | 'in_progress' | 'done'
+const selectedOverviewFilter = ref<OverviewMetricFilter | null>(null)
+
+const overviewFilteredTasks = computed(() => {
+  const now = Date.now()
+  if (selectedOverviewFilter.value === 'overdue') {
+    return [...allTasks.value]
+      .filter((t) => t.status !== 'COMPLETED' && !!t.due_at && new Date(t.due_at).getTime() < now)
+      .sort((a, b) => new Date(a.due_at || 0).getTime() - new Date(b.due_at || 0).getTime())
+  }
+  if (selectedOverviewFilter.value === 'in_progress') {
+    return [...allTasks.value]
+      .filter((t) => t.status === 'IN_PROGRESS')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  }
+  if (selectedOverviewFilter.value === 'done') {
+    return [...allTasks.value]
+      .filter((t) => t.status === 'COMPLETED')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  }
+  return []
+})
+
+function toggleOverviewFilter(filter: OverviewMetricFilter) {
+  selectedOverviewFilter.value = selectedOverviewFilter.value === filter ? null : filter
+}
 
 function getSubTasks(parentId: string) {
   return allTasks.value.filter((t) => t.parent_id === parentId)
@@ -3753,6 +3865,10 @@ function navigateToTask(id: string) {
   router.push(taskUrl(id))
 }
 
+function navigateToSprint(sprintId: string) {
+  router.push(`/projects/sprint/${sprintId}?project=${route.params.id}`)
+}
+
 function toggleEpic(id: string) {
   expandedEpics.value[id] = !expandedEpics.value[id]
 }
@@ -3868,7 +3984,7 @@ async function loadAll() {
     if (timelineMode.value === 'epic') await loadEpicTimeline()
     else if (timelineMode.value === 'sprint') await loadSprintTimeline()
   }
-  if (activeTab.value === 'analytics') loadAnalytics()
+  if (activeTab.value === 'analytics' && !analytics.value) loadAnalytics()
 }
 
 async function loadMoreProjectTasks() {
@@ -3945,6 +4061,22 @@ async function loadAnalytics() {
     // show empty state
   } finally {
     analyticsLoading.value = false
+  }
+}
+
+async function loadProjectScopedFeatureRoadmap() {
+  if (!project.value || projectScopedFeatureRoadmap.value) return
+  try {
+    const allFeatures = await tasksApi.getActiveFeatures()
+    const pid = project.value.id
+    const pcode = (project.value.code || '').toLowerCase()
+    projectScopedFeatureRoadmap.value = allFeatures.filter((f) => {
+      if (f.project_id === pid) return true
+      const fcode = (f.project_code || '').toLowerCase()
+      return !!pcode && fcode === pcode
+    })
+  } catch {
+    projectScopedFeatureRoadmap.value = []
   }
 }
 
@@ -4438,7 +4570,8 @@ async function submitCreateTask() {
 
 // Matrix Dimension Timeline loaders
 async function loadEpicTimeline() {
-  if (!project.value) return
+  if (!project.value || loadingEpicTimeline.value) return
+  loadingEpicTimeline.value = true
   matrixTimelineLoading.value = true
   try {
     epicTimelineData.value = await projectsApi.getEpicTimelineData(project.value.id)
@@ -4446,12 +4579,14 @@ async function loadEpicTimeline() {
   } catch (e) {
     console.error('Failed to load epic timeline:', e)
   } finally {
+    loadingEpicTimeline.value = false
     matrixTimelineLoading.value = false
   }
 }
 
 async function loadSprintTimeline() {
-  if (!project.value) return
+  if (!project.value || loadingSprintTimeline.value) return
+  loadingSprintTimeline.value = true
   matrixTimelineLoading.value = true
   try {
     sprintTimelineData.value = await projectsApi.getSprintTimelineData(project.value.id)
@@ -4459,6 +4594,7 @@ async function loadSprintTimeline() {
   } catch (e) {
     console.error('Failed to load sprint timeline:', e)
   } finally {
+    loadingSprintTimeline.value = false
     matrixTimelineLoading.value = false
   }
 }
@@ -4771,6 +4907,53 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.projects-enterprise-bg {
+  background:
+    radial-gradient(1300px 640px at 85% -18%, rgba(139, 92, 246, 0.2), transparent 60%),
+    radial-gradient(980px 520px at -8% 0%, rgba(59, 130, 246, 0.17), transparent 55%),
+    linear-gradient(180deg, #070b17 0%, #0b1220 54%, #090f1a 100%);
+}
+
+.sprints-enterprise-hero {
+  @apply border border-white/10 bg-gradient-to-br from-violet-900/25 via-slate-900/75 to-slate-900/85 shadow-[0_20px_50px_rgba(2,6,23,0.45)] backdrop-blur-sm;
+}
+
+.sprints-enterprise-panel {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_16px_40px_rgba(2,6,23,0.42)] backdrop-blur-sm;
+}
+
+.overview-enterprise {
+  @apply space-y-6;
+}
+
+.overview-metrics-grid {
+  @apply gap-4;
+}
+
+.metric-card-enterprise {
+  @apply bg-gradient-to-b from-slate-800/70 to-slate-900/80 border border-white/10 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm;
+}
+
+.overview-filter-panel {
+  @apply bg-slate-900/75 border border-white/10 rounded-2xl shadow-[0_16px_38px_rgba(2,6,23,0.45)] backdrop-blur-sm;
+}
+
+.overview-enterprise-card {
+  @apply bg-slate-900/75 border border-white/10 rounded-2xl shadow-[0_16px_38px_rgba(2,6,23,0.45)] backdrop-blur-sm;
+}
+
+.backlog-enterprise {
+  @apply space-y-5;
+}
+
+.backlog-enterprise-card {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_14px_34px_rgba(2,6,23,0.34)] backdrop-blur-sm;
+}
+
+.backlog-enterprise-table {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_16px_38px_rgba(2,6,23,0.42)] backdrop-blur-sm;
+}
+
 /* Backlog table: Task column takes remaining space, + Sub column minimal */
 .backlog-grid {
   display: grid;
@@ -4897,47 +5080,67 @@ onBeforeUnmount(() => {
 }
 
 .card {
-  @apply bg-gray-800 border border-gray-700 rounded-xl p-5;
+  @apply bg-slate-900/75 border border-white/10 rounded-2xl p-5 sm:p-6 backdrop-blur-sm shadow-[0_16px_38px_rgba(2,6,23,0.45)];
 }
 .metric-card {
-  @apply bg-gray-800/60 border border-gray-700/50 rounded-xl p-4;
+  @apply bg-gradient-to-b from-slate-800/70 to-slate-900/80 border border-white/10 rounded-2xl p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm;
 }
 .metric-label {
-  @apply text-xs text-gray-500 mt-1 uppercase tracking-wide;
+  @apply text-[11px] text-slate-400 mt-1 uppercase tracking-[0.08em] font-medium;
 }
 .section-title {
-  @apply text-sm font-semibold text-gray-300;
+  @apply text-sm font-semibold text-slate-200 tracking-wide;
 }
 .label {
-  @apply block text-xs text-gray-400 mb-1.5 font-medium;
+  @apply block text-xs text-slate-300 mb-1.5 font-semibold tracking-wide;
 }
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/90 border border-slate-600/70 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
 /* Add Task modal — larger, easier to read (does not affect rest of page) */
+.create-task-modal-enterprise {
+  @apply border border-white/10 bg-slate-900/75 shadow-[0_18px_42px_rgba(2,6,23,0.46)] backdrop-blur-sm;
+}
+
 .create-task-modal .label {
-  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
+  @apply block text-sm sm:text-base text-slate-200 mb-2 font-semibold tracking-wide;
 }
 .create-task-modal .input-field {
-  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/95 border border-slate-500/80 rounded-xl px-4 py-3.5 text-base text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
 .btn-primary {
-  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-[0_12px_25px_rgba(124,58,237,0.35)];
 }
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-semibold rounded-lg transition-all shadow-[0_8px_20px_rgba(124,58,237,0.35)];
 }
 .btn-import-sm {
-  @apply px-3 py-1.5 text-xs bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-medium rounded-lg transition-colors flex items-center gap-1.5;
+  @apply px-3 py-1.5 text-xs bg-violet-900/45 hover:bg-violet-800/55 border border-violet-500/35 text-violet-200 font-medium rounded-lg transition-colors flex items-center gap-1.5;
 }
 .btn-ghost-sm {
-  @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-medium rounded-lg border border-white/10 transition-colors;
 }
 /* Timeline tab layout */
 .timeline-tab {
   --gantt-bar: 147 51 234; /* purple-600 */
   --gantt-bar-hover: 168 85 247; /* purple-500 */
   --gantt-today: 96 165 250; /* blue-400 */
+}
+
+.timeline-enterprise-panel {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_14px_34px_rgba(2,6,23,0.34)] backdrop-blur-sm;
+}
+
+.timeline-enterprise-frame {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_16px_38px_rgba(2,6,23,0.45)] backdrop-blur-sm;
+}
+
+.timeline-enterprise-empty {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_14px_34px_rgba(2,6,23,0.34)] backdrop-blur-sm;
+}
+
+.timeline-enterprise-legend {
+  @apply border border-white/10 bg-slate-900/70 shadow-[0_14px_34px_rgba(2,6,23,0.34)] backdrop-blur-sm;
 }
 
 .gantt-chart-vue {

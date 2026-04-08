@@ -412,7 +412,21 @@ func (h *SentinelHandler) GetTeamActiveTasks(c *gin.Context) {
 // Product Owner is scoped to their team; CEO/MANAGER see all teams.
 func (h *SentinelHandler) GetActiveFeatures(c *gin.Context) {
 	ctx := callerCtx(c)
-	items, err := h.usecase.GetActiveFeatures(ctx.TeamID, ctx.Role)
+
+	var projectID *uuid.UUID
+	if idStr := strings.TrimSpace(c.Query("project_id")); idStr != "" {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid request",
+				"message": "project_id must be a valid UUID",
+			})
+			return
+		}
+		projectID = &id
+	}
+
+	items, err := h.usecase.GetActiveFeatures(ctx.TeamID, ctx.Role, projectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve feature roadmap",
@@ -481,6 +495,20 @@ func (h *SentinelHandler) GetAllTasks(c *gin.Context) {
 		filtered := tasks[:0]
 		for _, t := range tasks {
 			if t.TaskType == taskTypeFilter {
+				filtered = append(filtered, t)
+			}
+		}
+		tasks = filtered
+	}
+	if sprintIDStr := strings.TrimSpace(c.Query("sprint_id")); sprintIDStr != "" {
+		sprintID, parseErr := uuid.Parse(sprintIDStr)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "sprint_id must be a valid UUID"})
+			return
+		}
+		filtered := tasks[:0]
+		for _, t := range tasks {
+			if t.SprintID != nil && *t.SprintID == sprintID {
 				filtered = append(filtered, t)
 			}
 		}

@@ -1,26 +1,26 @@
 <template>
-  <div class="project-analytics">
+  <div class="project-analytics analytics-enterprise">
     <!-- Key Metrics Row -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="metric-value text-purple-400">{{ analytics.completed_tasks }}/{{ analytics.total_tasks }}</div>
         <div class="metric-label">Tasks Completed</div>
         <div class="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden">
           <div class="h-full bg-purple-500 rounded-full" :style="{ width: completionPct + '%' }"></div>
         </div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="metric-value text-purple-400">{{ analytics.completed_story_points }}/{{ analytics.total_story_points }}</div>
         <div class="metric-label">Story Points Done</div>
         <div class="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden">
           <div class="h-full bg-purple-500 rounded-full" :style="{ width: spPct + '%' }"></div>
         </div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="metric-value text-green-400">{{ totalLoggedHours }}h</div>
         <div class="metric-label">Hours Logged</div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card-enterprise">
         <div class="metric-value text-yellow-400">{{ avgCycleTimeFormatted }}</div>
         <div class="metric-label">Avg Cycle Time</div>
       </div>
@@ -29,7 +29,7 @@
     <!-- Charts Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <!-- Burndown Chart -->
-      <div class="chart-card">
+      <div class="chart-card chart-card-enterprise">
         <h3 class="chart-title">Sprint Burndown</h3>
         <div v-if="analytics.burndown?.length" class="h-56">
           <canvas ref="burndownCanvas"></canvas>
@@ -40,7 +40,7 @@
       </div>
 
       <!-- Velocity Chart -->
-      <div class="chart-card">
+      <div class="chart-card chart-card-enterprise">
         <h3 class="chart-title">Team Velocity</h3>
         <div v-if="analytics.velocity?.length" class="h-56">
           <canvas ref="velocityCanvas"></canvas>
@@ -52,12 +52,12 @@
     </div>
 
     <!-- Team Capacity Table -->
-    <div class="chart-card">
+    <div class="chart-card chart-card-enterprise">
       <h3 class="chart-title mb-4">Team Capacity</h3>
       <div v-if="analytics.team_capacity?.length" class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="border-b border-gray-700">
+            <tr class="border-b border-white/10">
               <th class="text-left py-2 px-3 text-gray-400 font-medium">Developer</th>
               <th class="text-right py-2 px-3 text-gray-400 font-medium">Tasks</th>
               <th class="text-right py-2 px-3 text-gray-400 font-medium">Est. Hours</th>
@@ -70,7 +70,7 @@
             <tr
               v-for="row in analytics.team_capacity"
               :key="row.user_id"
-              class="border-b border-gray-800 hover:bg-gray-800/50"
+              class="border-b border-white/5 hover:bg-white/[0.03]"
             >
               <td class="py-3 px-3">
                 <div class="flex items-center gap-2">
@@ -271,19 +271,35 @@ watch(() => props.analytics, async () => {
 </script>
 
 <style scoped>
-.metric-card {
-  @apply bg-gray-800/60 rounded-xl p-4 border border-gray-700/50;
+.analytics-enterprise {
+  @apply space-y-1;
 }
+
+.metric-card {
+  @apply rounded-2xl p-4;
+}
+
+.metric-card-enterprise {
+  @apply bg-gradient-to-b from-slate-800/70 to-slate-900/80 border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm;
+}
+
 .metric-value {
   @apply text-2xl font-bold tabular-nums;
 }
+
 .metric-label {
-  @apply text-xs text-gray-400 mt-1 uppercase tracking-wide;
+  @apply text-[11px] text-slate-400 mt-1 uppercase tracking-[0.08em] font-medium;
 }
+
 .chart-card {
-  @apply bg-gray-800/60 rounded-xl p-5 border border-gray-700/50;
+  @apply rounded-2xl p-5;
 }
+
+.chart-card-enterprise {
+  @apply bg-slate-900/75 border border-white/10 shadow-[0_16px_38px_rgba(2,6,23,0.45)] backdrop-blur-sm;
+}
+
 .chart-title {
-  @apply text-sm font-semibold text-gray-300 mb-4;
+  @apply text-sm font-semibold text-slate-200 mb-4 tracking-wide;
 }
 </style>

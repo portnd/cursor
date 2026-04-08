@@ -1,13 +1,12 @@
 <template>
-  <div class="flex h-screen bg-gray-900 text-gray-100" style="background-color: #111827;">
+  <div class="layout-enterprise-shell flex h-screen text-gray-100">
     <!-- Sidebar (collapsible) - inline fallback so first paint is never white -->
     <aside
-      class="flex flex-col bg-gray-800 border-r border-gray-700 transition-[width] duration-200 ease-out shrink-0"
+      class="sidebar-enterprise flex flex-col transition-[width] duration-200 ease-out shrink-0"
       :class="sidebarCollapsed ? 'w-[4.5rem]' : 'w-64'"
-      style="background-color: #1f2937;"
     >
       <!-- Logo + Toggle -->
-      <div class="p-4 border-b border-gray-700 flex items-center justify-between gap-2">
+      <div class="sidebar-enterprise-top p-4 flex items-center justify-between gap-2">
         <div class="flex items-center gap-3 min-w-0 overflow-hidden">
           <span class="text-xl shrink-0">🛡️</span>
           <div v-show="!sidebarCollapsed" class="min-w-0">
@@ -28,7 +27,7 @@
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+      <nav class="sidebar-enterprise-nav flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
         <NuxtLink
           to="/dashboard"
           class="nav-link"
@@ -210,7 +209,7 @@
       </nav>
 
       <!-- User (link to Profile) + Logout -->
-      <div class="p-3 border-t border-gray-700 space-y-1">
+      <div class="sidebar-enterprise-footer p-3 space-y-1">
         <NuxtLink
           to="/profile"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg overflow-hidden transition-all hover:bg-gray-700"
@@ -235,7 +234,7 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-auto bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <main class="main-enterprise-surface flex-1 overflow-auto">
       <slot />
     </main>
   </div>
@@ -331,9 +330,39 @@ const handleLogout = async () => {
 </script>
 
 <style scoped>
-.nav-link {
-  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:bg-gray-700 hover:translate-x-0.5;
+.layout-enterprise-shell {
+  background:
+    radial-gradient(1200px 640px at 84% -18%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(920px 520px at -10% 0%, rgba(59, 130, 246, 0.16), transparent 56%),
+    linear-gradient(180deg, #070b17 0%, #0b1220 54%, #090f1a 100%);
 }
+
+.sidebar-enterprise {
+  @apply border-r border-white/10 bg-slate-900/85 shadow-[10px_0_30px_rgba(2,6,23,0.35)] backdrop-blur-sm;
+}
+
+.sidebar-enterprise-top {
+  @apply border-b border-white/10;
+}
+
+.sidebar-enterprise-nav {
+  @apply [scrollbar-color:rgb(71_85_105)_transparent];
+}
+
+.sidebar-enterprise-footer {
+  @apply border-t border-white/10;
+}
+
+.main-enterprise-surface {
+  background:
+    radial-gradient(950px 520px at 100% -8%, rgba(124, 58, 237, 0.12), transparent 58%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.28) 0%, rgba(15, 23, 42, 0.2) 100%);
+}
+
+.nav-link {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent transition-all hover:bg-white/[0.04] hover:border-white/10 hover:translate-x-0.5;
+}
+
 .nav-link-ai {
   @apply hover:bg-gradient-to-r hover:from-yellow-600/20 hover:to-orange-600/20 border border-transparent hover:border-yellow-500/50;
 }

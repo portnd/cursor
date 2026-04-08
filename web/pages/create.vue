@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-full w-full bg-gray-900 pb-8">
+  <div class="create-enterprise-page min-h-full w-full pb-8">
     <div class="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 md:py-8">
       <!-- Header -->
       <div class="mb-6 md:mb-8">
@@ -8,7 +8,7 @@
       </div>
 
       <!-- Card — single scroll via layout <main>; avoids nested overflow trapping wheel in Chrome -->
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl flex flex-col">
+      <div class="create-enterprise-card rounded-2xl flex flex-col">
 
         <div class="p-6 md:p-10 space-y-6 md:space-y-7">
 
@@ -157,12 +157,12 @@
           <button
             @click="handleSubmit"
             :disabled="isSubmitting || !form.title.trim()"
-            class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-40 text-white font-semibold rounded-xl py-4 md:py-4 text-base md:text-lg transition-colors flex items-center justify-center gap-2 min-h-[3.25rem]"
+            class="btn-primary-enterprise flex-1 disabled:opacity-40 text-white font-semibold rounded-xl py-4 md:py-4 text-base md:text-lg transition-all flex items-center justify-center gap-2 min-h-[3.25rem]"
           >
             <svg v-if="isSubmitting" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             <span>{{ isSubmitting ? 'Creating...' : 'Create Task' }}</span>
           </button>
-          <NuxtLink to="/dashboard" class="sm:shrink-0 px-6 py-4 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-xl transition-colors text-base font-medium text-center min-h-[3.25rem] flex items-center justify-center">Cancel</NuxtLink>
+          <NuxtLink to="/dashboard" class="btn-ghost-enterprise sm:shrink-0 px-6 py-4 text-base font-medium text-center min-h-[3.25rem] flex items-center justify-center">Cancel</NuxtLink>
         </div>
       </div>
     </div>
@@ -280,10 +280,30 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.label {
-  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
+.create-enterprise-page {
+  background:
+    radial-gradient(1200px 620px at 84% -16%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(960px 520px at -8% 0%, rgba(59, 130, 246, 0.16), transparent 56%),
+    linear-gradient(180deg, #070b17 0%, #0b1220 54%, #090f1a 100%);
 }
+
+.create-enterprise-card {
+  @apply border border-white/10 bg-slate-900/75 shadow-[0_18px_42px_rgba(2,6,23,0.46)] backdrop-blur-sm;
+}
+
+.label {
+  @apply block text-sm sm:text-base text-slate-200 mb-2 font-semibold tracking-wide;
+}
+
 .input-field {
-  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/90 border border-slate-600/75 rounded-xl px-4 py-3.5 text-base text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
+}
+
+.btn-primary-enterprise {
+  @apply bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 shadow-[0_12px_25px_rgba(124,58,237,0.35)];
+}
+
+.btn-ghost-enterprise {
+  @apply bg-slate-800/90 hover:bg-slate-700 text-slate-200 rounded-xl border border-white/10 transition-colors;
 }
 </style>

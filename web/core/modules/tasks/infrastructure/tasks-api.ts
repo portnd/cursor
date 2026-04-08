@@ -96,8 +96,10 @@ export interface FeatureRoadmapItem extends Task {
 function useTasksApi() {
   const { fetchWithAuth } = useAuth()
 
-  async function getTasksByProject(projectId: string): Promise<Task[]> {
-    const data = await fetchWithAuth<{ data: Task[] }>(`/sentinel/tasks?project_id=${projectId}`)
+  async function getTasksByProject(projectId: string, opts?: { sprintId?: string }): Promise<Task[]> {
+    const params = new URLSearchParams({ project_id: projectId })
+    if (opts?.sprintId) params.set('sprint_id', opts.sprintId)
+    const data = await fetchWithAuth<{ data: Task[] }>(`/sentinel/tasks?${params.toString()}`)
     return data.data || []
   }
 
@@ -269,8 +271,9 @@ function useTasksApi() {
     return data.data || []
   }
 
-  async function getActiveFeatures(): Promise<FeatureRoadmapItem[]> {
-    const data = await fetchWithAuth<{ data: FeatureRoadmapItem[] }>('/sentinel/tasks/features')
+  async function getActiveFeatures(projectId?: string): Promise<FeatureRoadmapItem[]> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''
+    const data = await fetchWithAuth<{ data: FeatureRoadmapItem[] }>(`/sentinel/tasks/features${q}`)
     return data.data || []
   }
 

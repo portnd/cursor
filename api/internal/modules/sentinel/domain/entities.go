@@ -551,6 +551,7 @@ type SentinelRepository interface {
 	GetActiveSprintsForUser(userID uint) ([]Sprint, error)              // ACTIVE sprints that have tasks assigned to user
 	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error) // TASK/BUG in ACTIVE sprints; CEO/MANAGER: all projects; else team / Product Owner–engineer rules when teams off
 	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-engineer time logging)
+	GetActiveFeatures(teamID uint, projectID *uuid.UUID) ([]FeatureRoadmapItem, error)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
 	GetTasksByProjectIDs(projectIDs []uuid.UUID) ([]Task, error)
@@ -613,7 +614,6 @@ type SentinelRepository interface {
 	GetTotalLoggedMinutes(taskID uuid.UUID) (int, error)
 	CountChildTasks(parentID uuid.UUID) (int, error)             // Leaf-node guard: returns number of direct children
 	GetChildTasksByParentID(parentID uuid.UUID) ([]Task, error)  // For UAT roll-up: fetch all direct children of a feature
-	GetActiveFeatures(teamID uint) ([]FeatureRoadmapItem, error) // Feature Roadmap Board (Product Owner/CEO)
 
 	// Analytics
 	GetProjectAnalytics(projectID uuid.UUID) (*ProjectAnalytics, error)
@@ -689,7 +689,7 @@ type SentinelUsecase interface {
 	GetMyActiveSprints(userID uint) ([]Sprint, error)                                      // Active sprints containing user's tasks
 	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)                    // TASK/BUG in ACTIVE sprints; CEO/MANAGER company-wide; Product Owner/engineer per project list rules
 	GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)  // All ACTIVE-sprint TASK/BUG items in caller's team
-	GetActiveFeatures(callerTeamID *uint, callerRole string) ([]FeatureRoadmapItem, error) // FEATURE items for Product Owner/CEO Roadmap Board
+	GetActiveFeatures(callerTeamID *uint, callerRole string, projectID *uuid.UUID) ([]FeatureRoadmapItem, error) // FEATURE items for Product Owner/CEO Roadmap Board (optional project scope)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)

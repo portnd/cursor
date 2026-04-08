@@ -1,8 +1,23 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-white">
-    <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-[60vh]">
-      <div class="animate-spin text-6xl mb-4">⚙️</div>
-      <p class="text-sm text-gray-500">กำลังโหลด sprint...</p>
+  <div class="min-h-screen sprint-enterprise-bg text-white">
+    <div v-if="isLoading" class="relative mx-auto w-full max-w-[1600px] p-3 sm:p-6 lg:p-8 space-y-6">
+      <div class="animate-pulse rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+        <div class="h-4 w-52 rounded bg-slate-700/70 mb-3"></div>
+        <div class="h-8 w-80 rounded bg-slate-700/70 mb-3"></div>
+        <div class="h-3 w-64 rounded bg-slate-700/60"></div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div v-for="n in 5" :key="`skeleton-metric-${n}`" class="animate-pulse rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+          <div class="h-7 w-16 rounded bg-slate-700/70 mb-2"></div>
+          <div class="h-3 w-20 rounded bg-slate-700/60"></div>
+        </div>
+      </div>
+      <div class="animate-pulse rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+        <div class="h-5 w-48 rounded bg-slate-700/70 mb-4"></div>
+        <div class="space-y-3">
+          <div v-for="n in 6" :key="`skeleton-row-${n}`" class="h-11 rounded-xl bg-slate-800/70"></div>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="p-8 max-w-2xl mx-auto">
@@ -14,9 +29,9 @@
       </div>
     </div>
 
-    <div v-else-if="project && sprint" class="p-3 sm:p-6">
+    <div v-else-if="project && sprint" class="relative mx-auto w-full max-w-[1600px] p-3 sm:p-6 lg:p-8">
       <!-- Breadcrumb & header -->
-      <div class="border-b border-gray-800 pb-4 mb-6">
+      <div class="enterprise-panel border-b border-white/10 pb-5 mb-7">
         <div class="flex flex-wrap items-center gap-2 text-sm text-gray-400 mb-2">
           <NuxtLink to="/projects" class="hover:text-white transition-colors">Projects</NuxtLink>
           <span>/</span>
@@ -56,6 +71,7 @@
               ถัดไป →
             </NuxtLink>
             <button
+              v-if="showHeavyTaskUI"
               type="button"
               @click="openBacklogImportModal"
               class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 transition-colors"
@@ -73,7 +89,7 @@
       </div>
 
       <!-- Sprint stats -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         <div class="metric-card">
           <div class="text-2xl font-bold text-gray-200">{{ sprintTasks.length }}</div>
           <div class="metric-label">Tasks</div>
@@ -86,10 +102,58 @@
           <div class="text-2xl font-bold text-purple-400">{{ totalSp }}</div>
           <div class="metric-label">Story points</div>
         </div>
-        <div class="metric-card">
+        <button
+          type="button"
+          class="metric-card text-left transition-all duration-200 cursor-pointer"
+          :class="selectedSprintFilter === 'in_progress' ? 'ring-2 ring-yellow-400/70 border-yellow-400/60 bg-yellow-500/10' : 'hover:border-yellow-400/40 hover:bg-yellow-500/5'"
+          @click="toggleSprintMetricFilter('in_progress')"
+        >
+          <div class="text-2xl font-bold text-yellow-400">{{ inProgressCount }}</div>
+          <div class="metric-label">In Progress</div>
+        </button>
+        <button
+          type="button"
+          class="metric-card text-left transition-all duration-200 cursor-pointer"
+          :class="selectedSprintFilter === 'overdue' ? 'ring-2 ring-red-400/70 border-red-400/60 bg-red-500/10' : 'hover:border-red-400/40 hover:bg-red-500/5'"
+          @click="toggleSprintMetricFilter('overdue')"
+        >
           <div class="text-2xl font-bold" :class="overdueCount > 0 ? 'text-red-400' : 'text-gray-400'">{{ overdueCount }}</div>
           <div class="metric-label">Overdue</div>
+        </button>
+      </div>
+
+      <div v-if="selectedSprintFilter" class="card mb-6">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <h3 class="section-title mb-0">
+            {{ selectedSprintFilter === 'overdue' ? 'Overdue Tasks' : 'In Progress Tasks' }}
+          </h3>
+          <button
+            type="button"
+            class="text-xs text-gray-400 hover:text-white transition-colors"
+            @click="selectedSprintFilter = null"
+          >
+            Close
+          </button>
         </div>
+        <div v-if="filteredMetricTasks.length" class="space-y-2">
+          <div
+            v-for="t in filteredMetricTasks"
+            :key="`metric-${t.id}`"
+            class="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-700/40 transition-colors cursor-pointer"
+            @click="navigateToTask(t.id)"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(t.code) }}</span>
+              <span class="text-sm text-gray-200 truncate max-w-xs">{{ t.title }}</span>
+              <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
+              <span v-if="t.due_at" class="text-[10px] text-gray-500">Due {{ formatDate(t.due_at) }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-center py-8 text-gray-500 text-sm">No tasks in this group.</div>
       </div>
 
       <!-- Task list -->
@@ -98,36 +162,16 @@
           <h3 class="section-title mb-0">Tasks in this sprint</h3>
           <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
-              v-if="backlogTaskCount > 0 || otherSprintTaskCount > 0"
+              v-if="showHeavyTaskUI && (backlogTaskCount > 0 || otherSprintTaskCount > 0 || loadingSupplementalTasks || !hasLoadedSupplementalTasks)"
               type="button"
               @click="openBacklogImportModal"
               class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors"
             >
               + From backlog
-              <span v-if="backlogTaskCount" class="text-emerald-400/90">({{ backlogTaskCount }})</span>
+              <span v-if="loadingSupplementalTasks" class="text-emerald-300/70">(loading...)</span>
+              <span v-else-if="backlogTaskCount" class="text-emerald-400/90">({{ backlogTaskCount }})</span>
             </button>
-            <template v-if="sprintTasks.length">
-              <label class="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-400 hover:text-gray-200">
-                <input
-                  ref="checkAllInputRef"
-                  type="checkbox"
-                  :checked="isCheckAllChecked"
-                  class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-                  @change="toggleCheckAll"
-                />
-                <span>Check all</span>
-              </label>
-              <button
-                v-if="selectedTaskIds.length > 0"
-                type="button"
-                class="px-3 py-1.5 text-sm font-medium text-red-300 bg-red-900/30 hover:bg-red-900/50 border border-red-800 rounded-lg transition-colors flex items-center gap-2"
-                :disabled="isRemovingTasks"
-                @click="confirmRemoveSelected"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                Remove ({{ selectedTaskIds.length }})
-              </button>
-            </template>
+
           </div>
         </div>
         <div v-if="sprintTasks.length" class="space-y-2">
@@ -136,14 +180,6 @@
             :key="t.id"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-700/40 transition-colors border-b border-gray-700/50 last:border-0"
           >
-            <label class="flex items-center shrink-0 cursor-pointer" @click.stop>
-              <input
-                type="checkbox"
-                :checked="selectedTaskIds.includes(t.id)"
-                class="w-4 h-4 rounded border-gray-500 bg-gray-700 text-purple-500 focus:ring-purple-500"
-                @change="toggleTaskSelection(t.id)"
-              />
-            </label>
             <div
               class="flex flex-1 items-center justify-between min-w-0 cursor-pointer"
               @click="navigateToTask(t.id)"
@@ -167,13 +203,14 @@
           </p>
           <div class="flex flex-wrap items-center justify-center gap-2">
             <button
-              v-if="backlogTaskCount > 0 || otherSprintTaskCount > 0"
+              v-if="showHeavyTaskUI && (backlogTaskCount > 0 || otherSprintTaskCount > 0 || loadingSupplementalTasks || !hasLoadedSupplementalTasks)"
               type="button"
               @click="openBacklogImportModal"
               class="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-200 hover:bg-emerald-500/25 transition-colors"
             >
               Add from backlog
-              <span v-if="backlogTaskCount" class="text-xs font-normal text-emerald-400/90">({{ backlogTaskCount }} ready)</span>
+              <span v-if="loadingSupplementalTasks" class="text-xs font-normal text-emerald-300/70">(loading...)</span>
+              <span v-else-if="backlogTaskCount" class="text-xs font-normal text-emerald-400/90">({{ backlogTaskCount }} ready)</span>
             </button>
             <button type="button" @click="openCreateTaskModal()" class="btn-primary-sm px-4 py-2.5">+ New task</button>
           </div>
@@ -189,7 +226,7 @@
 
     <!-- Add existing tasks (backlog / other sprints) → this sprint -->
     <div
-      v-if="showBacklogImportModal && sprint"
+      v-if="showHeavyTaskUI && showBacklogImportModal && sprint"
       class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       @click.self="closeBacklogImportModal"
     >
@@ -217,7 +254,7 @@
           <label class="sr-only" for="backlog-import-search">Search tasks</label>
           <input
             id="backlog-import-search"
-            v-model="backlogImportQuery"
+            v-model="backlogImportQueryInput"
             type="search"
             class="input-field w-full"
             placeholder="ค้นหาชื่อหรือรหัส task…"
@@ -399,32 +436,7 @@
       </div>
     </div>
 
-    <!-- Remove selected tasks from sprint confirmation -->
-    <div v-if="showRemoveConfirmModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeRemoveConfirmModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-        <h3 class="text-lg font-bold text-white mb-2">Remove {{ selectedTaskIds.length }} task(s) from sprint?</h3>
-        <p class="text-sm text-gray-400 mb-4">Task จะยังคงอยู่ในโปรเจกต์และถูกย้ายกลับไป Backlog</p>
-        <div v-if="removeError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm mb-4">{{ removeError }}</div>
-        <div class="flex gap-3">
-          <button
-            type="button"
-            class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
-            :disabled="isRemovingTasks"
-            @click="removeSelectedFromSprint"
-          >
-            {{ isRemovingTasks ? 'Removing...' : 'Remove' }}
-          </button>
-          <button
-            type="button"
-            class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors"
-            :disabled="isRemovingTasks"
-            @click="closeRemoveConfirmModal"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
+
   </div>
 </template>
 
@@ -483,6 +495,9 @@ const project = ref<Project | null>(null)
 const sprint = ref<Sprint | null>(null)
 const sprints = ref<Sprint[]>([])
 const allTasks = ref<Task[]>([])
+const hasLoadedSupplementalTasks = ref(false)
+const loadingSupplementalTasks = ref(false)
+const showHeavyTaskUI = ref(false)
 const isLoading = ref(true)
 const error = ref('')
 
@@ -509,10 +524,33 @@ const nextSprint = computed(() => {
 const sprintTasks = computed(() => allTasks.value.filter((t) => t.sprint_id === sprintId.value))
 const doneCount = computed(() => sprintTasks.value.filter((t) => t.status === 'COMPLETED').length)
 const totalSp = computed(() => sprintTasks.value.reduce((s, t) => s + (t.story_points || 0), 0))
+const inProgressCount = computed(() => sprintTasks.value.filter((t) => t.status === 'IN_PROGRESS').length)
 const overdueCount = computed(() => {
   const now = Date.now()
   return sprintTasks.value.filter((t) => t.status !== 'COMPLETED' && t.due_at && new Date(t.due_at).getTime() < now).length
 })
+
+type SprintMetricFilter = 'overdue' | 'in_progress'
+const selectedSprintFilter = ref<SprintMetricFilter | null>(null)
+
+const filteredMetricTasks = computed(() => {
+  const now = Date.now()
+  if (selectedSprintFilter.value === 'overdue') {
+    return [...sprintTasks.value]
+      .filter((t) => t.status !== 'COMPLETED' && !!t.due_at && new Date(t.due_at).getTime() < now)
+      .sort((a, b) => new Date(a.due_at || 0).getTime() - new Date(b.due_at || 0).getTime())
+  }
+  if (selectedSprintFilter.value === 'in_progress') {
+    return [...sprintTasks.value]
+      .filter((t) => t.status === 'IN_PROGRESS')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  }
+  return []
+})
+
+function toggleSprintMetricFilter(filter: SprintMetricFilter) {
+  selectedSprintFilter.value = selectedSprintFilter.value === filter ? null : filter
+}
 
 const backlogTaskCount = computed(() => allTasks.value.filter((t) => !t.sprint_id).length)
 const otherSprintTaskCount = computed(() =>
@@ -522,10 +560,12 @@ const tasksNotInThisSprintCount = computed(() => allTasks.value.filter((t) => t.
 
 const showBacklogImportModal = ref(false)
 const backlogImportScope = ref<'backlog' | 'anywhere'>('backlog')
+const backlogImportQueryInput = ref('')
 const backlogImportQuery = ref('')
 const selectedBacklogTaskIds = ref<string[]>([])
 const backlogImportError = ref('')
 const isBacklogImporting = ref(false)
+let backlogImportQueryTimer: ReturnType<typeof setTimeout> | null = null
 
 function setBacklogImportScope(s: 'backlog' | 'anywhere') {
   backlogImportScope.value = s
@@ -578,7 +618,12 @@ function taskDatesInSprintRange(
   return { start_date: toNoonUTC(spStart), end_date: toNoonUTC(spEnd) }
 }
 
-function openBacklogImportModal() {
+async function openBacklogImportModal() {
+  if (!showHeavyTaskUI.value) return
+  if (!hasLoadedSupplementalTasks.value && !loadingSupplementalTasks.value) {
+    await loadSupplementalTasksInBackground()
+  }
+  backlogImportQueryInput.value = ''
   backlogImportQuery.value = ''
   backlogImportScope.value = 'backlog'
   selectedBacklogTaskIds.value = []
@@ -663,63 +708,6 @@ function navigateToTask(id: string) {
   })
 }
 
-// Bulk delete: selection state
-const selectedTaskIds = ref<string[]>([])
-const checkAllInputRef = ref<HTMLInputElement | null>(null)
-const isCheckAllChecked = computed(() => sprintTasks.value.length > 0 && selectedTaskIds.value.length === sprintTasks.value.length)
-const isCheckAllIndeterminate = computed(() => {
-  const n = selectedTaskIds.value.length
-  return n > 0 && n < sprintTasks.value.length
-})
-watch([selectedTaskIds, sprintTasks], () => {
-  const el = checkAllInputRef.value
-  if (el) (el as HTMLInputElement).indeterminate = isCheckAllIndeterminate.value
-}, { immediate: true })
-function toggleTaskSelection(id: string) {
-  const idx = selectedTaskIds.value.indexOf(id)
-  if (idx === -1) selectedTaskIds.value = [...selectedTaskIds.value, id]
-  else selectedTaskIds.value = selectedTaskIds.value.filter((x) => x !== id)
-}
-function toggleCheckAll() {
-  if (isCheckAllChecked.value) selectedTaskIds.value = []
-  else selectedTaskIds.value = sprintTasks.value.map((t) => t.id)
-}
-
-// Remove selected from sprint: confirmation modal + API
-const showRemoveConfirmModal = ref(false)
-const isRemovingTasks = ref(false)
-const removeError = ref('')
-function confirmRemoveSelected() {
-  if (selectedTaskIds.value.length === 0) return
-  removeError.value = ''
-  showRemoveConfirmModal.value = true
-}
-function closeRemoveConfirmModal() {
-  showRemoveConfirmModal.value = false
-  removeError.value = ''
-}
-async function removeSelectedFromSprint() {
-  if (selectedTaskIds.value.length === 0) return
-  isRemovingTasks.value = true
-  removeError.value = ''
-  try {
-    for (const id of selectedTaskIds.value) {
-      await tasksApi.updateTask(id, { sprint_id: '' })
-    }
-    const selectedIds = new Set(selectedTaskIds.value)
-    allTasks.value = allTasks.value.map((t) => (
-      selectedIds.has(t.id)
-        ? { ...t, sprint_id: null }
-        : t
-    ))
-    selectedTaskIds.value = []
-    closeRemoveConfirmModal()
-  } catch (e: any) {
-    removeError.value = e?.message ?? 'Failed to remove tasks from sprint'
-  } finally {
-    isRemovingTasks.value = false
-  }
-}
 
 async function loadAll() {
   if (!projectId.value) {
@@ -730,24 +718,50 @@ async function loadAll() {
   isLoading.value = true
   error.value = ''
   try {
-    const p = await projectsApi.getProject(projectId.value)
-    project.value = p
-    const [sprintsList, tasks] = await Promise.all([
-      projectsApi.getSprints(p.id),
-      tasksApi.getTasksByProject(p.id),
-    ])
-    sprints.value = sprintsList
-    const s = sprintsList.find((x) => x.id === sprintId.value)
+    // Fast first paint: load project+sprints via details endpoint with tiny task payload
+    const details = await projectsApi.getProjectDetails(projectId.value, { tasksLimit: 1 })
+    project.value = details.project
+    sprints.value = details.sprints || []
+
+    const s = sprints.value.find((x) => x.id === sprintId.value)
     if (!s) {
       error.value = 'Sprint not found'
       return
     }
     sprint.value = s
-    allTasks.value = tasks
+
+    // Primary data for this page: only tasks in current sprint
+    const sprintOnlyTasks = await tasksApi.getTasksByProject(project.value.id, { sprintId: sprintId.value })
+    allTasks.value = sprintOnlyTasks || []
+
+    // Progressive enhancement: load non-sprint tasks in background (for import modal counters/list)
+    queueMicrotask(() => {
+      void loadSupplementalTasksInBackground()
+    })
+
+    // Defer heavy modal/list UI that is not needed for first interaction
+    setTimeout(() => { showHeavyTaskUI.value = true }, 120)
   } catch (e: any) {
     error.value = e?.message ?? 'Failed to load sprint'
   } finally {
     isLoading.value = false
+  }
+}
+
+async function loadSupplementalTasksInBackground() {
+  if (!project.value || loadingSupplementalTasks.value || hasLoadedSupplementalTasks.value) return
+  loadingSupplementalTasks.value = true
+  try {
+    const allProjectTasks = await tasksApi.getTasksByProject(project.value.id)
+    const existing = new Set(allTasks.value.map((t) => t.id))
+    for (const t of allProjectTasks) {
+      if (!existing.has(t.id)) allTasks.value.push(t)
+    }
+    hasLoadedSupplementalTasks.value = true
+  } catch {
+    // non-blocking background load
+  } finally {
+    loadingSupplementalTasks.value = false
   }
 }
 
@@ -815,40 +829,82 @@ async function submitCreateTask() {
 }
 
 onMounted(loadAll)
+
+watch(backlogImportQueryInput, (v) => {
+  if (backlogImportQueryTimer) clearTimeout(backlogImportQueryTimer)
+  backlogImportQueryTimer = setTimeout(() => {
+    backlogImportQuery.value = v.trim()
+  }, 180)
+})
+
+watch([projectId, sprintId], () => {
+  hasLoadedSupplementalTasks.value = false
+  loadingSupplementalTasks.value = false
+  showHeavyTaskUI.value = false
+  showBacklogImportModal.value = false
+  backlogImportQueryInput.value = ''
+  backlogImportQuery.value = ''
+  void loadAll()
+})
+
+onBeforeUnmount(() => {
+  if (backlogImportQueryTimer) clearTimeout(backlogImportQueryTimer)
+})
 </script>
 
 <style scoped>
+.sprint-enterprise-bg {
+  background:
+    radial-gradient(1200px 600px at 80% -20%, rgba(147, 51, 234, 0.2), transparent 60%),
+    radial-gradient(900px 480px at -10% 0%, rgba(59, 130, 246, 0.18), transparent 55%),
+    linear-gradient(180deg, #070b17 0%, #0b1220 55%, #090f1a 100%);
+}
+
+.enterprise-panel {
+  @apply rounded-2xl px-4 sm:px-6 py-4 sm:py-5 bg-white/[0.03] backdrop-blur-sm shadow-[0_10px_35px_rgba(2,6,23,0.4)];
+}
+
 .card {
-  @apply bg-gray-800 border border-gray-700 rounded-xl p-5;
+  @apply bg-slate-900/75 border border-white/10 rounded-2xl p-5 sm:p-6 backdrop-blur-sm shadow-[0_16px_38px_rgba(2,6,23,0.45)];
 }
+
 .metric-card {
-  @apply bg-gray-800/60 border border-gray-700/50 rounded-xl p-4;
+  @apply bg-gradient-to-b from-slate-800/70 to-slate-900/80 border border-white/10 rounded-2xl p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm;
 }
+
 .metric-label {
-  @apply text-xs text-gray-500 mt-1 uppercase tracking-wide;
+  @apply text-[11px] text-slate-400 mt-1 uppercase tracking-[0.08em] font-medium;
 }
+
 .section-title {
-  @apply text-sm font-semibold text-gray-300;
+  @apply text-sm font-semibold text-slate-200 tracking-wide;
 }
+
 .label {
-  @apply block text-xs text-gray-400 mb-1.5 font-medium;
+  @apply block text-xs text-slate-300 mb-1.5 font-semibold tracking-wide;
 }
+
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/90 border border-slate-600/70 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
+
 .create-task-modal .label {
-  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
+  @apply block text-sm sm:text-base text-slate-200 mb-2 font-semibold tracking-wide;
 }
+
 .create-task-modal .input-field {
-  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/95 border border-slate-500/80 rounded-xl px-4 py-3.5 text-base text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
+
 .btn-primary-sm {
-  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-semibold rounded-lg transition-all shadow-[0_8px_20px_rgba(124,58,237,0.35)];
 }
+
 .btn-ghost-sm {
-  @apply px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors;
+  @apply px-3 py-1.5 text-xs bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-medium rounded-lg border border-white/10 transition-colors;
 }
+
 .btn-primary {
-  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-[0_12px_25px_rgba(124,58,237,0.35)];
 }
 </style>

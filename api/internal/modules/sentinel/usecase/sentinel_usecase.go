@@ -650,15 +650,16 @@ func (u *sentinelUsecase) GetTeamActiveTasks(callerTeamID *uint, callerRole stri
 	return tasks, nil
 }
 
-// GetActiveFeatures returns all FEATURE-type tasks for the Product Owner/CEO Feature Roadmap Board.
+// GetActiveFeatures returns FEATURE-type tasks for the Product Owner/CEO Feature Roadmap Board.
 // Each feature carries a roll-up progress (0–100%) computed from child TASK/BUG completion.
 // CEO/MANAGER see all teams; Product Owner is scoped to their own team.
-func (u *sentinelUsecase) GetActiveFeatures(callerTeamID *uint, callerRole string) ([]domain.FeatureRoadmapItem, error) {
+// Optional projectID narrows result set to a single project.
+func (u *sentinelUsecase) GetActiveFeatures(callerTeamID *uint, callerRole string, projectID *uuid.UUID) ([]domain.FeatureRoadmapItem, error) {
 	teamID := uint(0)
 	if callerRole != domain.RoleCEO && callerRole != domain.RoleManager && callerTeamID != nil {
 		teamID = *callerTeamID
 	}
-	return u.repo.GetActiveFeatures(teamID)
+	return u.repo.GetActiveFeatures(teamID, projectID)
 }
 
 // GetUnassignedTasks retrieves all tasks that are not assigned to anyone

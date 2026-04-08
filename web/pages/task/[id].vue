@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-gray-100">
+  <div class="min-h-screen task-enterprise-bg text-gray-100">
 
     <!-- Loading State -->
     <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-screen">
@@ -27,7 +27,7 @@
     </div>
 
     <!-- Main Content -->
-    <div v-else-if="task" class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <div v-else-if="task" class="relative mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
 
       <!-- ══ TOP BAR ══ -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -45,14 +45,14 @@
 
         <!-- Actions -->
         <div class="flex items-center gap-2 shrink-0">
-          <!-- Prev / Next (sprint context) -->
-          <template v-if="inSprintContext">
+          <!-- Prev / Next (sprint/backlog context) -->
+          <template v-if="showPrevNext">
             <button
               type="button"
               @click="goToPrevTask"
-              :disabled="!prevTaskLink"
+              :disabled="!activePrevTaskLink"
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-              :class="prevTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
+              :class="activePrevTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
               Prev
@@ -60,9 +60,9 @@
             <button
               type="button"
               @click="goToNextTask"
-              :disabled="!nextTaskLink"
+              :disabled="!activeNextTaskLink"
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-              :class="nextTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
+              :class="activeNextTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
             >
               Next
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -148,7 +148,7 @@
               'bg-purple-900/40 border-purple-700/50 text-purple-400': task.parent_task.task_type === 'FEATURE',
               'bg-blue-900/40 border-blue-700/50 text-blue-400': task.parent_task.task_type === 'TASK',
               'bg-red-900/40 border-red-700/50 text-red-400': task.parent_task.task_type === 'BUG',
-              'bg-gray-800/60 border-gray-700/50 text-gray-400': !task.parent_task.task_type,
+              'bg-slate-800/70 border-gray-700/50 text-gray-400': !task.parent_task.task_type,
             }"
           >
             {{ String(Number(task.parent_task.code.split('-').pop()) || 0).padStart(4, '0') }}
@@ -157,7 +157,7 @@
       </div>
 
       <!-- ══ HERO TITLE SECTION ══ -->
-      <div class="bg-gradient-to-br from-gray-800/80 to-gray-800/40 border border-gray-700/60 rounded-2xl p-6 mb-6 backdrop-blur-sm">
+      <div class="enterprise-hero-panel rounded-2xl p-6 mb-6 backdrop-blur-sm">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="flex-1 min-w-0">
             <!-- Type + Status badges -->
@@ -404,7 +404,7 @@
         <div class="lg:col-span-2 space-y-6">
 
           <!-- Description Card -->
-          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
+          <div class="enterprise-card rounded-2xl overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
               <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -482,7 +482,7 @@
               <div class="p-5">
                 <TimeLogger
                   :time-logs="timeLogs"
-                  :estimated-minutes="isParentTask ? subtaskTotalEstimatedMinutes : (task.estimated_minutes || 0)"
+                  :estimated-minutes="task.estimated_minutes || 0"
                   :task-id="route.params.id as string"
                   :loading="timeLogsLoading"
                   @log-time="handleLogTime"
@@ -500,7 +500,7 @@
           <div v-if="isParentTask" class="flex items-start gap-3 p-4 bg-amber-900/20 border border-amber-700/40 rounded-2xl">
             <svg class="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <p class="text-xs text-amber-300 leading-relaxed">
-              Parent Task — assign resources and estimate time at the <strong>Sub-task</strong> level.
+              Parent Task — you can estimate time at this level (sub-tasks may also exist).
             </p>
           </div>
 
@@ -527,91 +527,76 @@
               <!-- Assignee -->
               <div class="px-5 py-3.5">
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Assignee</p>
-                <template v-if="isParentTask">
-                  <span class="text-sm text-gray-500 italic">— via Sub-tasks —</span>
-                </template>
-                <template v-else>
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <div v-if="task.assigned_to" class="flex items-center gap-2">
-                      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                        {{ (task.assigned_to_display_name || task.assigned_to_email || 'U').charAt(0).toUpperCase() }}
-                      </div>
-                      <span class="text-sm text-white">{{ task.assigned_to_display_name || task.assigned_to_email || `Dev #${task.assigned_to}` }}</span>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <div v-if="task.assigned_to" class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                      {{ (task.assigned_to_display_name || task.assigned_to_email || 'U').charAt(0).toUpperCase() }}
                     </div>
-                    <span v-else class="text-sm text-gray-500">Unassigned</span>
-                    <button
-                      v-if="canClaimTask"
-                      type="button"
-                      @click="claimTask"
-                      :disabled="assignLoading"
-                      class="text-[11px] text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded-md bg-emerald-900/20 border border-emerald-800/40 hover:border-emerald-700/60 transition-colors disabled:opacity-50"
-                    >
-                      {{ assignLoading ? 'Claiming…' : 'Claim task' }}
-                    </button>
-                    <button
-                      v-if="canEditOrDelete && !showAssignDropdown"
-                      type="button"
-                      @click="openAssignDropdown"
-                      class="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded-md bg-blue-900/20 border border-blue-800/40 hover:border-blue-700/60 transition-colors"
-                    >
-                      Change
-                    </button>
+                    <span class="text-sm text-white">{{ task.assigned_to_display_name || task.assigned_to_email || `Dev #${task.assigned_to}` }}</span>
                   </div>
-                  <template v-if="canEditOrDelete && showAssignDropdown">
-                    <select
-                      v-model="assignSelectedId"
-                      @change="confirmChangeAssignee"
-                      class="mt-2 block w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="">— Select —</option>
-                      <option value="0">— Unassign —</option>
-                      <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name || u.email }} ({{ u.role }})</option>
-                    </select>
-                    <div class="flex items-center gap-2 mt-1.5">
-                      <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
-                      <p v-if="assignError" class="text-xs text-red-400">{{ assignError }}</p>
-                    </div>
-                  </template>
+                  <span v-else class="text-sm text-gray-500">Unassigned</span>
+                  <button
+                    v-if="canClaimTask"
+                    type="button"
+                    @click="claimTask"
+                    :disabled="assignLoading"
+                    class="text-[11px] text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded-md bg-emerald-900/20 border border-emerald-800/40 hover:border-emerald-700/60 transition-colors disabled:opacity-50"
+                  >
+                    {{ assignLoading ? 'Claiming…' : 'Claim task' }}
+                  </button>
+                  <button
+                    v-if="canEditOrDelete && !showAssignDropdown"
+                    type="button"
+                    @click="openAssignDropdown"
+                    class="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded-md bg-blue-900/20 border border-blue-800/40 hover:border-blue-700/60 transition-colors"
+                  >
+                    Change
+                  </button>
+                </div>
+                <template v-if="canEditOrDelete && showAssignDropdown">
+                  <select
+                    v-model="assignSelectedId"
+                    @change="confirmChangeAssignee"
+                    class="mt-2 block w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="0">— Unassign —</option>
+                    <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name || u.email }} ({{ u.role }})</option>
+                  </select>
+                  <div class="flex items-center gap-2 mt-1.5">
+                    <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+                    <p v-if="assignError" class="text-xs text-red-400">{{ assignError }}</p>
+                  </div>
                 </template>
               </div>
 
               <!-- Estimated Effort (hours, 1 decimal; stored as minutes API-side) -->
               <div class="px-5 py-3.5">
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Estimated Effort</p>
-                <template v-if="isParentTask">
-                  <p class="text-sm font-semibold text-white">
-                    {{ formatMinutesAsHours(subtaskTotalEstimatedMinutes) }}
-                    <span class="text-gray-400 font-normal text-xs">h</span>
-                    <span class="text-gray-500 font-normal text-xs ml-1">({{ subtaskTotalEstimatedMinutes }} min)</span>
-                  </p>
-                  <p class="text-xs text-amber-400/80 mt-0.5">Roll-up from {{ subtasks.length }} sub-task{{ subtasks.length !== 1 ? 's' : '' }}</p>
-                </template>
-                <template v-else>
-                  <div v-if="!canEditOrDelete" class="text-sm font-semibold text-white">
-                    {{ formatMinutesAsHours(task.estimated_minutes ?? 0) }}
-                    <span class="text-gray-400 font-normal text-xs">h</span>
-                    <span class="text-gray-500 font-normal text-xs ml-1">({{ task.estimated_minutes ?? 0 }} min)</span>
-                  </div>
-                  <div v-else class="flex items-center gap-2 flex-wrap">
-                    <input
-                      v-model.number="estimatedHoursLocal"
-                      type="number" min="0" step="0.1"
-                      class="w-28 px-2.5 py-1.5 bg-gray-900 border border-gray-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="0"
-                      @blur="saveEstimatedMinutes"
-                    />
-                    <span class="text-xs text-gray-500">hours</span>
-                    <button
-                      v-if="estimatedMinutesDirty"
-                      type="button"
-                      class="text-xs px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors"
-                      :disabled="isSavingEstimate"
-                      @click="saveEstimatedMinutes"
-                    >
-                      {{ isSavingEstimate ? '…' : 'Save' }}
-                    </button>
-                  </div>
-                </template>
+                <div v-if="!canEditOrDelete" class="text-sm font-semibold text-white">
+                  {{ formatMinutesAsHours(task.estimated_minutes ?? 0) }}
+                  <span class="text-gray-400 font-normal text-xs">h</span>
+                  <span class="text-gray-500 font-normal text-xs ml-1">({{ task.estimated_minutes ?? 0 }} min)</span>
+                </div>
+                <div v-else class="flex items-center gap-2 flex-wrap">
+                  <input
+                    v-model.number="estimatedHoursLocal"
+                    type="number" min="0" step="0.5"
+                    class="w-28 px-2.5 py-1.5 bg-gray-900 border border-gray-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="0"
+                    @blur="saveEstimatedMinutes"
+                  />
+                  <span class="text-xs text-gray-500">hours</span>
+                  <button
+                    v-if="estimatedMinutesDirty"
+                    type="button"
+                    class="text-xs px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+                    :disabled="isSavingEstimate"
+                    @click="saveEstimatedMinutes"
+                  >
+                    {{ isSavingEstimate ? '…' : 'Save' }}
+                  </button>
+                </div>
               </div>
 
               <!-- Dates group -->
@@ -653,7 +638,7 @@
 
     <!-- ══ EDIT MODAL ══ -->
     <div v-if="showEditModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto" @click.self="closeEditModal">
-      <div class="edit-task-modal bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-7xl shadow-2xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
+      <div class="edit-task-modal edit-task-modal-enterprise rounded-2xl w-full max-w-7xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
         <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
           <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Edit Task</h2>
           <button type="button" @click="closeEditModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-40" :disabled="isUpdatingTask" aria-label="Close">✕</button>
@@ -689,7 +674,7 @@
               <div class="flex items-center gap-3 px-4 py-4 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-200 text-base font-medium">{{ formatMinutesAsHours(subtaskTotalEstimatedMinutes) }} h (roll-up, {{ subtaskTotalEstimatedMinutes }} min)</div>
             </template>
             <template v-else>
-              <input v-model.number="editForm.estimated_hours" type="number" min="0" step="0.1" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 1.5" />
+              <input v-model.number="editForm.estimated_hours" type="number" min="0" step="0.5" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 1.5" />
             </template>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
@@ -1035,6 +1020,7 @@ import OutsourceRequestModal from '~/components/b2b/OutsourceRequestModal.vue'
 import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from '~/utils/effortHours'
 import { isTaskAssigneeRole } from '~/utils/roles'
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
+import { sortBacklogTasks } from '~/utils/backlog-task-utils'
 
 definePageMeta({
   layout: 'default',
@@ -1088,6 +1074,8 @@ interface Task {
   code?: string // e.g. mims-hdmap-main-001
   project_id?: string | null // UUID of project (for Back to project when task has no code)
   epic_id?: string | null
+  // Backlog ordering (used for Prev/Next when opened from backlog board)
+  sort_order?: number | null
   title: string
   description: string
   resource_urls: any
@@ -1147,6 +1135,8 @@ const error = ref('')
 
 // Sprint context: task IDs in order (for Prev/Next when from_sprint + from_project)
 const sprintTaskIds = ref<string[]>([])
+// Backlog context: task IDs in display order (for Prev/Next when from_project + from_tab=backlog)
+const backlogTaskIds = ref<string[]>([])
 const sprintNavMessage = ref('')
 
 // Assignee change state
@@ -1444,21 +1434,66 @@ const fetchTask = async () => {
     // Populate local subtasks from response (backend preloads SubTasks)
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
 
-    // Load sprint task order for Prev/Next when opened from sprint page
-    // Use task.project_id (UUID) for API — from_project in URL may be project code (e.g. mims-hdmap), API requires UUID
-    const fromSprint = route.query.from_sprint as string
-    if (fromSprint && task.value?.project_id) {
-      const tasksApi = useTasksApi()
+    // Load Prev/Next ordering
+    // Sprint context: from_sprint + from_project
+    // Backlog context: from_project + from_tab=backlog
+    sprintTaskIds.value = []
+    backlogTaskIds.value = []
+
+    const fromSprint = route.query.from_sprint as string | undefined
+    const fromProject = route.query.from_project as string | undefined
+    const fromTab = route.query.from_tab as string | undefined
+
+    const projectId = task.value?.project_id
+    const isSprintContext = !!(fromSprint && fromProject)
+    const isBacklogContext = !!(fromProject && fromTab === 'backlog')
+
+    if (isSprintContext && fromSprint && projectId) {
       try {
-        const projectTasks = await tasksApi.getTasksByProject(task.value.project_id)
+        const projectTasks = await tasksApi.getTasksByProject(projectId)
         const inSprint = projectTasks.filter((t) => t.sprint_id === fromSprint)
-        inSprint.sort((a, b) => (a.code || a.id).localeCompare(b.code || b.id))
+        inSprint.sort((a: any, b: any) => (a.code || a.id).localeCompare(b.code || b.id))
         sprintTaskIds.value = inSprint.map((t) => t.id)
       } catch {
         sprintTaskIds.value = []
       }
-    } else {
-      sprintTaskIds.value = []
+    } else if (isBacklogContext && projectId) {
+      try {
+        const [allProjectTasks, epics, sprints] = await Promise.all([
+          tasksApi.getTasksByProject(projectId),
+          projectsApi.getEpics(projectId),
+          projectsApi.getSprints(projectId),
+        ])
+
+        // Match projects page: sprint order uses sort_order (fallback created_at)
+        const sprintOrderIds = [...sprints]
+          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map((s: any) => s.id)
+
+        // Match projects backlog page: keep epic order as returned in `epics`
+        const orderedEpics = epics
+
+        // Backlog Prev/Next should move between top-level backlog rows (A items).
+        // Sub-tasks (B/C) are shown under their parent but shouldn't be part of navigation order.
+        const flatRoots: any[] = []
+        for (const epic of orderedEpics) {
+          const roots = sortBacklogTasks(
+            (allProjectTasks as any[]).filter((t) => t.epic_id === epic.id && !t.parent_id),
+            sprintOrderIds,
+          )
+          roots.forEach((r) => flatRoots.push(r))
+        }
+
+        const unassignedRoots = sortBacklogTasks(
+          (allProjectTasks as any[]).filter((t) => !t.epic_id && !t.parent_id),
+          sprintOrderIds,
+        )
+        unassignedRoots.forEach((r) => flatRoots.push(r))
+
+        backlogTaskIds.value = flatRoots.map((t) => t.id)
+      } catch {
+        backlogTaskIds.value = []
+      }
     }
   } catch (err: any) {
     console.error('Failed to fetch task:', err)
@@ -2007,6 +2042,15 @@ const inSprintContext = computed(() => {
   return !!(fromSprint && fromProject)
 })
 
+// Whether we're in backlog context (opened from project backlog board)
+const inBacklogContext = computed(() => {
+  const fromProject = route.query.from_project as string | undefined
+  const fromTab = route.query.from_tab as string | undefined
+  return !!(fromProject && fromTab === 'backlog')
+})
+
+const showPrevNext = computed(() => inSprintContext.value || inBacklogContext.value)
+
 // Prev/Next task links within same sprint (only when from_sprint + from_project)
 // Normalize id comparison (UUID may differ in casing between getTask and getTasksByProject)
 const currentSprintIndex = computed(() => {
@@ -2033,13 +2077,45 @@ const nextTaskLink = computed(() => {
   return `/task/${id}?from_sprint=${encodeURIComponent(fromSprint)}&from_project=${encodeURIComponent(fromProject)}`
 })
 
+// Prev/Next task links within same backlog display order (only when from_project + from_tab=backlog)
+const currentBacklogIndex = computed(() => {
+  const t = task.value
+  if (!t?.id || !backlogTaskIds.value.length) return -1
+  const needle = String(t.id).toLowerCase()
+  return backlogTaskIds.value.findIndex((id) => String(id).toLowerCase() === needle)
+})
+
+function buildBacklogTaskLink(id: string) {
+  const fromProject = route.query.from_project as string | undefined
+  const fromTab = route.query.from_tab as string | undefined
+  if (!fromProject || !fromTab) return null
+  return `/task/${id}?from_project=${encodeURIComponent(fromProject)}&from_tab=${encodeURIComponent(fromTab)}`
+}
+
+const prevBacklogTaskLink = computed(() => {
+  const idx = currentBacklogIndex.value
+  if (idx <= 0) return null
+  const id = backlogTaskIds.value[idx - 1]
+  return id ? buildBacklogTaskLink(id) : null
+})
+
+const nextBacklogTaskLink = computed(() => {
+  const idx = currentBacklogIndex.value
+  if (idx < 0 || idx >= backlogTaskIds.value.length - 1) return null
+  const id = backlogTaskIds.value[idx + 1]
+  return id ? buildBacklogTaskLink(id) : null
+})
+
+const activePrevTaskLink = computed(() => (inSprintContext.value ? prevTaskLink.value : prevBacklogTaskLink.value))
+const activeNextTaskLink = computed(() => (inSprintContext.value ? nextTaskLink.value : nextBacklogTaskLink.value))
+
 function showSprintNavFeedback(msg: string) {
   sprintNavMessage.value = msg
   setTimeout(() => { sprintNavMessage.value = '' }, 2500)
 }
 
 function goToPrevTask() {
-  const link = prevTaskLink.value
+  const link = activePrevTaskLink.value
   if (link) {
     navigateTo(link)
   } else {
@@ -2048,7 +2124,7 @@ function goToPrevTask() {
 }
 
 function goToNextTask() {
-  const link = nextTaskLink.value
+  const link = activeNextTaskLink.value
   if (link) {
     navigateTo(link)
   } else {
@@ -2120,18 +2196,37 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.task-enterprise-bg {
+  background:
+    radial-gradient(1200px 620px at 82% -15%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(900px 460px at -8% 2%, rgba(59, 130, 246, 0.16), transparent 56%),
+    linear-gradient(180deg, #070b16 0%, #0b1220 55%, #090f1a 100%);
+}
+
+.enterprise-hero-panel {
+  @apply border border-white/10 bg-gradient-to-br from-slate-900/85 to-slate-900/65 shadow-[0_20px_50px_rgba(2,6,23,0.45)];
+}
+
+.enterprise-card {
+  @apply bg-slate-900/70 border border-white/10 shadow-[0_14px_34px_rgba(2,6,23,0.4)] backdrop-blur-sm;
+}
+
 .label {
-  @apply block text-xs text-gray-400 mb-1.5 font-medium;
+  @apply block text-xs text-slate-300 mb-1.5 font-semibold tracking-wide;
 }
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/95 border border-slate-600/80 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
 /* Edit Task modal — wide layout, larger fields (rest of page unchanged) */
+.edit-task-modal-enterprise {
+  @apply border border-white/10 bg-slate-900/75 shadow-[0_18px_42px_rgba(2,6,23,0.46)] backdrop-blur-sm;
+}
+
 .edit-task-modal .label {
-  @apply block text-sm sm:text-base text-gray-300 mb-2 font-medium;
+  @apply block text-sm sm:text-base text-slate-200 mb-2 font-semibold tracking-wide;
 }
 .edit-task-modal .input-field {
-  @apply bg-gray-700 border border-gray-500 rounded-xl px-4 py-3.5 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-colors;
+  @apply bg-slate-800/95 border border-slate-500/80 rounded-xl px-4 py-3.5 text-base text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
 }
 .edit-task-modal :deep(.rich-editor .editor-content) {
   min-height: 18rem;
@@ -2145,6 +2240,6 @@ onMounted(async () => {
   @apply text-sm px-2.5 py-1.5 min-h-[2.25rem];
 }
 .btn-primary {
-  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-colors;
+  @apply bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all shadow-[0_12px_24px_rgba(124,58,237,0.32)];
 }
 </style>

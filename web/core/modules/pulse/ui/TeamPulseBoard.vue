@@ -85,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { usePulseStore } from '../store/pulse-store'
 import PulseMemberCard from './PulseMemberCard.vue'
 import { localDateStr } from '~/composables/useLocalDate'
@@ -94,6 +94,8 @@ const store = usePulseStore()
 
 const today = localDateStr()
 const selectedDate = ref(today)
+const pollMs = 10000 // Polling so other users' check-ins appear without manual refresh
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const displayDate = computed(() => {
   const d = new Date(selectedDate.value + 'T00:00:00')
@@ -104,9 +106,39 @@ function onDateChange() {
   store.fetchDailyPulse(selectedDate.value)
 }
 
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(async () => {
+    // Avoid background polling when tab is hidden (saves both CPU + API load).
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+    // Keep at most one in-flight request.
+    if (store.loading) return
+    // Only auto-refresh for today's pulse; historical dates can be refreshed manually.
+    if (selectedDate.value !== today) return
+    await store.fetchDailyPulse(selectedDate.value)
+  }, pollMs)
+}
+
+function stopPolling() {
+  if (!pollTimer) return
+  clearInterval(pollTimer)
+  pollTimer = null
+}
+
 onMounted(() => {
   if (!store.pulse || store.lastFetchedDate !== selectedDate.value) {
     store.fetchDailyPulse(selectedDate.value)
   }
+
+  startPolling()
+})
+
+watch(selectedDate, (d) => {
+  if (d === today) startPolling()
+  else stopPolling()
+})
+
+onBeforeUnmount(() => {
+  stopPolling()
 })
 </script>
