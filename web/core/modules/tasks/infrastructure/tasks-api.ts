@@ -145,6 +145,7 @@ function useTasksApi() {
     milestone_id: string
     parent_id: string
     epic_id: string
+    due_at: string | null
     sort_order: number
     start_date: string
     end_date: string

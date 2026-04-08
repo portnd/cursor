@@ -135,18 +135,18 @@
           <!-- Due Date -->
           <div>
             <label class="label">Due Date</label>
-            <input v-model="form.due_date" type="datetime-local" class="input-field w-full" />
+            <input v-model="form.due_date" type="date" class="input-field w-full" />
           </div>
 
           <!-- Start / End Dates -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="form.start_date" type="datetime-local" class="input-field w-full" />
+              <input v-model="form.start_date" type="date" class="input-field w-full" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="form.end_date" type="datetime-local" class="input-field w-full" />
+              <input v-model="form.end_date" type="date" class="input-field w-full" />
             </div>
           </div>
 
@@ -245,6 +245,7 @@ async function handleSubmit() {
   showSuccessMsg.value = false
 
   try {
+    const dateOnlyToISO = (ymd: string) => new Date(`${ymd}T00:00:00`).toISOString()
     const payload: any = {
       title:             form.value.title,
       description:       form.value.description,
@@ -256,9 +257,9 @@ async function handleSubmit() {
     if (form.value.project_id)  payload.project_id  = form.value.project_id
     if (form.value.sprint_id)   payload.sprint_id   = form.value.sprint_id
     if (form.value.epic_id)     payload.epic_id     = form.value.epic_id
-    if (form.value.due_date)    payload.due_date    = new Date(form.value.due_date).toISOString()
-    if (form.value.start_date)  payload.start_date  = new Date(form.value.start_date).toISOString()
-    if (form.value.end_date)    payload.end_date    = new Date(form.value.end_date).toISOString()
+    if (form.value.due_date)    payload.due_date    = dateOnlyToISO(form.value.due_date)
+    if (form.value.start_date)  payload.start_date  = dateOnlyToISO(form.value.start_date)
+    if (form.value.end_date)    payload.end_date    = dateOnlyToISO(form.value.end_date)
 
     await tasksApi.createTask(payload)
     showSuccessMsg.value = true

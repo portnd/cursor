@@ -701,16 +701,16 @@
           </div>
           <div>
             <label class="label">Due Date</label>
-            <input v-model="editForm.deadline" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
+            <input v-model="editForm.deadline" type="date" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="editForm.start_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
+              <input v-model="editForm.start_date" type="date" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="editForm.end_date" type="datetime-local" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
+              <input v-model="editForm.end_date" type="date" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
             </div>
           </div>
         </div>
@@ -1434,67 +1434,9 @@ const fetchTask = async () => {
     // Populate local subtasks from response (backend preloads SubTasks)
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
 
-    // Load Prev/Next ordering
-    // Sprint context: from_sprint + from_project
-    // Backlog context: from_project + from_tab=backlog
+    // Clear Prev/Next ordering while we (re)load it in background.
     sprintTaskIds.value = []
     backlogTaskIds.value = []
-
-    const fromSprint = route.query.from_sprint as string | undefined
-    const fromProject = route.query.from_project as string | undefined
-    const fromTab = route.query.from_tab as string | undefined
-
-    const projectId = task.value?.project_id
-    const isSprintContext = !!(fromSprint && fromProject)
-    const isBacklogContext = !!(fromProject && fromTab === 'backlog')
-
-    if (isSprintContext && fromSprint && projectId) {
-      try {
-        const projectTasks = await tasksApi.getTasksByProject(projectId)
-        const inSprint = projectTasks.filter((t) => t.sprint_id === fromSprint)
-        inSprint.sort((a: any, b: any) => (a.code || a.id).localeCompare(b.code || b.id))
-        sprintTaskIds.value = inSprint.map((t) => t.id)
-      } catch {
-        sprintTaskIds.value = []
-      }
-    } else if (isBacklogContext && projectId) {
-      try {
-        const [allProjectTasks, epics, sprints] = await Promise.all([
-          tasksApi.getTasksByProject(projectId),
-          projectsApi.getEpics(projectId),
-          projectsApi.getSprints(projectId),
-        ])
-
-        // Match projects page: sprint order uses sort_order (fallback created_at)
-        const sprintOrderIds = [...sprints]
-          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          .map((s: any) => s.id)
-
-        // Match projects backlog page: keep epic order as returned in `epics`
-        const orderedEpics = epics
-
-        // Backlog Prev/Next should move between top-level backlog rows (A items).
-        // Sub-tasks (B/C) are shown under their parent but shouldn't be part of navigation order.
-        const flatRoots: any[] = []
-        for (const epic of orderedEpics) {
-          const roots = sortBacklogTasks(
-            (allProjectTasks as any[]).filter((t) => t.epic_id === epic.id && !t.parent_id),
-            sprintOrderIds,
-          )
-          roots.forEach((r) => flatRoots.push(r))
-        }
-
-        const unassignedRoots = sortBacklogTasks(
-          (allProjectTasks as any[]).filter((t) => !t.epic_id && !t.parent_id),
-          sprintOrderIds,
-        )
-        unassignedRoots.forEach((r) => flatRoots.push(r))
-
-        backlogTaskIds.value = flatRoots.map((t) => t.id)
-      } catch {
-        backlogTaskIds.value = []
-      }
-    }
   } catch (err: any) {
     console.error('Failed to fetch task:', err)
     const apiMsg = err?.data?.message ?? err?.data?.error
@@ -1502,6 +1444,68 @@ const fetchTask = async () => {
     error.value = apiMsg || (status === 404 ? 'Task not found.' : err?.message || 'Failed to load task.')
   } finally {
     isLoading.value = false
+  }
+}
+
+// Load Prev/Next ordering (sprint/backlog context) without blocking initial task render.
+const fetchPrevNextOrdering = async () => {
+  const fromSprint = route.query.from_sprint as string | undefined
+  const fromProject = route.query.from_project as string | undefined
+  const fromTab = route.query.from_tab as string | undefined
+
+  const projectId = task.value?.project_id
+  const isSprintContext = !!(fromSprint && fromProject)
+  const isBacklogContext = !!(fromProject && fromTab === 'backlog')
+
+  if (!projectId) return
+
+  try {
+    if (isSprintContext && fromSprint) {
+      const projectTasks = await tasksApi.getTasksByProject(projectId)
+      const inSprint = projectTasks.filter((t) => t.sprint_id === fromSprint)
+      inSprint.sort((a: any, b: any) => (a.code || a.id).localeCompare(b.code || b.id))
+      sprintTaskIds.value = inSprint.map((t) => t.id)
+      backlogTaskIds.value = []
+      return
+    }
+
+    if (isBacklogContext) {
+      const [allProjectTasks, epics, sprints] = await Promise.all([
+        tasksApi.getTasksByProject(projectId),
+        projectsApi.getEpics(projectId),
+        projectsApi.getSprints(projectId),
+      ])
+
+      // Match projects backlog page: sprint order uses sort_order (fallback created_at)
+      const sprintOrderIds = [...sprints]
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .map((s: any) => s.id)
+
+      // Keep epic order as returned in `epics`
+      const orderedEpics = epics
+
+      // Prev/Next should move between top-level backlog rows (A items), excluding sub-tasks.
+      const flatRoots: any[] = []
+      for (const epic of orderedEpics) {
+        const roots = sortBacklogTasks(
+          (allProjectTasks as any[]).filter((t) => t.epic_id === epic.id && !t.parent_id),
+          sprintOrderIds,
+        )
+        roots.forEach((r) => flatRoots.push(r))
+      }
+
+      const unassignedRoots = sortBacklogTasks(
+        (allProjectTasks as any[]).filter((t) => !t.epic_id && !t.parent_id),
+        sprintOrderIds,
+      )
+      unassignedRoots.forEach((r) => flatRoots.push(r))
+
+      backlogTaskIds.value = flatRoots.map((t) => t.id)
+      sprintTaskIds.value = []
+    }
+  } catch (e) {
+    sprintTaskIds.value = []
+    backlogTaskIds.value = []
   }
 }
 
@@ -1780,18 +1784,18 @@ const calculateDuration = (startAt: string, completedAt: string) => {
   return `${minutes}m`
 }
 
-/** Convert ISO (UTC) to "YYYY-MM-DDTHH:mm" in local time for datetime-local input */
-const toDatetimeLocal = (iso: string | null | undefined) => {
+/** Convert ISO (UTC) to "YYYY-MM-DD" in local time for date input */
+const toDateOnly = (iso: string | null | undefined) => {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
-  const h = String(d.getHours()).padStart(2, '0')
-  const min = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${h}:${min}`
+  return `${y}-${m}-${day}`
 }
+
+const dateOnlyToISO = (ymd: string) => new Date(`${ymd}T00:00:00`).toISOString()
 
 // Edit Task Methods
 const openEditModal = async () => {
@@ -1800,12 +1804,12 @@ const openEditModal = async () => {
   editForm.value.title = task.value.title
   editForm.value.description = task.value.description || ''
   editForm.value.task_type = task.value.task_type || 'TASK'
-  editForm.value.deadline = toDatetimeLocal(task.value.due_at)
+  editForm.value.deadline = toDateOnly(task.value.due_at)
   editForm.value.priority = task.value.priority || 'MEDIUM'
   editForm.value.story_points = task.value.story_points ?? 0
   editForm.value.sprint_id = task.value.sprint_id ?? ''
-  editForm.value.start_date = toDatetimeLocal(task.value.start_date)
-  editForm.value.end_date = toDatetimeLocal(task.value.end_date)
+  editForm.value.start_date = toDateOnly(task.value.start_date)
+  editForm.value.end_date = toDateOnly(task.value.end_date)
   editForm.value.estimated_hours = minutesToEffortHours(task.value.estimated_minutes ?? 0)
 
   editSprints.value = []
@@ -1892,17 +1896,17 @@ const submitEdit = async () => {
     if (editForm.value.sprint_id !== currentSprint) {
       body.sprint_id = editForm.value.sprint_id || ''
     }
-    const currentStart = toDatetimeLocal(task.value.start_date)
+    const currentStart = toDateOnly(task.value.start_date)
     if (editForm.value.start_date !== currentStart && editForm.value.start_date) {
-      body.start_date = new Date(editForm.value.start_date).toISOString()
+      body.start_date = dateOnlyToISO(editForm.value.start_date)
     }
-    const currentDue = toDatetimeLocal(task.value.due_at)
+    const currentDue = toDateOnly(task.value.due_at)
     if (editForm.value.deadline !== currentDue && editForm.value.deadline) {
-      body.due_at = new Date(editForm.value.deadline).toISOString()
+      body.due_at = dateOnlyToISO(editForm.value.deadline)
     }
-    const currentEnd = toDatetimeLocal(task.value.end_date)
+    const currentEnd = toDateOnly(task.value.end_date)
     if (editForm.value.end_date !== currentEnd && editForm.value.end_date) {
-      body.end_date = new Date(editForm.value.end_date).toISOString()
+      body.end_date = dateOnlyToISO(editForm.value.end_date)
     }
     const currentEst = task.value.estimated_minutes ?? 0
     const newEst = effortHoursToMinutes(Number(editForm.value.estimated_hours) || 0)
@@ -2192,6 +2196,7 @@ onMounted(async () => {
   await fetchTask()
   fetchCommentsAndLogs()
   fetchDeploymentForTask()
+  fetchPrevNextOrdering()
 })
 </script>
 

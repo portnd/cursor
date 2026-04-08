@@ -412,17 +412,17 @@
             </div>
             <div>
               <label class="label">Due Date</label>
-              <input v-model="createTaskForm.due_date" type="datetime-local" class="input-field w-full" />
+              <input v-model="createTaskForm.due_date" type="date" class="input-field w-full" />
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="createTaskForm.start_date" type="datetime-local" class="input-field w-full" />
+              <input v-model="createTaskForm.start_date" type="date" class="input-field w-full" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="createTaskForm.end_date" type="datetime-local" class="input-field w-full" />
+              <input v-model="createTaskForm.end_date" type="date" class="input-field w-full" />
             </div>
           </div>
           <div v-if="createTaskError" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ createTaskError }}</div>
@@ -806,6 +806,7 @@ async function submitCreateTask() {
   isCreatingTask.value = true
   createTaskError.value = ''
   try {
+    const dateOnlyToISO = (ymd: string) => new Date(`${ymd}T00:00:00`).toISOString()
     const payload: any = {
       title: createTaskForm.value.title,
       description: createTaskForm.value.description,
@@ -815,9 +816,9 @@ async function submitCreateTask() {
       sprint_id: sprint.value.id,
       estimated_minutes: effortHoursToMinutes(Number(createTaskForm.value.estimated_hours) || 0),
     }
-    if (createTaskForm.value.due_date) payload.due_date = new Date(createTaskForm.value.due_date).toISOString()
-    if (createTaskForm.value.start_date) payload.start_date = new Date(createTaskForm.value.start_date).toISOString()
-    if (createTaskForm.value.end_date) payload.end_date = new Date(createTaskForm.value.end_date).toISOString()
+    if (createTaskForm.value.due_date) payload.due_date = dateOnlyToISO(createTaskForm.value.due_date)
+    if (createTaskForm.value.start_date) payload.start_date = dateOnlyToISO(createTaskForm.value.start_date)
+    if (createTaskForm.value.end_date) payload.end_date = dateOnlyToISO(createTaskForm.value.end_date)
     const task = await tasksApi.createTask(payload)
     allTasks.value.unshift(task)
     closeCreateTaskModal()

@@ -678,8 +678,8 @@
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Priority</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Epic</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Sprint</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Due date</div>
                       <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">Status</div>
-                      <div class="flex items-center justify-center w-min shrink-0"></div>
                     </div>
                     <template v-for="(task, taskIdx) in getTasksForEpic(ep.id)" :key="task.id">
                       <div
@@ -746,11 +746,47 @@
                           <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
                         </select>
                       </div>
+                      <div class="flex items-center min-w-0">
+                        <div v-if="dueDateEditingTaskId !== task.id" class="flex items-center gap-1 w-full min-w-0">
+                          <span
+                            class="text-xs truncate font-medium"
+                            :class="dueDateTextClass(task)"
+                            :title="task.due_at ? new Date(task.due_at).toLocaleString() : ''"
+                          >
+                            {{ formatDate(task.due_at) }}
+                          </span>
+                          <button
+                            type="button"
+                            class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                            @click.stop="openEditDueDate(task)"
+                            title="Edit due date"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                        <div v-else class="flex items-center gap-2 w-full min-w-0">
+                          <input
+                            type="date"
+                            v-model="dueDateEditingValue"
+                            class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                            :disabled="isSavingDueDate"
+                            @change="saveDueDateForEditingTask"
+                            @keydown.esc="cancelEditDueDate"
+                            @keydown.enter.prevent="saveDueDateForEditingTask"
+                          />
+                          <button
+                            type="button"
+                            @click.stop="cancelEditDueDate"
+                            class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
+                            :disabled="isSavingDueDate"
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
                       <div class="flex items-center shrink-0">
                         <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ') }}</span>
-                      </div>
-                      <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
-                        <button @click="openCreateTaskModal(task.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                       </div>
                     </div>
                     <!-- Sub-tasks B (inherit Epic from parent); C = sub-tasks of B -->
@@ -798,11 +834,47 @@
                           <div class="flex items-center justify-center min-w-0 w-full">
                             <span class="text-xs text-gray-500 italic">Inherits</span>
                           </div>
+                          <div class="flex items-center min-w-0">
+                            <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center gap-1 w-full min-w-0">
+                              <span
+                                class="text-xs truncate font-medium"
+                                :class="dueDateTextClass(sub)"
+                                :title="sub.due_at ? new Date(sub.due_at).toLocaleString() : ''"
+                              >
+                                {{ formatDate(sub.due_at) }}
+                              </span>
+                              <button
+                                type="button"
+                                class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                @click.stop="openEditDueDate(sub)"
+                                title="Edit due date"
+                              >
+                                ✎
+                              </button>
+                            </div>
+                            <div v-else class="flex items-center gap-2 w-full min-w-0">
+                              <input
+                                type="date"
+                                v-model="dueDateEditingValue"
+                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                                :disabled="isSavingDueDate"
+                                @change="saveDueDateForEditingTask"
+                                @keydown.esc="cancelEditDueDate"
+                                @keydown.enter.prevent="saveDueDateForEditingTask"
+                              />
+                              <button
+                                type="button"
+                                @click.stop="cancelEditDueDate"
+                                class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
+                                :disabled="isSavingDueDate"
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
                           <div class="flex items-center shrink-0">
                             <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ') }}</span>
-                          </div>
-                          <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
-                            <button type="button" @click.stop="openCreateTaskModal(sub.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                           </div>
                         </div>
                         <!-- Level C: sub-tasks of B -->
@@ -843,10 +915,48 @@
                             </div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                          <div class="flex items-center min-w-0">
+                            <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center gap-1 w-full min-w-0">
+                              <span
+                                class="text-xs truncate font-medium"
+                                :class="dueDateTextClass(subsub)"
+                                :title="subsub.due_at ? new Date(subsub.due_at).toLocaleString() : ''"
+                              >
+                                {{ formatDate(subsub.due_at) }}
+                              </span>
+                              <button
+                                type="button"
+                                class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                @click.stop="openEditDueDate(subsub)"
+                                title="Edit due date"
+                              >
+                                ✎
+                              </button>
+                            </div>
+                            <div v-else class="flex items-center gap-2 w-full min-w-0">
+                              <input
+                                type="date"
+                                v-model="dueDateEditingValue"
+                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                                :disabled="isSavingDueDate"
+                                @change="saveDueDateForEditingTask"
+                                @keydown.esc="cancelEditDueDate"
+                                @keydown.enter.prevent="saveDueDateForEditingTask"
+                              />
+                              <button
+                                type="button"
+                                @click.stop="cancelEditDueDate"
+                                class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
+                                :disabled="isSavingDueDate"
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
                             <div class="flex items-center shrink-0">
                               <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ subsub.status.replace('_',' ') }}</span>
                             </div>
-                            <div class="flex items-center w-min shrink-0"></div>
                           </div>
                         </template>
                       </template>
@@ -891,8 +1001,8 @@
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Priority</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Epic</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Sprint</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Due date</div>
                       <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">Status</div>
-                      <div class="flex items-center justify-center w-min shrink-0"></div>
                     </div>
                     <template v-for="(task, taskIdx) in getUnassignedTasks()" :key="task.id">
                       <div
@@ -959,11 +1069,47 @@
                             <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
                           </select>
                         </div>
+                        <div class="flex items-center min-w-0">
+                          <div v-if="dueDateEditingTaskId !== task.id" class="flex items-center gap-1 w-full min-w-0">
+                            <span
+                              class="text-xs truncate font-medium"
+                              :class="dueDateTextClass(task)"
+                              :title="task.due_at ? new Date(task.due_at).toLocaleString() : ''"
+                            >
+                              {{ formatDate(task.due_at) }}
+                            </span>
+                            <button
+                              type="button"
+                              class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                              @click.stop="openEditDueDate(task)"
+                              title="Edit due date"
+                            >
+                              ✎
+                            </button>
+                          </div>
+                          <div v-else class="flex items-center gap-2 w-full min-w-0">
+                            <input
+                              type="date"
+                              v-model="dueDateEditingValue"
+                              class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                              :disabled="isSavingDueDate"
+                              @change="saveDueDateForEditingTask"
+                              @keydown.esc="cancelEditDueDate"
+                              @keydown.enter.prevent="saveDueDateForEditingTask"
+                            />
+                            <button
+                              type="button"
+                              @click.stop="cancelEditDueDate"
+                              class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
+                              :disabled="isSavingDueDate"
+                              title="Cancel"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
                         <div class="flex items-center shrink-0">
                           <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ') }}</span>
-                        </div>
-                        <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
-                          <button @click="openCreateTaskModal(task.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                         </div>
                       </div>
                       <template v-if="expandedEpics[task.id]">
@@ -1006,11 +1152,47 @@
                             </div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                          <div class="flex items-center min-w-0">
+                            <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center gap-1 w-full min-w-0">
+                              <span
+                                class="text-xs truncate font-medium"
+                                :class="dueDateTextClass(sub)"
+                                :title="sub.due_at ? new Date(sub.due_at).toLocaleString() : ''"
+                              >
+                                {{ formatDate(sub.due_at) }}
+                              </span>
+                              <button
+                                type="button"
+                                class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                @click.stop="openEditDueDate(sub)"
+                                title="Edit due date"
+                              >
+                                ✎
+                              </button>
+                            </div>
+                            <div v-else class="flex items-center gap-2 w-full min-w-0">
+                              <input
+                                type="date"
+                                v-model="dueDateEditingValue"
+                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                                :disabled="isSavingDueDate"
+                                @change="saveDueDateForEditingTask"
+                                @keydown.esc="cancelEditDueDate"
+                                @keydown.enter.prevent="saveDueDateForEditingTask"
+                              />
+                              <button
+                                type="button"
+                                @click.stop="cancelEditDueDate"
+                                class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
+                                :disabled="isSavingDueDate"
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
                             <div class="flex items-center shrink-0">
                               <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ') }}</span>
-                            </div>
-                            <div class="flex items-center justify-start w-full min-w-0 shrink-0 opacity-0 group-hover:opacity-100">
-                              <button type="button" @click.stop="openCreateTaskModal(sub.id)" class="text-xs text-purple-400 hover:text-purple-300 shrink-0 py-0.5">+ Sub</button>
                             </div>
                           </div>
                           <!-- Level C: sub-tasks of B (Unassigned) -->
@@ -1051,10 +1233,48 @@
                               </div>
                               <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                               <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center min-w-0">
+                              <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center gap-1 w-full min-w-0">
+                                <span
+                                  class="text-xs truncate font-medium"
+                                  :class="dueDateTextClass(subsub)"
+                                  :title="subsub.due_at ? new Date(subsub.due_at).toLocaleString() : ''"
+                                >
+                                  {{ formatDate(subsub.due_at) }}
+                                </span>
+                                <button
+                                  type="button"
+                                  class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  @click.stop="openEditDueDate(subsub)"
+                                  title="Edit due date"
+                                >
+                                  ✎
+                                </button>
+                              </div>
+                              <div v-else class="flex items-center gap-2 w-full min-w-0">
+                                <input
+                                  type="date"
+                                  v-model="dueDateEditingValue"
+                                  class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                                  :disabled="isSavingDueDate"
+                                  @change="saveDueDateForEditingTask"
+                                  @keydown.esc="cancelEditDueDate"
+                                  @keydown.enter.prevent="saveDueDateForEditingTask"
+                                />
+                                <button
+                                  type="button"
+                                  @click.stop="cancelEditDueDate"
+                                  class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
+                                  :disabled="isSavingDueDate"
+                                  title="Cancel"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
                               <div class="flex items-center shrink-0">
                                 <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ subsub.status.replace('_',' ') }}</span>
                               </div>
-                              <div class="flex items-center w-min shrink-0"></div>
                             </div>
                           </template>
                         </template>
@@ -2233,7 +2453,7 @@
             </div>
             <div v-else-if="!createTaskForm.parent_id">
               <label class="label">Due Date</label>
-              <input v-model="createTaskForm.due_date" type="datetime-local" class="input-field w-full" />
+              <input v-model="createTaskForm.due_date" type="date" class="input-field w-full" />
             </div>
           </div>
           <!-- Dates: only shown for top-level tasks (not sub-tasks) -->
@@ -2241,17 +2461,17 @@
             <div v-if="epics.length" class="grid grid-cols-1 gap-4 sm:gap-5">
               <div>
                 <label class="label">Due Date</label>
-                <input v-model="createTaskForm.due_date" type="datetime-local" class="input-field w-full" />
+                <input v-model="createTaskForm.due_date" type="date" class="input-field w-full" />
               </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div>
                 <label class="label">Start Date</label>
-                <input v-model="createTaskForm.start_date" type="datetime-local" class="input-field w-full" />
+                <input v-model="createTaskForm.start_date" type="date" class="input-field w-full" />
               </div>
               <div>
                 <label class="label">End Date</label>
-                <input v-model="createTaskForm.end_date" type="datetime-local" class="input-field w-full" />
+                <input v-model="createTaskForm.end_date" type="date" class="input-field w-full" />
               </div>
             </div>
           </template>
@@ -3781,6 +4001,17 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function isTaskOverdue(task: Task) {
+  if (!task.due_at || task.status === 'COMPLETED') return false
+  return new Date(task.due_at).getTime() < Date.now()
+}
+
+function dueDateTextClass(task: Task) {
+  if (!task.due_at) return 'text-gray-500'
+  if (isTaskOverdue(task)) return 'text-red-300'
+  return 'text-gray-300'
+}
+
 /** Convert ISO date string (UTC) to "YYYY-MM-DDTHH:mm" in local time for datetime-local input */
 function isoToDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -3792,6 +4023,17 @@ function isoToDatetimeLocal(iso: string | null | undefined): string {
   const h = String(d.getHours()).padStart(2, '0')
   const min = String(d.getMinutes()).padStart(2, '0')
   return `${y}-${m}-${day}T${h}:${min}`
+}
+
+/** Convert ISO date string (UTC) to "YYYY-MM-DD" in local time for date input */
+function isoToDateOnly(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 
@@ -4131,6 +4373,50 @@ async function updateTaskField(taskId: string, field: string, value: any) {
     else if (field === 'epic_id') await loadEpicTimeline()
   } catch {
     await loadAll()
+  }
+}
+
+// Inline due_at editor (Backlog table)
+const dueDateEditingTaskId = ref<string | null>(null)
+const dueDateEditingValue = ref<string>('')
+const isSavingDueDate = ref(false)
+
+function openEditDueDate(task: Task) {
+  dueDateEditingTaskId.value = task.id
+  dueDateEditingValue.value = isoToDateOnly(task.due_at)
+}
+
+function cancelEditDueDate() {
+  dueDateEditingTaskId.value = null
+  dueDateEditingValue.value = ''
+}
+
+async function saveDueDateForEditingTask() {
+  const taskId = dueDateEditingTaskId.value
+  if (!taskId) return
+  const raw = dueDateEditingValue.value.trim()
+  if (!raw) {
+    // Avoid sending invalid payload; keep the user in edit mode until a value is picked.
+    return
+  }
+
+  // Date-only UX: persist due_at at local midnight of selected date.
+  const iso = new Date(`${raw}T00:00:00`).toISOString()
+  const idx = allTasks.value.findIndex((t) => t.id === taskId)
+  if (idx !== -1) allTasks.value[idx].due_at = iso
+
+  isSavingDueDate.value = true
+  try {
+    await tasksApi.updateTask(taskId, { due_at: iso } as any)
+    // Keep matrix/timeline in sync because due_at affects bars/overdue.
+    if (timelineMode.value === 'epic') await loadEpicTimeline()
+    else await loadSprintTimeline()
+    await loadGanttDataForProject()
+  } catch {
+    await loadAll()
+  } finally {
+    isSavingDueDate.value = false
+    cancelEditDueDate()
   }
 }
 
@@ -4539,6 +4825,7 @@ async function submitCreateTask() {
   isCreatingTask.value = true
   createTaskError.value = ''
   try {
+    const dateOnlyToISO = (ymd: string) => new Date(`${ymd}T00:00:00`).toISOString()
     const estMins = effortHoursToMinutes(Number(createTaskForm.value.estimated_hours) || 0)
     const payload: any = {
       title: createTaskForm.value.title,
@@ -4552,11 +4839,11 @@ async function submitCreateTask() {
     if (createTaskForm.value.parent_id) payload.parent_id = createTaskForm.value.parent_id
     if (createTaskForm.value.epic_id) payload.epic_id = createTaskForm.value.epic_id
     if (createTaskForm.value.sprint_id) payload.sprint_id = createTaskForm.value.sprint_id
-    if (createTaskForm.value.due_date) payload.due_date = new Date(createTaskForm.value.due_date).toISOString()
+    if (createTaskForm.value.due_date) payload.due_date = dateOnlyToISO(createTaskForm.value.due_date)
     // Sub-tasks inherit dates from parent — don't send dates when parent_id is set
     if (!createTaskForm.value.parent_id) {
-      if (createTaskForm.value.start_date) payload.start_date = new Date(createTaskForm.value.start_date).toISOString()
-      if (createTaskForm.value.end_date) payload.end_date = new Date(createTaskForm.value.end_date).toISOString()
+      if (createTaskForm.value.start_date) payload.start_date = dateOnlyToISO(createTaskForm.value.start_date)
+      if (createTaskForm.value.end_date) payload.end_date = dateOnlyToISO(createTaskForm.value.end_date)
     }
     const task = await tasksApi.createTask(payload)
     allTasks.value.unshift(task)
@@ -4963,7 +5250,7 @@ onBeforeUnmount(() => {
 /* ตาราง backlog: ใช้ grid คอลัมน์ชัดเจน (ไม่ใช้ subgrid) ให้ทุก browser แสดงตรงกัน */
 .backlog-table-grid {
   display: grid;
-  grid-template-columns: 2rem 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
+  grid-template-columns: 2rem 2.5rem 3.25rem minmax(14rem, 3.6fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) minmax(7.5rem, 1fr) 6.25rem;
   column-gap: 0.75rem;
   row-gap: 0;
   padding: 0;
@@ -4972,14 +5259,14 @@ onBeforeUnmount(() => {
 @media (min-width: 640px) {
   .backlog-table-grid {
     column-gap: 1rem;
-    grid-template-columns: 2rem 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
+    grid-template-columns: 2rem 2.5rem 3.5rem minmax(16rem, 4fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) minmax(8.25rem, 1fr) 6.75rem;
   }
 }
 /* แถวหัวตารางและแถวข้อมูลใช้ grid เดียวกับ parent (แต่ละแถวเป็น grid row ใน .backlog-table-grid) */
 .backlog-subgrid {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 2rem 2.5rem 3.25rem minmax(18rem, 4.5fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) 5.5rem 3.5rem;
+  grid-template-columns: 2rem 2.5rem 3.25rem minmax(14rem, 3.6fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) minmax(7.5rem, 1fr) 6.25rem;
   align-items: center;
   column-gap: 0.75rem;
   row-gap: 0;
@@ -4987,7 +5274,7 @@ onBeforeUnmount(() => {
 @media (min-width: 640px) {
   .backlog-subgrid {
     column-gap: 1rem;
-    grid-template-columns: 2rem 2.5rem 3.5rem minmax(20rem, 5fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) 6rem 3.5rem;
+    grid-template-columns: 2rem 2.5rem 3.5rem minmax(16rem, 4fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) minmax(8.25rem, 1fr) 6.75rem;
   }
 }
 /* เซลล์ทุกคอลัมน์: padding สม่ำเสมอ ให้ข้อมูลชิดกับ header และไม่ชิดขอบ */
@@ -5052,9 +5339,27 @@ onBeforeUnmount(() => {
 .backlog-sub-row > div:nth-child(8) {
   justify-content: center;
 }
-/* คอลัมน์ Status (คอลัมน์ที่ 9): จัด badge ตรงกลาง */
+/* คอลัมน์ Due date (คอลัมน์ที่ 9): จัดให้อยู่กึ่งกลางแบบสม่ำเสมอ */
 .backlog-subgrid > div:nth-child(9) {
   justify-content: center;
+  text-align: center;
+  padding-right: 0.75rem;
+}
+.backlog-subgrid > div:nth-child(9) > div {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.backlog-subgrid > div:nth-child(9) > div > span {
+  margin-left: auto;
+  margin-right: auto;
+}
+/* คอลัมน์ Status (คอลัมน์ที่ 10): จัด badge ตรงกลางและคุมระยะ */
+.backlog-subgrid > div:nth-child(10) {
+  justify-content: center;
+  padding-left: 0.125rem;
+  padding-right: 0.625rem;
 }
 /* หัวคอลัมน์ Task และ Epic อยู่ตรงกลาง (ต้องอยู่หลัง rule ทั่วไปเพื่อ override) */
 .backlog-table-header.backlog-subgrid > div:nth-child(4),
