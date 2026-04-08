@@ -195,7 +195,7 @@
             <NuxtLink
               v-for="project in teamProjects"
               :key="project.id"
-              :to="`/projects/${project.code || project.id}`"
+              :to="`/projects/${project.id}`"
               class="group rounded-2xl border border-gray-700/60 bg-gray-800/50 p-5 hover:border-violet-500/40 hover:bg-gray-800/80 transition-all"
             >
               <!-- Project header -->
@@ -272,7 +272,7 @@
           <NuxtLink
             v-for="project in teamProjects"
             :key="project.id"
-            :to="`/projects/${project.code || project.id}?tab=capital`"
+            :to="`/projects/${project.id}?tab=capital`"
             class="group rounded-2xl border border-gray-700/60 bg-gray-800/50 p-4 hover:border-indigo-500/40 hover:bg-gray-800/80 transition-all"
           >
             <div class="flex items-start justify-between mb-3">

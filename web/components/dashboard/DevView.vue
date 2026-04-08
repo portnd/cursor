@@ -127,7 +127,7 @@
               <span v-if="s.end_date" class="text-[10px] text-amber-400/90 mt-0.5 block">{{ getSprintCountdown(s.end_date) }}</span>
             </button>
             <NuxtLink
-              :to="`/projects/sprint/${s.id}?project=${encodeURIComponent(s.project_code || s.project_id)}`"
+              :to="`/projects/sprint/${s.id}?project=${encodeURIComponent(s.project_id)}`"
               class="shrink-0 flex items-center px-2.5 border-l border-gray-700/80 text-gray-500 hover:text-purple-300 hover:bg-gray-800/80 text-[10px] font-semibold uppercase tracking-wide"
               title="Open sprint in project"
             >

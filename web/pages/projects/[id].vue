@@ -2553,7 +2553,7 @@
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-400 mb-1.5">ชื่อโครงการ <span class="text-red-400">*</span></label>
-            <input v-model="editProjectForm.name" type="text" class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" placeholder="Project name (English only)" />
+            <input v-model="editProjectForm.name" type="text" class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" placeholder="Project name (รองรับภาษาไทย)" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-400 mb-1.5">คำอธิบาย</label>
@@ -2567,10 +2567,6 @@
               <option value="ON_HOLD">ON_HOLD</option>
             </select>
           </div>
-          <label class="flex items-start gap-2 cursor-pointer">
-            <input v-model="editProjectForm.update_code" type="checkbox" class="mt-1 rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500" />
-            <span class="text-sm text-gray-400">อัปเดตรหัสโครงการ (code) และรหัสงานทั้งหมดตามชื่อใหม่ — ลิงก์เดิม (เช่น /projects/รหัสเก่า) อาจใช้ไม่ได้</span>
-          </label>
           <div v-if="editProjectError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ editProjectError }}</div>
         </div>
         <div class="flex gap-3 mt-5">
@@ -4509,7 +4505,7 @@ async function duplicateTask(task: Task) {
 
 // Edit project modal
 const showEditProjectModal = ref(false)
-const editProjectForm = ref({ name: '', description: '', status: 'ACTIVE' as string, update_code: false })
+const editProjectForm = ref({ name: '', description: '', status: 'ACTIVE' as string })
 const editProjectError = ref('')
 const isSavingProject = ref(false)
 
@@ -4519,7 +4515,6 @@ function openEditProjectModal() {
     name: project.value.name,
     description: project.value.description || '',
     status: project.value.status || 'ACTIVE',
-    update_code: false,
   }
   editProjectError.value = ''
   showEditProjectModal.value = true
@@ -4540,15 +4535,9 @@ async function saveEditProject() {
       name: editProjectForm.value.name.trim(),
       description: editProjectForm.value.description,
       status: editProjectForm.value.status,
-      update_code: editProjectForm.value.update_code,
     })
     project.value = updated
-    if (editProjectForm.value.update_code) {
-      await loadAll()
-      if (updated.code && updated.code !== route.params.id) {
-        await router.replace(`/projects/${updated.code}`)
-      }
-    }
+    await loadAll()
     closeEditProjectModal()
   } catch (e: any) {
     editProjectError.value = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'บันทึกไม่สำเร็จ'

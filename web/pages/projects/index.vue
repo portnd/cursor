@@ -118,7 +118,7 @@
         v-for="project in filteredProjects"
         :key="project.id"
         class="project-card project-card-enterprise group block cursor-pointer"
-        @click="navigateTo(`/projects/${project.code || project.id}`)"
+        @click="navigateTo(`/projects/${project.id}`)"
       >
         <!-- Card Header -->
         <div class="flex items-start justify-between mb-4">
@@ -195,6 +195,21 @@
           <p class="text-[11px] text-gray-500 leading-snug">
             คลิกชื่อเพื่อเลือกหรือยกเลิก — เลือกได้หลายคนพร้อมกัน (คลิกชื่อที่เลือกอยู่แล้วจะถอนการเลือก)
           </p>
+          <div
+            v-if="pmOwnersAssignError"
+            class="flex items-start gap-2 rounded-lg border border-red-500/45 bg-red-950/40 px-3 py-2 text-xs text-red-100"
+            role="alert"
+          >
+            <span class="flex-1 leading-snug">{{ pmOwnersAssignError }}</span>
+            <button
+              type="button"
+              class="shrink-0 rounded p-0.5 text-red-400 hover:bg-red-900/50 hover:text-red-200"
+              aria-label="Dismiss error"
+              @click.stop="pmOwnersAssignError = ''"
+            >
+              ✕
+            </button>
+          </div>
           <div
             v-if="pmUserOptions.length === 0"
             class="text-xs text-amber-400/90"
@@ -298,12 +313,12 @@
             <input
               v-model="createForm.name"
               type="text"
-              placeholder="e.g. MIMS HDMap Main (English only)"
+              placeholder="e.g. MIMS HDMap Main หรือ โปรเจกต์หลัก"
               class="input-field w-full"
               @keyup.enter="createProject"
               :class="{ 'border-red-500': createError }"
             />
-            <p class="text-xs text-gray-500 mt-1">Use English letters, numbers, spaces, hyphens only.</p>
+            <p class="text-xs text-gray-500 mt-1">Use letters, numbers, spaces, hyphens, underscores (รองรับภาษาไทย)</p>
           </div>
           <div>
             <label class="block text-sm text-gray-400 mb-1.5">Description</label>
@@ -335,7 +350,7 @@
             <input
               v-model="importForm.name"
               type="text"
-              placeholder="ชื่อโครงการใหม่ (English only)"
+              placeholder="ชื่อโครงการใหม่ (รองรับภาษาไทย)"
               class="input-field w-full"
               :class="{ 'border-red-500': createError }"
             />
@@ -491,6 +506,7 @@ const isDeleting = ref(false)
 const deleteError = ref('')
 
 const pmUserOptions = ref<{ id: number; email: string; display_name?: string }[]>([])
+const pmOwnersAssignError = ref('')
 
 const totalProjects = computed(() => projects.value.length)
 const totalActive = computed(() => projects.value.filter((p) => p.status === 'ACTIVE').length)
@@ -566,16 +582,23 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-async function loadProjects() {
-  isLoading.value = true
-  error.value = ''
+async function loadProjects(opts?: { quiet?: boolean }) {
+  const quiet = !!opts?.quiet
+  if (!quiet) {
+    isLoading.value = true
+    error.value = ''
+  }
   try {
     const data = await fetchWithAuth<{ data: Project[] }>('/sentinel/projects')
     projects.value = data.data || []
   } catch (e: any) {
-    error.value = e.message || 'Failed to load projects'
+    if (!quiet) {
+      error.value = e.message || 'Failed to load projects'
+    }
   } finally {
-    isLoading.value = false
+    if (!quiet) {
+      isLoading.value = false
+    }
   }
 }
 
@@ -718,6 +741,19 @@ function isPmOwner(project: Project, userId: number): boolean {
   return !!project.pm_owners?.some((o) => o.user_id === userId)
 }
 
+function pmOwnersAssignErrorMessage(e: unknown): string {
+  const err = e as { data?: { message?: string; error?: string }; statusMessage?: string; message?: string }
+  const fromData = err?.data && typeof err.data === 'object'
+    ? (err.data.message || err.data.error)
+    : undefined
+  return (
+    (typeof fromData === 'string' && fromData) ||
+    err?.statusMessage ||
+    (typeof err?.message === 'string' && err.message) ||
+    'ไม่สามารถบันทึกการมอบหมาย Product Owner ได้'
+  )
+}
+
 /** Toggle one Product Owner; click again on the same name clears that selection. Multiple Product Owners can stay selected. */
 async function togglePmOwner(project: Project, userId: number, e: Event) {
   const checked = (e.target as HTMLInputElement).checked
@@ -731,6 +767,8 @@ async function togglePmOwner(project: Project, userId: number, e: Event) {
   const idx = projects.value.findIndex((p) => p.id === project.id)
   if (idx === -1) return
 
+  pmOwnersAssignError.value = ''
+
   const nextOwners = pmUserOptions.value
     .filter((u) => ids.includes(u.id))
     .map((u) => ({
@@ -743,8 +781,9 @@ async function togglePmOwner(project: Project, userId: number, e: Event) {
   try {
     const updated = await teamsApi.assignProjectPmOwners(project.id, ids)
     projects.value[idx] = { ...projects.value[idx], pm_owners: updated.pm_owners }
-  } catch {
-    await loadProjects()
+  } catch (err) {
+    pmOwnersAssignError.value = pmOwnersAssignErrorMessage(err)
+    await loadProjects({ quiet: true })
   }
 }
 

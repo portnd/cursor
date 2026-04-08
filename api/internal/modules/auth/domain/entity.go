@@ -9,13 +9,13 @@ import (
 
 // Team represents a squad/team that groups users and projects for data isolation
 type Team struct {
-	ID                uint      `json:"id" gorm:"primaryKey"`
-	Name              string    `json:"name" gorm:"type:varchar(100);uniqueIndex;not null"`
-	CapitalBalance    float64   `json:"capital_balance" gorm:"column:capital_balance;type:decimal(15,2);default:0"`
-	BonusPercentage   float64   `json:"bonus_percentage" gorm:"type:decimal(5,2);default:0"`
-	CreatedAt         time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt         time.Time `json:"updated_at" gorm:"autoUpdateTime"`
-	Users             []User    `json:"users,omitempty" gorm:"foreignKey:TeamID"`
+	ID              uint      `json:"id" gorm:"primaryKey"`
+	Name            string    `json:"name" gorm:"type:varchar(100);uniqueIndex;not null"`
+	CapitalBalance  float64   `json:"capital_balance" gorm:"column:capital_balance;type:decimal(15,2);default:0"`
+	BonusPercentage float64   `json:"bonus_percentage" gorm:"type:decimal(5,2);default:0"`
+	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	Users           []User    `json:"users,omitempty" gorm:"foreignKey:TeamID"`
 }
 
 func (Team) TableName() string { return "teams" }
@@ -44,13 +44,13 @@ func (TeamTransaction) TableName() string { return "team_transactions" }
 
 // TeamMonthlyCostResponse is the response DTO for CalculateTeamMonthlyCost
 type TeamMonthlyCostResponse struct {
-	TeamID            uint    `json:"team_id"`
-	MemberCost        float64 `json:"member_cost"`         // Σ salary+SS for all team members
-	SharedOverhead    float64 `json:"shared_overhead"`     // (ExecExp + CompanyExp + mgr/support salaries) / numTeams
-	TotalMonthlyCost  float64 `json:"total_monthly_cost"`
-	CapitalBalance    float64 `json:"capital_balance"`
-	BonusPercentage   float64 `json:"bonus_percentage"`
-	RunwayMonths      float64 `json:"runway_months"`       // CapitalBalance / TotalMonthlyCost
+	TeamID           uint    `json:"team_id"`
+	MemberCost       float64 `json:"member_cost"`     // Σ salary+SS for all team members
+	SharedOverhead   float64 `json:"shared_overhead"` // (ExecExp + CompanyExp + mgr/support salaries) / numTeams
+	TotalMonthlyCost float64 `json:"total_monthly_cost"`
+	CapitalBalance   float64 `json:"capital_balance"`
+	BonusPercentage  float64 `json:"bonus_percentage"`
+	RunwayMonths     float64 `json:"runway_months"` // CapitalBalance / TotalMonthlyCost
 }
 
 // InjectCapitalRequest is the DTO for injecting capital into a team
@@ -87,9 +87,9 @@ type User struct {
 
 	// Sentinel enhancements
 	Role        string         `json:"role" gorm:"type:varchar(20);not null;default:'ENGINEER'"` // CEO, MANAGER, PRODUCT_OWNER, ENGINEER, CHIEF_ENGINEER, SUPPORT
-	HealthScore float64        `json:"health_score" gorm:"type:decimal(5,2);default:100.00"` // Performance tracking (0-100)
-	TechStack   pq.StringArray `json:"tech_stack" gorm:"type:text[]"`                        // Array of technologies
-	DisplayName string         `json:"display_name" gorm:"type:varchar(100)"`                // Optional display name (enterprise profile)
+	HealthScore float64        `json:"health_score" gorm:"type:decimal(5,2);default:100.00"`     // Performance tracking (0-100)
+	TechStack   pq.StringArray `json:"tech_stack" gorm:"type:text[]"`                            // Array of technologies
+	DisplayName string         `json:"display_name" gorm:"type:varchar(100)"`                    // Optional display name (enterprise profile)
 
 	// Squad Model
 	TeamID *uint `json:"team_id" gorm:"index"` // nullable FK → teams
@@ -101,13 +101,25 @@ type User struct {
 
 // UserRole constants for type safety
 const (
-	RoleCEO     = "CEO"
-	RoleManager = "MANAGER"
+	RoleCEO          = "CEO"
+	RoleManager      = "MANAGER"
 	RoleProductOwner = "PRODUCT_OWNER"
+	// RolePMLegacy is a legacy DB value treated like PRODUCT_OWNER (JWT middleware normalizes PM → PRODUCT_OWNER for requests).
+	RolePMLegacy      = "PM"
 	RoleEngineer      = "ENGINEER"
 	RoleChiefEngineer = "CHIEF_ENGINEER"
 	RoleSupport       = "SUPPORT"
 )
+
+// IsProductOwnerAssignableRole reports whether the user may be saved as a project PM/Product Owner when squads are disabled.
+func IsProductOwnerAssignableRole(role string) bool {
+	switch strings.ToUpper(strings.TrimSpace(role)) {
+	case RoleProductOwner, RolePMLegacy:
+		return true
+	default:
+		return false
+	}
+}
 
 // IsEngineerRole reports whether the role should receive engineer-equivalent permissions and KPIs.
 func IsEngineerRole(role string) bool {
@@ -159,7 +171,7 @@ type CreateUserRequest struct {
 // Password is optional; if empty, a random temporary password is generated and returned.
 type ImportUserItem struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password"`                    // optional; min 8 if provided
+	Password string `json:"password"`                                                                                 // optional; min 8 if provided
 	Role     string `json:"role" binding:"omitempty,oneof=CEO MANAGER PRODUCT_OWNER ENGINEER CHIEF_ENGINEER SUPPORT"` // default ENGINEER
 }
 

@@ -15,6 +15,7 @@ import (
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type sentinelUsecase struct {
@@ -57,8 +58,8 @@ func (u *sentinelUsecase) withCallerScope(ctx domain.CallerContext) domain.Calle
 	return ctx
 }
 
-// projectNameEnglishOnly matches letters, digits, spaces, hyphens, underscores (English only)
-var projectNameEnglishOnly = regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
+// projectNameAllowedChars matches unicode letters/marks/digits, spaces, hyphens, underscores.
+var projectNameAllowedChars = regexp.MustCompile(`^[\p{L}\p{M}\p{N}\s\-_]+$`)
 
 func (u *sentinelUsecase) CreateProject(name, description, status string, ctx domain.CallerContext) (*domain.Project, error) {
 	ctx = u.withCallerScope(ctx)
@@ -66,8 +67,8 @@ func (u *sentinelUsecase) CreateProject(name, description, status string, ctx do
 	if name == "" {
 		return nil, errors.New("project name is required")
 	}
-	if !projectNameEnglishOnly.MatchString(name) {
-		return nil, errors.New("project name must be in English only (letters, numbers, spaces, hyphens)")
+	if !projectNameAllowedChars.MatchString(name) {
+		return nil, errors.New("project name contains invalid characters (allowed: letters, numbers, spaces, hyphens, underscores)")
 	}
 	if status == "" {
 		status = "ACTIVE"
@@ -75,7 +76,10 @@ func (u *sentinelUsecase) CreateProject(name, description, status string, ctx do
 	if status != "ACTIVE" && status != "COMPLETED" && status != "ON_HOLD" {
 		return nil, fmt.Errorf("invalid project status: %s (allowed: ACTIVE, COMPLETED, ON_HOLD)", status)
 	}
-	code := slugify(name)
+	code, err := u.generateUniqueProjectCode(slugify(name), uuid.Nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate project code: %w", err)
+	}
 	p := &domain.Project{
 		Code:        code,
 		Name:        name,
@@ -294,8 +298,8 @@ func (u *sentinelUsecase) AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs [
 		if err != nil || uu == nil {
 			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d not found", id)}
 		}
-		if uu.Role != authDomain.RoleProductOwner {
-			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d must have role PRODUCT_OWNER (current role: %s)", id, uu.Role)}
+		if !authDomain.IsProductOwnerAssignableRole(uu.Role) {
+			return nil, &domain.ErrBadRequest{Msg: fmt.Sprintf("user %d must have role PRODUCT_OWNER or PM (current role: %s)", id, uu.Role)}
 		}
 		clean = append(clean, id)
 	}
@@ -316,8 +320,8 @@ func (u *sentinelUsecase) UpdateProject(projectID uuid.UUID, name, description, 
 	if name == "" {
 		return nil, errors.New("project name is required")
 	}
-	if !projectNameEnglishOnly.MatchString(name) {
-		return nil, errors.New("project name must be in English only (letters, numbers, spaces, hyphens)")
+	if !projectNameAllowedChars.MatchString(name) {
+		return nil, errors.New("project name contains invalid characters (allowed: letters, numbers, spaces, hyphens, underscores)")
 	}
 	p.Name = name
 	p.Description = strings.TrimSpace(description)
@@ -328,7 +332,10 @@ func (u *sentinelUsecase) UpdateProject(projectID uuid.UUID, name, description, 
 		p.Status = status
 	}
 	if updateCode {
-		newCode := slugify(name)
+		newCode, err := u.generateUniqueProjectCode(slugify(name), p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate project code: %w", err)
+		}
 		if newCode != "" {
 			p.Code = newCode
 			// Update all task codes in this project to use the new prefix (globally unique suffixes).
@@ -365,6 +372,31 @@ func slugify(name string) string {
 		return "task"
 	}
 	return s
+}
+
+func (u *sentinelUsecase) generateUniqueProjectCode(base string, currentProjectID uuid.UUID) (string, error) {
+	candidate := strings.TrimSpace(base)
+	if candidate == "" {
+		candidate = "task"
+	}
+	lookupCtx := domain.CallerContext{Role: domain.RoleCEO}
+	for i := 0; i < 1000; i++ {
+		code := candidate
+		if i > 0 {
+			code = fmt.Sprintf("%s-%d", candidate, i+1)
+		}
+		existing, err := u.repo.GetProjectByCode(code, lookupCtx)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return code, nil
+			}
+			return "", err
+		}
+		if existing == nil || existing.ID == currentProjectID {
+			return code, nil
+		}
+	}
+	return "", errors.New("unable to allocate unique project code")
 }
 
 var validPriorities = map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}

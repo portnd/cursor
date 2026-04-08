@@ -27,7 +27,7 @@ func (h *SentinelHandler) CreateProject(c *gin.Context) {
 	}
 	project, err := h.usecase.CreateProject(req.Name, req.Description, status, callerCtx(c))
 	if err != nil {
-		if err.Error() == "project name is required" || err.Error() == "project name must be in English only (letters, numbers, spaces, hyphens)" || contains(err.Error(), "invalid project status") {
+		if err.Error() == "project name is required" || err.Error() == "project name contains invalid characters (allowed: letters, numbers, spaces, hyphens, underscores)" || contains(err.Error(), "invalid project status") {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "Bad Request",
 				"message": err.Error(),
@@ -188,7 +188,7 @@ func (h *SentinelHandler) UpdateProject(c *gin.Context) {
 	}
 	project, err := h.usecase.UpdateProject(existing.ID, req.Name, req.Description, status, req.UpdateCode)
 	if err != nil {
-		if err.Error() == "project name is required" || err.Error() == "project name must be in English only (letters, numbers, spaces, hyphens)" || contains(err.Error(), "invalid project status") {
+		if err.Error() == "project name is required" || err.Error() == "project name contains invalid characters (allowed: letters, numbers, spaces, hyphens, underscores)" || contains(err.Error(), "invalid project status") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
 			return
 		}
