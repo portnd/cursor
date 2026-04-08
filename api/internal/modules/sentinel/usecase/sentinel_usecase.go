@@ -2154,23 +2154,21 @@ func (u *sentinelUsecase) GetProjectAnalytics(projectID uuid.UUID) (*domain.Proj
 // --- Bulk Operations ---
 
 func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string) error {
+	if len(taskIDs) == 0 {
+		return errors.New("no tasks provided")
+	}
+
 	validStatuses := map[string]bool{
 		"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true,
-		"REVIEW_PENDING": true, "WAIT_FOR_DEPLOY": true, "BLOCKED": true,
-		// COMPLETED is intentionally excluded — use ApproveSubTask (CEO/MANAGER only)
+		"REVIEW_PENDING": true, "WAIT_FOR_DEPLOY": true, "BLOCKED": true, "COMPLETED": true,
+		// COMPLETED permission is enforced at handler level (CEO only)
 		// READY_FOR_UAT is intentionally excluded — set automatically on deployment
 	}
 	if !validStatuses[status] {
-		if status == "COMPLETED" {
-			return fmt.Errorf("cannot drag task to COMPLETED — use the CEO/MANAGER final approval action")
-		}
 		if status == "READY_FOR_UAT" {
 			return fmt.Errorf("READY_FOR_UAT is set automatically when the Chief Engineer marks the deployment as deployed")
 		}
 		return fmt.Errorf("invalid status: %s", status)
-	}
-	if len(taskIDs) == 0 {
-		return errors.New("no tasks provided")
 	}
 	return u.repo.BulkUpdateTaskStatus(taskIDs, status)
 }

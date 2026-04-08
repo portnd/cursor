@@ -703,6 +703,7 @@
                           title="ลากเพื่อเรียงลำดับ"
                           draggable="true"
                           @dragstart="onTaskDragStartSetData($event, task.id, ep.id)"
+                          @dragend="stopBacklogAutoScroll"
                         >⋮⋮</span>
                         <button type="button" @click="toggleEpic(task.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0">
                           {{ expandedEpics[task.id] ? '▼' : '▶' }}
@@ -1026,6 +1027,7 @@
                             title="ลากเพื่อเรียงลำดับ"
                             draggable="true"
                             @dragstart="onTaskDragStartSetData($event, task.id, null)"
+                            @dragend="stopBacklogAutoScroll"
                           >⋮⋮</span>
                           <button type="button" @click="toggleEpic(task.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0">
                             {{ expandedEpics[task.id] ? '▼' : '▶' }}
@@ -4346,7 +4348,7 @@ async function updateTaskField(taskId: string, field: string, value: any) {
         ? { epic_id: value ?? '' }
         : field === 'sprint_id'
           ? { sprint_id: value && String(value).trim() !== '' ? String(value) : '' }
-          : { [field]: value || undefined }
+          : { [field]: value ?? undefined }
     // When moving task to a sprint, clamp start/end to sprint range so the bar shows within the sprint
     if (field === 'sprint_id' && value && task) {
       let sprint = sprints.value.find((s) => s.id === value) ?? null
@@ -5104,6 +5106,57 @@ async function reorderTasksInBacklog(orderedTaskIds: string[]) {
 }
 
 const backlogDrag = ref<{ type: 'epic' | 'task'; id: string; epicId?: string | null } | null>(null)
+const BACKLOG_DRAG_EDGE_PX = 120
+const BACKLOG_DRAG_MAX_SCROLL_PX = 36
+let backlogAutoScrollRaf: number | null = null
+let backlogAutoScrollVelocity = 0
+
+function stopBacklogAutoScroll() {
+  backlogAutoScrollVelocity = 0
+  if (backlogAutoScrollRaf !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(backlogAutoScrollRaf)
+    backlogAutoScrollRaf = null
+  }
+}
+
+function runBacklogAutoScroll() {
+  if (typeof window === 'undefined') return
+  const main = getMainScrollEl()
+  if (!main || backlogAutoScrollVelocity === 0) {
+    backlogAutoScrollRaf = null
+    return
+  }
+  main.scrollTop += backlogAutoScrollVelocity
+  backlogAutoScrollRaf = window.requestAnimationFrame(runBacklogAutoScroll)
+}
+
+function updateBacklogAutoScroll(clientY: number) {
+  const main = getMainScrollEl()
+  if (!main) return
+  const rect = main.getBoundingClientRect()
+  if (!rect.height) return
+
+  const distTop = clientY - rect.top
+  const distBottom = rect.bottom - clientY
+  let nextVelocity = 0
+
+  if (distTop >= 0 && distTop < BACKLOG_DRAG_EDGE_PX) {
+    const ratio = (BACKLOG_DRAG_EDGE_PX - distTop) / BACKLOG_DRAG_EDGE_PX
+    nextVelocity = -Math.ceil(BACKLOG_DRAG_MAX_SCROLL_PX * ratio)
+  } else if (distBottom >= 0 && distBottom < BACKLOG_DRAG_EDGE_PX) {
+    const ratio = (BACKLOG_DRAG_EDGE_PX - distBottom) / BACKLOG_DRAG_EDGE_PX
+    nextVelocity = Math.ceil(BACKLOG_DRAG_MAX_SCROLL_PX * ratio)
+  }
+
+  backlogAutoScrollVelocity = nextVelocity
+  if (backlogAutoScrollVelocity === 0) {
+    stopBacklogAutoScroll()
+    return
+  }
+  if (backlogAutoScrollRaf === null && typeof window !== 'undefined') {
+    backlogAutoScrollRaf = window.requestAnimationFrame(runBacklogAutoScroll)
+  }
+}
 
 function onEpicDragStart(e: DragEvent, epicId: string) {
   backlogDrag.value = { type: 'epic', id: epicId }
@@ -5151,10 +5204,12 @@ function onTaskDragStartSetData(e: DragEvent, taskId: string, epicId: string | n
 function onTaskDragOver(e: DragEvent) {
   e.preventDefault()
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  updateBacklogAutoScroll(e.clientY)
 }
 
 function onTaskDrop(e: DragEvent, epicId: string | null, dropIndex: number) {
   e.preventDefault()
+  stopBacklogAutoScroll()
   let taskId: string | null = null
   let dragEpicId: string | null = null
   try {
@@ -5194,9 +5249,21 @@ watch(
 
 onMounted(loadAll)
 onBeforeUnmount(() => {
+  stopBacklogAutoScroll()
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('dragend', stopBacklogAutoScroll)
+    window.removeEventListener('drop', stopBacklogAutoScroll)
+  }
   if (backlogAutoLoadObserver) {
     backlogAutoLoadObserver.disconnect()
     backlogAutoLoadObserver = null
+  }
+})
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('dragend', stopBacklogAutoScroll)
+    window.addEventListener('drop', stopBacklogAutoScroll)
   }
 })
 </script>

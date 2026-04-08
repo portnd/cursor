@@ -153,11 +153,29 @@ function useTasksApi() {
     status: string
     estimated_minutes: number
   }>): Promise<Task> {
-    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${id}`, {
-      method: 'PATCH',
-      body: payload,
-    })
-    return data.data
+    const { status, ...patchPayload } = payload
+    const sanitizedPatchPayload = Object.fromEntries(
+      Object.entries(patchPayload).filter(([, value]) => typeof value !== 'undefined'),
+    )
+    const hasPatchFields = Object.keys(sanitizedPatchPayload).length > 0
+    const hasStatus = typeof status === 'string' && status.trim() !== ''
+
+    if (hasPatchFields) {
+      await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${id}`, {
+        method: 'PATCH',
+        body: sanitizedPatchPayload,
+      })
+    }
+
+    if (hasStatus) {
+      await bulkUpdateStatus([id], status)
+    }
+
+    if (!hasPatchFields && !hasStatus) {
+      throw new Error('No valid fields to update')
+    }
+
+    return getTask(id)
   }
 
   async function updateTaskSlideResources(id: string, resourceUrls: Record<string, unknown>): Promise<Task> {

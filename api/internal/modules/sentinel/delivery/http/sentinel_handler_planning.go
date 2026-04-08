@@ -616,8 +616,26 @@ func (h *SentinelHandler) BulkUpdateTaskStatus(c *gin.Context) {
 		}
 		taskIDs = append(taskIDs, tid)
 	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	normalizedRole := strings.ToUpper(strings.TrimSpace(userRole))
+	if req.Status == "COMPLETED" && normalizedRole != "CEO" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "cannot drag task to COMPLETED — only CEO can perform final approval"})
+		return
+	}
 	if err := h.usecase.BulkUpdateTaskStatus(taskIDs, req.Status); err != nil {
 		if contains(err.Error(), "invalid status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "cannot drag task to COMPLETED") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "READY_FOR_UAT") || contains(err.Error(), "no tasks provided") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
 			return
 		}

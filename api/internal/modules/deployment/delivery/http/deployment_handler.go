@@ -150,6 +150,11 @@ func (h *deploymentHandler) getByTaskID(c *gin.Context) {
 	taskIDStr := c.Param("task_id")
 	result, err := h.uc.GetRequestByTaskID(callerID, callerRole, taskIDStr)
 	if err != nil {
+		if err == domain.ErrNotFound {
+			// Missing deployment request for a task is an expected empty state.
+			c.JSON(http.StatusOK, nil)
+			return
+		}
 		respondErr(c, err)
 		return
 	}
