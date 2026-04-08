@@ -72,6 +72,16 @@
 
           <template v-if="canEditOrDelete">
             <button
+              v-if="showCEOQuickFinishAction"
+              type="button"
+              :disabled="ceoQuickFinishSubmitting"
+              @click="markTaskFinishedByCEO"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400/60 transition-colors disabled:opacity-50"
+            >
+              <span>✅</span>
+              {{ ceoQuickFinishSubmitting ? 'Finishing…' : 'Finished' }}
+            </button>
+            <button
               @click="openEditModal"
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors border border-gray-600 hover:border-gray-500"
             >
@@ -1289,12 +1299,20 @@ const canManageSubtasks = computed(() => canEditOrDelete.value || isCurrentUserA
 const canEditDescription = computed(() => canEditOrDelete.value || isCurrentUserAssignee.value)
 
 const currentRole = computed(() => (effectiveUser.value?.role || '').trim().toUpperCase())
+const ceoQuickFinishSubmitting = ref(false)
 
 const canClaimTask = computed(() => {
   if (!task.value || !effectiveUser.value) return false
   if (task.value.assigned_to != null) return false
   const role = currentRole.value
   return role === 'ENGINEER' || role === 'CHIEF_ENGINEER' || role === 'CHIEF'
+})
+
+const showCEOQuickFinishAction = computed(() => {
+  if (!task.value) return false
+  const role = currentRole.value
+  if (role !== 'CEO' && role !== 'MANAGER') return false
+  return task.value.status !== 'COMPLETED'
 })
 
 /** Product Owner / MANAGER step: task is READY_FOR_TEST and viewer is Product Owner or MANAGER */
@@ -1573,6 +1591,21 @@ async function claimTask() {
     showError(assignError.value)
   } finally {
     assignLoading.value = false
+  }
+}
+
+async function markTaskFinishedByCEO() {
+  if (!task.value || ceoQuickFinishSubmitting.value || !showCEOQuickFinishAction.value) return
+
+  ceoQuickFinishSubmitting.value = true
+  try {
+    await tasksApi.updateTask(task.value.id, { status: 'COMPLETED' })
+    showSuccess('Task marked as done.', 'Done ✅')
+    await fetchTask()
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to mark task as done')
+  } finally {
+    ceoQuickFinishSubmitting.value = false
   }
 }
 

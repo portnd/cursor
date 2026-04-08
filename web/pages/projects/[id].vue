@@ -5084,12 +5084,20 @@ async function reorderEpics(newOrder: Epic[]) {
 }
 
 async function reorderTasksInBacklog(orderedTaskIds: string[]) {
+  const changedUpdates: Array<{ id: string; sort_order: number }> = []
+  for (let i = 0; i < orderedTaskIds.length; i++) {
+    const t = allTasks.value.find((x) => x.id === orderedTaskIds[i]) as (Task & { sort_order?: number }) | undefined
+    if (!t) continue
+    if ((t.sort_order ?? 0) === i) continue
+    // Optimistic update: reflect new order in UI immediately.
+    t.sort_order = i
+    changedUpdates.push({ id: orderedTaskIds[i], sort_order: i })
+  }
+
+  if (!changedUpdates.length) return
+
   try {
-    for (let i = 0; i < orderedTaskIds.length; i++) {
-      await tasksApi.updateTask(orderedTaskIds[i], { sort_order: i })
-      const t = allTasks.value.find((x) => x.id === orderedTaskIds[i])
-      if (t) (t as Task & { sort_order: number }).sort_order = i
-    }
+    await Promise.all(changedUpdates.map((u) => tasksApi.updateTask(u.id, { sort_order: u.sort_order })))
   } catch {
     await loadAll()
   }
