@@ -44,9 +44,9 @@ export function backlogSprintOrderIndex(task: Pick<BacklogTaskLike, 'sprint_id'>
 }
 
 export function sortBacklogTasks<T extends BacklogTaskLike>(tasks: T[], sprintOrderIds: string[]): T[] {
+  void sprintOrderIds
   return [...tasks].sort(
     (a, b) =>
-      backlogSprintOrderIndex(a, sprintOrderIds) - backlogSprintOrderIndex(b, sprintOrderIds) ||
       (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   )
