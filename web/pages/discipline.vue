@@ -21,23 +21,9 @@
         </div>
         <!-- Date range picker -->
         <div class="flex items-center gap-3 flex-wrap">
-          <div class="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
-            <span class="text-xs text-gray-400 shrink-0">จาก</span>
-            <input
-              v-model="fromDate"
-              type="date"
-              class="bg-transparent text-white text-sm focus:outline-none"
-            />
-          </div>
+          <UiDatePicker v-model="fromDate" placeholder="จาก…" />
           <span class="text-gray-500">→</span>
-          <div class="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
-            <span class="text-xs text-gray-400 shrink-0">ถึง</span>
-            <input
-              v-model="toDate"
-              type="date"
-              class="bg-transparent text-white text-sm focus:outline-none"
-            />
-          </div>
+          <UiDatePicker v-model="toDate" placeholder="ถึง…" />
           <!-- Quick presets -->
           <div class="flex gap-1">
             <button
@@ -81,18 +67,14 @@
     <!-- Data loaded -->
     <template v-else-if="store.discipline">
       <!-- Summary cards -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
           <div class="text-xs text-gray-400 mb-1">พนักงานทั้งหมด</div>
           <div class="text-3xl font-bold text-white">{{ store.discipline.users.length }}</div>
         </div>
         <div class="bg-gray-800 border border-emerald-700/50 rounded-xl p-4">
-          <div class="text-xs text-gray-400 mb-1">Tasks ปิดรวม</div>
+          <div class="text-xs text-gray-400 mb-1">Job Done รวม</div>
           <div class="text-3xl font-bold text-emerald-400">{{ totalTasksClosed }}</div>
-        </div>
-        <div class="bg-gray-800 border border-orange-700/50 rounded-xl p-4">
-          <div class="text-xs text-gray-400 mb-1">🚀 Deploy รวม</div>
-          <div class="text-3xl font-bold text-orange-400">{{ totalDeployments }}</div>
         </div>
         <div class="bg-gray-800 border border-red-700/50 rounded-xl p-4">
           <div class="text-xs text-gray-400 mb-1">Rework รวม</div>
@@ -117,8 +99,7 @@
 
       <!-- Legend -->
       <div class="flex flex-wrap gap-4 mb-4 text-xs text-gray-400">
-        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-emerald-600 inline-block"></span>Tasks ปิด</div>
-        <div class="flex items-center gap-1.5"><span class="text-orange-400 text-xs">🚀</span>Deploy (Chief Eng.)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-emerald-600 inline-block"></span>Job Done</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-red-600 inline-block"></span>Rework</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-blue-600 inline-block"></span>Hours logged</div>
         <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-violet-600 inline-block"></span>Daily Pulse ✓</div>
@@ -158,15 +139,22 @@
               :class="idx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-900/60'"
             >
               <!-- User info -->
-              <td class="sticky left-0 z-10 px-4 py-3 border-r border-gray-700 bg-inherit">
-                <div class="flex items-center gap-2">
-                  <div
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                    :style="{ background: avatarColor(user.user_email) }"
-                  >
-                    {{ userInitial(user) }}
+              <td class="sticky left-0 z-10 pl-2 pr-3 py-0 border-r border-gray-700 bg-inherit w-[245px] min-w-[245px] max-w-[245px]">
+                <div class="flex items-center gap-3">
+                  <div class="w-16 h-16 rounded-full shrink-0 overflow-hidden">
+                    <img
+                      v-if="user.user_avatar_url"
+                      :src="user.user_avatar_url"
+                      :alt="user.user_display_name || user.user_email"
+                      class="w-full h-full object-cover"
+                    />
+                    <div
+                      v-else
+                      class="w-full h-full flex items-center justify-center text-lg font-bold text-white"
+                      :style="{ background: avatarColor(user.user_email) }"
+                    >{{ userInitial(user) }}</div>
                   </div>
-                  <div class="min-w-0">
+                  <div class="min-w-0 overflow-hidden">
                     <div class="text-white font-medium truncate text-xs">
                       {{ user.user_display_name || user.user_email.split('@')[0] }}
                     </div>
@@ -183,7 +171,7 @@
               <td class="px-3 py-3 border-r border-gray-700 text-center">
                 <div class="space-y-1">
                   <div class="flex items-center justify-between gap-2 text-xs">
-                    <span class="text-gray-500">Tasks</span>
+                    <span class="text-gray-500">Job Done</span>
                     <span class="font-bold text-emerald-400">{{ user.total_tasks_closed }}</span>
                   </div>
                   <div v-if="(user.total_deployments ?? 0) > 0" class="flex items-center justify-between gap-2 text-xs">
@@ -295,11 +283,18 @@
             :class="userCardBorderClass(user)"
           >
             <div class="flex items-center gap-3 mb-3">
-              <div
-                class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                :style="{ background: avatarColor(user.user_email) }"
-              >
-                {{ userInitial(user) }}
+              <div class="w-16 h-16 rounded-full shrink-0 overflow-hidden">
+                <img
+                  v-if="user.user_avatar_url"
+                  :src="user.user_avatar_url"
+                  :alt="user.user_display_name || user.user_email"
+                  class="w-full h-full object-cover"
+                />
+                <div
+                  v-else
+                  class="w-full h-full flex items-center justify-center text-lg font-bold text-white"
+                  :style="{ background: avatarColor(user.user_email) }"
+                >{{ userInitial(user) }}</div>
               </div>
               <div class="min-w-0">
                 <div class="text-white font-semibold text-sm truncate">
@@ -310,7 +305,7 @@
             </div>
             <div class="gap-2 text-xs" :class="(user.total_deployments ?? 0) > 0 ? 'grid grid-cols-2' : 'grid grid-cols-2'">
               <div class="bg-gray-900/60 rounded-lg p-2 text-center">
-                <div class="text-gray-400 mb-0.5">Tasks</div>
+                <div class="text-gray-400 mb-0.5">Job Done</div>
                 <div class="text-xl font-bold text-emerald-400">{{ user.total_tasks_closed }}</div>
               </div>
               <div class="bg-gray-900/60 rounded-lg p-2 text-center">

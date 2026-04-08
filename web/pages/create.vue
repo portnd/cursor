@@ -71,11 +71,20 @@
 
           <!-- Project -->
           <div>
-            <label class="label">Project</label>
-            <select v-model="form.project_id" @change="onProjectChange" class="input-field w-full">
-              <option value="">— No project —</option>
+            <label class="label">Project *</label>
+            <select
+              v-model="form.project_id"
+              @change="onProjectChange"
+              class="input-field w-full"
+              :class="projectFieldError ? 'border-amber-600 ring-1 ring-amber-600/40' : ''"
+              required
+            >
+              <option value="" disabled>Select a project or Komgrip</option>
+              <option value="__komgrip__">📋 Komgrip (ไม่อยู่ในโครงการ)</option>
               <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
+            <p v-if="form.project_id === '__komgrip__'" class="text-sm text-violet-400 mt-2">งานนี้จะถูกสร้างใน Komgrip — ไม่ผูกกับโครงการใด สถานะมีแค่ Pending / Done</p>
+            <p v-if="projectFieldError" class="text-sm text-amber-400 mt-2">{{ projectFieldError }}</p>
           </div>
 
           <!-- Estimated Effort -->
@@ -114,8 +123,8 @@
             </div>
           </div>
 
-          <!-- Sprint (only when project is selected) -->
-          <div v-if="form.project_id && sprints.length">
+          <!-- Sprint (only when project is selected and not Komgrip) -->
+          <div v-if="form.project_id && form.project_id !== '__komgrip__' && sprints.length">
             <label class="label">Sprint</label>
             <select v-model="form.sprint_id" class="input-field w-full">
               <option value="">Backlog</option>
@@ -123,8 +132,8 @@
             </select>
           </div>
 
-          <!-- Epic (only when project is selected) -->
-          <div v-if="form.project_id && epics.length">
+          <!-- Epic (only when project is selected and not Komgrip) -->
+          <div v-if="form.project_id && form.project_id !== '__komgrip__' && epics.length">
             <label class="label">Epic</label>
             <select v-model="form.epic_id" class="input-field w-full">
               <option value="">No Epic</option>
@@ -135,18 +144,18 @@
           <!-- Due Date -->
           <div>
             <label class="label">Due Date</label>
-            <input v-model="form.due_date" type="date" class="input-field w-full" />
+            <UiDatePicker v-model="form.due_date" placeholder="Select due date…" />
           </div>
 
           <!-- Start / End Dates -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="form.start_date" type="date" class="input-field w-full" />
+              <UiDatePicker v-model="form.start_date" placeholder="Select start date…" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="form.end_date" type="date" class="input-field w-full" />
+              <UiDatePicker v-model="form.end_date" placeholder="Select end date…" />
             </div>
           </div>
 
@@ -156,7 +165,7 @@
         <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 p-6 md:p-8 pt-4 border-t border-gray-700">
           <button
             @click="handleSubmit"
-            :disabled="isSubmitting || !form.title.trim()"
+            :disabled="isSubmitting || !form.title.trim() || !canSubmitProject"
             class="btn-primary-enterprise flex-1 disabled:opacity-40 text-white font-semibold rounded-xl py-4 md:py-4 text-base md:text-lg transition-all flex items-center justify-center gap-2 min-h-[3.25rem]"
           >
             <svg v-if="isSubmitting" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -173,6 +182,8 @@
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { effortHoursToMinutes } from '~/utils/effortHours'
+
+const KOMGRIP_VALUE = '__komgrip__'
 
 definePageMeta({
   layout: 'default',
@@ -195,6 +206,11 @@ const epics    = ref<EpicItem[]>([])
 const isSubmitting   = ref(false)
 const showSuccessMsg = ref(false)
 const errorMessage   = ref('')
+const projectFieldError = ref('')
+
+const canSubmitProject = computed(() => {
+  return Boolean(form.value.project_id?.trim())
+})
 
 const form = ref({
   task_type:         'TASK',
@@ -240,11 +256,29 @@ async function onProjectChange() {
 
 async function handleSubmit() {
   if (!form.value.title.trim()) return
+  projectFieldError.value = ''
+  if (!form.value.project_id?.trim()) {
+    projectFieldError.value = 'กรุณาเลือกโครงการหรือ Komgrip'
+    return
+  }
   isSubmitting.value  = true
   errorMessage.value  = ''
   showSuccessMsg.value = false
 
   try {
+    if (form.value.project_id === KOMGRIP_VALUE) {
+      await tasksApi.createKomgripTask({
+        title:             form.value.title,
+        description:       form.value.description,
+        priority:          form.value.priority,
+        estimated_minutes: effortHoursToMinutes(Number(form.value.estimated_hours) || 0),
+      })
+      showSuccessMsg.value = true
+      showSuccess('Komgrip task created!', 'Done')
+      setTimeout(() => router.push('/komgrip'), 1200)
+      return
+    }
+
     const dateOnlyToISO = (ymd: string) => new Date(`${ymd}T00:00:00`).toISOString()
     const payload: any = {
       title:             form.value.title,
@@ -254,7 +288,7 @@ async function handleSubmit() {
       story_points:      form.value.story_points,
       estimated_minutes: form.value.task_type === 'FEATURE' ? 0 : effortHoursToMinutes(Number(form.value.estimated_hours) || 0),
     }
-    if (form.value.project_id)  payload.project_id  = form.value.project_id
+    payload.project_id = form.value.project_id
     if (form.value.sprint_id)   payload.sprint_id   = form.value.sprint_id
     if (form.value.epic_id)     payload.epic_id     = form.value.epic_id
     if (form.value.due_date)    payload.due_date    = dateOnlyToISO(form.value.due_date)
@@ -265,11 +299,7 @@ async function handleSubmit() {
     showSuccessMsg.value = true
     showSuccess('Task created successfully!', 'Done')
     setTimeout(() => {
-      if (form.value.project_id) {
-        router.push(`/projects/${form.value.project_id}?tab=backlog`)
-      } else {
-        router.push('/dashboard')
-      }
+      router.push(`/projects/${form.value.project_id}?tab=backlog`)
     }, 1200)
   } catch (err: any) {
     errorMessage.value = err?.data?.message ?? err?.message ?? 'Failed to create task.'

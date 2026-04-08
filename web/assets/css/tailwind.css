@@ -1,19 +1,2103 @@
 @tailwind base;
-@tailwind components;
 @tailwind utilities;
+@tailwind components;
 
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║  SENTINEL — "INDIGO CANVAS" DESIGN SYSTEM  v4.0                    ║
+   ╠══════════════════════════════════════════════════════════════════════╣
+   ║  A deliberate, premium light mode with deep indigo DNA.             ║
+   ║  NOT a gray inversion of dark mode — a completely new visual voice. ║
+   ╠══════════════════════════════════════════════════════════════════════╣
+   ║  LIGHT — "Indigo Canvas"                                            ║
+   ║  ┌────────────────────────────────────────────────────────────────┐ ║
+   ║  │ CANVAS   #F5F4FB  soft violet — unique, unmistakably Sentinel  │ ║
+   ║  │ SIDEBAR  #ECEAF7  richer violet wash for navigation panel      │ ║
+   ║  │ SURFACE  #FFFFFF  pure white paper — crisp cards               │ ║
+   ║  │ HOVER    #FDFCFF  barely-there tint on hover                   │ ║
+   ║  │ INSET    #EAE8F4  sunken areas, code blocks, tags              │ ║
+   ║  ├────────────────────────────────────────────────────────────────┤ ║
+   ║  │ TEXT-INK  #110C2A  near-black, deeply indigo (not pure black)  │ ║
+   ║  │ TEXT-BODY #2B2353  rich indigo-violet for body copy            │ ║
+   ║  │ TEXT-SEC  #5C5580  muted violet-slate for secondary labels     │ ║
+   ║  │ TEXT-MUTE #928DB5  light violet-gray for captions, meta        │ ║
+   ║  │ TEXT-GHOST#BDB9D8  very light for placeholder text             │ ║
+   ║  ├────────────────────────────────────────────────────────────────┤ ║
+   ║  │ BORDER   rgba(17,12,42,.09)   default violet-tinted border     │ ║
+   ║  │ BORDER-EM rgba(17,12,42,.16) emphasized border                 │ ║
+   ║  │ BORDER-STR rgba(17,12,42,.24) strong border for card edges     │ ║
+   ║  │ FOCUS    #6D28D9              violet focus ring                 │ ║
+   ║  ├────────────────────────────────────────────────────────────────┤ ║
+   ║  │ SHADOW-sm  0 1px 3px rgba(17,12,42,.07)                        │ ║
+   ║  │ SHADOW-md  0 4px 16px rgba(17,12,42,.10)                       │ ║
+   ║  │ SHADOW-lg  0 16px 48px rgba(17,12,42,.14)                      │ ║
+   ║  └────────────────────────────────────────────────────────────────┘ ║
+   ║  DARK — Original navy command-center (unchanged)                    ║
+   ╚══════════════════════════════════════════════════════════════════════╝
+
+   OVERRIDE RULES:
+   ① .text-white globally → TEXT-BODY color in light mode
+   ② White text RESTORED on colored-bg elements (gradient btns, badges)
+   ③ backdrop-filter DISABLED in light mode (causes dark bleed)
+   ④ ALL scoped-CSS custom class names explicitly targeted
+   ⑤ html:not(.dark) .class = (0,2,1) > Vue scoped [data-v-xxx] = (0,2,0)
+*/
+
+/* ── FOUC prevention ── */
 @layer base {
-  /* ป้องกัน white flash ตอน refresh – พื้นหลังเข้มตั้งแต่โหลด */
-  html,
-  body,
-  #__nuxt,
-  #__nuxt > div {
-    background-color: #111827 !important;
-    margin: 0;
-    min-height: 100%;
-  }
-  #__nuxt,
-  #__nuxt > div {
-    min-height: 100vh;
-  }
+  html             { background-color: #070b17; }
+  html.light       { background-color: #F5F4FB; color: #110C2A; }
+  html, body, #__nuxt, #__nuxt > div { margin: 0; min-height: 100%; }
+  #__nuxt, #__nuxt > div { min-height: 100vh; }
+}
+
+/* ── CSS Custom Properties ── */
+:root {
+  --s-canvas:       #F5F4FB;
+  --s-surface:      #FFFFFF;
+  --s-hover:        #FDFCFF;
+  --s-inset:        #EAE8F4;
+  --s-sidebar:      #ECEAF7;
+
+  --s-text:         #110C2A;
+  --s-text-2:       #2B2353;
+  --s-text-3:       #5C5580;
+  --s-text-4:       #928DB5;
+  --s-text-5:       #BDB9D8;
+
+  --s-border:       rgba(17,12,42,.09);
+  --s-border-em:    rgba(17,12,42,.16);
+  --s-border-str:   rgba(17,12,42,.24);
+  --s-focus:        #6D28D9;
+
+  --s-shadow-sm:    0 1px 3px rgba(17,12,42,.07), 0 1px 2px rgba(17,12,42,.05);
+  --s-shadow-md:    0 4px 16px rgba(17,12,42,.10), 0 2px 6px rgba(17,12,42,.06);
+  --s-shadow-lg:    0 16px 48px rgba(17,12,42,.14), 0 4px 16px rgba(17,12,42,.08);
+  --s-shadow-xl:    0 32px 80px rgba(17,12,42,.18), 0 8px 24px rgba(17,12,42,.10);
+}
+
+html.dark {
+  --s-canvas:       #070b17;
+  --s-surface:      #0d1425;
+  --s-hover:        #111827;
+  --s-inset:        #1a2235;
+  --s-sidebar:      rgba(15,23,42,.85);
+
+  --s-text:         #F1F5F9;
+  --s-text-2:       #CBD5E1;
+  --s-text-3:       #94A3B8;
+  --s-text-4:       #64748B;
+  --s-text-5:       #475569;
+
+  --s-border:       rgba(255,255,255,.08);
+  --s-border-em:    rgba(255,255,255,.14);
+  --s-border-str:   rgba(255,255,255,.22);
+  --s-focus:        #8B5CF6;
+
+  --s-shadow-sm:    0 1px 3px rgba(0,0,0,.30);
+  --s-shadow-md:    0 4px 16px rgba(0,0,0,.40);
+  --s-shadow-lg:    0 24px 56px rgba(0,0,0,.60);
+  --s-shadow-xl:    0 48px 100px rgba(0,0,0,.70);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   LIGHT MODE OVERRIDE MAP
+   Specificity of html:not(.dark) .class = (0,2,1)
+   Beats Vue scoped CSS: .class[data-v-xxx] = (0,2,0)
+   All !important overrides beat non-!important scoped compiled rules.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 1. TAILWIND UTILITY CLASS OVERRIDES — BACKGROUNDS
+   ───────────────────────────────────────────────────────────────────── */
+
+/* gray-* */
+html:not(.dark) .bg-gray-950   { background-color: #EAE8F4 !important; }
+html:not(.dark) .bg-gray-900   { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-gray-800   { background-color: #FFFFFF !important; }
+/* bg-gray-700: used as button bg, progress track, mini-card bg
+   → subtle tint so it's actually VISIBLE on white surfaces */
+html:not(.dark) .bg-gray-700   { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .bg-gray-600   { background-color: rgba(17,12,42,.10) !important; }
+
+/* slate-* */
+html:not(.dark) .bg-slate-950  { background-color: #EAE8F4 !important; }
+html:not(.dark) .bg-slate-900  { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-slate-800  { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-700  { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .bg-slate-600  { background-color: rgba(17,12,42,.10) !important; }
+
+/* zinc / neutral */
+html:not(.dark) .bg-zinc-900   { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-zinc-800   { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-neutral-900 { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-neutral-800 { background-color: #FFFFFF !important; }
+
+/* ── Opacity variants — bg-gray-* ── */
+html:not(.dark) .bg-gray-900\/95  { background-color: rgba(245,244,251,.98) !important; }
+html:not(.dark) .bg-gray-900\/90  { background-color: rgba(245,244,251,.96) !important; }
+html:not(.dark) .bg-gray-900\/80  { background-color: rgba(245,244,251,.93) !important; }
+html:not(.dark) .bg-gray-900\/70  { background-color: rgba(245,244,251,.90) !important; }
+html:not(.dark) .bg-gray-900\/60  { background-color: rgba(245,244,251,.88) !important; }
+html:not(.dark) .bg-gray-900\/50  { background-color: rgba(245,244,251,.84) !important; }
+html:not(.dark) .bg-gray-900\/40  { background-color: rgba(245,244,251,.76) !important; }
+html:not(.dark) .bg-gray-900\/30  { background-color: rgba(245,244,251,.65) !important; }
+html:not(.dark) .bg-gray-900\/20  { background-color: rgba(245,244,251,.50) !important; }
+
+/* bg-gray-800/* variants: subtle tints for inner cells, NOT pure white */
+html:not(.dark) .bg-gray-800\/95  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-gray-800\/90  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-gray-800\/80  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-gray-800\/70  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-gray-800\/60  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-gray-800\/50  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-gray-800\/40  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-gray-800\/30  { background-color: rgba(17,12,42,.03) !important; }
+html:not(.dark) .bg-gray-800\/20  { background-color: rgba(17,12,42,.02) !important; }
+
+/* bg-gray-700/* variants: visible tints that distinguish from pure white */
+html:not(.dark) .bg-gray-700\/70  { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .bg-gray-700\/60  { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .bg-gray-700\/50  { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .bg-gray-700\/40  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-gray-700\/30  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-gray-700\/20  { background-color: rgba(17,12,42,.03) !important; }
+html:not(.dark) .bg-gray-700\/10  { background-color: rgba(17,12,42,.02) !important; }
+
+/* ── Opacity variants — bg-slate-900/* → white surface (outer panel bg) ── */
+html:not(.dark) .bg-slate-900\/85 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/80 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/75 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/70 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/65 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/60 { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-slate-900\/50 { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-slate-900\/30 { background-color: rgba(17,12,42,.04) !important; }
+
+/* ── Opacity variants — bg-slate-800/* → subtle inner cell tint ── */
+html:not(.dark) .bg-slate-800\/95 { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-slate-800\/90 { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-slate-800\/80 { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-slate-800\/70 { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .bg-slate-800\/60 { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-slate-800\/50 { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-slate-800\/40 { background-color: rgba(17,12,42,.03) !important; }
+
+/* ── Opacity variants — bg-slate-700/* → ghost button / skeleton surfaces ── */
+html:not(.dark) .bg-slate-700\/80  { background-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .bg-slate-700\/70  { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .bg-slate-700\/60  { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .bg-slate-700\/50  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-slate-700\/40  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-slate-700\/30  { background-color: rgba(17,12,42,.03) !important; }
+
+/* ── border-slate-500 opacity variants ── */
+html:not(.dark) .border-slate-500\/80 { border-color: rgba(17,12,42,.22) !important; }
+html:not(.dark) .border-slate-500\/70 { border-color: rgba(17,12,42,.20) !important; }
+html:not(.dark) .border-slate-500\/50 { border-color: rgba(17,12,42,.18) !important; }
+html:not(.dark) .border-slate-500\/40 { border-color: rgba(17,12,42,.14) !important; }
+html:not(.dark) .border-slate-500\/30 { border-color: rgba(17,12,42,.10) !important; }
+
+/* ── Black overlay (modals, toasts) ── */
+html:not(.dark) .bg-black\/80  { background-color: rgba(17,12,42,.55) !important; }
+html:not(.dark) .bg-black\/70  { background-color: rgba(17,12,42,.50) !important; }
+html:not(.dark) .bg-black\/60  { background-color: rgba(17,12,42,.44) !important; }
+html:not(.dark) .bg-black\/50  { background-color: rgba(17,12,42,.38) !important; }
+html:not(.dark) .bg-black\/40  { background-color: rgba(17,12,42,.28) !important; }
+
+/* ── More gray-800 opacity variants ── */
+html:not(.dark) .bg-gray-800\/30  { background-color: rgba(255,255,255,.75) !important; }
+html:not(.dark) .bg-gray-800\/20  { background-color: rgba(255,255,255,.60) !important; }
+
+/* ── Missing opacity variants: backlog sub-rows, roadmap progress ── */
+html:not(.dark) .bg-gray-700\/80  { background-color: rgba(17,12,42,.10) !important; } /* progress track */
+html:not(.dark) .bg-gray-700\/35  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-gray-900\/55  { background-color: rgba(245,244,251,.88) !important; }
+html:not(.dark) .bg-gray-950\/50  { background-color: rgba(245,244,251,.80) !important; }
+
+/* ── bg-slate-900 opacity variants — card surfaces (kanban, skeleton, kpi) ── */
+html:not(.dark) .bg-slate-900\/70 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/60 { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-slate-900\/50 { background-color: #F5F4FB !important; }
+html:not(.dark) .bg-slate-900\/40 { background-color: rgba(245,244,251,.88) !important; }
+
+/* ── border-slate-600 opacity variants ── */
+html:not(.dark) .border-slate-600\/75 { border-color: rgba(17,12,42,.22) !important; }
+html:not(.dark) .bg-slate-900\/95 { background-color: #FFFFFF !important; }           /* tooltips */
+html:not(.dark) .bg-slate-900\/45 { background-color: rgba(17,12,42,.04) !important; } /* backlog epic header */
+html:not(.dark) .bg-slate-800\/55 { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .bg-slate-800\/95 { background-color: #FFFFFF !important; }           /* fullscreen toolbar */
+
+/* ── Timeline tab: pill toggle containers need subtle tint (not white) ── */
+/* Use .timeline-tab context to avoid conflicting with panel .bg-slate-900/80 → #FFFFFF */
+html:not(.dark) .timeline-tab .bg-slate-900\/80,
+html:not(.dark) .timeline-tab .bg-slate-900\/70 {
+  background-color: rgba(17,12,42,.05) !important;
+}
+html:not(.dark) .bg-slate-800\/50  { background-color: rgba(17,12,42,.04) !important; } /* expand/collapse bar */
+
+/* ── Timeline: slate border opacity variants ── */
+html:not(.dark) .border-slate-600\/60  { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .border-slate-600\/50  { border-color: rgba(17,12,42,.14) !important; }
+html:not(.dark) .border-slate-500\/50  { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .border-slate-500\/60  { border-color: rgba(17,12,42,.18) !important; }
+html:not(.dark) .border-purple-400\/80 { border-color: rgba(109,40,217,.55) !important; }
+html:not(.dark) .border-purple-500\/50 { border-color: rgba(109,40,217,.45) !important; }
+
+/* ── Timeline: Today button (purple ghost) ── */
+html:not(.dark) .bg-purple-600\/20        { background-color: rgba(109,40,217,.10) !important; }
+html:not(.dark) .bg-purple-600\/40        { background-color: rgba(109,40,217,.18) !important; }
+html:not(.dark) .hover\:bg-purple-600\/40:hover { background-color: rgba(109,40,217,.16) !important; }
+html:not(.dark) .text-purple-200          { color: #6D28D9 !important; }
+html:not(.dark) .hover\:text-purple-200:hover   { color: #5B21B6 !important; }
+
+/* ── Timeline: hover states on toolbar buttons ── */
+html:not(.dark) .hover\:bg-slate-700\/60:hover { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .hover\:bg-slate-600\/60:hover { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .hover\:bg-slate-600:hover     { background-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .hover\:text-slate-200:hover   { color: #2B2353 !important; }
+
+/* ── Timeline: spinner border colors ── */
+html:not(.dark) .border-slate-600 { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .border-slate-500 { border-color: rgba(17,12,42,.20) !important; }
+html:not(.dark) .border-t-purple-400 { border-top-color: #7C3AED !important; }
+html:not(.dark) .border-t-emerald-400 { border-top-color: #059669 !important; }
+
+/* ── Timeline legend diamond ── */
+html:not(.dark) .milestone-legend-diamond.bg-slate-800 {
+  background-color: #FFFFFF !important;
+}
+
+/* ── Color-tinted stat card backgrounds (FeatureRoadmapBoard) ── */
+html:not(.dark) .bg-emerald-950\/20 { background-color: rgba(4,120,87,.08)  !important; }
+html:not(.dark) .bg-emerald-950\/10 { background-color: rgba(4,120,87,.05)  !important; }
+html:not(.dark) .bg-amber-950\/20   { background-color: rgba(120,53,15,.07) !important; }
+html:not(.dark) .bg-violet-950\/20  { background-color: rgba(76,29,149,.07) !important; }
+html:not(.dark) .bg-violet-950\/10  { background-color: rgba(76,29,149,.04) !important; }
+
+/* ── border-white/* — invisible on white bg; replace with visible dark tint ── */
+html:not(.dark) .border-white\/5  { border-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .border-white\/8  { border-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .border-white\/10 { border-color: rgba(17,12,42,.10) !important; }
+html:not(.dark) .border-white\/15 { border-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .border-white\/20 { border-color: rgba(17,12,42,.14) !important; }
+
+/* ── Opacity border variants for inline classes ── */
+html:not(.dark) .border-gray-700\/60  { border-color: rgba(17,12,42,.14) !important; }
+html:not(.dark) .border-gray-700\/50  { border-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .border-gray-700\/40  { border-color: rgba(17,12,42,.10) !important; }
+html:not(.dark) .border-gray-700\/20  { border-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .border-gray-800\/60  { border-color: rgba(17,12,42,.10) !important; }
+
+/* ── Hover bg opacity variants ── */
+html:not(.dark) .hover\:bg-gray-800\/60:hover  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .hover\:bg-gray-700\/35:hover  { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .hover\:bg-gray-700\/10:hover  { background-color: rgba(17,12,42,.03) !important; }
+html:not(.dark) .hover\:bg-slate-800\/55:hover { background-color: rgba(109,40,217,.06) !important; }
+
+/* ── Glass micro-tints used in dark panels ── */
+html:not(.dark) .bg-white\/\[0\.03\] { background-color: rgba(17,12,42,.02) !important; }
+html:not(.dark) .bg-white\/\[0\.04\] { background-color: rgba(17,12,42,.03) !important; }
+html:not(.dark) .bg-white\/\[0\.06\] { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .bg-white\/\[0\.08\] { background-color: rgba(17,12,42,.04) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 2. BACKDROP FILTER — DISABLE IN LIGHT (avoids dark bleed artifacts)
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 3. TYPOGRAPHY — TAILWIND UTILITY OVERRIDES
+   Rule ①: .text-white → body text (dark on light)
+   Rule ②: Restore #FFF for colored-bg elements (see § 5)
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .text-white     { color: #110C2A !important; }
+html:not(.dark) .text-gray-50   { color: #110C2A !important; }
+html:not(.dark) .text-gray-100  { color: #110C2A !important; }
+html:not(.dark) .text-gray-200  { color: #2B2353 !important; }
+html:not(.dark) .text-gray-300  { color: #3D3670 !important; }
+html:not(.dark) .text-gray-400  { color: #5C5580 !important; }
+html:not(.dark) .text-gray-500  { color: #928DB5 !important; }
+html:not(.dark) .text-gray-600  { color: #A8A4C8 !important; }
+
+html:not(.dark) .text-slate-50  { color: #110C2A !important; }
+html:not(.dark) .text-slate-100 { color: #110C2A !important; }
+html:not(.dark) .text-slate-200 { color: #2B2353 !important; }
+html:not(.dark) .text-slate-300 { color: #3D3670 !important; }
+html:not(.dark) .text-slate-400 { color: #5C5580 !important; }
+html:not(.dark) .text-slate-500 { color: #928DB5 !important; }
+html:not(.dark) .text-slate-600 { color: #A8A4C8 !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 4. HOVER STATES — TAILWIND UTILITY OVERRIDES
+   Covers both text and background hover states used across all pages.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ── Hover text colors ── */
+html:not(.dark) .hover\:text-white:hover    { color: #110C2A !important; }
+html:not(.dark) .hover\:text-gray-100:hover { color: #110C2A !important; }
+html:not(.dark) .hover\:text-gray-200:hover { color: #2B2353 !important; }
+html:not(.dark) .hover\:text-gray-300:hover { color: #3D3670 !important; }
+
+/* ── Hover backgrounds — solid ── */
+html:not(.dark) .hover\:bg-gray-600:hover   { background-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .hover\:bg-gray-700:hover   { background-color: rgba(17,12,42,.10) !important; }
+html:not(.dark) .hover\:bg-gray-800:hover   { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .hover\:bg-slate-600:hover  { background-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .hover\:bg-slate-700:hover  { background-color: rgba(17,12,42,.10) !important; }
+
+/* ── Hover backgrounds — opacity variants (row/item hover) ── */
+html:not(.dark) .hover\:bg-gray-700\/15:hover { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .hover\:bg-gray-700\/20:hover { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .hover\:bg-gray-700\/25:hover { background-color: rgba(109,40,217,.07) !important; }
+html:not(.dark) .hover\:bg-gray-700\/30:hover { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .hover\:bg-gray-700\/40:hover { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .hover\:bg-gray-700\/45:hover { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .hover\:bg-gray-700\/50:hover { background-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .hover\:bg-gray-700\/60:hover { background-color: rgba(17,12,42,.09) !important; }
+html:not(.dark) .hover\:bg-gray-800\/50:hover { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .hover\:bg-gray-800\/60:hover { background-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .hover\:bg-gray-800\/80:hover { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .hover\:bg-slate-700\/60:hover { background-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .hover\:bg-slate-800\/40:hover { background-color: rgba(17,12,42,.05) !important; }
+
+/* ── More opacity hover variants ── */
+html:not(.dark) .hover\:bg-gray-700\/15:hover { background-color: rgba(17,12,42,.03) !important; }
+html:not(.dark) .hover\:bg-gray-800\/80:hover { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .hover\:bg-slate-700\/60:hover { background-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .hover\:bg-slate-800\/40:hover { background-color: rgba(17,12,42,.03) !important; }
+
+/* ── Group hover ── */
+html:not(.dark) .group:hover .group-hover\:text-white { color: #110C2A !important; }
+
+/* ── White/opacity hover (used as row hover in dark mode, invisible in light) ── */
+html:not(.dark) .hover\:bg-white\/5:hover  { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .hover\:bg-white\/10:hover { background-color: rgba(17,12,42,.06) !important; }
+
+/* ── Gray-600 opacity hover (Edit button on sprint list) ── */
+html:not(.dark) .hover\:bg-gray-600\/50:hover { background-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .hover\:bg-gray-600\/30:hover { background-color: rgba(17,12,42,.06) !important; }
+
+/* ── Danger button hover (red-900 opacity tints) ── */
+html:not(.dark) .hover\:bg-red-900\/40:hover  { background-color: rgba(220,38,38,.08) !important; }
+html:not(.dark) .hover\:bg-red-900\/20:hover  { background-color: rgba(220,38,38,.06) !important; }
+html:not(.dark) .hover\:bg-red-600:hover      { background-color: #DC2626 !important; }
+
+/* ── Hover borders ── */
+html:not(.dark) .hover\:border-gray-500:hover { border-color: rgba(17,12,42,.25) !important; }
+html:not(.dark) .hover\:border-gray-600:hover { border-color: rgba(17,12,42,.18) !important; }
+html:not(.dark) .hover\:border-gray-700:hover { border-color: rgba(17,12,42,.14) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 5. GRADIENT → SOLID CONVERSION FOR LIGHT MODE
+   Neon gradients (purple→pink, violet→fuchsia→indigo) are dark-mode DNA.
+   In light mode every primary action becomes clean deep violet #6D28D9.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ── from-purple-600 to-pink-600 (tabs, nav active, inline buttons) ── */
+html:not(.dark) .from-purple-600.to-pink-600 {
+  background-image: none !important;
+  background-color: #6D28D9 !important;
+}
+html:not(.dark) .hover\:from-purple-500.hover\:to-pink-500:hover,
+html:not(.dark) .hover\:from-purple-700.hover\:to-pink-700:hover {
+  background-color: #5B21B6 !important;
+  background-image: none !important;
+}
+
+/* ── from-violet-600 via-fuchsia-600 (primary btn scoped CSS) ── */
+html:not(.dark) .from-violet-600.via-fuchsia-600 {
+  background-image: none !important;
+  background-color: #6D28D9 !important;
+}
+html:not(.dark) .hover\:from-violet-500.hover\:via-fuchsia-500:hover {
+  background-color: #5B21B6 !important;
+  background-image: none !important;
+}
+
+/* ── from-violet-600 to-purple-600/700 (komgrip icon, buttons, tab pills) ── */
+html:not(.dark) .from-violet-600.to-purple-600,
+html:not(.dark) .from-violet-600.to-purple-700 {
+  background-image: none !important;
+  background-color: #6D28D9 !important;
+}
+html:not(.dark) .hover\:from-violet-500.hover\:to-purple-500:hover {
+  background-color: #5B21B6 !important;
+  background-image: none !important;
+}
+/* Shadow for violet gradient elements */
+html:not(.dark) .shadow-violet-500\/30,
+html:not(.dark) .shadow-violet-500\/25 {
+  box-shadow: 0 4px 12px rgba(109,40,217,.22), 0 1px 4px rgba(109,40,217,.12) !important;
+}
+
+/* ── Neon glow shadows → clean drop shadow ── */
+html:not(.dark) .shadow-lg.from-purple-600,
+html:not(.dark) .shadow-lg.from-violet-600,
+html:not(.dark) .shadow-lg.from-purple-500 {
+  box-shadow: 0 2px 8px rgba(109,40,217,.22), 0 1px 3px rgba(109,40,217,.12) !important;
+}
+
+/* ── Scoped .btn-primary / .btn-primary-sm / .btn-primary-enterprise ── */
+html:not(.dark) .btn-primary,
+html:not(.dark) .btn-primary-sm,
+html:not(.dark) .btn-primary-enterprise {
+  background: #6D28D9 !important;
+  background-image: none !important;
+  box-shadow: 0 2px 8px rgba(109,40,217,.22), 0 1px 3px rgba(109,40,217,.12) !important;
+  color: #FFFFFF !important;
+}
+html:not(.dark) .btn-primary:hover,
+html:not(.dark) .btn-primary-sm:hover,
+html:not(.dark) .btn-primary-enterprise:hover {
+  background: #5B21B6 !important;
+  background-image: none !important;
+  box-shadow: 0 4px 14px rgba(109,40,217,.28) !important;
+}
+
+/* ── Neon text colors (too bright for light mode) ── */
+html:not(.dark) .text-pink-300     { color: #BE185D !important; }
+html:not(.dark) .text-pink-400     { color: #DB2777 !important; }
+html:not(.dark) .text-fuchsia-300  { color: #86198F !important; }
+html:not(.dark) .text-fuchsia-400  { color: #A21CAF !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 5b. WHITE TEXT RESTORE — Rule ②
+   Elements with COLORED backgrounds must keep white text.
+   Triple-class specificity (0,3,1) beats global (0,2,1).
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Active nav links */
+html:not(.dark) .from-purple-600.text-white,
+html:not(.dark) .from-violet-600.text-white,
+html:not(.dark) .from-pink-600.text-white,
+html:not(.dark) .from-indigo-600.text-white,
+html:not(.dark) .from-cyan-600.text-white,
+html:not(.dark) .from-teal-600.text-white,
+html:not(.dark) .from-red-600.text-white,
+html:not(.dark) .from-orange-600.text-white,
+html:not(.dark) .from-amber-600.text-white,
+html:not(.dark) .from-emerald-600.text-white,
+html:not(.dark) .from-blue-600.text-white,
+html:not(.dark) .from-green-600.text-white { color: #FFFFFF !important; }
+
+/* Nav links via active-class gradient */
+html:not(.dark) .nav-link.from-purple-600,
+html:not(.dark) .nav-link.from-violet-600,
+html:not(.dark) .nav-link.from-indigo-600,
+html:not(.dark) .nav-link.from-cyan-600,
+html:not(.dark) .nav-link.from-teal-600,
+html:not(.dark) .nav-link.from-red-600,
+html:not(.dark) .nav-link.from-orange-600,
+html:not(.dark) .nav-link.from-amber-600,
+html:not(.dark) .nav-link.from-emerald-600,
+html:not(.dark) .nav-link.from-blue-600,
+html:not(.dark) .nav-link.from-pink-600 { color: #FFFFFF !important; }
+
+/* Solid-color buttons & badges — shade 500–700 */
+html:not(.dark) .bg-red-500.text-white,
+html:not(.dark) .bg-red-600.text-white,
+html:not(.dark) .bg-red-700.text-white,
+html:not(.dark) .bg-emerald-500.text-white,
+html:not(.dark) .bg-emerald-600.text-white,
+html:not(.dark) .bg-emerald-700.text-white,
+html:not(.dark) .bg-green-500.text-white,
+html:not(.dark) .bg-green-600.text-white,
+html:not(.dark) .bg-green-700.text-white,
+html:not(.dark) .bg-purple-500.text-white,
+html:not(.dark) .bg-purple-600.text-white,
+html:not(.dark) .bg-purple-700.text-white,
+html:not(.dark) .bg-violet-500.text-white,
+html:not(.dark) .bg-violet-600.text-white,
+html:not(.dark) .bg-violet-700.text-white,
+html:not(.dark) .bg-indigo-500.text-white,
+html:not(.dark) .bg-indigo-600.text-white,
+html:not(.dark) .bg-indigo-700.text-white,
+html:not(.dark) .bg-blue-500.text-white,
+html:not(.dark) .bg-blue-600.text-white,
+html:not(.dark) .bg-blue-700.text-white,
+html:not(.dark) .bg-sky-500.text-white,
+html:not(.dark) .bg-sky-600.text-white,
+html:not(.dark) .bg-sky-700.text-white,
+html:not(.dark) .bg-cyan-500.text-white,
+html:not(.dark) .bg-cyan-600.text-white,
+html:not(.dark) .bg-cyan-700.text-white,
+html:not(.dark) .bg-teal-500.text-white,
+html:not(.dark) .bg-teal-600.text-white,
+html:not(.dark) .bg-teal-700.text-white,
+html:not(.dark) .bg-orange-500.text-white,
+html:not(.dark) .bg-orange-600.text-white,
+html:not(.dark) .bg-orange-700.text-white,
+html:not(.dark) .bg-amber-500.text-white,
+html:not(.dark) .bg-amber-600.text-white,
+html:not(.dark) .bg-amber-700.text-white,
+html:not(.dark) .bg-yellow-500.text-white,
+html:not(.dark) .bg-yellow-600.text-white,
+html:not(.dark) .bg-yellow-700.text-white,
+html:not(.dark) .bg-pink-500.text-white,
+html:not(.dark) .bg-pink-600.text-white,
+html:not(.dark) .bg-pink-700.text-white,
+html:not(.dark) .bg-rose-500.text-white,
+html:not(.dark) .bg-rose-600.text-white,
+html:not(.dark) .bg-rose-700.text-white,
+html:not(.dark) .bg-slate-600.text-white,
+html:not(.dark) .bg-slate-700.text-white  { color: #FFFFFF !important; }
+
+/* Opacity variants /80 /90 — still dark enough → keep white text */
+html:not(.dark) .bg-red-600\/80.text-white,
+html:not(.dark) .bg-red-600\/90.text-white,
+html:not(.dark) .bg-red-700\/80.text-white,
+html:not(.dark) .bg-emerald-600\/80.text-white,
+html:not(.dark) .bg-emerald-600\/90.text-white,
+html:not(.dark) .bg-emerald-700\/80.text-white,
+html:not(.dark) .bg-green-600\/80.text-white,
+html:not(.dark) .bg-green-700\/80.text-white,
+html:not(.dark) .bg-purple-600\/80.text-white,
+html:not(.dark) .bg-purple-700\/80.text-white,
+html:not(.dark) .bg-violet-600\/80.text-white,
+html:not(.dark) .bg-violet-700\/80.text-white,
+html:not(.dark) .bg-indigo-600\/80.text-white,
+html:not(.dark) .bg-indigo-600\/90.text-white,
+html:not(.dark) .bg-indigo-700\/80.text-white,
+html:not(.dark) .bg-blue-600\/80.text-white,
+html:not(.dark) .bg-blue-700\/80.text-white,
+html:not(.dark) .bg-cyan-600\/80.text-white,
+html:not(.dark) .bg-teal-600\/80.text-white,
+html:not(.dark) .bg-teal-700\/80.text-white,
+html:not(.dark) .bg-orange-600\/80.text-white,
+html:not(.dark) .bg-amber-600\/80.text-white,
+html:not(.dark) .bg-yellow-600\/80.text-white,
+html:not(.dark) .bg-pink-600\/80.text-white,
+html:not(.dark) .bg-rose-600\/80.text-white,
+html:not(.dark) .bg-slate-600\/80.text-white,
+html:not(.dark) .bg-slate-700\/80.text-white,
+/* hover states on colored buttons */
+html:not(.dark) .hover\:bg-emerald-600.text-white:hover,
+html:not(.dark) .hover\:bg-emerald-700.text-white:hover,
+html:not(.dark) .hover\:bg-amber-600.text-white:hover,
+html:not(.dark) .hover\:bg-red-600.text-white:hover,
+html:not(.dark) .hover\:bg-red-700.text-white:hover,
+html:not(.dark) .hover\:bg-blue-600.text-white:hover,
+html:not(.dark) .hover\:bg-blue-700.text-white:hover,
+html:not(.dark) .hover\:bg-violet-600.text-white:hover,
+html:not(.dark) .hover\:bg-indigo-600.text-white:hover,
+html:not(.dark) .hover\:bg-indigo-500.text-white:hover  { color: #FFFFFF !important; }
+
+/* User avatar initials */
+html:not(.dark) .from-purple-500.to-pink-500.text-white,
+html:not(.dark) .from-purple-500.text-white { color: #FFFFFF !important; }
+
+/* Any bg-gradient with text-white */
+html:not(.dark) .bg-gradient-to-r.text-white  { color: #FFFFFF !important; }
+html:not(.dark) .bg-gradient-to-br.text-white { color: #FFFFFF !important; }
+html:not(.dark) .bg-gradient-to-b.text-white  { color: #FFFFFF !important; }
+html:not(.dark) .bg-gradient-to-l.text-white  { color: #FFFFFF !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 6. BORDERS — TAILWIND UTILITY OVERRIDES
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .border-gray-900  { border-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .border-gray-800  { border-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .border-gray-700  { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .border-gray-600  { border-color: rgba(17,12,42,.22) !important; }
+html:not(.dark) .border-slate-700 { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .border-slate-600 { border-color: rgba(17,12,42,.22) !important; }
+
+/* Alpha white borders (dark glass cards) → violet-tinted in light */
+html:not(.dark) .border-white\/10  { border-color: rgba(17,12,42,.09) !important; }
+html:not(.dark) .border-white\/20  { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .border-white\/5   { border-color: rgba(17,12,42,.06) !important; }
+html:not(.dark) .border-white\/\[0\.08\] { border-color: rgba(17,12,42,.08) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 7. DIVIDE & RING
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .divide-gray-700 > * + *      { border-color: rgba(17,12,42,.12) !important; }
+html:not(.dark) .divide-gray-700\/80 > * + *  { border-color: rgba(17,12,42,.10) !important; }
+html:not(.dark) .divide-gray-700\/50 > * + *  { border-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .divide-gray-800 > * + *      { border-color: rgba(17,12,42,.08) !important; }
+html:not(.dark) .ring-gray-700 { --tw-ring-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .ring-gray-800 { --tw-ring-color: rgba(17,12,42,.12) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 8. GRADIENT STOPS
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .from-gray-900 {
+  --tw-gradient-from: #F5F4FB var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(245,244,251,0) var(--tw-gradient-to-position) !important;
+}
+html:not(.dark) .via-gray-900 {
+  --tw-gradient-via-stops: var(--tw-gradient-from), #F5F4FB var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html:not(.dark) .to-gray-900   { --tw-gradient-to: #F5F4FB var(--tw-gradient-to-position) !important; }
+
+html:not(.dark) .from-slate-900 {
+  --tw-gradient-from: #F5F4FB var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(245,244,251,0) var(--tw-gradient-to-position) !important;
+}
+html:not(.dark) .via-slate-900 {
+  --tw-gradient-via-stops: var(--tw-gradient-from), #FDFCFF var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html:not(.dark) .to-slate-900   { --tw-gradient-to: #FDFCFF var(--tw-gradient-to-position) !important; }
+
+html:not(.dark) .from-gray-800 {
+  --tw-gradient-from: #FFFFFF var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(255,255,255,0) var(--tw-gradient-to-position) !important;
+}
+html:not(.dark) .via-gray-800 {
+  --tw-gradient-via-stops: var(--tw-gradient-from), #FDFCFF var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+html:not(.dark) .to-gray-800   { --tw-gradient-to: #FDFCFF var(--tw-gradient-to-position) !important; }
+
+/* Login page: from-gray-900 via-purple-900/30 to-gray-900 */
+html:not(.dark) .via-purple-900 {
+  --tw-gradient-via-stops: var(--tw-gradient-from), rgba(109,28,210,.06) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+/* Deployment page header overlay: from-cyan-900/20 via-blue-900/20 to-indigo-900/20
+   In dark mode this adds a subtle teal-blue tint. In light mode it becomes an unwanted
+   shadow — zero it out so the header banner is clean. */
+html:not(.dark) .from-cyan-900\/20 {
+  --tw-gradient-from: transparent var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: transparent var(--tw-gradient-to-position) !important;
+}
+html:not(.dark) .via-blue-900\/20 {
+  --tw-gradient-via-stops: transparent, transparent var(--tw-gradient-via-position), transparent !important;
+}
+html:not(.dark) .to-indigo-900\/20 {
+  --tw-gradient-to: transparent var(--tw-gradient-to-position) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 9. FOCUS STATES
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .focus\:border-blue-500:focus   { border-color: #6D28D9 !important; }
+html:not(.dark) .focus\:ring-blue-500:focus     { --tw-ring-color: rgba(109,40,217,.2) !important; }
+html:not(.dark) .focus\:border-violet-400:focus { border-color: #6D28D9 !important; }
+html:not(.dark) .focus\:ring-violet-500\/35:focus { box-shadow: 0 0 0 3px rgba(109,40,217,.15) !important; }
+html:not(.dark) .focus\:border-cyan-500:focus   { border-color: #6D28D9 !important; }
+html:not(.dark) .focus\:ring-1.focus\:ring-amber-500\/50:focus { box-shadow: 0 0 0 2px rgba(109,40,217,.15) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 10. PLACEHOLDERS
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .placeholder-gray-500::placeholder   { color: #BDB9D8 !important; }
+html:not(.dark) .placeholder-gray-600::placeholder   { color: #BDB9D8 !important; }
+html:not(.dark) .placeholder-slate-500::placeholder  { color: #BDB9D8 !important; }
+html:not(.dark) .placeholder\:text-gray-500::placeholder  { color: #BDB9D8 !important; }
+html:not(.dark) .placeholder\:text-gray-600::placeholder  { color: #BDB9D8 !important; }
+html:not(.dark) .placeholder\:text-slate-500::placeholder { color: #BDB9D8 !important; }
+
+/* Global input color */
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select { color: #110C2A; }
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder { color: #BDB9D8; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 10b. METRIC CARD INTERACTIVE STATES (overview tab)
+   Dark mode uses pastel *-300 borders + /10 bg tints designed for dark surfaces.
+   Light mode remaps these to richer, more visible versions.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Metric card hover backgrounds */
+html:not(.dark) .hover\:bg-violet-500\/10:hover  { background-color: rgba(109,40,217,.08) !important; }
+html:not(.dark) .hover\:bg-emerald-500\/10:hover { background-color: rgba(4,120,87,.08)  !important; }
+html:not(.dark) .hover\:bg-amber-500\/10:hover   { background-color: rgba(120,53,15,.06) !important; }
+html:not(.dark) .hover\:bg-rose-500\/10:hover    { background-color: rgba(220,38,38,.07) !important; }
+html:not(.dark) .hover\:bg-red-500\/10:hover     { background-color: rgba(220,38,38,.07) !important; }
+
+/* Metric card active (selected filter) backgrounds */
+html:not(.dark) .bg-emerald-500\/15 { background-color: rgba(4,120,87,.10)  !important; }
+html:not(.dark) .bg-amber-500\/15   { background-color: rgba(120,53,15,.08) !important; }
+html:not(.dark) .bg-rose-500\/15    { background-color: rgba(220,38,38,.09) !important; }
+html:not(.dark) .bg-violet-500\/15  { background-color: rgba(109,40,217,.09) !important; }
+html:not(.dark) .bg-violet-500\/10  { background-color: rgba(109,40,217,.07) !important; }
+html:not(.dark) .bg-emerald-500\/10 { background-color: #ECFDF5 !important; }   /* emerald-50 */
+html:not(.dark) .bg-amber-500\/10   { background-color: #FFFBEB !important; }   /* amber-50 */
+html:not(.dark) .bg-red-500\/10     { background-color: rgba(220,38,38,.07) !important; }
+html:not(.dark) .bg-rose-500\/10    { background-color: rgba(220,38,38,.07) !important; }
+html:not(.dark) .bg-blue-500\/10    { background-color: rgba(37,99,235,.07) !important; }
+
+/* Metric card hover borders — pastel *-300/50 → deeper in light */
+html:not(.dark) .hover\:border-violet-300\/60:hover  { border-color: rgba(109,40,217,.35) !important; }
+html:not(.dark) .hover\:border-emerald-300\/50:hover { border-color: rgba(4,120,87,.35)  !important; }
+html:not(.dark) .hover\:border-amber-300\/50:hover   { border-color: rgba(180,83,9,.35)  !important; }
+html:not(.dark) .hover\:border-rose-300\/50:hover    { border-color: rgba(220,38,38,.35) !important; }
+
+/* Active filter ring borders */
+html:not(.dark) .border-emerald-300\/70  { border-color: rgba(4,120,87,.45) !important; }
+html:not(.dark) .border-amber-300\/70    { border-color: rgba(180,83,9,.45) !important; }
+html:not(.dark) .border-rose-300\/70     { border-color: rgba(220,38,38,.45) !important; }
+
+/* Active filter rings */
+html:not(.dark) .ring-emerald-300\/70    { --tw-ring-color: rgba(4,120,87,.40) !important; }
+html:not(.dark) .ring-amber-300\/70      { --tw-ring-color: rgba(180,83,9,.40) !important; }
+html:not(.dark) .ring-rose-300\/70       { --tw-ring-color: rgba(220,38,38,.40) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 11. STATUS COLORS — precisely tuned for light mode readability
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ▸ Emerald / Success */
+html:not(.dark) .bg-emerald-900\/15,
+html:not(.dark) .bg-emerald-900\/20,
+html:not(.dark) .bg-emerald-900\/30  { background-color: #D1FAE5 !important; }
+html:not(.dark) .border-emerald-500\/30,
+html:not(.dark) .border-emerald-500\/60 { border-color: #6EE7B7 !important; }
+html:not(.dark) .text-emerald-400    { color: #059669 !important; }
+html:not(.dark) .text-emerald-300    { color: #047857 !important; }
+
+/* ▸ Green */
+html:not(.dark) .text-green-400      { color: #16A34A !important; }
+html:not(.dark) .text-green-300      { color: #15803D !important; }
+html:not(.dark) .bg-green-900\/15,
+html:not(.dark) .bg-green-900\/20    { background-color: #DCFCE7 !important; }
+html:not(.dark) .bg-green-500\/10    { background-color: #F0FDF4 !important; }
+html:not(.dark) .border-green-500\/30  { border-color: #86EFAC !important; }
+html:not(.dark) .border-green-700\/30  { border-color: #86EFAC !important; }
+
+/* ▸ Teal */
+html:not(.dark) .text-teal-400       { color: #0F766E !important; }
+html:not(.dark) .text-teal-300       { color: #0D9488 !important; }
+html:not(.dark) .bg-teal-900\/15     { background-color: #CCFBF1 !important; }
+html:not(.dark) .bg-teal-500\/10     { background-color: #F0FDFA !important; }
+
+/* ▸ Amber / Warning */
+html:not(.dark) .bg-amber-900\/15,
+html:not(.dark) .bg-amber-900\/20   { background-color: #FEF3C7 !important; }
+html:not(.dark) .bg-amber-500\/10   { background-color: #FFFBEB !important; }
+html:not(.dark) .border-amber-500\/30,
+html:not(.dark) .border-amber-500\/50 { border-color: #FCD34D !important; }
+html:not(.dark) .text-amber-400     { color: #B45309 !important; }
+html:not(.dark) .text-amber-300     { color: #92400E !important; }
+
+/* ▸ Yellow / Amber */
+html:not(.dark) .bg-yellow-900\/15  { background-color: #FEF9C3 !important; }
+html:not(.dark) .border-yellow-500\/30 { border-color: #FDE047 !important; }
+/* yellow-400/300 used on ghost buttons (e.g. "Complete Sprint") —
+   remap to readable amber so it's professional on white bg */
+html:not(.dark) .text-yellow-400    { color: #D97706 !important; }  /* amber-600 */
+html:not(.dark) .text-yellow-300    { color: #B45309 !important; }  /* amber-700, visible on hover */
+html:not(.dark) .hover\:text-yellow-300:hover { color: #B45309 !important; }
+html:not(.dark) .hover\:text-yellow-400:hover { color: #D97706 !important; }
+
+/* ▸ Red / Danger */
+html:not(.dark) .bg-red-900\/15,
+html:not(.dark) .bg-red-900\/20,
+html:not(.dark) .bg-red-900\/30     { background-color: #FFE4E6 !important; }
+html:not(.dark) .bg-red-500\/10     { background-color: #FEF2F2 !important; }
+html:not(.dark) .border-red-500\/30,
+html:not(.dark) .border-red-500\/50 { border-color: #FCA5A5 !important; }
+html:not(.dark) .text-red-400       { color: #DC2626 !important; }
+html:not(.dark) .text-red-300       { color: #B91C1C !important; }
+
+/* ▸ Blue / Info */
+html:not(.dark) .bg-blue-900\/15,
+html:not(.dark) .bg-blue-900\/20    { background-color: #DBEAFE !important; }
+html:not(.dark) .border-blue-500\/30 { border-color: #93C5FD !important; }
+html:not(.dark) .border-blue-700\/30 { border-color: #BFDBFE !important; }
+html:not(.dark) .text-blue-400      { color: #2563EB !important; }
+html:not(.dark) .text-blue-300      { color: #1D4ED8 !important; }
+html:not(.dark) .text-blue-300\/80  { color: rgba(29,78,216,.85) !important; }
+
+/* ▸ Cyan */
+html:not(.dark) .bg-cyan-900\/15    { background-color: #CFFAFE !important; }
+html:not(.dark) .bg-cyan-900\/20    { background-color: #ECFEFF !important; }
+html:not(.dark) .border-cyan-500\/30,
+html:not(.dark) .border-cyan-500\/40 { border-color: #22D3EE !important; }
+html:not(.dark) .border-cyan-700\/30 { border-color: #A5F3FC !important; }
+html:not(.dark) .text-cyan-400      { color: #0891B2 !important; }
+html:not(.dark) .text-cyan-300      { color: #0E7490 !important; }
+html:not(.dark) .text-cyan-300\/80  { color: rgba(14,116,144,.85) !important; }
+
+/* ▸ Purple / Violet */
+html:not(.dark) .bg-purple-900\/15,
+html:not(.dark) .bg-purple-900\/20  { background-color: #EDE9FE !important; }
+html:not(.dark) .border-purple-500\/30 { border-color: #C4B5FD !important; }
+html:not(.dark) .text-purple-400    { color: #7C3AED !important; }
+html:not(.dark) .text-purple-300    { color: #6D28D9 !important; }
+html:not(.dark) .text-violet-400    { color: #7C3AED !important; }
+html:not(.dark) .text-violet-300    { color: #6D28D9 !important; }
+
+/* ── Inline bg-*-500/10 tint used in filter pills ── */
+html:not(.dark) .bg-purple-500\/10  { background-color: #EDE9FE !important; }
+html:not(.dark) .border-purple-500\/30 { border-color: #C4B5FD !important; }
+html:not(.dark) .bg-violet-500\/10  { background-color: #EDE9FE !important; }
+
+/* ── Sprint banner (purple-950/60) ── */
+html:not(.dark) .bg-purple-950\/60,
+html:not(.dark) .bg-purple-950     { background-color: #F5F3FF !important; }
+html:not(.dark) .border-purple-500\/40 { border-color: #C4B5FD !important; }
+html:not(.dark) .bg-purple-600\/10  { background-color: #EDE9FE !important; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   § 12. STICKY HEADER — frosted glass → crisp opaque in light
+   ───────────────────────────────────────────────────────────────────── */
+html:not(.dark) .bg-gray-900\/95 {
+  background-color: rgba(245,244,251,.98) !important;
+  backdrop-filter: none !important;
+  border-bottom-color: rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 0 rgba(17,12,42,.08) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   LAYOUT SHELL, SIDEBAR & NAVIGATION
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) .layout-enterprise-shell {
+  background:
+    radial-gradient(1400px 900px at 90% -5%, rgba(109,40,217,.06), transparent 70%),
+    radial-gradient(1000px 700px at -3% 8%, rgba(79,70,229,.04), transparent 65%),
+    #F5F4FB !important;
+}
+
+html:not(.dark) .sidebar-enterprise {
+  background: #FFFFFF !important;
+  border-right: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 1px 0 0 rgba(17,12,42,.06) !important;
+  backdrop-filter: none !important;
+}
+
+html:not(.dark) .sidebar-enterprise-top {
+  border-bottom: 1px solid rgba(17,12,42,.08) !important;
+}
+html:not(.dark) .sidebar-enterprise-footer {
+  border-top: 1px solid rgba(17,12,42,.08) !important;
+  background: #FDFCFF !important;
+}
+html:not(.dark) .sidebar-enterprise-nav {
+  scrollbar-color: rgba(17,12,42,.12) transparent !important;
+}
+
+html:not(.dark) .main-enterprise-surface {
+  background:
+    radial-gradient(1100px 700px at 100% -4%, rgba(109,40,217,.04), transparent 65%),
+    #F5F4FB !important;
+}
+
+/* ── Sidebar navigation links ─────────────────────────────────────── */
+html:not(.dark) .nav-link {
+  color: #5C5580 !important;
+}
+html:not(.dark) .nav-link:hover {
+  background-color: rgba(109,40,217,.08) !important;  /* visible violet tint */
+  border-color: rgba(109,40,217,.14) !important;
+  color: #3730A3 !important;                          /* deep indigo on hover */
+  translate: none !important;                         /* no x-shift in light */
+}
+
+/* ── Active nav-link: replace neon gradients with solid per-section colors ── */
+
+/* Purple/Violet/Pink/Indigo routes (Dashboard, Create, Projects, Performance, etc.) */
+html:not(.dark) .nav-link.from-purple-600,
+html:not(.dark) .nav-link.from-violet-600,
+html:not(.dark) .nav-link.from-indigo-600,
+html:not(.dark) .nav-link.from-pink-600 {
+  background: #6D28D9 !important;
+  background-image: none !important;
+  box-shadow: 0 1px 8px rgba(109,40,217,.22), 0 0 0 1px rgba(109,40,217,.18) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+/* Children inside active purple/violet/indigo/pink nav links must stay white */
+html:not(.dark) .nav-link.from-purple-600 span,
+html:not(.dark) .nav-link.from-violet-600 span,
+html:not(.dark) .nav-link.from-indigo-600 span,
+html:not(.dark) .nav-link.from-pink-600 span {
+  color: #FFFFFF !important;
+}
+/* Timer sub-text: slightly dimmed white so it reads as secondary info */
+html:not(.dark) .nav-link.from-purple-600 .text-purple-300,
+html:not(.dark) .nav-link.from-violet-600 .text-purple-300,
+html:not(.dark) .nav-link.from-indigo-600 .text-purple-300,
+html:not(.dark) .nav-link.from-pink-600   .text-purple-300 {
+  color: rgba(255,255,255,.75) !important;
+}
+/* Ping dot colors inside active nav links */
+html:not(.dark) .nav-link.from-purple-600 .bg-purple-400,
+html:not(.dark) .nav-link.from-violet-600 .bg-purple-400,
+html:not(.dark) .nav-link.from-indigo-600 .bg-purple-400,
+html:not(.dark) .nav-link.from-purple-600 .bg-purple-500,
+html:not(.dark) .nav-link.from-violet-600 .bg-purple-500,
+html:not(.dark) .nav-link.from-indigo-600 .bg-purple-500 {
+  background-color: rgba(255,255,255,.70) !important;
+}
+/* Cyan/Blue routes (Deployment, Leave, Leave Admin) */
+html:not(.dark) .nav-link.from-cyan-600,
+html:not(.dark) .nav-link.from-blue-600 {
+  background: #0369A1 !important;
+  background-image: none !important;
+  box-shadow: 0 1px 8px rgba(3,105,161,.22), 0 0 0 1px rgba(3,105,161,.18) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+html:not(.dark) .nav-link.from-cyan-600 span,
+html:not(.dark) .nav-link.from-blue-600 span { color: #FFFFFF !important; }
+
+/* Teal/Emerald routes (Attendance) */
+html:not(.dark) .nav-link.from-teal-600,
+html:not(.dark) .nav-link.from-emerald-600 {
+  background: #0F766E !important;
+  background-image: none !important;
+  box-shadow: 0 1px 8px rgba(15,118,110,.22), 0 0 0 1px rgba(15,118,110,.18) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+html:not(.dark) .nav-link.from-teal-600 span,
+html:not(.dark) .nav-link.from-emerald-600 span { color: #FFFFFF !important; }
+
+/* Orange/Red routes (Discipline) */
+html:not(.dark) .nav-link.from-orange-600,
+html:not(.dark) .nav-link.from-red-600 {
+  background: #C2410C !important;
+  background-image: none !important;
+  box-shadow: 0 1px 8px rgba(194,65,12,.22), 0 0 0 1px rgba(194,65,12,.18) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+html:not(.dark) .nav-link.from-orange-600 span,
+html:not(.dark) .nav-link.from-red-600 span { color: #FFFFFF !important; }
+
+/* Amber/Yellow routes (AI Tower, Cost Config) */
+html:not(.dark) .nav-link.from-amber-600,
+html:not(.dark) .nav-link.from-yellow-600 {
+  background: #B45309 !important;
+  background-image: none !important;
+  box-shadow: 0 1px 8px rgba(180,83,9,.22), 0 0 0 1px rgba(180,83,9,.18) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+html:not(.dark) .nav-link.from-amber-600 span,
+html:not(.dark) .nav-link.from-yellow-600 span { color: #FFFFFF !important; }
+
+/* ── Brand title gradient: softer violet in light mode ── */
+html:not(.dark) .sidebar-enterprise .from-purple-400.to-pink-600 {
+  background-image: linear-gradient(135deg, #6D28D9 0%, #8B5CF6 100%) !important;
+}
+
+/* ── Collapse toggle + any hover:text-white inside sidebar → never pure white ── */
+html:not(.dark) .sidebar-enterprise .hover\:text-white:hover {
+  color: #3730A3 !important;
+}
+
+/* ── User profile footer link hover ── */
+html:not(.dark) .sidebar-enterprise-footer .hover\:bg-gray-700:hover,
+html:not(.dark) .sidebar-enterprise .hover\:bg-gray-700:hover {
+  background-color: rgba(109,40,217,.08) !important;
+}
+
+/* ── Logout button: red hover in light mode ── */
+html:not(.dark) .sidebar-enterprise-footer .hover\:bg-red-600\/20:hover {
+  background-color: rgba(220,38,38,.10) !important;
+}
+html:not(.dark) .sidebar-enterprise-footer .hover\:text-red-400:hover {
+  color: #DC2626 !important;
+}
+
+/* ── Sidebar subtitle text (AI Task Manager, role label) ── */
+html:not(.dark) .sidebar-enterprise .text-gray-400 {
+  color: #9D90C4 !important;
+}
+
+/* ── Active profile link in sidebar footer ──
+   The profile NuxtLink uses active-class="!bg-gradient-to-r !from-purple-600 !to-pink-600"
+   The ! prefix compiles to escaped class names .\!from-purple-600 in CSS.
+   Both selectors needed: with and without ! prefix. ── */
+html:not(.dark) .sidebar-enterprise-footer .from-purple-600.to-pink-600,
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600 {
+  background: #5B21B6 !important;
+  background-image: none !important;
+  box-shadow: 0 2px 8px rgba(91,33,182,.28), 0 1px 3px rgba(91,33,182,.16) !important;
+}
+/* Ensure text stays white on the violet active profile link */
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600,
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600 p,
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600 span,
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600 .text-white {
+  color: #FFFFFF !important;
+}
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600 .text-gray-400,
+html:not(.dark) .sidebar-enterprise-footer .\!from-purple-600.\!to-pink-600 .text-gray-500 {
+  color: rgba(255,255,255,.75) !important;
+}
+
+/* ── Tab bar (project page tabs, logtime tabs, etc.)
+   In dark mode: neon gradient pill.
+   In light mode: soft violet pill with border — clean and readable.   ── */
+html:not(.dark) .from-purple-600.to-pink-600.text-white {
+  background: #6D28D9 !important;
+  background-image: none !important;
+  box-shadow: 0 1px 4px rgba(109,40,217,.20) !important;
+  color: #FFFFFF !important;
+}
+/* Inactive tab hover in light mode */
+html:not(.dark) .hover\:text-gray-200.hover\:bg-gray-800:hover {
+  background-color: rgba(17,12,42,.06) !important;
+  color: #2B2353 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   PAGE-LEVEL BACKGROUNDS — scoped custom class overrides
+   Rule: html:not(.dark) .cls = (0,2,1) > Vue .cls[data-v-xxx] = (0,2,0)
+   These pages use inline background: linear-gradient(#070b17...) in scoped CSS.
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) .projects-index-enterprise,
+html:not(.dark) .create-enterprise-page,
+html:not(.dark) .task-enterprise-bg,
+html:not(.dark) .sprint-enterprise-bg,
+html:not(.dark) .komgrip-page {
+  background:
+    radial-gradient(1400px 900px at 88% -8%, rgba(109,40,217,.06), transparent 70%),
+    radial-gradient(1000px 700px at -4% 6%, rgba(79,70,229,.04), transparent 65%),
+    #F5F4FB !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   CARD & PANEL SYSTEM — scoped custom class overrides
+   Every card class from every page/component is explicitly targeted.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero / Large panels ── */
+html:not(.dark) .enterprise-hero-panel {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.14) !important;
+  box-shadow: var(--s-shadow-lg) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .enterprise-panel {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.12) !important;
+  box-shadow: var(--s-shadow-md) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .sprints-enterprise-hero {
+  background: linear-gradient(135deg, #F0EEFF 0%, #FFFFFF 60%) !important;
+  border: 1px solid rgba(109,40,217,.20) !important;
+  box-shadow: var(--s-shadow-lg) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── Metric cards ── */
+html:not(.dark) .metric-card-enterprise,
+html:not(.dark) .metric-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06), 0 1px 2px rgba(17,12,42,.04) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── Project / task cards ── */
+html:not(.dark) .project-card-enterprise {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06), 0 1px 2px rgba(17,12,42,.04) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .project-card-enterprise:hover {
+  border-color: rgba(109,40,217,.25) !important;
+  box-shadow: 0 4px 16px rgba(109,40,217,.12), 0 1px 4px rgba(17,12,42,.06) !important;
+}
+
+html:not(.dark) .stat-card,
+html:not(.dark) .task-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06), 0 1px 2px rgba(17,12,42,.04) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .task-card:hover {
+  background: #FDFCFF !important;
+  border-color: rgba(109,40,217,.22) !important;
+  box-shadow: 0 4px 16px rgba(109,40,217,.10), 0 2px 6px rgba(17,12,42,.05) !important;
+}
+
+/* ── Chart cards ── */
+html:not(.dark) .chart-card-enterprise {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── Filter bars ── */
+html:not(.dark) .projects-filter-enterprise {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── Create page card ── */
+html:not(.dark) .create-enterprise-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.12) !important;
+  box-shadow: var(--s-shadow-md) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── admin/cost-config cards ── */
+html:not(.dark) .config-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06) !important;
+}
+
+/* ── admin/leave cards and rows ── */
+html:not(.dark) .card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06) !important;
+}
+html:not(.dark) .row {
+  background: rgba(17,12,42,.03) !important;
+  border: 1px solid rgba(17,12,42,.08) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   KANBAN BOARD — scoped custom class overrides
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) .kanban-toolbar {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .kanban-col {
+  background: rgba(17,12,42,.03) !important;
+  border: 1px solid rgba(17,12,42,.09) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .kanban-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.09) !important;
+  box-shadow: 0 1px 3px rgba(17,12,42,.06), 0 1px 2px rgba(17,12,42,.04) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .kanban-card:hover {
+  border-color: rgba(109,40,217,.28) !important;
+  box-shadow: 0 4px 16px rgba(109,40,217,.12), 0 2px 6px rgba(17,12,42,.05) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FORM ELEMENTS — ALL scoped input/select class names
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) .input-field,
+html:not(.dark) .modal-input,
+html:not(.dark) .input-select,
+html:not(.dark) .input {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.18) !important;
+  color: #110C2A !important;
+  box-shadow: inset 0 1px 2px rgba(17,12,42,.04) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .input-field:hover,
+html:not(.dark) .modal-input:hover,
+html:not(.dark) .input-select:hover,
+html:not(.dark) .input:hover { border-color: rgba(17,12,42,.28) !important; }
+html:not(.dark) .input-field:focus,
+html:not(.dark) .modal-input:focus,
+html:not(.dark) .input-select:focus,
+html:not(.dark) .input:focus {
+  border-color: #6D28D9 !important;
+  box-shadow: 0 0 0 3px rgba(109,40,217,.12), inset 0 1px 2px rgba(17,12,42,.04) !important;
+}
+html:not(.dark) .input-field::placeholder,
+html:not(.dark) .modal-input::placeholder,
+html:not(.dark) .input::placeholder { color: #BDB9D8 !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   BUTTONS — scoped custom class overrides
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Ghost / outline buttons */
+html:not(.dark) .btn-ghost-enterprise,
+html:not(.dark) .btn-ghost-sm,
+html:not(.dark) .btn-ghost,
+html:not(.dark) .btn {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.18) !important;
+  color: #2B2353 !important;
+  box-shadow: 0 1px 2px rgba(17,12,42,.05) !important;
+}
+html:not(.dark) .btn-ghost-enterprise:hover,
+html:not(.dark) .btn-ghost-sm:hover,
+html:not(.dark) .btn-ghost:hover,
+html:not(.dark) .btn:hover {
+  background: rgba(17,12,42,.08) !important;
+  border-color: rgba(17,12,42,.24) !important;
+  color: #110C2A !important;
+}
+
+/* Tab buttons (admin pages) */
+html:not(.dark) .tab {
+  color: #5C5580 !important;
+}
+html:not(.dark) .tab:hover {
+  color: #2B2353 !important;
+}
+html:not(.dark) .tab-active {
+  background: rgba(17,12,42,.08) !important;
+  color: #110C2A !important;
+}
+
+/* Status action buttons in admin/leave */
+html:not(.dark) .btn-primary {
+  /* gradient buttons keep white text — handled by white-restore rules */
+}
+html:not(.dark) .btn-success {
+  background: #D1FAE5 !important;
+  border-color: #6EE7B7 !important;
+  color: #065F46 !important;
+}
+html:not(.dark) .btn-danger {
+  background: #FFE4E6 !important;
+  border-color: #FCA5A5 !important;
+  color: #9B1C1C !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   TEXT LABELS — scoped custom class overrides
+   For text labels set via @apply in scoped CSS, the compiled color is
+   baked into the custom class — must be overridden explicitly.
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) .label,
+html:not(.dark) .modal-label,
+html:not(.dark) .field-label { color: #3D3670 !important; }
+
+html:not(.dark) .metric-label,
+html:not(.dark) .section-title,
+html:not(.dark) .chart-title  { color: #5C5580 !important; }
+
+html:not(.dark) .metric-value { color: #110C2A !important; }
+
+html:not(.dark) .field-hint,
+html:not(.dark) .section,
+html:not(.dark) .config-card-desc { color: #928DB5 !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   COMPONENT-LEVEL MISSING CLASS OVERRIDES
+   Classes found via @apply scan across all .vue files
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* QuickLogTimeModal.vue */
+html:not(.dark) .time-input {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.18) !important;
+  color: #110C2A !important;
+}
+html:not(.dark) .preset-btn {
+  background: #EDE9FE !important;
+  border-color: rgba(109,40,217,.20) !important;
+  color: #5B21B6 !important;
+}
+html:not(.dark) .preset-btn:hover {
+  background: #DDD6FE !important;
+  border-color: rgba(109,40,217,.30) !important;
+}
+
+/* TimerWidget.vue */
+html:not(.dark) .timer-running {
+  background: rgba(17,12,42,.05) !important;
+  border-color: rgba(109,40,217,.20) !important;
+}
+html:not(.dark) .picker-panel {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.14) !important;
+  box-shadow: var(--s-shadow-lg) !important;
+}
+
+/* task/[id].vue */
+html:not(.dark) .enterprise-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: var(--s-shadow-md) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .edit-task-modal-enterprise {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.12) !important;
+  box-shadow: var(--s-shadow-lg) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── DatePicker.vue — trigger button (scoped @apply overrides global utility) ── */
+html:not(.dark) .dp-trigger {
+  background-color: #FFFFFF !important;
+  border-color: rgba(17,12,42,.18) !important;
+  color: #110C2A !important;
+}
+html:not(.dark) .dp-trigger:hover {
+  border-color: rgba(109,40,217,.35) !important;
+}
+html:not(.dark) .dp-trigger--open {
+  border-color: #7C3AED !important;
+  box-shadow: 0 0 0 2px rgba(124,58,237,.18) !important;
+}
+html:not(.dark) .dp-trigger--filled .dp-trigger-value,
+html:not(.dark) .dp-trigger-value {
+  color: #110C2A !important;
+}
+html:not(.dark) .dp-trigger--empty .dp-trigger-value {
+  color: #9D90C4 !important;
+}
+html:not(.dark) .dp-trigger-icon,
+html:not(.dark) .dp-chevron {
+  color: #9D90C4 !important;
+}
+html:not(.dark) .dp-clear-btn {
+  color: #9D90C4 !important;
+}
+html:not(.dark) .dp-clear-btn:hover {
+  color: #110C2A !important;
+  background-color: rgba(17,12,42,.08) !important;
+}
+
+/* DatePicker.vue — day cells (compiled @apply scoped styles) */
+html:not(.dark) .dp-day--other {
+  color: #928DB5 !important;
+}
+html:not(.dark) .dp-day--other:hover {
+  color: #5C5580 !important;
+  background: rgba(17,12,42,.04) !important;
+}
+html:not(.dark) .dp-day--current {
+  color: #110C2A !important;
+}
+html:not(.dark) .dp-day--current:hover {
+  background: rgba(109,40,217,.08) !important;
+  color: #6D28D9 !important;
+}
+
+/* MilestoneTimeline.vue — btn-ghost + tooltip overrides */
+html:not(.dark) .milestone-btn {
+  color: #5C5580 !important;
+}
+html:not(.dark) .milestone-btn:hover {
+  color: #2B2353 !important;
+  background: rgba(17,12,42,.06) !important;
+}
+
+/* ── Milestone hover tooltip — clean white card, minimal shadow ── */
+html:not(.dark) .milestone-timeline .bg-gray-900 {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.16) !important;
+  box-shadow: 0 2px 8px rgba(17,12,42,.10) !important;  /* subtle, not spreading */
+}
+/* suppress the original shadow-xl so two shadows don't stack */
+html:not(.dark) .milestone-timeline .shadow-xl {
+  box-shadow: 0 2px 8px rgba(17,12,42,.10) !important;
+}
+
+/* ── Diamond marker base: must be SOLID to hide the timeline track line behind it ── */
+html:not(.dark) .rotate-45.bg-gray-800.border-purple-400 {
+  background-color: #FFFFFF !important;   /* opaque white, covers the track line */
+}
+html:not(.dark) .bg-slate-800.border-purple-400\/90 {
+  background-color: #FFFFFF !important;
+}
+
+/* ── Diamond turns solid violet on group hover — restore against !important bg-gray-800 ── */
+html:not(.dark) .group:hover .group-hover\:bg-purple-500 {
+  background-color: #7C3AED !important;
+}
+html:not(.dark) .group:hover .group-hover\:bg-purple-500\/60 {
+  background-color: rgba(124,58,237,.60) !important;
+}
+/* Gantt milestone row hover border */
+html:not(.dark) .group:hover .group-hover\:border-purple-300 {
+  border-color: #7C3AED !important;
+}
+
+/* ── Timeline track line ── */
+html:not(.dark) .milestone-timeline .bg-gray-700 {
+  background-color: rgba(17,12,42,.12) !important;
+}
+
+/* milestone item: no background change on hover (user preference) */
+
+/* ══════════════════════════════════════════════════════════════════════
+   PROJECTS / [id].vue — COMPREHENSIVE OVERRIDE
+   This single page has the most custom dark scoped CSS in the project.
+   Every class is explicitly targeted here.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Page background */
+html:not(.dark) .projects-enterprise-bg {
+  background:
+    radial-gradient(1400px 900px at 88% -8%, rgba(109,40,217,.06), transparent 70%),
+    radial-gradient(1000px 700px at -4% 6%, rgba(79,70,229,.04), transparent 65%),
+    #F5F4FB !important;
+}
+
+/* Overview / Sprint panels */
+html:not(.dark) .sprints-enterprise-hero {
+  background: linear-gradient(135deg, #F0EEFF 0%, #FFFFFF 60%) !important;
+  border: 1px solid rgba(109,40,217,.18) !important;
+  box-shadow: var(--s-shadow-lg) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .sprints-enterprise-panel {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: var(--s-shadow-md) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark) .overview-filter-panel,
+html:not(.dark) .overview-enterprise-card {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: var(--s-shadow-sm) !important;
+  backdrop-filter: none !important;
+}
+
+/* Backlog panels */
+html:not(.dark) .backlog-enterprise-card,
+html:not(.dark) .backlog-enterprise-table {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: var(--s-shadow-sm) !important;
+  backdrop-filter: none !important;
+}
+
+/* Backlog table header — uses raw CSS (no @apply), must override properties directly */
+html:not(.dark) .backlog-table-header {
+  background: rgba(17,12,42,.04) !important;
+  color: #5C5580 !important;
+  border-bottom: 1px solid rgba(17,12,42,.12) !important;
+}
+
+/* Backlog data rows — raw CSS hardcoded dark values */
+html:not(.dark) .backlog-row {
+  background: #FFFFFF !important;
+  border-bottom: 1px solid rgba(17,12,42,.07) !important;
+}
+html:not(.dark) .backlog-row:hover {
+  background: rgba(109,40,217,.04) !important;
+}
+
+/* Create task modal */
+html:not(.dark) .create-task-modal-enterprise {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.12) !important;
+  box-shadow: var(--s-shadow-lg) !important;
+  backdrop-filter: none !important;
+}
+
+/* Import button — dark violet needs light equivalent */
+html:not(.dark) .btn-import-sm {
+  background: #EDE9FE !important;
+  border-color: rgba(109,40,217,.25) !important;
+  color: #5B21B6 !important;
+}
+html:not(.dark) .btn-import-sm:hover {
+  background: #DDD6FE !important;
+}
+
+/* Timeline panels */
+html:not(.dark) .timeline-enterprise-panel,
+html:not(.dark) .timeline-enterprise-frame,
+html:not(.dark) .timeline-enterprise-empty,
+html:not(.dark) .timeline-enterprise-legend {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(17,12,42,.10) !important;
+  box-shadow: var(--s-shadow-sm) !important;
+  backdrop-filter: none !important;
+}
+
+/* Gantt chart — override all :deep() dark values for light mode */
+html:not(.dark) .gantt-enterprise :deep(.g-gantt-chart) {
+  background: #FFFFFF !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-timeaxis) {
+  background: #F5F4FB !important;
+  border-bottom: 1px solid rgba(17,12,42,.12) !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-timeunits-container) {
+  color: #5C5580 !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-upper-timeunit) {
+  color: #2B2353 !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-label-column) {
+  background: #F5F4FB !important;
+  color: #2B2353 !important;
+  border-right: 1px solid rgba(17,12,42,.10) !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-label-column-header) {
+  background: #ECEAF7 !important;
+  color: #5C5580 !important;
+  border-bottom: 1px solid rgba(17,12,42,.12) !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-label-column-row) {
+  color: #110C2A !important;
+  border-bottom: 1px solid rgba(17,12,42,.08) !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-gantt-row > .g-gantt-row-bars-container) {
+  border-top: 1px solid rgba(17,12,42,.06) !important;
+  border-bottom: 1px solid rgba(17,12,42,.06) !important;
+  background: rgba(17,12,42,.02) !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-gantt-row:nth-child(even) > .g-gantt-row-bars-container) {
+  background: rgba(17,12,42,.03) !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.gantt-row-epic) > div:first-child {
+  background: linear-gradient(90deg, rgba(79,70,229,.12) 0%, rgba(17,12,42,.03) 100%) !important;
+  border-left: 3px solid #6366F1 !important;
+  color: #3730A3 !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.gantt-row-sprint) > div:first-child {
+  background: linear-gradient(90deg, rgba(16,185,129,.12) 0%, rgba(17,12,42,.03) 100%) !important;
+  border-left: 3px solid #10B981 !important;
+  color: #065F46 !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.gantt-row-task) > div:first-child {
+  background: rgba(17,12,42,.02) !important;
+  border-left: 3px solid transparent !important;
+  color: #2B2353 !important;
+}
+html:not(.dark) .gantt-enterprise :deep(.g-grid-line) {
+  border-left: 1px solid rgba(17,12,42,.07) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SELECTION & SCROLLBAR
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) ::selection {
+  background-color: rgba(109,40,217,.16);
+  color: #110C2A;
+}
+html.dark ::selection {
+  background-color: rgba(139,92,246,.3);
+  color: #F1F5F9;
+}
+
+html:not(.dark) * { scrollbar-color: rgba(17,12,42,.16) transparent; }
+html:not(.dark) ::-webkit-scrollbar-track  { background: transparent; }
+html:not(.dark) ::-webkit-scrollbar-thumb  {
+  background-color: rgba(17,12,42,.14);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(17,12,42,.24);
+}
+
+html.dark * { scrollbar-color: rgba(71,85,105,.8) transparent; }
+html.dark ::-webkit-scrollbar-track { background: transparent; }
+html.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(71,85,105,.8);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+html.dark ::-webkit-scrollbar-thumb:hover { background-color: rgba(100,116,139,.9); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   INPUT / TEXTAREA / SELECT — global light mode reset
+   Pattern across all pages: bg-gray-900 border-gray-600 text-white
+   bg-gray-900 → #F5F4FB (canvas) blends with page; override to white for inputs.
+   ══════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) input.bg-gray-900,
+html:not(.dark) input.bg-gray-800,
+html:not(.dark) input.bg-gray-900\/50,
+html:not(.dark) input.bg-gray-800\/80,
+html:not(.dark) input.bg-gray-700\/60,
+html:not(.dark) input.bg-gray-700\/40,
+html:not(.dark) textarea.bg-gray-900,
+html:not(.dark) textarea.bg-gray-800,
+html:not(.dark) textarea.bg-gray-900\/50,
+html:not(.dark) textarea.bg-gray-900\/60,
+html:not(.dark) textarea.bg-gray-700\/60,
+html:not(.dark) textarea.bg-gray-700\/40,
+html:not(.dark) select.bg-gray-900,
+html:not(.dark) select.bg-gray-800 {
+  background-color: #FFFFFF !important;
+  border-color: rgba(17,12,42,.22) !important;
+  color: #110C2A !important;
+  box-shadow: 0 1px 2px rgba(17,12,42,.06) inset !important;
+}
+html:not(.dark) input.bg-gray-900::placeholder,
+html:not(.dark) input.bg-gray-800::placeholder,
+html:not(.dark) input.bg-gray-700\/60::placeholder,
+html:not(.dark) input.bg-gray-700\/40::placeholder,
+html:not(.dark) textarea.bg-gray-900::placeholder,
+html:not(.dark) textarea.bg-gray-800::placeholder,
+html:not(.dark) textarea.bg-gray-700\/60::placeholder,
+html:not(.dark) textarea.bg-gray-700\/40::placeholder {
+  color: #9D90C4 !important;
+}
+html:not(.dark) input.bg-gray-900:focus,
+html:not(.dark) input.bg-gray-800:focus,
+html:not(.dark) input.bg-gray-700\/60:focus,
+html:not(.dark) input.bg-gray-700\/40:focus,
+html:not(.dark) textarea.bg-gray-900:focus,
+html:not(.dark) textarea.bg-gray-800:focus,
+html:not(.dark) textarea.bg-gray-700\/60:focus,
+html:not(.dark) textarea.bg-gray-700\/40:focus,
+html:not(.dark) select.bg-gray-900:focus,
+html:not(.dark) select.bg-gray-800:focus {
+  border-color: #7C3AED !important;
+  box-shadow: 0 0 0 2px rgba(124,58,237,.16), 0 1px 2px rgba(17,12,42,.06) inset !important;
+  outline: none !important;
+}
+
+/* select options need bg in light mode too */
+html:not(.dark) select.bg-gray-900 option,
+html:not(.dark) select.bg-gray-800 option {
+  background-color: #FFFFFF !important;
+  color: #110C2A !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   EDIT TASK MODAL — missing variants and colors
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Border opacity variants not yet mapped */
+html:not(.dark) .border-gray-700\/80  { border-color: rgba(17,12,42,.18) !important; }
+html:not(.dark) .border-gray-700\/30  { border-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .border-gray-700\/10  { border-color: rgba(17,12,42,.05) !important; }
+html:not(.dark) .border-gray-700\/70  { border-color: rgba(17,12,42,.16) !important; }
+
+/* Type selector button active backgrounds */
+html:not(.dark) .bg-purple-500\/20 { background-color: rgba(109,40,217,.09) !important; }
+html:not(.dark) .bg-blue-500\/20   { background-color: rgba(37,99,235,.09) !important; }
+html:not(.dark) .bg-red-500\/20    { background-color: rgba(220,38,38,.08) !important; }
+
+/* Feature info banner */
+html:not(.dark) .bg-purple-900\/20    { background-color: rgba(109,40,217,.06) !important; }
+html:not(.dark) .border-purple-500\/30 { border-color: rgba(109,40,217,.30) !important; }
+
+/* Inactive type button hover border states */
+html:not(.dark) .hover\:border-purple-500\/50:hover { border-color: rgba(109,40,217,.40) !important; }
+html:not(.dark) .hover\:border-blue-500\/50:hover   { border-color: rgba(37,99,235,.30) !important; }
+html:not(.dark) .hover\:border-red-500\/50:hover    { border-color: rgba(220,38,38,.25) !important; }
+
+/* Roll-up estimate box */
+html:not(.dark) .text-amber-200      { color: #92400E !important; }
+html:not(.dark) .text-amber-200\/90  { color: rgba(146,64,14,.92) !important; }
+html:not(.dark) .text-amber-100      { color: #B45309 !important; }
+html:not(.dark) .text-amber-100\/90  { color: rgba(180,83,9,.88) !important; }
+html:not(.dark) .border-amber-700\/30 { border-color: rgba(180,83,9,.22) !important; }
+html:not(.dark) .border-amber-700\/60 { border-color: rgba(180,83,9,.35) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ATTENDANCE & ATTENDANCE-CONFIG PAGE overrides
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Sky/WFH elements ── */
+html:not(.dark) .text-sky-300        { color: #0369A1 !important; }
+html:not(.dark) .text-sky-300\/90    { color: rgba(3,105,161,.90) !important; }
+html:not(.dark) .bg-sky-950\/20      { background-color: #E0F2FE !important; }
+html:not(.dark) .border-sky-900\/60  { border-color: #BAE6FD !important; }
+
+/* ── Amber CEO panel (pending offsite requests) ── */
+html:not(.dark) .bg-amber-950\/20    { background-color: #FEF9C3 !important; }
+html:not(.dark) .border-amber-800\/50 { border-color: rgba(180,83,9,.30) !important; }
+html:not(.dark) .border-amber-900\/40 { border-color: rgba(180,83,9,.25) !important; }
+html:not(.dark) .border-amber-900\/30 { border-color: rgba(180,83,9,.18) !important; }
+html:not(.dark) .bg-amber-900\/20    { background-color: #FEF3C7 !important; }
+html:not(.dark) .bg-amber-900\/60    { background-color: #FDE68A !important; }
+
+/* ── Status badges: present / late / absent ── */
+html:not(.dark) .bg-emerald-900\/60  { background-color: #D1FAE5 !important; }
+html:not(.dark) .border-emerald-700\/60 { border-color: rgba(4,120,87,.30) !important; }
+html:not(.dark) .bg-rose-900\/60     { background-color: #FFE4E6 !important; }
+html:not(.dark) .border-rose-700\/60 { border-color: rgba(225,29,72,.28) !important; }
+html:not(.dark) .text-rose-200       { color: #BE123C !important; }
+
+/* ── Unauthorized / error panel ── */
+html:not(.dark) .bg-red-950\/30      { background-color: rgba(220,38,38,.06) !important; }
+html:not(.dark) .border-red-800      { border-color: rgba(185,28,28,.35) !important; }
+html:not(.dark) .text-red-200        { color: #991B1B !important; }
+
+/* Error banner */
+html:not(.dark) .bg-red-900\/30  { background-color: rgba(220,38,38,.07) !important; }
+html:not(.dark) .border-red-600  { border-color: rgba(185,28,28,.40) !important; }
+
+/* Delete modal, UAT, approval modal borders */
+html:not(.dark) .border-red-900\/60   { border-color: rgba(185,28,28,.22) !important; }
+html:not(.dark) .border-amber-500\/30 { border-color: rgba(180,83,9,.25) !important; }
+html:not(.dark) .border-amber-500\/60 { border-color: rgba(180,83,9,.40) !important; }
+
+/* Type / status badge backgrounds (40% opacity tints) */
+html:not(.dark) .bg-purple-900\/40 { background-color: rgba(109,40,217,.10) !important; }
+html:not(.dark) .bg-blue-900\/40   { background-color: rgba(37,99,235,.10) !important; }
+html:not(.dark) .bg-red-900\/40    { background-color: rgba(185,28,28,.10) !important; }
+
+/* Colored border opacity variants for badges and banners */
+html:not(.dark) .border-purple-700\/40 { border-color: rgba(109,40,217,.28) !important; }
+html:not(.dark) .border-purple-700\/50 { border-color: rgba(109,40,217,.34) !important; }
+html:not(.dark) .border-blue-700\/40   { border-color: rgba(37,99,235,.25) !important; }
+html:not(.dark) .border-blue-700\/50   { border-color: rgba(37,99,235,.30) !important; }
+html:not(.dark) .border-red-700\/40    { border-color: rgba(185,28,28,.22) !important; }
+html:not(.dark) .border-red-700\/50    { border-color: rgba(185,28,28,.28) !important; }
+html:not(.dark) .border-red-800\/60    { border-color: rgba(153,27,27,.25) !important; }
+html:not(.dark) .border-blue-600\/50   { border-color: rgba(37,99,235,.30) !important; }
+html:not(.dark) .border-red-600\/50    { border-color: rgba(185,28,28,.28) !important; }
+
+/* Hover text colors (colored link hover states) */
+html:not(.dark) .hover\:text-purple-100:hover { color: #5B21B6 !important; }
+html:not(.dark) .hover\:text-blue-100:hover   { color: #1D4ED8 !important; }
+html:not(.dark) .hover\:text-red-100:hover    { color: #B91C1C !important; }
+html:not(.dark) .text-purple-100 { color: #6D28D9 !important; }
+html:not(.dark) .text-blue-100   { color: #1E40AF !important; }
+html:not(.dark) .text-red-100    { color: #991B1B !important; }
+
+/* opacity variants for text colors on colored bg */
+html:not(.dark) .text-purple-400\/70 { color: rgba(109,40,217,.65) !important; }
+html:not(.dark) .text-blue-400\/70   { color: rgba(37,99,235,.65) !important; }
+html:not(.dark) .text-red-400\/70    { color: rgba(185,28,28,.65) !important; }
+html:not(.dark) .text-gray-400\/70   { color: rgba(17,12,42,.50) !important; }
+
+/* Gray utility variants used throughout task detail */
+html:not(.dark) .bg-gray-800\/40   { background-color: rgba(17,12,42,.04) !important; }
+html:not(.dark) .hover\:border-red-700:hover { border-color: rgba(185,28,28,.40) !important; }
+
+/* ── Amber warning banner (parent-task notice) ── */
+html:not(.dark) .border-amber-700\/40 { border-color: rgba(180,83,9,.28) !important; }
+html:not(.dark) .border-amber-500\/25 { border-color: rgba(180,83,9,.25) !important; }
+
+/* ── Emerald utility variants (Claim task button) ── */
+html:not(.dark) .text-emerald-200,
+html:not(.dark) .hover\:text-emerald-200:hover { color: #047857 !important; }
+html:not(.dark) .bg-emerald-900\/20   { background-color: rgba(4,120,87,.07) !important; }
+html:not(.dark) .border-emerald-800\/40 { border-color: rgba(4,120,87,.22) !important; }
+html:not(.dark) .hover\:border-emerald-700\/60:hover { border-color: rgba(4,120,87,.35) !important; }
+
+/* ── Blue utility variants (Change assignee, Outsource) ── */
+html:not(.dark) .border-blue-800\/40    { border-color: rgba(37,99,235,.20) !important; }
+html:not(.dark) .hover\:border-blue-700\/60:hover { border-color: rgba(37,99,235,.32) !important; }
+html:not(.dark) .bg-blue-500\/10        { background-color: rgba(37,99,235,.07) !important; }
+html:not(.dark) .hover\:bg-blue-500\/20:hover { background-color: rgba(37,99,235,.12) !important; }
+
+/* ── Violet/purple utility variants (Activity card, Slides link) ── */
+html:not(.dark) .bg-violet-600\/20    { background-color: rgba(109,40,217,.09) !important; }
+html:not(.dark) .border-violet-500\/25 { border-color: rgba(109,40,217,.22) !important; }
+html:not(.dark) .hover\:border-violet-400\/40:hover { border-color: rgba(109,40,217,.35) !important; }
+html:not(.dark) .bg-violet-500\/5      { background-color: rgba(109,40,217,.04) !important; }
+html:not(.dark) .border-purple-600\/60 { border-color: rgba(109,40,217,.40) !important; }
+html:not(.dark) .hover\:border-purple-600\/60:hover { border-color: rgba(109,40,217,.42) !important; }
+
+/* ── Gray border/divide variants ── */
+html:not(.dark) .border-gray-700\/70 { border-color: rgba(17,12,42,.16) !important; }
+html:not(.dark) .divide-gray-700\/40 > * + * { border-color: rgba(17,12,42,.08) !important; }
+
+/* ── UAT reject button (red ghost) ── */
+html:not(.dark) .bg-red-500\/15        { background-color: rgba(220,38,38,.08) !important; }
+html:not(.dark) .border-red-500\/35    { border-color: rgba(185,28,28,.25) !important; }
+html:not(.dark) .border-red-500\/40    { border-color: rgba(185,28,28,.28) !important; }
+html:not(.dark) .hover\:bg-red-500\/25:hover  { background-color: rgba(220,38,38,.12) !important; }
+html:not(.dark) .hover\:border-red-400\/50:hover { border-color: rgba(185,28,28,.32) !important; }
+
+/* ── Emerald ghost button (UAT submit, sprint From Backlog, etc.) ── */
+html:not(.dark) .border-emerald-500\/20  { border-color: rgba(4,120,87,.18) !important; }
+html:not(.dark) .border-emerald-500\/35  { border-color: rgba(4,120,87,.28) !important; }
+html:not(.dark) .border-emerald-500\/40  { border-color: rgba(4,120,87,.32) !important; }
+html:not(.dark) .border-emerald-400\/50  { border-color: rgba(4,120,87,.38) !important; }
+html:not(.dark) .hover\:bg-emerald-500\/20:hover  { background-color: #D1FAE5 !important; }  /* emerald-100 */
+html:not(.dark) .hover\:bg-emerald-500\/25:hover  { background-color: #D1FAE5 !important; }
+html:not(.dark) .hover\:border-emerald-400\/50:hover { border-color: rgba(4,120,87,.40) !important; }
+html:not(.dark) .focus\:border-emerald-500\/50:focus { border-color: rgba(4,120,87,.50) !important; }
+html:not(.dark) .focus\:ring-emerald-500\/30:focus { box-shadow: 0 0 0 2px rgba(4,120,87,.20) !important; }
+html:not(.dark) .focus\:ring-red-500\/30:focus { box-shadow: 0 0 0 2px rgba(220,38,38,.15) !important; }
+html:not(.dark) .focus\:border-red-500\/50:focus { border-color: rgba(185,28,28,.40) !important; }
+
+/* ── Amber ghost button (CEO approve) ── */
+html:not(.dark) .border-amber-500\/40  { border-color: rgba(180,83,9,.28) !important; }
+html:not(.dark) .hover\:bg-amber-500\/25:hover { background-color: rgba(180,83,9,.10) !important; }
+html:not(.dark) .text-amber-400\/80    { color: rgba(180,83,9,.75) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ACTIVITY TIMELINE DOTS — all color variants from activityDotClass()
+   Each dot = rounded chip with tinted bg + colored border + dark text
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Dot backgrounds ── */
+html:not(.dark) .bg-blue-500\/15    { background-color: #DBEAFE !important; }
+html:not(.dark) .bg-cyan-500\/15    { background-color: #CFFAFE !important; }
+html:not(.dark) .bg-green-500\/15   { background-color: #DCFCE7 !important; }
+html:not(.dark) .bg-teal-500\/15    { background-color: #CCFBF1 !important; }
+html:not(.dark) .bg-orange-500\/15  { background-color: #FFEDD5 !important; }
+html:not(.dark) .bg-purple-500\/15  { background-color: #F3E8FF !important; }
+html:not(.dark) .bg-yellow-500\/15  { background-color: #FEF9C3 !important; }
+html:not(.dark) .bg-lime-500\/15    { background-color: #ECFCCB !important; }
+html:not(.dark) .bg-indigo-500\/15  { background-color: #E0E7FF !important; }
+html:not(.dark) .bg-gray-500\/50    { background-color: #F3F4F6 !important; }
+html:not(.dark) .bg-gray-800\/80    { background-color: #F5F5F8 !important; }
+
+/* ── Dot borders ── */
+html:not(.dark) .border-blue-500\/40   { border-color: #93C5FD !important; }
+html:not(.dark) .border-violet-500\/40 { border-color: #C4B5FD !important; }
+html:not(.dark) .border-green-500\/40  { border-color: #86EFAC !important; }
+html:not(.dark) .border-teal-500\/40   { border-color: #5EEAD4 !important; }
+html:not(.dark) .border-orange-500\/40 { border-color: #FDBA74 !important; }
+html:not(.dark) .border-purple-500\/40 { border-color: #D8B4FE !important; }
+html:not(.dark) .border-yellow-500\/40 { border-color: #FDE047 !important; }
+html:not(.dark) .border-lime-500\/40   { border-color: #A3E635 !important; }
+html:not(.dark) .border-indigo-500\/40 { border-color: #A5B4FC !important; }
+html:not(.dark) .border-gray-500\/50   { border-color: rgba(17,12,42,.22) !important; }
+html:not(.dark) .border-gray-600\/80   { border-color: rgba(17,12,42,.25) !important; }
+
+/* ── Dot icon/text colors (dark enough for light bg) ── */
+html:not(.dark) .text-orange-300 { color: #9A3412 !important; }
+html:not(.dark) .text-lime-300   { color: #365314 !important; }
+html:not(.dark) .text-indigo-300 { color: #3730A3 !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   WORK-TYPE & STATUS BADGE backgrounds — bg-{color}-900/50
+   Used across: logtime, TimeLogger, SubtaskList, discipline, projects
+   Maps each dark /50 shade to the matching Tailwind -100 light swatch.
+   ══════════════════════════════════════════════════════════════════════ */
+html:not(.dark) .bg-blue-900\/50    { background-color: #DBEAFE !important; } /* blue-100   */
+html:not(.dark) .bg-green-900\/50   { background-color: #DCFCE7 !important; } /* green-100  */
+html:not(.dark) .bg-cyan-900\/50    { background-color: #CFFAFE !important; } /* cyan-100   */
+html:not(.dark) .bg-teal-900\/50    { background-color: #CCFBF1 !important; } /* teal-100   */
+html:not(.dark) .bg-orange-900\/50  { background-color: #FFEDD5 !important; } /* orange-100 */
+html:not(.dark) .bg-amber-900\/50   { background-color: #FEF3C7 !important; } /* amber-100  */
+html:not(.dark) .bg-yellow-900\/50  { background-color: #FEF9C3 !important; } /* yellow-100 */
+html:not(.dark) .bg-red-900\/50     { background-color: #FEE2E2 !important; } /* red-100    */
+html:not(.dark) .bg-purple-900\/50  { background-color: #F3E8FF !important; } /* purple-100 */
+html:not(.dark) .bg-violet-900\/50  { background-color: #EDE9FE !important; } /* violet-100 */
+
+/* Matching border companions often used alongside these badges */
+html:not(.dark) .border-blue-700    { border-color: #BFDBFE !important; }     /* blue-200   */
+html:not(.dark) .border-green-700   { border-color: #BBF7D0 !important; }     /* green-200  */
+html:not(.dark) .border-cyan-700    { border-color: #A5F3FC !important; }     /* cyan-200   */
+html:not(.dark) .border-red-700     { border-color: #FECACA !important; }     /* red-200    */
+html:not(.dark) .border-purple-700  { border-color: #E9D5FF !important; }     /* purple-200 */
+html:not(.dark) .border-amber-700   { border-color: #FDE68A !important; }     /* amber-200  */
+
+/* ══════════════════════════════════════════════════════════════════════
+   STATUS & PRIORITY BADGES — getStatusBadgeClass() + priority spans
+   All badges use semantic light-mode palette: 100-shade bg, 300-shade border
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Badge backgrounds (40% dark opacity tints → solid 100-shades) ── */
+html:not(.dark) .bg-green-900\/40,
+html:not(.dark) .bg-green-900\/30   { background-color: #DCFCE7 !important; }
+html:not(.dark) .bg-yellow-900\/40,
+html:not(.dark) .bg-yellow-900\/30  { background-color: #FEF9C3 !important; }
+html:not(.dark) .bg-cyan-900\/40    { background-color: #CFFAFE !important; }
+html:not(.dark) .bg-orange-900\/40,
+html:not(.dark) .bg-orange-900\/30  { background-color: #FFEDD5 !important; }
+html:not(.dark) .bg-amber-900\/40   { background-color: #FEF3C7 !important; }
+html:not(.dark) .bg-gray-700\/60    { background-color: rgba(17,12,42,.06) !important; }
+
+/* ── Badge borders (600-level = medium saturation readable on light bg) ── */
+html:not(.dark) .border-purple-600\/50 { border-color: #C4B5FD !important; }
+html:not(.dark) .border-green-600\/50  { border-color: #86EFAC !important; }
+html:not(.dark) .border-yellow-600\/50 { border-color: #FDE047 !important; }
+html:not(.dark) .border-cyan-600\/50   { border-color: #67E8F9 !important; }
+html:not(.dark) .border-orange-600\/50 { border-color: #FDBA74 !important; }
+html:not(.dark) .border-amber-600\/50  { border-color: #FCD34D !important; }
+html:not(.dark) .border-orange-700\/50 { border-color: #FB923C !important; }
+html:not(.dark) .border-yellow-700\/50 { border-color: #FACC15 !important; }
+html:not(.dark) .border-green-700\/50  { border-color: #4ADE80 !important; }
+
+/* ── Badge & card borders — /30 opacity variants (used in komgrip priority chips) ── */
+html:not(.dark) .border-red-700\/30    { border-color: rgba(185,28,28,.20) !important; }
+html:not(.dark) .border-orange-700\/30 { border-color: rgba(194,65,12,.20) !important; }
+html:not(.dark) .border-yellow-700\/30 { border-color: rgba(161,98,7,.22) !important; }
+html:not(.dark) .border-green-700\/30  { border-color: rgba(21,128,61,.20) !important; }
+html:not(.dark) .border-violet-700\/30 { border-color: rgba(109,40,217,.20) !important; }
+
+/* ── Komgrip: task-card hover border, violet tint ── */
+html:not(.dark) .border-violet-500\/20 { border-color: rgba(109,40,217,.18) !important; }
+html:not(.dark) .hover\:border-violet-500\/20:hover { border-color: rgba(109,40,217,.30) !important; }
+html:not(.dark) .hover\:bg-slate-800\/70:hover { background-color: rgba(17,12,42,.06) !important; }
+
+/* ── Komgrip: loading icon violet bubble ── */
+html:not(.dark) .bg-violet-900\/30 { background-color: #EDE9FE !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   DISCIPLINE PAGE — comprehensive dark-mode overrides
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Avatar circles with inline gradient background: keep initial letter white ── */
+html:not(.dark) .discipline-table .text-white,
+html:not(.dark) [style*="linear-gradient"].text-white {
+  color: #FFFFFF !important;
+}
+
+/* ── Text colors ── */
+html:not(.dark) .text-rose-400   { color: #E11D48 !important; }
+html:not(.dark) .text-rose-300   { color: #BE123C !important; }
+html:not(.dark) .text-orange-400 { color: #EA580C !important; }
+
+/* ── Role badge backgrounds (dark -900/60 → proper light 100-shades) ── */
+html:not(.dark) .bg-violet-900\/60  { background-color: #EDE9FE !important; }
+html:not(.dark) .bg-blue-900\/60    { background-color: #DBEAFE !important; }
+html:not(.dark) .bg-purple-900\/60  { background-color: #F3E8FF !important; }
+html:not(.dark) .bg-indigo-900\/40  { background-color: #EEF2FF !important; }
+html:not(.dark) .bg-indigo-900\/60  { background-color: #E0E7FF !important; }
+html:not(.dark) .hover\:bg-indigo-900\/60:hover { background-color: #C7D2FE !important; }
+html:not(.dark) .border-indigo-700\/40 { border-color: #C7D2FE !important; }
+html:not(.dark) .text-indigo-300    { color: #4338CA !important; }
+html:not(.dark) .text-indigo-400    { color: #4F46E5 !important; }
+/* OTHER work-type active: bg-gray-600 text-white */
+html:not(.dark) .bg-gray-600.text-white { color: #FFFFFF !important; }
+/* Active work-type selector button (QuickLogTimeModal) */
+html:not(.dark) .bg-purple-600\/30  { background-color: #EDE9FE !important; }
+html:not(.dark) .border-purple-500\/60 { border-color: #A78BFA !important; }
+html:not(.dark) .bg-green-900\/60   { background-color: #DCFCE7 !important; }
+html:not(.dark) .bg-rose-900\/60    { background-color: #FFF1F2 !important; }
+html:not(.dark) .bg-teal-900\/50    { background-color: #F0FDFA !important; }
+html:not(.dark) .bg-amber-900\/60   { background-color: #FEF3C7 !important; }
+html:not(.dark) .bg-gray-700\/80    { background-color: rgba(17,12,42,.07) !important; }
+
+/* ── Day cell backgrounds (dark -950 opacity tints → ultra-subtle light tints) ── */
+html:not(.dark) .bg-red-950\/30     { background-color: rgba(220,38,38,.06) !important; }
+html:not(.dark) .bg-rose-950\/30,
+html:not(.dark) .bg-rose-950\/25    { background-color: rgba(244,63,94,.05) !important; }
+html:not(.dark) .bg-orange-950\/30  { background-color: rgba(194,65,12,.06) !important; }
+
+/* ── Summary card accent borders ── */
+html:not(.dark) .border-emerald-700\/50 { border-color: rgba(4,120,87,.28) !important; }
+html:not(.dark) .border-orange-700\/50  { border-color: rgba(194,65,12,.22) !important; }
+html:not(.dark) .border-rose-700\/50    { border-color: rgba(244,63,94,.22) !important; }
+html:not(.dark) .border-amber-700\/50   { border-color: rgba(180,83,9,.24) !important; }
+
+/* ── Table & day cell borders ── */
+html:not(.dark) .border-gray-700\/30   { border-color: rgba(17,12,42,.07) !important; }
+html:not(.dark) .border-red-700\/20    { border-color: rgba(185,28,28,.13) !important; }
+html:not(.dark) .border-red-700\/40    { border-color: rgba(185,28,28,.22) !important; }
+html:not(.dark) .border-red-900\/30    { border-color: rgba(185,28,28,.14) !important; }
+html:not(.dark) .border-rose-800\/30   { border-color: rgba(244,63,94,.16) !important; }
+html:not(.dark) .border-amber-800\/25  { border-color: rgba(180,83,9,.17) !important; }
+html:not(.dark) .border-amber-800\/30  { border-color: rgba(180,83,9,.20) !important; }
+html:not(.dark) .border-orange-800\/30 { border-color: rgba(194,65,12,.18) !important; }
+
+/* ── User card border classes (score-based) ── */
+html:not(.dark) .border-emerald-700\/40 { border-color: rgba(4,120,87,.26) !important; }
+html:not(.dark) .border-yellow-700\/40  { border-color: rgba(161,98,7,.22) !important; }
+html:not(.dark) .border-rose-800\/30    { border-color: rgba(244,63,94,.16) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   RICH TEXT EDITOR — global (non-scoped) light mode overrides
+   All selectors use html:not(.dark) prefix to beat specificity.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Wrapper ── */
+html:not(.dark) .rich-editor {
+  background: #FFFFFF;
+  border-color: rgba(17,12,42,.18);
+}
+html:not(.dark) .rich-editor:focus-within:not(.is-readonly) {
+  border-color: #6D28D9;
+  box-shadow: 0 0 0 3px rgba(109,40,217,.12);
+}
+html:not(.dark) .rich-editor.is-readonly {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ── Toolbar ── */
+html:not(.dark) .editor-toolbar {
+  background: #F3F2FA;
+  border-bottom-color: rgba(17,12,42,.12);
+}
+html:not(.dark) .toolbar-divider {
+  background: rgba(17,12,42,.14);
+}
+
+/* ── Toolbar buttons ── */
+html:not(.dark) .toolbar-btn {
+  color: #5C5580;
+}
+html:not(.dark) .toolbar-btn:hover:not(:disabled) {
+  background: rgba(109,40,217,.08);
+  color: #3D3670;
+}
+html:not(.dark) .toolbar-btn.is-active {
+  background: #6D28D9;
+  color: #FFFFFF;
+}
+
+/* ── Editor content area ── */
+html:not(.dark) .editor-content::-webkit-scrollbar-thumb {
+  background: rgba(17,12,42,.14);
+}
+html:not(.dark) .editor-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(17,12,42,.22);
+}
+
+/* ── ProseMirror core ── */
+html:not(.dark) .ProseMirror {
+  color: #110C2A;
+}
+html:not(.dark) .ProseMirror p.is-editor-empty:first-child::before {
+  color: #9D90C4;
+}
+
+/* ── Typography ── */
+html:not(.dark) .ProseMirror h1,
+html:not(.dark) .ProseMirror h2,
+html:not(.dark) .ProseMirror h3 { color: #110C2A; }
+html:not(.dark) .ProseMirror strong { color: #110C2A; }
+html:not(.dark) .ProseMirror em    { color: #2B2353; }
+html:not(.dark) .ProseMirror s     { color: #928DB5; }
+
+/* ── Inline code & blocks ── */
+html:not(.dark) .ProseMirror code {
+  background: #EDE9FE;
+  color: #5B21B6;
+  border-color: rgba(109,40,217,.20);
+}
+html:not(.dark) .ProseMirror pre {
+  background: #F3F2FA;
+  border-color: rgba(17,12,42,.12);
+}
+html:not(.dark) .ProseMirror pre code {
+  background: none;
+  color: #5B21B6;
+}
+
+/* ── Blockquote ── */
+html:not(.dark) .ProseMirror blockquote {
+  border-left-color: #6D28D9;
+  color: #5C5580;
+}
+
+/* ── Horizontal rule ── */
+html:not(.dark) .ProseMirror hr {
+  border-top-color: rgba(17,12,42,.12);
+}
+
+/* ── Links ── */
+html:not(.dark) .ProseMirror a,
+html:not(.dark) .editor-link { color: #2563EB; }
+
+/* ── Text selection ── */
+html:not(.dark) .ProseMirror ::selection {
+  background: rgba(109,40,217,.18);
+}
+
+/* ── Image hover/select outlines (keep using violet instead of blue) ── */
+html:not(.dark) .ProseMirror img.editor-image:hover,
+html:not(.dark) .ProseMirror img:hover {
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 3px rgba(124,58,237,.12);
+}
+html:not(.dark) .ProseMirror img.ProseMirror-selectednode {
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 3px rgba(124,58,237,.20);
+}
+
+/* ── Paste image overlay ── */
+html:not(.dark) .rich-editor .absolute.inset-0.bg-gray-900\/80 {
+  background: rgba(245,244,251,.88) !important;
 }

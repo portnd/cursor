@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 )
 
@@ -478,7 +479,16 @@ func (h *SentinelHandler) EditTimeLog(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
 		return
 	}
-	updated, err := h.usecase.EditTimeLog(logID, userID, req.Minutes, req.Description, req.WorkType)
+	var taskID *uuid.UUID
+	if req.TaskID != nil && *req.TaskID != "" {
+		parsed, err := uuid.Parse(*req.TaskID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid task_id"})
+			return
+		}
+		taskID = &parsed
+	}
+	updated, err := h.usecase.EditTimeLog(logID, userID, req.Minutes, req.Description, req.WorkType, taskID)
 	if err != nil {
 		if domain.IsBadRequest(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
@@ -622,11 +632,16 @@ func (h *SentinelHandler) BulkUpdateTaskStatus(c *gin.Context) {
 		return
 	}
 	normalizedRole := strings.ToUpper(strings.TrimSpace(userRole))
-	if req.Status == "COMPLETED" && normalizedRole != "CEO" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "cannot drag task to COMPLETED — only CEO can perform final approval"})
+	if req.Status == "COMPLETED" && normalizedRole != authDomain.RoleCEO && normalizedRole != authDomain.RoleManager {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "cannot drag task to COMPLETED — only CEO or Manager can perform final approval"})
 		return
 	}
-	if err := h.usecase.BulkUpdateTaskStatus(taskIDs, req.Status); err != nil {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	if err := h.usecase.BulkUpdateTaskStatus(taskIDs, req.Status, userID); err != nil {
 		if contains(err.Error(), "invalid status") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
 			return

@@ -201,11 +201,12 @@ func (Milestone) TableName() string { return "milestones" }
 
 // TaskComment represents a discussion message on a task
 type TaskComment struct {
-	ID        uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	TaskID    uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
-	UserID    uint      `json:"user_id" gorm:"not null"`
-	UserEmail string    `json:"user_email,omitempty" gorm:"-"`
-	Content   string    `json:"content" gorm:"type:text;not null"`
+	ID             uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	TaskID         uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
+	UserID         uint      `json:"user_id" gorm:"not null"`
+	UserEmail      string    `json:"user_email,omitempty" gorm:"-"`
+	UserAvatarURL  string    `json:"user_avatar_url,omitempty" gorm:"-"`
+	Content        string    `json:"content" gorm:"type:text;not null"`
 	// Attachments stores serialized []TaskCommentAttachment in JSONB.
 	Attachments datatypes.JSON `json:"attachments,omitempty" gorm:"type:jsonb;default:'[]'"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
@@ -226,7 +227,9 @@ type TimeLog struct {
 	ID              uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	TaskID          uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
 	UserID          uint      `json:"user_id" gorm:"not null"`
-	UserEmail       string    `json:"user_email,omitempty" gorm:"-"`
+	UserEmail       string    `json:"user_email,omitempty"  gorm:"column:user_email;<-:false"`
+	TaskCode        string    `json:"task_code,omitempty"   gorm:"column:task_code;<-:false"`
+	TaskTitle       string    `json:"task_title,omitempty"  gorm:"column:task_title;<-:false"`
 	Minutes         int       `json:"minutes" gorm:"not null"`
 	Description     string    `json:"description" gorm:"type:text"`
 	WorkType        string    `json:"work_type" gorm:"default:'DEV'"`
@@ -401,8 +404,9 @@ type Task struct {
 	CreatedBy    *uint `json:"created_by"`
 
 	// Enriched from auth (not stored in DB)
-	CreatedByRole  string `json:"created_by_role,omitempty" gorm:"-"`
-	CreatedByEmail string `json:"created_by_email,omitempty" gorm:"-"`
+	CreatedByRole        string `json:"created_by_role,omitempty" gorm:"-"`
+	CreatedByEmail       string `json:"created_by_email,omitempty" gorm:"-"`
+	CreatedByDisplayName string `json:"created_by_display_name,omitempty" gorm:"-"`
 
 	AssignedToDisplayName string `json:"assigned_to_display_name,omitempty" gorm:"-"`
 	AssignedToEmail       string `json:"assigned_to_email,omitempty" gorm:"-"`
@@ -412,6 +416,9 @@ type Task struct {
 	ProjectColor      string     `json:"project_color,omitempty" gorm:"-"`
 	SprintName        string     `json:"sprint_name,omitempty" gorm:"-"`
 	EffectiveSprintID *uuid.UUID `json:"effective_sprint_id,omitempty" gorm:"-"`
+
+	// Komgrip: task not tied to any project (personal/misc tasks)
+	IsKomgrip bool `json:"is_komgrip" gorm:"default:false;index"`
 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
@@ -550,7 +557,7 @@ type SentinelRepository interface {
 	GetActiveSprintTasksByAssignee(userID uint) ([]Task, error)         // Only tasks in ACTIVE sprint (for engineer role)
 	GetActiveSprintsForUser(userID uint) ([]Sprint, error)              // ACTIVE sprints that have tasks assigned to user
 	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error) // TASK/BUG in ACTIVE sprints; CEO/MANAGER: all projects; else team / Product Owner–engineer rules when teams off
-	GetTeamActiveTasks(teamID uint) ([]GlobalActiveTask, error)         // All ACTIVE-sprint tasks for a team (for cross-engineer time logging)
+	GetTeamActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)   // ACTIVE-sprint tasks visible to caller (team-scoped or project-visibility when teams disabled)
 	GetActiveFeatures(teamID uint, projectID *uuid.UUID) ([]FeatureRoadmapItem, error)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
@@ -558,6 +565,10 @@ type SentinelRepository interface {
 	GetTasksRequiringApproval() ([]Task, error) // Tasks with PENDING appeals or time negotiations
 	UpdateTask(task *Task) error
 	DeleteTask(id uuid.UUID) error // Delete a task by ID
+
+	// Task activity audit (immutable timeline)
+	CreateTaskActivity(e *TaskActivityEvent) error
+	ListTaskActivitiesByTaskID(taskID uuid.UUID) ([]TaskActivityEvent, error)
 
 	GetAllTaskDependencies() ([]TaskDependency, error) // For Gantt chart
 	CreateTaskDependency(dep *TaskDependency) error
@@ -657,6 +668,9 @@ type SentinelRepository interface {
 	GetProjectBackups(projectID uuid.UUID) ([]ProjectBackup, error)
 	GetProjectBackupByID(id uuid.UUID) (*ProjectBackup, error)
 	DeleteProjectBackup(id uuid.UUID, projectID uuid.UUID) error
+
+	// Komgrip: project-less personal/misc tasks
+	GetKomgripTasks(userID uint) ([]Task, error)
 }
 
 // GanttData is the payload for GET /sentinel/tasks/gantt (all tasks + dependencies)
@@ -685,10 +699,11 @@ type SentinelUsecase interface {
 	SubmitUAT(taskID uuid.UUID, devID uint, payload UATPayloadData) error // Engineer submits UAT payload for a FEATURE (READY_FOR_UAT → REVIEW_PENDING)
 	GetTaskByID(taskID uuid.UUID) (*Task, error)
 	GetTaskByIDOrCode(idOrCode string) (*Task, error) // idOrCode is UUID or task code (e.g. mims-hdmap-main-001)
+	GetTaskActivityTimeline(taskID uuid.UUID) ([]TaskActivityItem, error)
 	GetMyTasks(userID uint) ([]Task, error)
 	GetMyActiveSprints(userID uint) ([]Sprint, error)                                      // Active sprints containing user's tasks
 	GetGlobalActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)                    // TASK/BUG in ACTIVE sprints; CEO/MANAGER company-wide; Product Owner/engineer per project list rules
-	GetTeamActiveTasks(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)  // All ACTIVE-sprint TASK/BUG items in caller's team
+	GetTeamActiveTasks(ctx CallerContext) ([]GlobalActiveTask, error)    // ACTIVE-sprint TASK/BUG items visible to caller
 	GetActiveFeatures(callerTeamID *uint, callerRole string, projectID *uuid.UUID) ([]FeatureRoadmapItem, error) // FEATURE items for Product Owner/CEO Roadmap Board (optional project scope)
 	GetUnassignedTasks() ([]Task, error)
 	GetAllTasks() ([]Task, error)
@@ -729,7 +744,7 @@ type SentinelUsecase interface {
 	PMApproveSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, testURL string, testSteps string) error // Product Owner approves READY_FOR_TEST → WAIT_FOR_DEPLOY
 	ApproveSubTask(taskID uuid.UUID, ceoUserID uint, ceoRole string) error                                   // CEO final approves READY_FOR_UAT → COMPLETED
 	RejectSubTask(taskID uuid.UUID, pmUserID uint, pmRole string, reason string) error                       // Product Owner/CEO rejects → IN_PROGRESS
-	AdvanceTaskAfterDeploy(taskID uuid.UUID) error                                                           // Chief Engineer marks deployed: WAIT_FOR_DEPLOY → READY_FOR_UAT
+	AdvanceTaskAfterDeploy(taskID uuid.UUID, deployedByUserID uint) error                                     // Chief Engineer marks deployed: WAIT_FOR_DEPLOY → READY_FOR_UAT
 	GetTasksReadyForTest(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)                  // Product Owner/CEO: fetch READY_FOR_TEST tasks for team
 	GetTasksReadyForCEOApproval(callerTeamID *uint, callerRole string) ([]GlobalActiveTask, error)           // CEO: fetch READY_FOR_UAT tasks awaiting final approval
 
@@ -756,7 +771,7 @@ type SentinelUsecase interface {
 	// Time Logging
 	LogTime(taskID uuid.UUID, userID uint, minutes int, description, workType string, loggedDate *time.Time, isTimer bool) (*TimeLog, error)
 	GetTimeLogs(taskID uuid.UUID) ([]TimeLog, error)
-	EditTimeLog(logID uuid.UUID, callerID uint, minutes int, description, workType string) (*TimeLog, error)
+	EditTimeLog(logID uuid.UUID, callerID uint, minutes int, description, workType string, taskID *uuid.UUID) (*TimeLog, error)
 	DeleteTimeLog(logID uuid.UUID, callerID uint) error
 	GetMyDailyTimeLogs(userID uint, date time.Time) (*DailyTimeLogSummary, error)
 	BulkLogTime(entries []BulkLogEntry, userID uint) ([]BulkLogResult, error)
@@ -765,7 +780,7 @@ type SentinelUsecase interface {
 	GetProjectAnalytics(projectID uuid.UUID) (*ProjectAnalytics, error)
 
 	// Bulk Operations
-	BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string) error
+	BulkUpdateTaskStatus(taskIDs []uuid.UUID, status string, actorID uint) error
 
 	// System Configuration Management
 	GetSystemConfig() (*SystemConfig, error)
@@ -816,6 +831,11 @@ type SentinelUsecase interface {
 	RestoreProjectBackup(backupID uuid.UUID, projectID uuid.UUID) error
 	DeleteProjectBackup(backupID uuid.UUID, projectID uuid.UUID) error
 	ImportProjectFromBackup(newName string, payload *ProjectBackupPayload, createdBy *uint) (*Project, error)
+
+	// Komgrip: project-less personal/misc tasks (all employees)
+	CreateKomgripTask(title, description string, creatorID uint, priority string, estimatedMinutes int) (*Task, error)
+	GetKomgripTasks(userID uint) ([]Task, error)
+	UpdateKomgripTaskStatus(taskID uuid.UUID, status string, userID uint) (*Task, error)
 }
 
 // SlideComment represents a comment/annotation on a Google Slides slide

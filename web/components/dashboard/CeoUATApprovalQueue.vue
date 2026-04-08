@@ -14,7 +14,7 @@
   <section v-else-if="queue.length === 0">
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">CEO Approval Queue</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">Final approval queue</h2>
         <p class="text-xs text-gray-500">Sub-tasks awaiting your final approval</p>
       </div>
       <span class="text-xs font-bold px-3 py-1 rounded-full bg-gray-700/60 border border-gray-600 text-gray-500">
@@ -28,7 +28,7 @@
         </svg>
       </div>
       <p class="text-sm font-semibold text-gray-400">All clear</p>
-      <p class="text-xs text-gray-600 mt-1">No sub-tasks awaiting CEO final approval</p>
+      <p class="text-xs text-gray-600 mt-1">No sub-tasks awaiting final approval</p>
     </div>
   </section>
 
@@ -36,7 +36,7 @@
   <section v-else>
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">CEO Approval Queue</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">Final approval queue</h2>
         <p class="text-xs text-gray-500">Product Owner has tested these tasks — review evidence and give final approval</p>
       </div>
       <span class="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400">

@@ -10,8 +10,19 @@
         :key="comment.id"
         class="flex gap-3"
       >
-        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm font-bold">
-          {{ (comment.user_email || String(comment.user_id)).charAt(0).toUpperCase() }}
+        <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden">
+          <img
+            v-if="comment.user_avatar_url"
+            :src="comment.user_avatar_url"
+            :alt="comment.user_email || String(comment.user_id)"
+            class="w-full h-full object-cover"
+          />
+          <div
+            v-else
+            class="w-full h-full bg-purple-600 flex items-center justify-center text-white text-sm font-bold"
+          >
+            {{ (comment.user_email || String(comment.user_id)).charAt(0).toUpperCase() }}
+          </div>
         </div>
         <div class="flex-1 bg-gray-800 rounded-xl px-4 py-3 border border-gray-700/50">
           <div class="flex items-center justify-between mb-1.5">
@@ -46,8 +57,21 @@
 
     <!-- Add Comment Input -->
     <div class="flex gap-3">
-      <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-gray-400 text-sm">
-        You
+      <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden">
+        <img
+          v-if="currentUserAvatar"
+          :src="currentUserAvatar"
+          alt="You"
+          class="w-full h-full object-cover"
+        />
+        <div
+          v-else-if="currentUserInitial"
+          class="w-full h-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold"
+        >{{ currentUserInitial }}</div>
+        <div
+          v-else
+          class="w-full h-full bg-gray-700 flex items-center justify-center text-gray-400 text-sm"
+        >You</div>
       </div>
       <div class="flex-1 flex flex-col gap-2">
         <textarea
@@ -111,6 +135,8 @@ import type { TaskComment } from '~/core/modules/tasks/infrastructure/tasks-api'
 const props = defineProps<{
   comments: TaskComment[]
   loading?: boolean
+  currentUserAvatar?: string
+  currentUserInitial?: string
 }>()
 
 const emit = defineEmits<{

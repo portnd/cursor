@@ -93,8 +93,14 @@
                       </div>
                     </button>
                   </template>
+                  <div
+                    v-if="!searchQuery && teamTasks.length > TASK_DROPDOWN_LIMIT"
+                    class="px-4 py-2 text-[11px] text-gray-500 border-t border-gray-700/40 bg-gray-800/60"
+                  >
+                    Showing first {{ TASK_DROPDOWN_LIMIT }} of {{ teamTasks.length }} active sprint tasks. Use search to narrow down.
+                  </div>
                   <div v-else class="py-6 text-center text-gray-500 text-sm">
-                    <p v-if="searchQuery">No tasks match "{{ searchQuery }}"</p>
+                    <p v-if="searchQuery">No active sprint tasks match "{{ searchQuery }}"</p>
                     <p v-else>No active sprint tasks found in your team</p>
                   </div>
                 </div>
@@ -260,6 +266,7 @@ const fromTimer      = ref(false)
 
 const totalMinutes = computed(() => logHours.value * 60 + logMins.value)
 const canSubmit    = computed(() => !!selectedTask.value && totalMinutes.value > 0)
+const TASK_DROPDOWN_LIMIT = 100
 
 const presets = [
   { label: '+15m', min: 15 },
@@ -289,14 +296,14 @@ function todayValue() { return localDateStr() }
 
 const filteredTasks = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return teamTasks.value.slice(0, 20)
+  if (!q) return teamTasks.value.slice(0, TASK_DROPDOWN_LIMIT)
   return teamTasks.value.filter(t =>
     t.code?.toLowerCase().includes(q)
     || t.title?.toLowerCase().includes(q)
     || t.assigned_to_display_name?.toLowerCase().includes(q)
     || t.assigned_to_email?.toLowerCase().includes(q)
     || t.project_name?.toLowerCase().includes(q),
-  ).slice(0, 20)
+  ).slice(0, TASK_DROPDOWN_LIMIT)
 })
 
 function assigneeLabel(task: GlobalActiveTask): string {
@@ -334,9 +341,22 @@ function clearTask() {
 
 async function loadTeamTasks() {
   loadingTasks.value = true
-  try { teamTasks.value = await tasksApi.getTeamActiveTasks() }
-  catch { teamTasks.value = [] }
-  finally { loadingTasks.value = false }
+  try {
+    const [active, komgrip] = await Promise.all([
+      tasksApi.getTeamActiveTasks().catch(() => [] as GlobalActiveTask[]),
+      tasksApi.getKomgripTasks().catch(() => [] as GlobalActiveTask[]),
+    ])
+    const komgripAsGlobal = komgrip.map((t: any) => ({
+      ...t,
+      project_name: 'Komgrip',
+      project_color: '#8b5cf6',
+    })) as GlobalActiveTask[]
+    teamTasks.value = [...active, ...komgripAsGlobal]
+  } catch {
+    teamTasks.value = []
+  } finally {
+    loadingTasks.value = false
+  }
 }
 
 async function submitLog() {

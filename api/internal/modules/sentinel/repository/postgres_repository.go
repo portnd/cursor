@@ -594,11 +594,13 @@ func (r *postgresRepository) GetGlobalActiveTasks(ctx domain.CallerContext) ([]d
 	return results, err
 }
 
-// GetTeamActiveTasks returns TASK and BUG items in ACTIVE sprints for a team.
+// GetTeamActiveTasks returns TASK and BUG items in ACTIVE sprints visible to caller.
 // Includes direct sprint tasks AND sub-tasks whose parent FEATURE is in an ACTIVE sprint.
 // Excludes COMPLETED and CANCELLED tasks.
 // Joins users to populate AssignedToDisplayName / AssignedToEmail for Quick Log Time UI.
-func (r *postgresRepository) GetTeamActiveTasks(teamID uint) ([]domain.GlobalActiveTask, error) {
+// Teams on: non-CEO/MANAGER are scoped by team_id.
+// Teams off: Product Owner sees PM-assigned projects; engineers see projects where they have assignments.
+func (r *postgresRepository) GetTeamActiveTasks(ctx domain.CallerContext) ([]domain.GlobalActiveTask, error) {
 	type row struct {
 		domain.Task
 		ProjectName           string `gorm:"column:project_name"`
@@ -627,8 +629,20 @@ func (r *postgresRepository) GetTeamActiveTasks(teamID uint) ([]domain.GlobalAct
 		`).
 		Order("tasks.created_at DESC")
 
-	if teamID != 0 {
-		q = q.Where("projects.team_id = ?", teamID)
+	switch {
+	case ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager:
+		// company-wide
+	case ctx.TeamsFeatureDisabled && ctx.UserID != 0:
+		switch {
+		case ctx.Role == domain.RoleProductOwner:
+			q = q.Where("projects.id IN (SELECT project_id FROM project_pm_assignments WHERE user_id = ?)", ctx.UserID)
+		case domain.IsEngineerRole(ctx.Role):
+			q = q.Where("projects.id IN (SELECT DISTINCT project_id FROM tasks WHERE assigned_to = ?)", ctx.UserID)
+		default:
+			q = q.Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", ctx.UserID)
+		}
+	default:
+		q = q.Joins("JOIN users ON users.id = ? AND users.team_id = projects.team_id", ctx.UserID)
 	}
 	if err := q.Scan(&rows).Error; err != nil {
 		return nil, err
@@ -791,9 +805,23 @@ func (r *postgresRepository) DeleteTask(id uuid.UUID) error {
 		if err := tx.Exec("DELETE FROM task_dependencies WHERE predecessor_id = ? OR successor_id = ?", id, id).Error; err != nil {
 			return err
 		}
-		// 4. Delete the task
+		// 4. Task activity audit trail
+		if err := tx.Exec("DELETE FROM task_activity_events WHERE task_id = ?", id).Error; err != nil {
+			return err
+		}
+		// 5. Delete the task
 		return tx.Delete(&domain.Task{}, "id = ?", id).Error
 	})
+}
+
+func (r *postgresRepository) CreateTaskActivity(e *domain.TaskActivityEvent) error {
+	return r.db.Create(e).Error
+}
+
+func (r *postgresRepository) ListTaskActivitiesByTaskID(taskID uuid.UUID) ([]domain.TaskActivityEvent, error) {
+	var rows []domain.TaskActivityEvent
+	err := r.db.Where("task_id = ?", taskID).Order("created_at asc, id asc").Find(&rows).Error
+	return rows, err
 }
 
 // GetAllTaskDependencies returns all task dependencies for Gantt chart rendering
@@ -1076,6 +1104,7 @@ func (r *postgresRepository) GetTimeLogByID(logID uuid.UUID) (*domain.TimeLog, e
 func (r *postgresRepository) UpdateTimeLog(t *domain.TimeLog) error {
 	return r.db.Model(&domain.TimeLog{}).Where("id = ?", t.ID).
 		Updates(map[string]interface{}{
+			"task_id":     t.TaskID,
 			"minutes":     t.Minutes,
 			"description": t.Description,
 			"work_type":   t.WorkType,
@@ -1090,9 +1119,12 @@ func (r *postgresRepository) GetTimeLogsByUserAndDate(userID uint, date time.Tim
 	var logs []domain.TimeLog
 	err := r.db.Raw(`
 		SELECT tl.id, tl.task_id, tl.user_id, u.email AS user_email,
+		       COALESCE(t.code, '') AS task_code,
+		       COALESCE(t.title, '') AS task_title,
 		       tl.minutes, tl.description, tl.work_type, tl.logged_date, tl.is_timer_session, tl.logged_at
 		FROM time_logs tl
 		JOIN users u ON u.id = tl.user_id
+		LEFT JOIN tasks t ON t.id = tl.task_id
 		WHERE tl.user_id = ? AND tl.logged_date = ?
 		ORDER BY tl.logged_at DESC
 	`, userID, date.Format("2006-01-02")).Scan(&logs).Error
@@ -1601,4 +1633,14 @@ func (r *postgresRepository) DeleteProjectBackup(id uuid.UUID, projectID uuid.UU
 		return fmt.Errorf("backup not found")
 	}
 	return nil
+}
+
+// --- Komgrip Operations ---
+
+func (r *postgresRepository) GetKomgripTasks(userID uint) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.db.Where("is_komgrip = TRUE").
+		Order("created_at DESC").
+		Find(&tasks).Error
+	return tasks, err
 }

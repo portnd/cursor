@@ -32,11 +32,11 @@
               </div>
               <div>
                 <label class="label">วันที่เริ่มลา</label>
-                <input v-model="form.start_date" type="date" class="input" required>
+                <UiDatePicker v-model="form.start_date" placeholder="เลือกวันที่เริ่มลา…" />
               </div>
               <div>
                 <label class="label">วันที่สิ้นสุดลา</label>
-                <input v-model="form.end_date" type="date" class="input" :disabled="form.is_half_day" required>
+                <UiDatePicker v-model="form.end_date" placeholder="เลือกวันที่สิ้นสุดลา…" :disabled="form.is_half_day" />
               </div>
               <div>
                 <label class="label">รูปแบบวันลา</label>

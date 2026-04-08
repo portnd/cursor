@@ -412,17 +412,17 @@
             </div>
             <div>
               <label class="label">Due Date</label>
-              <input v-model="createTaskForm.due_date" type="date" class="input-field w-full" />
+              <UiDatePicker v-model="createTaskForm.due_date" placeholder="Select due date…" />
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="createTaskForm.start_date" type="date" class="input-field w-full" />
+              <UiDatePicker v-model="createTaskForm.start_date" placeholder="Select start date…" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="createTaskForm.end_date" type="date" class="input-field w-full" />
+              <UiDatePicker v-model="createTaskForm.end_date" placeholder="Select end date…" />
             </div>
           </div>
           <div v-if="createTaskError" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ createTaskError }}</div>

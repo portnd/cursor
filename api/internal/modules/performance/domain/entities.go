@@ -68,6 +68,7 @@ type DisciplineUser struct {
 	UserID                uint                    `json:"user_id"`
 	UserEmail             string                  `json:"user_email"`
 	UserDisplayName       string                  `json:"user_display_name,omitempty"`
+	UserAvatarURL         string                  `json:"user_avatar_url,omitempty"`
 	Role                  string                  `json:"role"`
 	MissedPulseCount      int                     `json:"missed_pulse_count"` // working days without a standup in range
 	TotalTasksClosed      int                     `json:"total_tasks_closed"`

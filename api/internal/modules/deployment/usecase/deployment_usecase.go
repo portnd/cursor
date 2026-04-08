@@ -212,7 +212,7 @@ func (u *deploymentUsecase) MarkDeployed(callerID uint, callerRole string, id ui
 
 	// Auto-advance linked task: WAIT_FOR_DEPLOY → READY_FOR_UAT
 	if req.TaskID != nil && u.advancer != nil {
-		if advErr := u.advancer.AdvanceTaskAfterDeploy(*req.TaskID); advErr != nil {
+		if advErr := u.advancer.AdvanceTaskAfterDeploy(*req.TaskID, callerID); advErr != nil {
 			// Log but don't fail — deployment already saved; task advance can be retried manually
 			fmt.Printf("⚠️  deployment: advance task %s after deploy: %v\n", req.TaskID, advErr)
 		}

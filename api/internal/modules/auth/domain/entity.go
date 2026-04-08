@@ -97,6 +97,12 @@ type User struct {
 
 	// Performance Reset: CEO can reset a dev's Rework Rate; rejections before this timestamp are excluded
 	ReworkResetAt *time.Time `json:"rework_reset_at,omitempty" gorm:"column:rework_reset_at"`
+
+	// Avatar: stores a data-URL (base64) or external URL for the user's profile picture
+	AvatarURL string `json:"avatar_url" gorm:"type:text;default:''"`
+
+	// ThemePreference: "dark" or "light" — persisted per user account
+	ThemePreference string `json:"theme_preference" gorm:"type:varchar(10);not null;default:'dark'"`
 }
 
 // UserRole constants for type safety
@@ -210,6 +216,18 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password" binding:"required,min=8"`
 }
 
+// UpdateAvatarRequest is the DTO for updating a user's avatar
+type UpdateAvatarRequest struct {
+	// AvatarDataURL must be a valid data-URL (e.g. "data:image/png;base64,...")
+	// or an empty string to remove the avatar.
+	AvatarDataURL string `json:"avatar_data_url" binding:"required"`
+}
+
+// UpdateThemeRequest is the DTO for updating a user's theme preference
+type UpdateThemeRequest struct {
+	Theme string `json:"theme" binding:"required,oneof=dark light"`
+}
+
 // CreateTeamRequest is the DTO for creating a new team (CEO only)
 type CreateTeamRequest struct {
 	Name string `json:"name" binding:"required,min=1,max=100"`
@@ -243,6 +261,8 @@ type Usecase interface {
 	// Profile (any authenticated user)
 	GetProfile(userID uint) (*User, error)
 	UpdateProfile(userID uint, req *UpdateProfileRequest) (*User, error)
+	UpdateAvatar(userID uint, avatarDataURL string) (*User, error)
+	UpdateThemePreference(userID uint, theme string) (*User, error)
 	ChangePassword(userID uint, currentPassword, newPassword string) error
 	// User Management (CEO only)
 	GetTeamMembers(requestingUserID uint) ([]User, error)
@@ -272,6 +292,8 @@ type Repository interface {
 	FindByID(id uint) (*User, error)
 	// Profile
 	UpdateProfile(userID uint, displayName *string, techStack []string) error
+	UpdateAvatar(userID uint, avatarURL string) error
+	UpdateThemePreference(userID uint, theme string) error
 	// User Management
 	GetAllUsers() ([]User, error)
 	UpdateUserRole(userID uint, newRole string) error

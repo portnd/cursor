@@ -171,6 +171,33 @@ func (u *authUsecase) UpdateProfile(userID uint, req *domain.UpdateProfileReques
 	return u.repo.FindByID(userID)
 }
 
+// UpdateAvatar updates the user's avatar (stored as a data-URL string, max ~2 MB encoded)
+func (u *authUsecase) UpdateAvatar(userID uint, avatarDataURL string) (*domain.User, error) {
+	if _, err := u.repo.FindByID(userID); err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	// Guard against absurdly large payloads (2 MB base64 ≈ ~2.7 MB string)
+	const maxLen = 3 * 1024 * 1024
+	if len(avatarDataURL) > maxLen {
+		return nil, fmt.Errorf("avatar image too large (max 2 MB)")
+	}
+	if err := u.repo.UpdateAvatar(userID, avatarDataURL); err != nil {
+		return nil, err
+	}
+	return u.repo.FindByID(userID)
+}
+
+// UpdateThemePreference persists the user's chosen UI theme ("dark" or "light")
+func (u *authUsecase) UpdateThemePreference(userID uint, theme string) (*domain.User, error) {
+	if _, err := u.repo.FindByID(userID); err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err := u.repo.UpdateThemePreference(userID, theme); err != nil {
+		return nil, err
+	}
+	return u.repo.FindByID(userID)
+}
+
 // ChangePassword changes the current user's password after verifying current password
 func (u *authUsecase) ChangePassword(userID uint, currentPassword, newPassword string) error {
 	user, err := u.repo.FindByID(userID)

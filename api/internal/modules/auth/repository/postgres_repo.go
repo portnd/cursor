@@ -89,6 +89,30 @@ func (r *postgresRepository) UpdateProfile(userID uint, displayName *string, tec
 	return nil
 }
 
+// UpdateAvatar updates the avatar_url for the given user
+func (r *postgresRepository) UpdateAvatar(userID uint, avatarURL string) error {
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("avatar_url", avatarURL)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update avatar: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// UpdateThemePreference persists the user's chosen UI theme ("dark" or "light")
+func (r *postgresRepository) UpdateThemePreference(userID uint, theme string) error {
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("theme_preference", theme)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update theme preference: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // UpdateUserRole updates a user's role
 // Validates that the role is one of the allowed values
 func (r *postgresRepository) UpdateUserRole(userID uint, newRole string) error {

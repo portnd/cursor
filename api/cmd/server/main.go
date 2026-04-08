@@ -91,6 +91,7 @@ func main() {
 		&sentinelDomain.Appeal{},
 		&sentinelDomain.TaskDependency{},
 		&sentinelDomain.TaskComment{},
+		&sentinelDomain.TaskActivityEvent{},
 		&sentinelDomain.TimeLog{},
 		&sentinelDomain.ProjectTransaction{},
 		&financeDomain.MonthlyEntry{},

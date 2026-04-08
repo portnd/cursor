@@ -1,6 +1,7 @@
 /**
  * useTimer — Global task timer with localStorage persistence.
  * Survives page navigation and browser refresh.
+ * Uses module-level singleton state so all components share the same reactive timer.
  *
  * Usage:
  *   const { timerState, elapsedMinutes, elapsedDisplay, start, stop, clear } = useTimer()
@@ -15,37 +16,46 @@ export interface TimerState {
 
 const TIMER_KEY = 'sentinel:active-timer'
 
-export function useTimer() {
-  const timerState = ref<TimerState | null>(null)
-  const now = ref(Date.now())
-  let ticker: ReturnType<typeof setInterval> | null = null
+// Module-level singletons — shared across all component instances
+const _timerState = ref<TimerState | null>(null)
+const _now = ref(Date.now())
+let _ticker: ReturnType<typeof setInterval> | null = null
+let _initialized = false
 
-  function loadFromStorage() {
-    if (!import.meta.client) return
-    const raw = localStorage.getItem(TIMER_KEY)
-    if (raw) {
-      try {
-        timerState.value = JSON.parse(raw) as TimerState
-      }
-      catch {
-        localStorage.removeItem(TIMER_KEY)
-      }
+function _loadFromStorage() {
+  if (!import.meta.client) return
+  const raw = localStorage.getItem(TIMER_KEY)
+  if (raw) {
+    try {
+      _timerState.value = JSON.parse(raw) as TimerState
+    }
+    catch {
+      localStorage.removeItem(TIMER_KEY)
     }
   }
+}
 
-  function startTicker() {
-    if (ticker) clearInterval(ticker)
-    ticker = setInterval(() => { now.value = Date.now() }, 1000)
-  }
+function _startTicker() {
+  if (_ticker) clearInterval(_ticker)
+  _ticker = setInterval(() => { _now.value = Date.now() }, 1000)
+}
 
-  function stopTicker() {
-    if (ticker) { clearInterval(ticker); ticker = null }
+function _stopTicker() {
+  if (_ticker) { clearInterval(_ticker); _ticker = null }
+}
+
+export function useTimer() {
+  // Initialize once on client
+  if (import.meta.client && !_initialized) {
+    _initialized = true
+    _loadFromStorage()
+    if (_timerState.value) _startTicker()
   }
 
   /** Elapsed seconds since timer started (live) */
   const elapsedSeconds = computed(() => {
-    if (!timerState.value) return 0
-    return Math.floor((now.value - timerState.value.startedAt) / 1000)
+    if (!_timerState.value) return 0
+    return Math.floor((_now.value - _timerState.value.startedAt) / 1000)
   })
 
   /** Elapsed whole minutes */
@@ -61,15 +71,15 @@ export function useTimer() {
     return `${pad(h)}:${pad(m)}:${pad(sec)}`
   })
 
-  const isRunning = computed(() => !!timerState.value)
+  const isRunning = computed(() => !!_timerState.value)
 
   /** Start timer for a task. Replaces any existing timer. */
   function start(taskId: string, taskTitle: string, taskCode = '') {
     if (!import.meta.client) return
     const state: TimerState = { taskId, taskTitle, taskCode, startedAt: Date.now() }
-    timerState.value = state
+    _timerState.value = state
     localStorage.setItem(TIMER_KEY, JSON.stringify(state))
-    startTicker()
+    _startTicker()
   }
 
   /**
@@ -77,13 +87,13 @@ export function useTimer() {
    * Caller should open the log form pre-filled with this value.
    */
   function stop(): { minutes: number; taskId: string; taskTitle: string; taskCode: string } | null {
-    if (!timerState.value) return null
+    if (!_timerState.value) return null
     const mins = elapsedMinutes.value
     const result = {
       minutes: Math.max(mins, 1), // at least 1 minute
-      taskId: timerState.value.taskId,
-      taskTitle: timerState.value.taskTitle,
-      taskCode: timerState.value.taskCode,
+      taskId: _timerState.value.taskId,
+      taskTitle: _timerState.value.taskTitle,
+      taskCode: _timerState.value.taskCode,
     }
     clear()
     return result
@@ -91,17 +101,10 @@ export function useTimer() {
 
   function clear() {
     if (!import.meta.client) return
-    timerState.value = null
+    _timerState.value = null
     localStorage.removeItem(TIMER_KEY)
-    stopTicker()
+    _stopTicker()
   }
 
-  onMounted(() => {
-    loadFromStorage()
-    if (timerState.value) startTicker()
-  })
-
-  onUnmounted(() => stopTicker())
-
-  return { timerState, elapsedMinutes, elapsedDisplay, isRunning, start, stop, clear }
+  return { timerState: _timerState, elapsedMinutes, elapsedDisplay, isRunning, start, stop, clear }
 }

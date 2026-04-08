@@ -47,6 +47,8 @@
     </div>
 
     <main v-else class="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
+      <CeoUATApprovalQueue />
+
       <section>
         <h2 class="section-label">Operations snapshot</h2>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -244,6 +246,7 @@ import { useAttendanceApi, type LeaveRequest, type LeaveTrendPoint, type LeavePo
 import { useProjectsApi, type Project } from '~/core/modules/projects/infrastructure/projects-api'
 import { usePerformanceStore } from '~/core/modules/performance/performance-store'
 import PmPerformanceSection from '~/components/dashboard/PmPerformanceSection.vue'
+import CeoUATApprovalQueue from '~/components/dashboard/CeoUATApprovalQueue.vue'
 
 const attendanceApi = useAttendanceApi()
 const projectsApi = useProjectsApi()

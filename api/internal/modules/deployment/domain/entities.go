@@ -99,7 +99,7 @@ type DeploymentStats struct {
 // sentinel task to READY_FOR_UAT when the Chief Engineer marks a deployment as deployed.
 // Implemented by the sentinel usecase; injected at wire-up time in main.go.
 type TaskStatusAdvancer interface {
-	AdvanceTaskAfterDeploy(taskID uuid.UUID) error
+	AdvanceTaskAfterDeploy(taskID uuid.UUID, deployedByUserID uint) error
 }
 
 // ─── Ports ────────────────────────────────────────────────────────────────────

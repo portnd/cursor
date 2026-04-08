@@ -10,6 +10,7 @@ export interface TaskComment {
   task_id: string
   user_id: number
   user_email: string
+  user_avatar_url?: string
   content: string
   attachments?: Array<{
     file_name: string
@@ -26,6 +27,8 @@ export interface TimeLog {
   task_id: string
   user_id: number
   user_email: string
+  task_code?: string
+  task_title?: string
   minutes: number
   description: string
   work_type: string      // DEV | REVIEW | TESTING | MEETING | RESEARCH | OTHER
@@ -246,10 +249,12 @@ function useTasksApi() {
     return data.data
   }
 
-  async function editTimeLog(logId: string, minutes: number, description: string, workType: string): Promise<TimeLog> {
+  async function editTimeLog(logId: string, minutes: number, description: string, workType: string, taskId?: string): Promise<TimeLog> {
+    const body: Record<string, unknown> = { minutes, description, work_type: workType }
+    if (taskId) body.task_id = taskId
     const data = await fetchWithAuth<{ data: TimeLog }>(`/sentinel/time-logs/${logId}`, {
       method: 'PATCH',
-      body: { minutes, description, work_type: workType },
+      body,
     })
     return data.data
   }
@@ -516,6 +521,36 @@ function useTasksApi() {
     return res.data ?? []
   }
 
+  async function getKomgripTasks(): Promise<Task[]> {
+    const data = await fetchWithAuth<{ data: Task[] }>('/sentinel/komgrip/tasks')
+    return data.data || []
+  }
+
+  async function createKomgripTask(payload: {
+    title: string
+    description?: string
+    priority?: string
+    estimated_minutes?: number
+  }): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>('/sentinel/komgrip/tasks', {
+      method: 'POST',
+      body: payload,
+    })
+    return data.data
+  }
+
+  async function updateKomgripTaskStatus(id: string, status: string): Promise<Task> {
+    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/komgrip/tasks/${id}/status`, {
+      method: 'PATCH',
+      body: { status },
+    })
+    return data.data
+  }
+
+  async function deleteKomgripTask(id: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/komgrip/tasks/${id}`, { method: 'DELETE' })
+  }
+
   return {
     getTasksByProject,
     getAllTasks,
@@ -554,6 +589,10 @@ function useTasksApi() {
     rejectSubTask,
     getTasksReadyForTest,
     getTasksReadyForCEOApproval,
+    getKomgripTasks,
+    createKomgripTask,
+    updateKomgripTaskStatus,
+    deleteKomgripTask,
   }
 }
 

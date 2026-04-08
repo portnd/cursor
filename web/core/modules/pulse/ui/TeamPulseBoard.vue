@@ -7,11 +7,10 @@
         <p class="mt-0.5 text-sm text-gray-400">Async daily check-in for {{ displayDate }}</p>
       </div>
       <div class="flex items-center gap-3">
-        <input
+        <UiDatePicker
           v-model="selectedDate"
-          type="date"
-          class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-200 focus:border-indigo-500 focus:outline-none"
-          @change="onDateChange"
+          placeholder="Select date…"
+          @update:modelValue="onDateChange"
         />
         <button
           class="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50 flex items-center gap-1.5"

@@ -534,7 +534,7 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 
 	// 2. Load working-level users only (exclude CEO and SUPPORT)
 	var users []authDomain.User
-	if err := r.db.Select("id", "email", "display_name", "role").
+	if err := r.db.Select("id", "email", "display_name", "role", "avatar_url").
 		Where("role NOT IN ?", []string{"CEO", "SUPPORT"}).
 		Find(&users).Error; err != nil {
 		return nil, err
@@ -706,6 +706,7 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			UserID:          u.ID,
 			UserEmail:       u.Email,
 			UserDisplayName: u.DisplayName,
+			UserAvatarURL:   u.AvatarURL,
 			Role:            u.Role,
 		}
 		var totalClosed, totalReworks, totalMins, missedPulse, totalDeploys, totalLate, totalEarlyOut int

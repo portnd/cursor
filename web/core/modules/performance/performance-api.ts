@@ -51,6 +51,7 @@ export interface DisciplineUser {
   user_id: number
   user_email: string
   user_display_name: string
+  user_avatar_url?: string
   role: string
   missed_pulse_count: number
   total_tasks_closed: number

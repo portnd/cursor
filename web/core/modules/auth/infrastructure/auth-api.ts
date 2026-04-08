@@ -30,6 +30,8 @@ export interface User {
   display_name?: string
   health_score?: number
   tech_stack?: string[]
+  avatar_url?: string
+  theme_preference?: 'dark' | 'light'
 }
 
 interface AuthResponse {
@@ -153,5 +155,31 @@ export const authApi = {
       method: 'PATCH',
       body: { current_password: currentPassword, new_password: newPassword },
     })
+  },
+
+  /**
+   * Upload / update avatar (stored as base64 data-URL)
+   * POST /auth/me/avatar
+   */
+  async uploadAvatar(avatarDataURL: string): Promise<User> {
+    const { fetchWithAuth } = useAuth()
+    const res = await fetchWithAuth<{ message: string; data: User }>('/auth/me/avatar', {
+      method: 'POST',
+      body: { avatar_data_url: avatarDataURL },
+    })
+    return res.data
+  },
+
+  /**
+   * Save user's theme preference to their account
+   * PATCH /auth/me/theme
+   */
+  async updateTheme(theme: 'dark' | 'light'): Promise<User> {
+    const { fetchWithAuth } = useAuth()
+    const res = await fetchWithAuth<{ message: string; data: User }>('/auth/me/theme', {
+      method: 'PATCH',
+      body: { theme },
+    })
+    return res.data
   },
 }

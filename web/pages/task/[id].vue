@@ -479,7 +479,13 @@
                 <span class="text-xs text-gray-600 bg-gray-700/60 px-2 py-0.5 rounded-full">{{ comments.length }}</span>
               </div>
               <div class="p-5">
-                <TaskComments :comments="comments" :loading="commentsLoading" @add-comment="handleAddComment" />
+                <TaskComments
+                  :comments="comments"
+                  :loading="commentsLoading"
+                  :current-user-avatar="currentUserAvatarURL"
+                  :current-user-initial="currentUserInitial"
+                  @add-comment="handleAddComment"
+                />
               </div>
             </div>
 
@@ -515,14 +521,14 @@
           </div>
 
           <!-- Details card -->
-          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden sticky top-4">
+          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
             <div class="px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
               <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Details</h2>
             </div>
             <div class="divide-y divide-gray-700/40">
 
-              <!-- Project board link -->
-              <div v-if="task.project_id" class="px-5 py-3.5">
+              <!-- Project board link (not shown for Komgrip tasks) -->
+              <div v-if="task.project_id && !task.is_komgrip" class="px-5 py-3.5">
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Project</p>
                 <NuxtLink
                   :to="`/projects/${task.project_id}?tab=board`"
@@ -531,6 +537,15 @@
                   <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
                   <span class="group-hover:underline">View on project board</span>
                   <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </NuxtLink>
+              </div>
+
+              <!-- Komgrip badge -->
+              <div v-if="task.is_komgrip" class="px-5 py-3.5">
+                <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Workspace</p>
+                <NuxtLink to="/komgrip" class="inline-flex items-center gap-1.5 text-sm text-violet-400 hover:text-violet-300 transition-colors group">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                  <span class="group-hover:underline">Komgrip</span>
                 </NuxtLink>
               </div>
 
@@ -642,6 +657,69 @@
 
             </div>
           </div>
+
+          <!-- Activity timeline (audit trail) -->
+          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <svg class="w-4 h-4 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider truncate">Activity</h2>
+              </div>
+              <button
+                type="button"
+                class="text-[11px] text-violet-400 hover:text-violet-300 px-2 py-1 rounded-lg border border-violet-500/25 hover:border-violet-400/40 bg-violet-500/5 transition-colors disabled:opacity-40 shrink-0"
+                :disabled="activityLoading"
+                @click="fetchTaskActivity"
+              >
+                Refresh
+              </button>
+            </div>
+            <div class="p-4 max-h-[min(52vh,520px)] overflow-y-auto custom-scrollbar">
+              <div v-if="activityLoading" class="flex flex-col items-center justify-center py-10 gap-2">
+                <div class="w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-violet-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                </div>
+                <p class="text-xs text-gray-500">Loading activity…</p>
+              </div>
+              <p v-else-if="activityError" class="text-xs text-red-400 py-6 text-center px-2">{{ activityError }}</p>
+              <p v-else-if="taskActivity.length === 0" class="text-xs text-gray-500 py-8 text-center leading-relaxed px-2">
+                No activity entries yet.<br />
+                <span class="text-gray-600">New events will appear here automatically.</span>
+              </p>
+              <ol v-else class="relative ms-2 border-s border-gray-700/70 ps-0 list-none space-y-0">
+                <li
+                  v-for="(item, idx) in taskActivity"
+                  :key="item.id + '-' + idx"
+                  class="relative pb-7 last:pb-1 ps-6"
+                >
+                  <span class="absolute start-0 top-1 -translate-x-1/2 flex h-7 w-7 rounded-full bg-gray-900 shadow-sm">
+                    <span
+                      class="flex h-full w-full items-center justify-center rounded-full border text-[11px] font-bold"
+                      :class="activityDotClass(item.action)"
+                    >
+                      {{ activityIconGlyph(item.action) }}
+                    </span>
+                  </span>
+                  <div class="pt-0.5 space-y-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm font-semibold text-white leading-snug">{{ activityTitle(item) }}</span>
+                      <span
+                        v-if="item.inferred"
+                        class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/25"
+                      >Inferred from record</span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 font-mono tabular-nums">{{ formatActivityDateTime(item.at) }}</p>
+                    <p class="text-xs text-gray-400 leading-relaxed break-words">{{ activityDetailLine(item) }}</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -711,16 +789,16 @@
           </div>
           <div>
             <label class="label">Due Date</label>
-            <input v-model="editForm.deadline" type="date" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
+            <UiDatePicker v-model="editForm.deadline" placeholder="Select due date…" :disabled="isUpdatingTask" @update:modelValue="closeDateTimePicker" />
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
               <label class="label">Start Date</label>
-              <input v-model="editForm.start_date" type="date" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
+              <UiDatePicker v-model="editForm.start_date" placeholder="Select start date…" :disabled="isUpdatingTask" @update:modelValue="closeDateTimePicker" />
             </div>
             <div>
               <label class="label">End Date</label>
-              <input v-model="editForm.end_date" type="date" class="input-field w-full" :disabled="isUpdatingTask" @input="closeDateTimePicker" @change="closeDateTimePicker" />
+              <UiDatePicker v-model="editForm.end_date" placeholder="Select end date…" :disabled="isUpdatingTask" @update:modelValue="closeDateTimePicker" />
             </div>
           </div>
         </div>
@@ -1016,6 +1094,7 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useAuthStore } from '~/core/modules/auth/store/auth-store'
 import TaskComments from '~/components/tasks/TaskComments.vue'
 import TimeLogger from '~/components/tasks/TimeLogger.vue'
@@ -1124,9 +1203,22 @@ interface Task {
   created_by: number
   created_by_role?: string
   created_by_email?: string
+  created_by_display_name?: string
+  is_komgrip?: boolean
   created_at: string
   updated_at: string
   submissions?: Submission[]
+}
+
+interface TaskActivityItem {
+  id: string
+  action: string
+  at: string
+  actor_user_id?: number
+  actor_email?: string
+  actor_display_name?: string
+  payload?: Record<string, unknown> | null
+  inferred?: boolean
 }
 
 const route = useRoute()
@@ -1137,6 +1229,22 @@ const tasksApi = useTasksApi()
 const { getTeams } = useTeamsApi()
 const teamsStore = useTeamsStore()
 const { showSuccess, showError } = useNotification()
+
+// Current user profile (for comment avatar)
+const currentUserAvatarURL = ref('')
+const currentUserInitial = computed(() => {
+  const u = authCurrentUser.value
+  if (!u) return ''
+  return (u.display_name || u.email || '').charAt(0).toUpperCase()
+})
+
+onMounted(async () => {
+  try {
+    const { authApi } = await import('~/core/modules/auth/infrastructure/auth-api')
+    const me = await authApi.getMe()
+    currentUserAvatarURL.value = me.avatar_url || ''
+  } catch { /* silent */ }
+})
 
 // State
 const task = ref<Task | null>(null)
@@ -1209,6 +1317,10 @@ const comments = ref<TaskComment[]>([])
 const timeLogs = ref<TimeLog[]>([])
 const commentsLoading = ref(false)
 const timeLogsLoading = ref(false)
+
+const taskActivity = ref<TaskActivityItem[]>([])
+const activityLoading = ref(false)
+const activityError = ref('')
 
 // Estimated Effort (UI: hours, 1 decimal → API: integer minutes)
 const estimatedHoursLocal = ref(0)
@@ -1427,9 +1539,10 @@ const creatorLabel = computed(() => {
   if (!task.value) return ''
   const role = task.value.created_by_role
   const email = task.value.created_by_email
-  if (role === 'CEO') return email ? `CEO (${email})` : 'CEO'
-  if (role === 'PRODUCT_OWNER' || role === 'PM') return email ? `Product Owner (${email})` : 'Product Owner'
-  return `Dev #${task.value.created_by}`
+  const displayName = task.value.created_by_display_name
+  if (role === 'CEO') return displayName || email || 'CEO'
+  if (role === 'PRODUCT_OWNER' || role === 'PM') return displayName || email || 'Product Owner'
+  return displayName || email || `Dev #${task.value.created_by}`
 })
 
 // Methods
@@ -1452,6 +1565,8 @@ const fetchTask = async () => {
     // Populate local subtasks from response (backend preloads SubTasks)
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
 
+    void fetchTaskActivity()
+
     // Clear Prev/Next ordering while we (re)load it in background.
     sprintTaskIds.value = []
     backlogTaskIds.value = []
@@ -1463,6 +1578,260 @@ const fetchTask = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const fetchTaskActivity = async () => {
+  const id = task.value?.id || (route.params.id as string)?.trim?.() || ''
+  if (!id || id === 'undefined' || id === 'null') {
+    taskActivity.value = []
+    return
+  }
+  activityLoading.value = true
+  activityError.value = ''
+  try {
+    const response = await fetchWithAuth<{ data: TaskActivityItem[] }>(`/sentinel/tasks/${id}/activity`)
+    taskActivity.value = Array.isArray(response.data) ? response.data : []
+  } catch (err: any) {
+    console.error('Failed to fetch task activity:', err)
+    const apiMsg = err?.data?.message ?? err?.data?.error
+    activityError.value =
+      apiMsg || (err?.statusCode === 404 || err?.status === 404 ? 'Task not found.' : err?.message || 'Failed to load activity.')
+    taskActivity.value = []
+  } finally {
+    activityLoading.value = false
+  }
+}
+
+function activityPayload(item: TaskActivityItem): Record<string, unknown> {
+  const p = item.payload
+  if (p != null && typeof p === 'object' && !Array.isArray(p)) {
+    return p as Record<string, unknown>
+  }
+  return {}
+}
+
+/** Legacy Thai notes from earlier API responses — show English in UI */
+const legacyActivityNoteEn: Record<string, string> = {
+  'สร้างก่อนระบบบันทึกกิจกรรม — เวลาจากเรคคอร์ด task':
+    'Created before activity logging — timestamp from task record',
+  'เวลาเริ่มงานจาก started_at — ผู้เริ่มไม่ได้ถูกบันทึกในประวัติเดิม':
+    'Start time from started_at — actor was not recorded in legacy history',
+  'เวลาปิดงานจาก completed_at — รายละเอียดการอนุมัติอาจอยู่ก่อนระบบบันทึกกิจกรรม':
+    'Completion time from completed_at — approval trail may predate activity logging',
+}
+
+function displayActivityNote(note: string): string {
+  const t = note.trim()
+  return legacyActivityNoteEn[t] ?? note
+}
+
+function activityActorLabel(item: TaskActivityItem): string {
+  const name = (item.actor_display_name || '').trim()
+  const email = (item.actor_email || '').trim()
+  if (name) return name
+  if (email) return email
+  if (item.actor_user_id != null && item.actor_user_id > 0) return `User #${item.actor_user_id}`
+  return 'Unknown actor'
+}
+
+function activityStatusLabel(s: string): string {
+  const labels: Record<string, string> = {
+    PENDING: 'Pending',
+    IN_PROGRESS: 'In progress',
+    READY_FOR_TEST: 'Ready for test',
+    WAIT_FOR_DEPLOY: 'Wait for deploy',
+    READY_FOR_UAT: 'Ready for UAT',
+    REVIEW_PENDING: 'Review pending',
+    COMPLETED: 'Completed',
+    BLOCKED: 'Blocked',
+    CANCELLED: 'Cancelled',
+  }
+  return labels[s] || s
+}
+
+function activityTitle(item: TaskActivityItem): string {
+  switch (item.action) {
+    case 'CREATED':
+      return 'Task created'
+    case 'ASSIGNED':
+      return 'Assignee set'
+    case 'UNASSIGNED':
+      return 'Unassigned'
+    case 'STATUS_CHANGED':
+      return 'Status changed'
+    case 'SUBMITTED_REVIEW':
+      return 'Submitted for review (handover)'
+    case 'APPROVED_REVIEW':
+      return 'Approved after review'
+    case 'REJECTED_REVIEW':
+      return 'Rejected — sent back for rework'
+    case 'READY_FOR_TEST':
+      return 'Marked ready for test'
+    case 'PM_APPROVED_TEST':
+      return 'PO approved test → wait for deploy'
+    case 'DEPLOYED':
+      return 'Deployed → ready for UAT'
+    case 'CEO_FINAL_APPROVED':
+      return 'CEO / Manager final approval'
+    case 'WORKFLOW_REJECT':
+      return 'Workflow rejection (sent back)'
+    case 'SUBMIT_UAT':
+      return 'Feature UAT submitted'
+    case 'NEGOTIATION_SUBMITTED':
+      return 'Time negotiation submitted'
+    case 'APPEAL_APPROVED_COMPLETE':
+      return 'Appeal approved — task completed'
+    case 'PARENT_ROLLUP_STATUS':
+      return 'Parent feature status updated (roll-up)'
+    default:
+      return item.action.replaceAll('_', ' ')
+  }
+}
+
+function activityIconGlyph(action: string): string {
+  const m: Record<string, string> = {
+    CREATED: '＋',
+    ASSIGNED: '👤',
+    UNASSIGNED: '◌',
+    STATUS_CHANGED: '⇄',
+    SUBMITTED_REVIEW: '⎇',
+    APPROVED_REVIEW: '✓',
+    REJECTED_REVIEW: '↩',
+    READY_FOR_TEST: '🧪',
+    PM_APPROVED_TEST: '✅',
+    DEPLOYED: '🚀',
+    CEO_FINAL_APPROVED: '👑',
+    WORKFLOW_REJECT: '✗',
+    SUBMIT_UAT: '📦',
+    NEGOTIATION_SUBMITTED: '⏱',
+    APPEAL_APPROVED_COMPLETE: '⚖',
+    PARENT_ROLLUP_STATUS: '🔗',
+  }
+  return m[action] || '•'
+}
+
+function activityDotClass(action: string): string {
+  const base = 'border-gray-600/80 bg-gray-900/90 text-gray-200'
+  const accent: Record<string, string> = {
+    CREATED: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300',
+    ASSIGNED: 'border-blue-500/40 bg-blue-500/15 text-blue-300',
+    UNASSIGNED: 'border-gray-500/50 bg-gray-800/80 text-gray-400',
+    STATUS_CHANGED: 'border-violet-500/40 bg-violet-500/15 text-violet-300',
+    SUBMITTED_REVIEW: 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300',
+    APPROVED_REVIEW: 'border-green-500/40 bg-green-500/15 text-green-300',
+    REJECTED_REVIEW: 'border-red-500/40 bg-red-500/15 text-red-300',
+    READY_FOR_TEST: 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300',
+    PM_APPROVED_TEST: 'border-teal-500/40 bg-teal-500/15 text-teal-300',
+    DEPLOYED: 'border-orange-500/40 bg-orange-500/15 text-orange-300',
+    CEO_FINAL_APPROVED: 'border-amber-500/40 bg-amber-500/15 text-amber-300',
+    WORKFLOW_REJECT: 'border-red-500/40 bg-red-500/15 text-red-300',
+    SUBMIT_UAT: 'border-purple-500/40 bg-purple-500/15 text-purple-300',
+    NEGOTIATION_SUBMITTED: 'border-yellow-500/40 bg-yellow-500/15 text-yellow-300',
+    APPEAL_APPROVED_COMPLETE: 'border-lime-500/40 bg-lime-500/15 text-lime-300',
+    PARENT_ROLLUP_STATUS: 'border-indigo-500/40 bg-indigo-500/15 text-indigo-300',
+  }
+  return accent[action] || base
+}
+
+function activityDetailLine(item: TaskActivityItem): string {
+  const actor = activityActorLabel(item)
+  const p = activityPayload(item)
+  const parts: string[] = []
+
+  const rawNote = typeof p.note === 'string' ? p.note.trim() : ''
+  const fromS = typeof p.from_status === 'string' ? p.from_status : ''
+  const toS = typeof p.to_status === 'string' ? p.to_status : ''
+  const src = typeof p.source === 'string' ? p.source : ''
+
+  switch (item.action) {
+    case 'CREATED':
+      parts.push(`By ${actor}`)
+      if (typeof p.title === 'string' && p.title) parts.push(`Title: ${p.title}`)
+      break
+    case 'ASSIGNED': {
+      const assignee =
+        (typeof p.assignee_display_name === 'string' && p.assignee_display_name) ||
+        (typeof p.assignee_user_id === 'number' && p.assignee_user_id > 0 ? `User #${p.assignee_user_id}` : '—')
+      parts.push(`Assigned to ${assignee} by ${actor}`)
+      break
+    }
+    case 'UNASSIGNED': {
+      const prev =
+        (typeof p.previous_assignee_display_name === 'string' && p.previous_assignee_display_name) ||
+        (typeof p.previous_assignee_user_id === 'number' && p.previous_assignee_user_id > 0
+          ? `User #${p.previous_assignee_user_id}`
+          : 'previous assignee')
+      parts.push(`Unassigned ${prev} by ${actor}`)
+      if (toS) parts.push(`Status → ${activityStatusLabel(toS)}`)
+      break
+    }
+    case 'STATUS_CHANGED':
+      if (fromS && toS) parts.push(`${activityStatusLabel(fromS)} → ${activityStatusLabel(toS)} by ${actor}`)
+      else if (toS) parts.push(`→ ${activityStatusLabel(toS)} by ${actor}`)
+      else parts.push(`By ${actor}`)
+      if (src === 'kanban_bulk') parts.push('via Kanban')
+      break
+    case 'SUBMITTED_REVIEW': {
+      const url = typeof p.reference_url === 'string' ? p.reference_url : ''
+      parts.push(`By ${actor}`)
+      if (url) parts.push(`Reference: ${url}`)
+      break
+    }
+    case 'PM_APPROVED_TEST': {
+      const u = typeof p.test_url === 'string' ? p.test_url : ''
+      parts.push(`By ${actor}`)
+      if (u) parts.push(`Test URL: ${u}`)
+      break
+    }
+    case 'DEPLOYED':
+      parts.push(`Chief Engineer / deployer: ${actor}`)
+      if (fromS && toS) parts.push(`${activityStatusLabel(fromS)} → ${activityStatusLabel(toS)}`)
+      break
+    case 'NEGOTIATION_SUBMITTED':
+      if (typeof p.proposed_minutes === 'number') parts.push(`Proposed ${p.proposed_minutes} minutes by ${actor}`)
+      else parts.push(`By ${actor}`)
+      break
+    case 'WORKFLOW_REJECT': {
+      const ex = typeof p.reason_excerpt === 'string' ? p.reason_excerpt : ''
+      parts.push(`By ${actor}`)
+      if (fromS && toS) parts.push(`${activityStatusLabel(fromS)} → ${activityStatusLabel(toS)}`)
+      if (ex) parts.push(ex)
+      break
+    }
+    case 'PARENT_ROLLUP_STATUS': {
+      const child = typeof p.child_task_id === 'string' ? p.child_task_id : ''
+      parts.push(`All sub-tasks completed — by ${actor}`)
+      if (child) parts.push(`Child task: ${child.slice(0, 8)}…`)
+      if (toS) parts.push(`Parent status → ${activityStatusLabel(toS)}`)
+      break
+    }
+    case 'SUBMIT_UAT': {
+      const st = typeof p.staging_url === 'string' ? p.staging_url : ''
+      parts.push(`By ${actor}`)
+      if (st) parts.push(`Staging: ${st}`)
+      break
+    }
+    case 'APPROVED_REVIEW':
+    case 'CEO_FINAL_APPROVED':
+    case 'READY_FOR_TEST':
+    case 'REJECTED_REVIEW':
+    case 'APPEAL_APPROVED_COMPLETE':
+      if (fromS && toS) parts.push(`${activityStatusLabel(fromS)} → ${activityStatusLabel(toS)} · ${actor}`)
+      else parts.push(`By ${actor}`)
+      break
+    default:
+      parts.push(`By ${actor}`)
+  }
+
+  if (rawNote) parts.push(displayActivityNote(rawNote))
+
+  return parts.filter(Boolean).join(' · ')
+}
+
+const formatActivityDateTime = (iso: string) => {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 // Load Prev/Next ordering (sprint/backlog context) without blocking initial task render.
@@ -2062,6 +2431,8 @@ const backTarget = computed(() => {
   if (!t) return '/dashboard'
   // Sub-tasks: navigate back to parent task page after deletion
   if (t.parent_id) return `/task/${t.parent_id}`
+  // Komgrip tasks have no project — go back to Komgrip page
+  if (t.is_komgrip) return '/komgrip'
   // Use project_id (UUID) first — always reliable
   if (t.project_id) return `/projects/${t.project_id}`
   // Fallback: try deriving project code from task code (only reliable for top-level tasks)
@@ -2231,6 +2602,18 @@ onMounted(async () => {
   fetchDeploymentForTask()
   fetchPrevNextOrdering()
 })
+
+watch(
+  () => route.params.id,
+  async (newId, oldId) => {
+    const id = typeof newId === 'string' ? newId.trim() : ''
+    if (!id || id === oldId) return
+    await fetchTask()
+    fetchCommentsAndLogs()
+    fetchDeploymentForTask()
+    fetchPrevNextOrdering()
+  }
+)
 </script>
 
 <style scoped>
@@ -2258,6 +2641,18 @@ onMounted(async () => {
 /* Edit Task modal — wide layout, larger fields (rest of page unchanged) */
 .edit-task-modal-enterprise {
   @apply border border-white/10 bg-slate-900/75 shadow-[0_18px_42px_rgba(2,6,23,0.46)] backdrop-blur-sm;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 999px;
 }
 
 .edit-task-modal .label {

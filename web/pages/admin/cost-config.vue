@@ -1016,11 +1016,11 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="field-label">Effective From *</label>
-                <input v-model="salaryForm.effective_from" type="date" class="input-field" />
+                <UiDatePicker v-model="salaryForm.effective_from" placeholder="Select date…" />
               </div>
               <div>
                 <label class="field-label">Effective To <span class="text-gray-500">(optional)</span></label>
-                <input v-model="salaryForm.effective_to" type="date" class="input-field" />
+                <UiDatePicker v-model="salaryForm.effective_to" placeholder="Select date…" />
               </div>
             </div>
 

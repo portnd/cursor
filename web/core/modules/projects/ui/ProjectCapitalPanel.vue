@@ -138,11 +138,10 @@
           <!-- Delivery date -->
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-1.5">วันที่ส่งงาน <span class="text-red-400">*</span></label>
-            <input
+            <UiDatePicker
               v-model="injectModal.deliveryDate"
-              type="date"
+              placeholder="เลือกวันที่ส่งงาน…"
               :min="injectModalDeliveryDateMin"
-              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-indigo-500"
             />
             <p class="text-xs text-gray-500 mt-1">ระบบจะคำนวณยอดเงินให้หมดพอดีวันส่งงาน (จาก Burn Rate ปัจจุบัน)</p>
             <p v-if="injectModal.deliveryDate && injectModalAmountFromDate !== null" class="text-xs text-emerald-400 mt-1">

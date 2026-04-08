@@ -41,6 +41,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.GET("/tasks/gantt", handler.GetGantt)                                 // Get all tasks + dependencies for Gantt chart
 		sentinelGroup.GET("/tasks/ready-for-test", handler.GetTasksReadyForTest)            // Continuous UAT queue (must be before /:id)
 		sentinelGroup.GET("/tasks", handler.GetAllTasks)                                    // Get all tasks (ADMIN / Product Owner overview)
+		sentinelGroup.GET("/tasks/:id/activity", handler.GetTaskActivity)                   // Immutable task lifecycle timeline
 		sentinelGroup.GET("/tasks/:id", handler.GetTaskByID)                                // Get single task with submission history
 		sentinelGroup.PATCH("/tasks/:id", handler.UpdateTask)                               // Update task (Creator or CEO only, triggers AI re-estimation)
 		sentinelGroup.PATCH("/tasks/:id/slide-resources", handler.UpdateTaskSlideResources) // Update task resource_urls (slide images/annotations)
@@ -51,15 +52,15 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/tasks/:id/submit", handler.SubmitWork)                         // Handover: engineer submits PR/Commit URL for review
 		sentinelGroup.POST("/tasks/:id/submit-uat", handler.SubmitUAT)                      // UAT: engineer submits staging URL + release notes for FEATURE review
 		sentinelGroup.POST("/tasks/:id/negotiate", handler.NegotiateTime)                   // Engineer negotiates AI time estimate
-		sentinelGroup.POST("/tasks/:id/approve", handler.ApproveTask)                       // Approve task after review (Product Owner/CEO only)
+		sentinelGroup.POST("/tasks/:id/approve", handler.ApproveTask)                       // Approve task after review (Product Owner / CEO / Manager)
 		sentinelGroup.POST("/tasks/:id/reject", handler.RejectTask)                         // Reject task and return to IN_PROGRESS (Product Owner/CEO/MANAGER)
 
 		// Continuous UAT: sub-task testing lane
 		sentinelGroup.POST("/tasks/:id/ready-for-test", handler.MarkReadyForTest)
 		sentinelGroup.POST("/tasks/:id/pm-approve-sub", handler.PMApproveSubTask) // Product Owner: READY_FOR_TEST → READY_FOR_UAT (with test evidence); path kept for compatibility
-		sentinelGroup.POST("/tasks/:id/approve-sub", handler.ApproveSubTask)      // CEO: READY_FOR_UAT → COMPLETED (final approval)
+		sentinelGroup.POST("/tasks/:id/approve-sub", handler.ApproveSubTask)      // CEO / Manager: READY_FOR_UAT → COMPLETED (final approval)
 		sentinelGroup.POST("/tasks/:id/reject-sub", handler.RejectSubTask)
-		sentinelGroup.GET("/tasks/ceo-approval-queue", handler.GetTasksReadyForCEOApproval) // CEO: tasks awaiting final approval
+		sentinelGroup.GET("/tasks/ceo-approval-queue", handler.GetTasksReadyForCEOApproval) // CEO / Manager: tasks awaiting final approval
 
 		// Task Dependencies (Gantt links)
 		sentinelGroup.POST("/tasks/dependencies", handler.CreateDependency)
@@ -150,6 +151,12 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.GET("/projects/:id/backups/:backupId/payload", backupHandler.GetProjectBackupPayload)
 		sentinelGroup.POST("/projects/:id/backups/:backupId/restore", backupHandler.RestoreProjectBackup)
 		sentinelGroup.DELETE("/projects/:id/backups/:backupId", backupHandler.DeleteProjectBackup)
+
+		// Komgrip: project-less personal/misc tasks (all employees)
+		sentinelGroup.GET("/komgrip/tasks", handler.GetKomgripTasks)
+		sentinelGroup.POST("/komgrip/tasks", handler.CreateKomgripTask)
+		sentinelGroup.PATCH("/komgrip/tasks/:id/status", handler.UpdateKomgripTaskStatus)
+		sentinelGroup.DELETE("/komgrip/tasks/:id", handler.DeleteKomgripTask)
 	}
 
 	// Admin/CEO Configuration Management

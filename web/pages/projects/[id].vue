@@ -766,14 +766,10 @@
                           </button>
                         </div>
                         <div v-else class="flex items-center gap-2 w-full min-w-0">
-                          <input
-                            type="date"
-                            v-model="dueDateEditingValue"
-                            class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                          <UiDatePicker
+                            :modelValue="dueDateEditingValue"
+                            @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
                             :disabled="isSavingDueDate"
-                            @change="saveDueDateForEditingTask"
-                            @keydown.esc="cancelEditDueDate"
-                            @keydown.enter.prevent="saveDueDateForEditingTask"
                           />
                           <button
                             type="button"
@@ -854,14 +850,10 @@
                               </button>
                             </div>
                             <div v-else class="flex items-center gap-2 w-full min-w-0">
-                              <input
-                                type="date"
-                                v-model="dueDateEditingValue"
-                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                              <UiDatePicker
+                                :modelValue="dueDateEditingValue"
+                                @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
                                 :disabled="isSavingDueDate"
-                                @change="saveDueDateForEditingTask"
-                                @keydown.esc="cancelEditDueDate"
-                                @keydown.enter.prevent="saveDueDateForEditingTask"
                               />
                               <button
                                 type="button"
@@ -935,14 +927,10 @@
                               </button>
                             </div>
                             <div v-else class="flex items-center gap-2 w-full min-w-0">
-                              <input
-                                type="date"
-                                v-model="dueDateEditingValue"
-                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                              <UiDatePicker
+                                :modelValue="dueDateEditingValue"
+                                @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
                                 :disabled="isSavingDueDate"
-                                @change="saveDueDateForEditingTask"
-                                @keydown.esc="cancelEditDueDate"
-                                @keydown.enter.prevent="saveDueDateForEditingTask"
                               />
                               <button
                                 type="button"
@@ -1090,14 +1078,10 @@
                             </button>
                           </div>
                           <div v-else class="flex items-center gap-2 w-full min-w-0">
-                            <input
-                              type="date"
-                              v-model="dueDateEditingValue"
-                              class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                            <UiDatePicker
+                              :modelValue="dueDateEditingValue"
+                              @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
                               :disabled="isSavingDueDate"
-                              @change="saveDueDateForEditingTask"
-                              @keydown.esc="cancelEditDueDate"
-                              @keydown.enter.prevent="saveDueDateForEditingTask"
                             />
                             <button
                               type="button"
@@ -1173,14 +1157,10 @@
                               </button>
                             </div>
                             <div v-else class="flex items-center gap-2 w-full min-w-0">
-                              <input
-                                type="date"
-                                v-model="dueDateEditingValue"
-                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                              <UiDatePicker
+                                :modelValue="dueDateEditingValue"
+                                @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
                                 :disabled="isSavingDueDate"
-                                @change="saveDueDateForEditingTask"
-                                @keydown.esc="cancelEditDueDate"
-                                @keydown.enter.prevent="saveDueDateForEditingTask"
                               />
                               <button
                                 type="button"
@@ -1254,14 +1234,10 @@
                                 </button>
                               </div>
                               <div v-else class="flex items-center gap-2 w-full min-w-0">
-                                <input
-                                  type="date"
-                                  v-model="dueDateEditingValue"
-                                  class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-gray-300 focus:outline-none w-full"
+                                <UiDatePicker
+                                  :modelValue="dueDateEditingValue"
+                                  @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
                                   :disabled="isSavingDueDate"
-                                  @change="saveDueDateForEditingTask"
-                                  @keydown.esc="cancelEditDueDate"
-                                  @keydown.enter.prevent="saveDueDateForEditingTask"
                                 />
                                 <button
                                   type="button"
@@ -2005,11 +1981,10 @@
                       <p v-if="r.raw_status" class="text-[10px] text-gray-500 mt-0.5 truncate max-w-[200px]" :title="r.raw_status">KG: {{ r.raw_status }}</p>
                     </td>
                     <td class="py-2 px-1">
-                      <input
+                      <UiDatePicker
                         v-if="sheetsImportTriagedRows[r.row_index]"
                         v-model="sheetsImportTriagedRows[r.row_index].due_date"
-                        type="date"
-                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-emerald-500/60 max-w-[9.5rem]"
+                        placeholder="Due date…"
                         :disabled="!sheetsImportSelectedRowIndices.includes(r.row_index)"
                       />
                     </td>
@@ -2455,7 +2430,7 @@
             </div>
             <div v-else-if="!createTaskForm.parent_id">
               <label class="label">Due Date</label>
-              <input v-model="createTaskForm.due_date" type="date" class="input-field w-full" />
+              <UiDatePicker v-model="createTaskForm.due_date" placeholder="Select due date…" />
             </div>
           </div>
           <!-- Dates: only shown for top-level tasks (not sub-tasks) -->
@@ -2463,17 +2438,17 @@
             <div v-if="epics.length" class="grid grid-cols-1 gap-4 sm:gap-5">
               <div>
                 <label class="label">Due Date</label>
-                <input v-model="createTaskForm.due_date" type="date" class="input-field w-full" />
+                <UiDatePicker v-model="createTaskForm.due_date" placeholder="Select due date…" />
               </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div>
                 <label class="label">Start Date</label>
-                <input v-model="createTaskForm.start_date" type="date" class="input-field w-full" />
+                <UiDatePicker v-model="createTaskForm.start_date" placeholder="Select start date…" />
               </div>
               <div>
                 <label class="label">End Date</label>
-                <input v-model="createTaskForm.end_date" type="date" class="input-field w-full" />
+                <UiDatePicker v-model="createTaskForm.end_date" placeholder="Select end date…" />
               </div>
             </div>
           </template>

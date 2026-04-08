@@ -169,6 +169,83 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	})
 }
 
+// UploadAvatar handles POST /auth/me/avatar
+// Request Body: { "avatar_data_url": "data:image/png;base64,..." }
+// Stores the data-URL string directly in the database (max ~2 MB).
+func (h *AuthHandler) UploadAvatar(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "Authentication required",
+		})
+		return
+	}
+	var req domain.UpdateAvatarRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+	user, err := h.usecase.UpdateAvatar(userID, req.AvatarDataURL)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user not found" {
+			status = http.StatusNotFound
+		} else if err.Error() == "avatar image too large (max 2 MB)" {
+			status = http.StatusRequestEntityTooLarge
+		}
+		c.JSON(status, gin.H{
+			"error":   "Failed to update avatar",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Avatar updated successfully",
+		"data":    user,
+	})
+}
+
+// UpdateTheme handles PATCH /auth/me/theme
+// Request Body: { "theme": "dark" | "light" }
+func (h *AuthHandler) UpdateTheme(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "Authentication required",
+		})
+		return
+	}
+	var req domain.UpdateThemeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+	user, err := h.usecase.UpdateThemePreference(userID, req.Theme)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user not found" {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{
+			"error":   "Failed to update theme preference",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Theme preference updated",
+		"data":    user,
+	})
+}
+
 // ChangePassword handles PATCH /auth/me/password
 // Request Body: { "current_password": "...", "new_password": "..." }
 func (h *AuthHandler) ChangePassword(c *gin.Context) {

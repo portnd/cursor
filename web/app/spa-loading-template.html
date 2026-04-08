@@ -1,1 +1,9 @@
-<div id="nuxt-loading" style="position:fixed;inset:0;background-color:#111827;z-index:9999;"></div>
+<script>
+(function() {
+  var t = localStorage.getItem('sentinel-theme');
+  var dark = t ? t === 'dark' : true;
+  var el = document.getElementById('nuxt-loading');
+  if (el) el.style.backgroundColor = dark ? '#070b17' : '#F5F4FB';
+})();
+</script>
+<div id="nuxt-loading" style="position:fixed;inset:0;background-color:#070b17;z-index:9999;"></div>

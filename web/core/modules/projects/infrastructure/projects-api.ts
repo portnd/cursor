@@ -179,6 +179,7 @@ export interface Task {
   completed_at: string | null
   estimated_minutes: number
   sub_tasks?: Task[]
+  is_komgrip?: boolean
   created_at: string
   updated_at: string
 }

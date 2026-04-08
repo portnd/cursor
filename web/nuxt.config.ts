@@ -93,16 +93,29 @@ export default defineNuxtConfig({
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: 'AI-powered task management system with code review and intelligent time estimation' },
-        { name: 'theme-color', content: '#111827' }
+        { name: 'theme-color', content: '#111827', id: 'meta-theme-color' }
       ],
-      htmlAttrs: { class: 'bg-gray-900' },
-      bodyAttrs: { class: 'bg-gray-900 text-gray-100' },
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
       ],
+      script: [
+        {
+          // Inline script: apply saved theme before first paint to prevent FOUC
+          innerHTML: `(function(){var t=localStorage.getItem('sentinel-theme');var d=t?t==='dark':(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches!==false);var h=document.documentElement;if(d){h.classList.add('dark');}else{h.classList.remove('dark');h.classList.add('light');h.style.backgroundColor='#F5F4FB';}})();`,
+          tagPosition: 'head'
+        }
+      ],
       style: [
-        { innerHTML: '#__nuxt, #__nuxt > div { background-color: #111827 !important; }', tag: 'style' },
-        { innerHTML: '#nuxt-loading svg, #nuxt-loading img, .loader svg, .loader img, [id^="nuxt"] svg, [id^="nuxt"] img { display: none !important; } #nuxt-loading, .loader { background-color: #111827 !important; }', tag: 'style' }
+        {
+          innerHTML: `
+            /* Prevent white flash — set by theme init script */
+            html { background-color: #070b17; }
+            html.light { background-color: #F5F4FB; }
+            #nuxt-loading, .loader { background-color: inherit !important; }
+            #nuxt-loading svg, #nuxt-loading img, .loader svg, .loader img { display: none !important; }
+          `,
+          tag: 'style'
+        }
       ]
     }
   },

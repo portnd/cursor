@@ -145,6 +145,13 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 
 	task, err := h.usecase.CreateTask(req.Title, req.Description, req.TaskType, userID, dueDate, projectID, parentID, startDate, endDate, req.Priority, req.StoryPoints, sprintID, milestoneID, epicID, req.EstimatedMinutes)
 	if err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Bad Request",
+				"message": err.Error(),
+			})
+			return
+		}
 		log.Printf("[CreateTask] usecase error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to create task",
@@ -309,6 +316,35 @@ func (h *SentinelHandler) GetTaskByID(c *gin.Context) {
 	})
 }
 
+// GetTaskActivity handles GET /api/v1/sentinel/tasks/:id/activity
+func (h *SentinelHandler) GetTaskActivity(c *gin.Context) {
+	task, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		errMsg := err.Error()
+		if errMsg == "task id or code is required" ||
+			strings.Contains(errMsg, "task not found") ||
+			strings.Contains(errMsg, "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Task not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": errMsg})
+		return
+	}
+	items, err := h.usecase.GetTaskActivityTimeline(task.ID)
+	if err != nil {
+		if err.Error() == "task not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Task not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load activity", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Activity retrieved",
+		"data":    items,
+	})
+}
+
 // GetMyTasks handles GET /api/v1/tasks/my
 // Retrieves all tasks assigned to the authenticated user
 func (h *SentinelHandler) GetMyTasks(c *gin.Context) {
@@ -392,7 +428,7 @@ func (h *SentinelHandler) GetUnassignedTasks(c *gin.Context) {
 // CEO/MANAGER bypass team restriction and see all active-sprint tasks.
 func (h *SentinelHandler) GetTeamActiveTasks(c *gin.Context) {
 	ctx := callerCtx(c)
-	tasks, err := h.usecase.GetTeamActiveTasks(ctx.TeamID, ctx.Role)
+	tasks, err := h.usecase.GetTeamActiveTasks(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve team active tasks",
@@ -626,8 +662,8 @@ func (h *SentinelHandler) DeleteDependency(c *gin.Context) {
 }
 
 // GetApprovals handles GET /api/v1/sentinel/tasks/approvals
-// Returns tasks requiring Product Owner/CEO attention (PENDING appeals or time negotiations)
-// Access: CEO and Product Owner only
+// Returns tasks requiring Product Owner/CEO/Manager attention (PENDING appeals or time negotiations)
+// Access: CEO, Manager, and Product Owner
 func (h *SentinelHandler) GetApprovals(c *gin.Context) {
 	// 1️⃣ Extract user role from JWT context
 	userRole := getUserRoleFromContext(c)

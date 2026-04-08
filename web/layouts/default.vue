@@ -1,6 +1,6 @@
 <template>
   <div class="layout-enterprise-shell flex h-screen text-gray-100">
-    <!-- Sidebar (collapsible) - inline fallback so first paint is never white -->
+    <!-- Sidebar (collapsible) -->
     <aside
       class="sidebar-enterprise flex flex-col transition-[width] duration-200 ease-out shrink-0"
       :class="sidebarCollapsed ? 'w-[4.5rem]' : 'w-64'"
@@ -67,28 +67,44 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Daily Standup</span>
         </NuxtLink>
 
-        <!-- Work Log (timer + quick log + EOD + history) -->
+        <NuxtLink
+          to="/komgrip"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-violet-600 to-purple-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Komgrip' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 8h6m-6 4h4" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Komgrip</span>
+        </NuxtLink>
+
         <NuxtLink
           v-if="currentUser?.role !== 'SUPPORT'"
           to="/logtime"
           class="nav-link"
           active-class="bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg"
-          :title="sidebarCollapsed ? 'Work Log' : undefined"
+          :title="sidebarCollapsed ? (timerIsRunning ? elapsedDisplay : 'Work Log') : undefined"
         >
-          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">Work Log</span>
-        </NuxtLink>
-        <NuxtLink
-          v-if="['PRODUCT_OWNER', 'PM', 'CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
-          to="/active-board"
-          class="nav-link"
-          active-class="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg"
-          :title="sidebarCollapsed ? 'Global Active Board' : undefined"
-        >
-          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
-          <span v-show="!sidebarCollapsed" class="font-medium truncate">Global Active Board</span>
+          <span class="relative shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span v-if="timerIsRunning && sidebarCollapsed" class="absolute -top-1 -right-1 flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500" />
+            </span>
+          </span>
+          <template v-if="!sidebarCollapsed">
+            <span class="font-medium truncate flex-1">Work Log</span>
+            <span v-if="timerIsRunning" class="ml-auto flex items-center gap-1 shrink-0">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500" />
+              </span>
+              <span class="font-mono text-[11px] text-purple-300 tabular-nums">{{ elapsedDisplay }}</span>
+            </span>
+          </template>
         </NuxtLink>
         <NuxtLink
           v-if="currentUser?.role === 'CEO'"
@@ -100,7 +116,6 @@
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-3 3m-6 2a2 2 0 11-4 0 2 2 0 014 0zM3 21V3m0 18v-4" /></svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Team Performance</span>
         </NuxtLink>
-        <!-- Deployment — visible to all engineers + management -->
         <NuxtLink
           v-if="['ENGINEER', 'CHIEF_ENGINEER', 'CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM'].includes(currentUser?.role ?? '')"
           to="/deployment"
@@ -112,7 +127,6 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
           </svg>
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Deployment</span>
-          <!-- badge: pending count shown only to CHIEF_ENGINEER — loaded reactively -->
           <span
             v-if="!sidebarCollapsed && currentUser?.role === 'CHIEF_ENGINEER' && deploymentPendingCount > 0"
             class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500 text-gray-900 shrink-0"
@@ -208,20 +222,65 @@
         </NuxtLink>
       </nav>
 
-      <!-- User (link to Profile) + Logout -->
+      <!-- Sidebar Footer: Theme Toggle + User + Logout -->
       <div class="sidebar-enterprise-footer p-3 space-y-1">
+
+        <!-- Theme Toggle Button -->
+        <button
+          type="button"
+          @click="toggleTheme"
+          class="theme-toggle-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200"
+          :class="isDark
+            ? 'border-white/10 text-gray-400 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-300'
+            : 'bg-violet-50/70 border-violet-200/60 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-800'"
+          :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        >
+          <Transition name="theme-icon" mode="out-in">
+            <!-- Sun: in dark mode, click to go light -->
+            <span v-if="isDark" key="sun" class="shrink-0 w-5 h-5 flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="4"/>
+                <path stroke-linecap="round" d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              </svg>
+            </span>
+            <!-- Moon: in light mode, click to go dark -->
+            <span v-else key="moon" class="shrink-0 w-5 h-5 flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+              </svg>
+            </span>
+          </Transition>
+          <span v-show="!sidebarCollapsed" class="text-sm font-medium truncate">
+            {{ isDark ? 'Light Mode' : 'Dark Mode' }}
+          </span>
+        </button>
+
+        <!-- User Profile Link -->
         <NuxtLink
           to="/profile"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg overflow-hidden transition-all hover:bg-gray-700"
           active-class="!bg-gradient-to-r !from-purple-600 !to-pink-600 shadow-lg"
           title="Profile &amp; Account"
         >
-          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-bold shrink-0 text-sm">{{ userInitial }}</div>
+          <div class="w-9 h-9 rounded-full shrink-0 overflow-hidden">
+            <img
+              v-if="sidebarAvatarURL"
+              :src="sidebarAvatarURL"
+              alt="Avatar"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-bold text-sm text-white"
+            >{{ userInitial }}</div>
+          </div>
           <div v-show="!sidebarCollapsed" class="min-w-0 flex-1">
             <p class="text-sm font-medium truncate">{{ userEmail }}</p>
             <p class="text-xs text-gray-400 truncate">{{ userRole }}</p>
           </div>
         </NuxtLink>
+
+        <!-- Logout -->
         <button
           @click="handleLogout"
           class="nav-link w-full hover:bg-red-600/20 hover:text-red-400 text-gray-400"
@@ -248,9 +307,14 @@
 
 <script setup lang="ts">
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
+import { authApi } from '~/core/modules/auth/infrastructure/auth-api'
 
 const { logout, currentUser } = useAuth()
 const { confirm } = useNotification()
+const { isDark, toggle: toggleTheme, initTheme } = useTheme()
+
+// Global timer state — shared with logtime page
+const { isRunning: timerIsRunning, elapsedDisplay } = useTimer()
 
 // Live pending deployment count badge for CHIEF_ENGINEER
 const deploymentPendingCount = ref(0)
@@ -264,11 +328,23 @@ async function refreshDeploymentBadge() {
   } catch { /* silent */ }
 }
 
-onMounted(() => {
+onMounted(async () => {
   refreshDeploymentBadge()
-  // Refresh badge every 60 s so Chief Engineer always sees live count
   const interval = setInterval(refreshDeploymentBadge, 60_000)
   onUnmounted(() => clearInterval(interval))
+  refreshSidebarAvatar()
+
+  // Restore user's account-level theme preference
+  try {
+    const me = await authApi.getMe()
+    if (me.theme_preference) {
+      initTheme(me.theme_preference as 'dark' | 'light')
+    } else {
+      initTheme()
+    }
+  } catch {
+    initTheme()
+  }
 })
 
 const SIDEBAR_COLLAPSED_KEY = 'sentinel-sidebar-collapsed'
@@ -300,6 +376,16 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
+// Shared avatar state — readable by any page via useState('sidebarAvatarURL')
+const sidebarAvatarURL = useState<string>('sidebarAvatarURL', () => '')
+
+async function refreshSidebarAvatar() {
+  try {
+    const me = await authApi.getMe()
+    sidebarAvatarURL.value = me.avatar_url || ''
+  } catch { /* silent — avatar just won't show */ }
+}
+
 const userEmail = computed(() => currentUser.value?.email || 'user@sentinel.com')
 const userRole = computed(() => {
   const role = currentUser.value?.role || 'ENGINEER'
@@ -330,6 +416,7 @@ const handleLogout = async () => {
 </script>
 
 <style scoped>
+/* ── Dark mode (default) ── */
 .layout-enterprise-shell {
   background:
     radial-gradient(1200px 640px at 84% -18%, rgba(139, 92, 246, 0.18), transparent 60%),
@@ -365,5 +452,24 @@ const handleLogout = async () => {
 
 .nav-link-ai {
   @apply hover:bg-gradient-to-r hover:from-yellow-600/20 hover:to-orange-600/20 border border-transparent hover:border-yellow-500/50;
+}
+
+/* Theme toggle label text */
+.theme-toggle-label {
+  @apply text-gray-300;
+}
+
+/* Theme icon transition */
+.theme-icon-enter-active,
+.theme-icon-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.theme-icon-enter-from {
+  opacity: 0;
+  transform: rotate(-30deg) scale(0.7);
+}
+.theme-icon-leave-to {
+  opacity: 0;
+  transform: rotate(30deg) scale(0.7);
 }
 </style>

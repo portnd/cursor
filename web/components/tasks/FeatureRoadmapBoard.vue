@@ -12,7 +12,7 @@
           <h2 class="text-sm font-bold text-white">Feature Roadmap Board</h2>
           <p class="text-xs text-gray-500">
             <template v-if="isProjectScoped && scopeProjectName">{{ scopeProjectName }} — features and delivery progress</template>
-            <template v-else>Strategic features with roll-up delivery progress (Product Owner / CEO view)</template>
+            <template v-else>Strategic features with roll-up delivery progress (Product Owner / CEO / Manager)</template>
           </p>
         </div>
       </div>
@@ -390,10 +390,11 @@ const selectedFeature = ref<FeatureRoadmapItem | null>(null)
 const submitUATModalOpen = ref(false)
 const uatReviewModalOpen = ref(false)
 
-const userRole = computed(() => currentUser.value?.role || '')
+const userRole = computed(() => (currentUser.value?.role || '').toUpperCase())
 const isDev = computed(() => isEngineerLikeRole(userRole.value))
+/** Roadmap UAT review / approve — same status powers as PO & CEO for features in review */
 const isPMOrCEO = computed(() =>
-  userRole.value === 'PRODUCT_OWNER' || userRole.value === 'PM' || userRole.value === 'CEO')
+  userRole.value === 'PRODUCT_OWNER' || userRole.value === 'PM' || userRole.value === 'CEO' || userRole.value === 'MANAGER')
 
 const isProjectScoped = computed(
   () => Boolean(props.scopeProjectId?.trim() || props.scopeProjectCode?.trim())

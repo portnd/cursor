@@ -150,9 +150,10 @@ type logTimeReq struct {
 }
 
 type editTimeLogReq struct {
-	Minutes     int    `json:"minutes" binding:"required,gt=0"`
-	Description string `json:"description"`
-	WorkType    string `json:"work_type"`
+	Minutes     int     `json:"minutes" binding:"required,gt=0"`
+	Description string  `json:"description"`
+	WorkType    string  `json:"work_type"`
+	TaskID      *string `json:"task_id"` // optional — change task assignment
 }
 
 type bulkStatusReq struct {

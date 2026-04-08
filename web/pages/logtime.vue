@@ -27,17 +27,6 @@
               Quick Log
               <kbd class="text-[9px] font-mono bg-purple-700/60 border border-purple-500/40 rounded px-1 py-0.5">⌘L</kbd>
             </button>
-            <button
-              type="button"
-              @click="showBulkLog = true"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-              </svg>
-              EOD Batch
-              <kbd class="text-[9px] font-mono bg-indigo-700/60 border border-indigo-500/40 rounded px-1 py-0.5">⌘⇧L</kbd>
-            </button>
           </div>
         </div>
       </div>
@@ -90,21 +79,29 @@
               />
               <div v-if="timerTasks.length" class="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                 <div v-if="timerLoading" class="py-3 text-center text-xs text-gray-500">Loading...</div>
-                <button
-                  v-for="task in filteredTimerTasks"
-                  :key="task.id"
-                  type="button"
-                  @click="startTimerFor(task)"
-                  class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-700/60 text-left border-b border-gray-700/30 last:border-0 transition-colors"
-                >
-                  <span class="text-sm shrink-0">{{ taskIcon(task.task_type) }}</span>
-                  <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
-                  <span class="text-xs text-gray-200 truncate flex-1">{{ task.title }}</span>
-                  <span v-if="task.assigned_to_display_name || task.assigned_to_email" class="text-[10px] text-indigo-400/70 shrink-0 hidden sm:block">
-                    {{ task.assigned_to_display_name || task.assigned_to_email }}
-                  </span>
-                </button>
-                <div v-if="!timerLoading && !filteredTimerTasks.length" class="py-3 text-center text-xs text-gray-500">
+                <template v-else-if="filteredTimerTasks.length">
+                  <button
+                    v-for="task in filteredTimerTasks"
+                    :key="task.id"
+                    type="button"
+                    @click="startTimerFor(task)"
+                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-700/60 text-left border-b border-gray-700/30 last:border-0 transition-colors"
+                  >
+                    <span class="text-sm shrink-0">{{ taskIcon(task.task_type) }}</span>
+                    <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
+                    <span class="text-xs text-gray-200 truncate flex-1">{{ task.title }}</span>
+                    <span v-if="task.assigned_to_display_name || task.assigned_to_email" class="text-[10px] text-indigo-400/70 shrink-0 hidden sm:block">
+                      {{ task.assigned_to_display_name || task.assigned_to_email }}
+                    </span>
+                  </button>
+                  <div
+                    v-if="!timerSearch && timerTasks.length > TIMER_TASK_LIMIT"
+                    class="px-3 py-2 text-[11px] text-gray-500 border-t border-gray-700/40 bg-gray-800/60"
+                  >
+                    Showing first {{ TIMER_TASK_LIMIT }} of {{ timerTasks.length }} tasks. Use search to narrow down.
+                  </div>
+                </template>
+                <div v-else class="py-3 text-center text-xs text-gray-500">
                   {{ timerSearch ? 'ไม่พบ task' : 'ไม่มี active tasks' }}
                 </div>
               </div>
@@ -172,11 +169,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
               </svg>
             </button>
-            <input
-              v-model="logsDate"
-              type="date"
-              class="bg-gray-700/60 border border-gray-600 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
-            />
+            <UiDatePicker v-model="logsDate" placeholder="Select date…" />
             <button type="button" @click="shiftDate(1)" :disabled="logsDate >= today"
               class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -226,7 +219,11 @@
                 </span>
                 <span v-if="log.is_timer_session" class="text-[10px] px-1.5 py-0.5 rounded bg-violet-900/50 text-violet-300 shrink-0">⏱ Timer</span>
               </div>
-              <p v-if="log.description" class="text-xs text-gray-400 mt-0.5 truncate">{{ log.description }}</p>
+              <div class="flex items-center gap-1.5 mt-0.5 min-w-0">
+                <span v-if="log.task_code" class="font-mono text-[10px] text-purple-400 shrink-0">{{ log.task_code }}</span>
+                <span v-if="log.task_title" class="text-xs text-gray-400 truncate">{{ log.task_title }}</span>
+              </div>
+              <p v-if="log.description" class="text-xs text-gray-500 mt-0.5 truncate">{{ log.description }}</p>
             </div>
 
             <div class="shrink-0 text-right">
@@ -271,8 +268,45 @@
       <Transition name="fade">
         <div v-if="editingLog" class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape="editingLog = null">
           <div class="fixed inset-0 bg-black/70 backdrop-blur-sm" @click="editingLog = null" />
-          <div class="relative w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5" @click.stop>
+          <div class="relative w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5" @click.stop>
             <h3 class="text-sm font-semibold text-white mb-4">✏️ แก้ไข Time Log</h3>
+
+            <!-- Task selector -->
+            <div class="mb-3">
+              <label class="text-xs text-gray-400 mb-1.5 block">Task</label>
+              <!-- Current task chip -->
+              <div class="flex items-center gap-2 p-2 bg-gray-800 border border-gray-700 rounded-xl mb-2">
+                <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ editTaskCode || '—' }}</span>
+                <span class="text-xs text-gray-300 truncate flex-1">{{ editTaskTitle || 'ไม่มี task' }}</span>
+                <button type="button" @click="clearEditTask" class="text-[10px] text-gray-500 hover:text-gray-300 shrink-0 transition-colors">รีเซ็ต</button>
+              </div>
+              <!-- Search -->
+              <div class="relative">
+                <input
+                  v-model="editTaskSearch"
+                  type="text"
+                  placeholder="ค้นหา task เพื่อเปลี่ยน..."
+                  class="w-full bg-gray-700/60 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                  @focus="editTaskDropdown = true"
+                  @blur="setTimeout(() => editTaskDropdown = false, 150)"
+                />
+                <div v-if="editTaskDropdown && (editTaskSearch || timerTasks.length)" class="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-xl max-h-44 overflow-y-auto">
+                  <template v-if="filteredEditTasks.length">
+                    <button
+                      v-for="task in filteredEditTasks" :key="task.id" type="button"
+                      @mousedown.prevent="selectEditTask(task)"
+                      class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700/60 text-left border-b border-gray-700/30 last:border-0 transition-colors"
+                    >
+                      <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
+                      <span class="text-xs text-gray-200 truncate flex-1">{{ task.title }}</span>
+                      <span v-if="task.project_name" class="text-[10px] text-gray-500 shrink-0 hidden sm:block">{{ task.project_name }}</span>
+                    </button>
+                  </template>
+                  <div v-else class="py-3 text-center text-xs text-gray-500">ไม่พบ task</div>
+                </div>
+              </div>
+            </div>
+
             <div class="mb-3">
               <label class="text-xs text-gray-400 mb-1 block">เวลา (นาที)</label>
               <div class="flex gap-1.5 mb-2">
@@ -328,7 +362,7 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const { getMyDailyTimeLogs, deleteTimeLog, editTimeLog, getTeamActiveTasks } = useTasksApi()
+const { getMyDailyTimeLogs, deleteTimeLog, editTimeLog, getTeamActiveTasks, getKomgripTasks } = useTasksApi()
 const { timerState, elapsedDisplay, isRunning, start, stop } = useTimer()
 
 const today = ref(localDateStr())
@@ -361,10 +395,25 @@ function onTimerLogged() {
 async function loadTimerTasks() {
   if (timerTasks.value.length) return
   timerLoading.value = true
-  try { timerTasks.value = await getTeamActiveTasks() }
-  catch { timerTasks.value = [] }
-  finally { timerLoading.value = false }
+  try {
+    const [active, komgrip] = await Promise.all([
+      getTeamActiveTasks().catch(() => [] as GlobalActiveTask[]),
+      getKomgripTasks().catch(() => [] as GlobalActiveTask[]),
+    ])
+    const komgripAsGlobal = komgrip.map((t: any) => ({
+      ...t,
+      project_name: 'Komgrip',
+      project_color: '#8b5cf6',
+    })) as GlobalActiveTask[]
+    timerTasks.value = [...active, ...komgripAsGlobal]
+  } catch {
+    timerTasks.value = []
+  } finally {
+    timerLoading.value = false
+  }
 }
+
+const TIMER_TASK_LIMIT = 100
 
 const filteredTimerTasks = computed(() => {
   const q = timerSearch.value.trim().toLowerCase()
@@ -373,10 +422,11 @@ const filteredTimerTasks = computed(() => {
         t.code?.toLowerCase().includes(q) ||
         t.title?.toLowerCase().includes(q) ||
         t.assigned_to_display_name?.toLowerCase().includes(q) ||
-        t.assigned_to_email?.toLowerCase().includes(q),
+        t.assigned_to_email?.toLowerCase().includes(q) ||
+        t.project_name?.toLowerCase().includes(q),
       )
     : timerTasks.value
-  return list.slice(0, 12)
+  return list.slice(0, TIMER_TASK_LIMIT)
 })
 
 function startTimerFor(task: GlobalActiveTask) {
@@ -444,18 +494,59 @@ const editWorkType = ref('DEV')
 const editDescription = ref('')
 const editSaving = ref(false)
 
-function startEditLog(log: TimeLog) {
+// task search inside edit modal
+const editTaskSearch = ref('')
+const editTaskId = ref<string | undefined>()
+const editTaskCode = ref('')
+const editTaskTitle = ref('')
+const editTaskDropdown = ref(false)
+
+const filteredEditTasks = computed(() => {
+  const q = editTaskSearch.value.trim().toLowerCase()
+  const list = q
+    ? timerTasks.value.filter(t =>
+        t.code?.toLowerCase().includes(q) ||
+        t.title?.toLowerCase().includes(q) ||
+        t.project_name?.toLowerCase().includes(q),
+      )
+    : timerTasks.value
+  return list.slice(0, 50)
+})
+
+function selectEditTask(task: GlobalActiveTask) {
+  editTaskId.value = task.id
+  editTaskCode.value = task.code ?? ''
+  editTaskTitle.value = task.title
+  editTaskSearch.value = ''
+  editTaskDropdown.value = false
+}
+
+function clearEditTask() {
+  editTaskId.value = editingLog.value?.task_id
+  editTaskCode.value = editingLog.value?.task_code ?? ''
+  editTaskTitle.value = editingLog.value?.task_title ?? ''
+  editTaskSearch.value = ''
+  editTaskDropdown.value = false
+}
+
+async function startEditLog(log: TimeLog) {
   editingLog.value = log
   editMinutes.value = log.minutes
   editWorkType.value = log.work_type || 'DEV'
   editDescription.value = log.description || ''
+  editTaskId.value = log.task_id
+  editTaskCode.value = log.task_code ?? ''
+  editTaskTitle.value = log.task_title ?? ''
+  editTaskSearch.value = ''
+  editTaskDropdown.value = false
+  await loadTimerTasks()
 }
 
 async function saveEdit() {
   if (!editingLog.value) return
   editSaving.value = true
   try {
-    await editTimeLog(editingLog.value.id, editMinutes.value, editDescription.value, editWorkType.value)
+    await editTimeLog(editingLog.value.id, editMinutes.value, editDescription.value, editWorkType.value, editTaskId.value)
     editingLog.value = null
     await loadLogs()
   } catch {

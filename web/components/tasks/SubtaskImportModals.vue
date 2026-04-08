@@ -434,13 +434,12 @@
                       >
                     </td>
                     <td class="py-2 px-1">
-                      <input
+                      <UiDatePicker
                         v-if="sheetsTriaged[r.row_index]"
                         v-model="sheetsTriaged[r.row_index].due_date"
-                        type="date"
-                        class="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg px-1 py-1 text-xs text-white focus:outline-none focus:border-emerald-500/60 max-w-[9.5rem]"
+                        placeholder="Due date…"
                         :disabled="!sheetsRowsSelected.includes(r.row_index)"
-                      >
+                      />
                     </td>
                     <td class="py-2 px-1">
                       <select

@@ -128,10 +128,10 @@
 
         <div class="rounded-xl border border-gray-800 bg-gray-850/70 p-4">
           <div class="flex flex-wrap items-end gap-3">
-            <label class="block">
-              <span class="text-xs text-gray-400">วันที่</span>
-              <input v-model="recordsDate" type="date" class="mt-1 rounded-lg bg-gray-800 border border-gray-600 px-3 py-2 text-white text-sm" />
-            </label>
+            <div class="block">
+              <span class="text-xs text-gray-400 block mb-1">วันที่</span>
+              <UiDatePicker v-model="recordsDate" placeholder="เลือกวันที่…" />
+            </div>
             <button
               type="button"
               class="h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-50"

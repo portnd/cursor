@@ -64,7 +64,7 @@
         <form class="grid gap-3 md:grid-cols-4 items-end" @submit.prevent="saveHoliday">
           <div>
             <label class="label">วันที่</label>
-            <input v-model="holidayForm.date" type="date" class="input" required />
+            <UiDatePicker v-model="holidayForm.date" placeholder="เลือกวันที่…" />
           </div>
           <div class="md:col-span-2">
             <label class="label">ชื่อวันหยุด</label>
@@ -88,7 +88,10 @@
           <article v-for="r in pending" :key="r.id" class="rounded-xl border border-gray-700 bg-gray-900/40 p-4">
             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold">{{ r.user_display_name || r.user_email || ('User #' + r.user_id) }}</p>
+                <p class="text-sm font-semibold">
+                  {{ r.user_display_name || r.user_email || ('User #' + r.user_id) }}
+                  <span v-if="r.user_display_name && r.user_email" class="text-xs font-normal text-gray-400">({{ r.user_email }})</span>
+                </p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ leaveTypeLabel(r.leave_type) }} · {{ r.days_requested }} วัน</p>
                 <p class="text-xs text-gray-500 mt-1">{{ fmt(r.start_date) }} → {{ fmt(r.end_date) }}</p>
                 <p class="text-xs text-gray-400 mt-2">{{ r.reason }}</p>
@@ -126,11 +129,11 @@
             </div>
             <div>
               <label class="label">วันที่เริ่ม</label>
-              <input v-model="backfillForm.start_date" type="date" class="input" required />
+              <UiDatePicker v-model="backfillForm.start_date" placeholder="วันที่เริ่ม…" />
             </div>
             <div>
               <label class="label">วันที่สิ้นสุด</label>
-              <input v-model="backfillForm.end_date" type="date" class="input" :disabled="backfillForm.is_half_day" required />
+              <UiDatePicker v-model="backfillForm.end_date" placeholder="วันที่สิ้นสุด…" :disabled="backfillForm.is_half_day" />
             </div>
             <div>
               <label class="label">รูปแบบวันลา</label>

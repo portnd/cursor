@@ -47,7 +47,7 @@
 
     <!-- Content -->
     <div v-else class="space-y-8">
-      <!-- SECTION 1: ⏱️ PENDING TIME NEGOTIATIONS (CEO / PRODUCT OWNER ONLY) -->
+      <!-- SECTION 1: ⏱️ PENDING TIME NEGOTIATIONS (CEO / MANAGER / PRODUCT OWNER) -->
       <div 
         v-if="showApprovals && timeNegotiations.length > 0"
         class="bg-gray-800 border border-gray-700 rounded p-6 mb-8"
@@ -342,9 +342,8 @@ const approvals = ref<Task[]>([])
 
 // Computed
 const showApprovals = computed(() => {
-  return currentUser.value?.role === 'CEO'
-    || currentUser.value?.role === 'PRODUCT_OWNER'
-    || currentUser.value?.role === 'PM'
+  const r = (currentUser.value?.role || '').toUpperCase()
+  return r === 'CEO' || r === 'MANAGER' || r === 'PRODUCT_OWNER' || r === 'PM'
 })
 
 // Separate time negotiations from other approvals
@@ -362,13 +361,13 @@ const fetchData = async () => {
     const myTasksResponse = await fetchWithAuth<{ data: Task[] }>('/sentinel/tasks/my')
     myTasks.value = myTasksResponse.data || []
 
-    // 2. Fetch Approvals (only for CEO / Product Owner)
+    // 2. Fetch Approvals (CEO / Manager / Product Owner)
     if (showApprovals.value) {
       try {
         const approvalsResponse = await fetchWithAuth<{ data: Task[] }>('/sentinel/tasks/approvals')
         approvals.value = approvalsResponse.data || []
       } catch (approvalsError: any) {
-        // If 403, it's expected for non-CEO/Product Owner users, just skip
+        // If 403, it's expected for roles without approvals inbox access, just skip
         if (approvalsError.statusCode !== 403) {
           console.error('Failed to fetch approvals:', approvalsError)
         }

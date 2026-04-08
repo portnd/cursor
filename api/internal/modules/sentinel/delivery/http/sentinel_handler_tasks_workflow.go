@@ -530,7 +530,7 @@ func (h *SentinelHandler) DeleteTask(c *gin.Context) {
 	})
 }
 
-// ApproveTask marks a task as COMPLETED after human verification (Product Owner/CEO only)
+// ApproveTask marks a task as COMPLETED after human verification (Product Owner, CEO, or Manager)
 // POST /api/v1/sentinel/tasks/:id/approve ; :id can be UUID or task code
 func (h *SentinelHandler) ApproveTask(c *gin.Context) {
 	task, err := h.resolveTaskIDOrCode(c)

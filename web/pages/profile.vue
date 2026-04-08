@@ -61,13 +61,47 @@
             </div>
             <div class="p-6">
               <div class="flex flex-col sm:flex-row gap-6">
-                <div class="flex flex-col items-center sm:items-start gap-3">
-                  <div
-                    class="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold bg-gradient-to-br from-purple-500 to-pink-600 text-white shrink-0"
+                <!-- Avatar Upload -->
+                <div class="flex flex-col items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    class="relative group w-20 h-20 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                    :title="uploadingAvatar ? 'Uploading...' : 'Click to change avatar'"
+                    :disabled="uploadingAvatar"
+                    @click="triggerAvatarInput"
                   >
-                    {{ avatarLetter }}
-                  </div>
-                  <span class="text-xs text-gray-500">Avatar</span>
+                    <img
+                      v-if="profile?.avatar_url"
+                      :src="profile.avatar_url"
+                      alt="Avatar"
+                      class="w-20 h-20 rounded-full object-cover"
+                    />
+                    <div
+                      v-else
+                      class="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold bg-gradient-to-br from-purple-500 to-pink-600 text-white"
+                    >
+                      {{ avatarLetter }}
+                    </div>
+                    <!-- Overlay on hover -->
+                    <div
+                      class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg v-if="!uploadingAvatar" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <div v-else class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  </button>
+                  <input
+                    ref="avatarInputRef"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    class="hidden"
+                    @change="handleAvatarFileChange"
+                  />
+                  <span class="text-xs text-gray-500">Click to change</span>
+                  <p v-if="avatarError" class="text-xs text-red-400 text-center max-w-[120px]">{{ avatarError }}</p>
                 </div>
                 <div class="flex-1 space-y-4 min-w-0">
                   <div>
@@ -111,57 +145,6 @@
                   class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-medium rounded-lg transition-all"
                 >
                   {{ savingProfile ? 'Saving...' : 'Save identity' }}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- Tech Stack Card -->
-          <section class="rounded-xl border border-gray-700/80 bg-gray-800/60 overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-700/80 bg-gray-900/50">
-              <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                Tech stack
-              </h2>
-              <p class="text-xs text-gray-400 mt-0.5">Technologies you work with (for matching and visibility)</p>
-            </div>
-            <div class="p-6">
-              <div class="flex flex-wrap gap-2 mb-3">
-                <span
-                  v-for="tag in form.tech_stack"
-                  :key="tag"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-700 text-gray-200 text-sm"
-                >
-                  {{ tag }}
-                  <button
-                    type="button"
-                    @click="removeTech(tag)"
-                    class="hover:text-white focus:outline-none"
-                    aria-label="Remove"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </span>
-                <input
-                  ref="techInputRef"
-                  v-model="techInput"
-                  type="text"
-                  placeholder="Add technology..."
-                  class="flex-1 min-w-[140px] px-3 py-1.5 rounded-lg bg-gray-900 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                  @keydown.enter.prevent="addTech"
-                />
-              </div>
-              <p class="text-xs text-gray-500">Press Enter to add. Max 20 items.</p>
-              <div class="mt-4 pt-4 border-t border-gray-700/80 flex justify-end">
-                <button
-                  type="button"
-                  :disabled="savingProfile"
-                  @click="saveProfile"
-                  class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
-                >
-                  {{ savingProfile ? 'Saving...' : 'Save tech stack' }}
                 </button>
               </div>
             </div>
@@ -278,6 +261,12 @@ const passwordError = ref<string | null>(null)
 const passwordSuccess = ref(false)
 const techInputRef = ref<HTMLInputElement | null>(null)
 const techInput = ref('')
+const avatarInputRef = ref<HTMLInputElement | null>(null)
+const uploadingAvatar = ref(false)
+const avatarError = ref<string | null>(null)
+
+// Shared with sidebar layout
+const sidebarAvatarURL = useState<string>('sidebarAvatarURL', () => '')
 
 const form = reactive({
   display_name: '',
@@ -353,6 +342,7 @@ async function saveProfile() {
     profile.value = updated
     if (updated.display_name !== undefined) form.display_name = updated.display_name
     if (Array.isArray(updated.tech_stack)) form.tech_stack = [...updated.tech_stack]
+    sidebarAvatarURL.value = updated.avatar_url || ''
   } catch (e: any) {
     loadError.value = e?.message ?? 'Failed to update profile'
   } finally {
@@ -400,6 +390,47 @@ async function changePassword() {
   } finally {
     savingPassword.value = false
   }
+}
+
+function triggerAvatarInput() {
+  avatarError.value = null
+  avatarInputRef.value?.click()
+}
+
+function handleAvatarFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!input) return
+  input.value = ''
+
+  if (!file) return
+
+  const maxBytes = 2 * 1024 * 1024
+  if (file.size > maxBytes) {
+    avatarError.value = 'Image too large (max 2 MB)'
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = async (e) => {
+    const dataURL = e.target?.result as string
+    if (!dataURL) return
+    uploadingAvatar.value = true
+    avatarError.value = null
+    try {
+      const updated = await authApi.uploadAvatar(dataURL)
+      profile.value = updated
+      sidebarAvatarURL.value = updated.avatar_url || ''
+    } catch (err: any) {
+      avatarError.value = err?.message ?? 'Failed to upload avatar'
+    } finally {
+      uploadingAvatar.value = false
+    }
+  }
+  reader.onerror = () => {
+    avatarError.value = 'Failed to read file'
+  }
+  reader.readAsDataURL(file)
 }
 
 onMounted(() => {

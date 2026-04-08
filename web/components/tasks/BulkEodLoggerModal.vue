@@ -126,47 +126,47 @@
                     </template>
                   </div>
 
-                  <!-- Minutes + Work type row -->
+                  <!-- Time Spent row: input + quick presets -->
                   <div class="flex items-center gap-2 flex-wrap">
-                    <!-- Time presets -->
+                    <div class="flex items-center gap-1.5">
+                      <input
+                        v-model.number="entry.minutes"
+                        type="number"
+                        min="1"
+                        max="960"
+                        placeholder="0"
+                        class="w-16 bg-gray-800 border border-gray-600 rounded-xl px-2 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-center transition-colors"
+                      />
+                      <span class="text-xs text-gray-500 shrink-0">
+                        {{ entry.minutes >= 60 ? (entry.minutes / 60).toFixed(1) + 'h' : 'min' }}
+                      </span>
+                    </div>
                     <div class="flex gap-1">
                       <button
                         v-for="preset in [15, 30, 60, 120]"
                         :key="preset"
                         type="button"
                         @click="entry.minutes = preset"
-                        class="text-[10px] px-2 py-1 rounded-md border transition-colors"
+                        class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors"
                         :class="entry.minutes === preset
                           ? 'bg-indigo-600 border-indigo-500 text-white'
-                          : 'bg-gray-700 border-gray-600 text-gray-400 hover:text-white'"
+                          : 'bg-gray-800 border-gray-600/40 text-purple-400 hover:bg-purple-900/20 hover:border-purple-500/40'"
                       >+{{ preset >= 60 ? (preset / 60) + 'h' : preset + 'm' }}</button>
                     </div>
-                    <!-- Minutes input -->
-                    <input
-                      v-model.number="entry.minutes"
-                      type="number"
-                      min="1"
-                      max="960"
-                      placeholder="นาที"
-                      class="w-20 bg-gray-700/60 border border-gray-600 rounded-lg px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-center"
-                    />
-                    <span class="text-xs text-gray-500">
-                      {{ entry.minutes >= 60 ? (entry.minutes / 60).toFixed(1) + 'h' : '' }}
-                    </span>
+                  </div>
 
-                    <!-- Work type -->
-                    <div class="flex gap-1 ml-auto">
-                      <button
-                        v-for="wt in WORK_TYPES"
-                        :key="wt.value"
-                        type="button"
-                        @click="entry.work_type = wt.value"
-                        class="text-[10px] px-2 py-1 rounded-md border transition-all"
-                        :class="entry.work_type === wt.value
-                          ? workTypeActiveClass(wt.value)
-                          : 'bg-gray-700/50 border-gray-600 text-gray-500 hover:text-gray-300'"
-                      >{{ wt.emoji }} {{ wt.label }}</button>
-                    </div>
+                  <!-- Work type row -->
+                  <div class="flex gap-1 flex-wrap">
+                    <button
+                      v-for="wt in WORK_TYPES"
+                      :key="wt.value"
+                      type="button"
+                      @click="entry.work_type = wt.value"
+                      class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-all"
+                      :class="entry.work_type === wt.value
+                        ? workTypeActiveClass(wt.value)
+                        : 'bg-gray-700/50 border-gray-600/40 text-gray-400 hover:border-gray-500 hover:text-gray-300'"
+                    >{{ wt.emoji }} {{ wt.label }}</button>
                   </div>
 
                   <!-- Description -->
