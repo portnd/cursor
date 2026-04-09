@@ -83,7 +83,7 @@
         <button
           v-if="request.status === 'PENDING'"
           @click="$emit('pick', request)"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-xs font-semibold transition-colors"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-100 dark:bg-blue-600/20 border border-blue-300 dark:border-blue-500/30 text-blue-400 hover:bg-blue-100 dark:bg-blue-600/30 text-xs font-semibold transition-colors"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -96,13 +96,13 @@
         <template v-if="request.status === 'PENDING' || request.status === 'REVIEWING'">
           <button
             @click="$emit('reject', request)"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 text-xs font-semibold transition-colors"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-600/20 border border-red-300 dark:border-red-500/30 text-red-400 hover:bg-red-100 dark:bg-red-600/30 text-xs font-semibold transition-colors"
           >
             ✗ Reject
           </button>
           <button
             @click="$emit('approve', request)"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600/20 border border-green-500/30 text-green-400 hover:bg-green-600/30 text-xs font-semibold transition-colors"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-600/20 border border-green-300 dark:border-green-500/30 text-green-400 hover:bg-green-100 dark:bg-green-600/30 text-xs font-semibold transition-colors"
           >
             ✓ Approve
           </button>
@@ -112,7 +112,7 @@
         <button
           v-if="request.status === 'APPROVED'"
           @click="$emit('deploy', request)"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600/30 to-blue-600/30 border border-cyan-500/40 text-cyan-300 hover:from-cyan-600/50 hover:to-blue-600/50 text-xs font-semibold transition-all"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-100 dark:from-cyan-600/30 to-blue-100 dark:to-blue-600/30 border border-cyan-300 dark:border-cyan-500/40 text-cyan-300 hover:from-cyan-100 dark:from-cyan-600/50 hover:to-blue-100 dark:to-blue-600/50 text-xs font-semibold transition-all"
         >
           🚀 Mark Deployed
         </button>

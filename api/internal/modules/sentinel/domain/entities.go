@@ -201,15 +201,20 @@ func (Milestone) TableName() string { return "milestones" }
 
 // TaskComment represents a discussion message on a task
 type TaskComment struct {
-	ID             uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	TaskID         uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
-	UserID         uint      `json:"user_id" gorm:"not null"`
-	UserEmail      string    `json:"user_email,omitempty" gorm:"-"`
-	UserAvatarURL  string    `json:"user_avatar_url,omitempty" gorm:"-"`
-	Content        string    `json:"content" gorm:"type:text;not null"`
+	ID              uuid.UUID `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	TaskID          uuid.UUID `json:"task_id" gorm:"type:uuid;not null;index"`
+	UserID          uint      `json:"user_id" gorm:"not null"`
+	UserEmail       string    `json:"user_email,omitempty" gorm:"-"`
+	UserDisplayName string    `json:"user_display_name,omitempty" gorm:"-"`
+	UserAvatarURL   string    `json:"user_avatar_url,omitempty" gorm:"-"`
+	Content         string    `json:"content" gorm:"type:text;not null"`
 	// Attachments stores serialized []TaskCommentAttachment in JSONB.
 	Attachments datatypes.JSON `json:"attachments,omitempty" gorm:"type:jsonb;default:'[]'"`
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	// EditHistory stores serialized []TaskCommentEditHistoryItem in JSONB.
+	EditHistory datatypes.JSON `json:"edit_history,omitempty" gorm:"type:jsonb;default:'[]'"`
+	EditedAt    *time.Time     `json:"edited_at,omitempty"`
+	CreatedAt   time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt   time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 func (TaskComment) TableName() string { return "task_comments" }
@@ -220,6 +225,13 @@ type TaskCommentAttachment struct {
 	Size     int64  `json:"size"`
 	DataURL  string `json:"data_url"`
 	IsImage  bool   `json:"is_image"`
+}
+
+type TaskCommentEditHistoryItem struct {
+	EditedAt   time.Time `json:"edited_at"`
+	EditedBy   uint      `json:"edited_by"`
+	OldContent string    `json:"old_content"`
+	NewContent string    `json:"new_content"`
 }
 
 // TimeLog represents actual time logged by a developer on a task
@@ -613,6 +625,8 @@ type SentinelRepository interface {
 	// Task Comments
 	CreateTaskComment(c *TaskComment) error
 	GetCommentsByTaskID(taskID uuid.UUID) ([]TaskComment, error)
+	GetTaskCommentByID(commentID uuid.UUID) (*TaskComment, error)
+	UpdateTaskComment(c *TaskComment) error
 
 	// Time Logs
 	CreateTimeLog(t *TimeLog) error
@@ -767,6 +781,7 @@ type SentinelUsecase interface {
 	// Comments
 	AddComment(taskID uuid.UUID, userID uint, content string, attachments []TaskCommentAttachment) (*TaskComment, error)
 	GetComments(taskID uuid.UUID) ([]TaskComment, error)
+	EditComment(commentID uuid.UUID, editorUserID uint, content string) (*TaskComment, error)
 
 	// Time Logging
 	LogTime(taskID uuid.UUID, userID uint, minutes int, description, workType string, loggedDate *time.Time, isTimer bool) (*TimeLog, error)

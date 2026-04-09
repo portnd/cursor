@@ -1,17 +1,17 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-gray-100">
+  <div class="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
     <!-- Header Banner -->
-    <div class="relative overflow-hidden border-b border-gray-700/60 bg-gradient-to-r from-gray-900 via-slate-900 to-gray-900">
-      <div class="absolute inset-0 bg-gradient-to-r from-cyan-900/20 via-blue-900/20 to-indigo-900/20 pointer-events-none" />
+    <div class="relative overflow-hidden border-b border-gray-200 dark:border-gray-700/60 bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-slate-900 dark:to-gray-900">
+      <div class="absolute inset-0 bg-gradient-to-r from-cyan-100/60 via-blue-100/50 to-indigo-100/60 dark:from-cyan-900/20 dark:via-blue-900/20 dark:to-indigo-900/20 pointer-events-none" />
       <div class="relative px-6 py-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div class="flex items-center gap-3 mb-1">
             <span class="text-2xl">🚀</span>
-            <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+            <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-cyan-700 to-blue-700 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
               {{ isChiefEngineer ? 'Deployment Command Center' : 'Deployment Requests' }}
             </h1>
           </div>
-          <p class="text-sm text-gray-400 ml-10">
+          <p class="text-sm text-gray-600 dark:text-gray-400 ml-10">
             <span v-if="isChiefEngineer">Review, approve, and merge code ready for deployment</span>
             <span v-else>Submit a deployment request for Chief Engineer review</span>
           </p>
@@ -34,7 +34,7 @@
             </div>
           </template>
           <!-- Refresh -->
-          <button @click="refresh" :disabled="loading" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-50">
+          <button @click="refresh" :disabled="loading" class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
             <svg class="w-5 h-5" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
@@ -59,7 +59,7 @@
     <div class="p-6">
 
       <!-- Filter tabs -->
-      <div class="flex gap-1 p-1 bg-gray-800/60 rounded-xl border border-gray-700/50 w-fit mb-6">
+      <div class="flex gap-1 p-1 bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700/50 w-fit mb-6">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -67,8 +67,8 @@
           :class="[
             'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
             activeTab === tab.value
-              ? 'bg-gray-700 text-white shadow'
-              : 'text-gray-400 hover:text-gray-200'
+              ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-transparent'
           ]"
         >
           {{ tab.label }}
@@ -156,7 +156,7 @@
           <h2 class="text-sm font-bold text-gray-400 uppercase tracking-widest">My Requests</h2>
           <button
             @click="openCreateModal()"
-            class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-sm transition-all"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-600 dark:to-blue-600 hover:from-cyan-700 hover:to-blue-700 dark:hover:from-cyan-500 dark:hover:to-blue-500 text-white font-semibold text-sm transition-all"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />

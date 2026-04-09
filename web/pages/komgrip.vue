@@ -7,7 +7,7 @@
         <div>
           <div class="flex items-center gap-3 mb-1">
             <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 shadow-lg shadow-violet-500/30">
-              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 !text-white" fill="none" stroke="white" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 8h6m-6 4h4" />
               </svg>
             </div>
@@ -43,7 +43,7 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex items-center gap-1 mb-5 bg-slate-800/60 border border-white/10 rounded-xl p-1 w-fit">
+      <div class="flex items-center gap-1 mb-5 bg-white dark:bg-slate-800/60 border border-gray-200 dark:border-white/10 rounded-xl p-1 w-fit">
         <button
           v-for="tab in tabs"
           :key="tab.value"

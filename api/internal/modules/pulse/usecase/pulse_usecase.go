@@ -144,6 +144,7 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 			UserID:          usr.ID,
 			UserEmail:       usr.Email,
 			UserDisplayName: usr.DisplayName,
+			UserAvatarURL:   usr.AvatarURL,
 			Standup:         standupMap[usr.ID],
 			HasBlocker:      standupMap[usr.ID] != nil && standupMap[usr.ID].Blocker != "",
 		}

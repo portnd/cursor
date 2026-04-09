@@ -11,7 +11,7 @@
       <button
         v-if="canManageProjects"
         type="button"
-        class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/20 transition-all"
+        class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-cyan-500/20 transition-all"
         @click="openCreateModal"
       >
         <span>+</span>
@@ -146,7 +146,7 @@
           <button
             v-if="canDeleteProjects"
             @click.stop="confirmDelete(project)"
-            class="opacity-0 group-hover:opacity-100 p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all ml-2"
+            class="opacity-0 group-hover:opacity-100 p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-100 dark:bg-red-500/10 rounded-lg transition-all ml-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -446,7 +446,7 @@
           <button
             @click="deleteProject"
             :disabled="isDeleting"
-            class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-semibold rounded-xl transition-colors disabled:cursor-not-allowed"
+            class="flex-1 py-2.5 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 disabled:bg-gray-600 text-gray-900 dark:text-white font-semibold rounded-xl transition-colors disabled:cursor-not-allowed"
           >
             {{ isDeleting ? 'Deleting...' : 'Yes, Delete' }}
           </button>

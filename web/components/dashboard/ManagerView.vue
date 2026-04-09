@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-white">
-    <div class="border-b border-gray-800 bg-gray-900/95 sticky top-0 z-20 px-6 py-4 backdrop-blur-sm">
+  <div class="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
+    <div class="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 sticky top-0 z-20 px-6 py-4 backdrop-blur-sm">
       <div class="flex items-center justify-between max-w-screen-xl mx-auto">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center">
@@ -9,14 +9,14 @@
             </svg>
           </div>
           <div>
-            <h1 class="text-base font-bold text-white">Manager Operations Center</h1>
-            <p class="text-xs text-gray-500">People operations, project reliability, and leave approvals</p>
+            <h1 class="text-base font-bold text-gray-900 dark:text-white">Manager Operations Center</h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400">People operations, project reliability, and leave approvals</p>
           </div>
         </div>
         <button
           @click="refresh"
           :disabled="isLoading"
-          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/60 text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors disabled:opacity-50"
         >
           <svg class="h-3.5 w-3.5" :class="isLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -52,24 +52,24 @@
       <section>
         <h2 class="section-label">Operations snapshot</h2>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="rounded-2xl border border-gray-700 bg-gray-800/60 p-5">
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-5">
             <p class="card-title">Employees Today</p>
-            <p class="card-value">{{ peopleKpis.total }}</p>
+            <p class="card-value text-gray-900 dark:text-white">{{ peopleKpis.total }}</p>
             <p class="card-sub">present {{ peopleKpis.present }} · late {{ peopleKpis.late }}</p>
           </div>
-          <div class="rounded-2xl border border-red-500/30 bg-red-900/15 p-5">
+          <div class="rounded-2xl border border-red-300/60 dark:border-red-500/30 bg-red-50 dark:bg-red-900/15 p-5">
             <p class="card-title">Absent / Leave</p>
-            <p class="card-value text-red-400">{{ peopleKpis.absentOrOnLeave }}</p>
+            <p class="card-value text-red-700 dark:text-red-400">{{ peopleKpis.absentOrOnLeave }}</p>
             <p class="card-sub">today</p>
           </div>
-          <div class="rounded-2xl border border-amber-500/30 bg-amber-900/15 p-5">
+          <div class="rounded-2xl border border-amber-300/60 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-900/15 p-5">
             <p class="card-title">Projects At Risk</p>
-            <p class="card-value text-amber-400">{{ projectKpis.atRisk }}</p>
+            <p class="card-value text-amber-700 dark:text-amber-400">{{ projectKpis.atRisk }}</p>
             <p class="card-sub">overdue-heavy projects</p>
           </div>
-          <div class="rounded-2xl border border-cyan-500/30 bg-cyan-900/15 p-5">
+          <div class="rounded-2xl border border-cyan-300/60 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-900/15 p-5">
             <p class="card-title">Leave Approvals</p>
-            <p class="card-value text-cyan-300">{{ pendingLeaves.length }}</p>
+            <p class="card-value text-cyan-800 dark:text-cyan-300">{{ pendingLeaves.length }}</p>
             <p class="card-sub">waiting your decision</p>
           </div>
         </div>
@@ -78,13 +78,13 @@
       <PmPerformanceSection :projects="projects" audience="manager" />
 
       <section class="grid gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2 rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
+        <div class="lg:col-span-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-5">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-semibold text-white">Leave Approval Queue</h3>
-            <span class="text-xs text-gray-500">manager-owned workflow</span>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Leave Approval Queue</h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">manager-owned workflow</span>
           </div>
 
-          <div v-if="pendingLeaves.length === 0" class="text-sm text-gray-500 italic py-6 text-center">
+          <div v-if="pendingLeaves.length === 0" class="text-sm text-gray-500 dark:text-gray-400 italic py-6 text-center">
             No pending leave approvals.
           </div>
 
@@ -92,32 +92,32 @@
             <article
               v-for="leave in pendingLeaves"
               :key="leave.id"
-              class="rounded-xl border border-gray-700/70 bg-gray-900/40 p-4"
+              class="rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-900/40 p-4"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-white">{{ leave.user_display_name || leave.user_email || ('User #' + leave.user_id) }}</p>
-                  <p class="text-xs text-gray-400 mt-0.5">{{ leave.leave_type }} · {{ leave.days_requested }} day(s)</p>
-                  <p class="text-xs text-gray-500 mt-1">{{ formatDate(leave.start_date) }} → {{ formatDate(leave.end_date) }}</p>
-                  <p class="text-xs text-gray-400 mt-2">{{ leave.reason }}</p>
+                  <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ leave.user_display_name || leave.user_email || ('User #' + leave.user_id) }}</p>
+                  <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{{ leave.leave_type }} · {{ leave.days_requested }} day(s)</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">{{ formatDate(leave.start_date) }} → {{ formatDate(leave.end_date) }}</p>
+                  <p class="text-xs text-gray-600 dark:text-gray-400 mt-2">{{ leave.reason }}</p>
                 </div>
                 <div class="flex flex-col gap-2 sm:items-end min-w-[220px]">
                   <textarea
                     v-model="reviewCommentById[leave.id]"
                     rows="2"
-                    class="w-full rounded-lg border border-gray-700 bg-gray-800/80 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/80 px-3 py-2 text-xs text-gray-900 dark:text-white focus:border-blue-500 focus:outline-none"
                     placeholder="Comment (optional for approve, recommended for reject)"
                   />
                   <div class="flex items-center gap-2 w-full justify-end">
                     <button
-                      class="rounded-lg border border-red-500/40 bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-900/40 disabled:opacity-50"
+                      class="rounded-lg border border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
                       :disabled="reviewingId === leave.id"
                       @click="reviewLeave(leave.id, 'REJECTED')"
                     >
                       Reject
                     </button>
                     <button
-                      class="rounded-lg border border-emerald-500/40 bg-emerald-900/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/40 disabled:opacity-50"
+                      class="rounded-lg border border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-50"
                       :disabled="reviewingId === leave.id"
                       @click="reviewLeave(leave.id, 'APPROVED')"
                     >
@@ -130,36 +130,36 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
-          <h3 class="text-sm font-semibold text-white mb-4">People Operations Today</h3>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-5">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">People Operations Today</h3>
           <div class="space-y-3 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-gray-400">Present</span>
+              <span class="text-gray-600 dark:text-gray-400">Present</span>
               <span class="font-bold text-emerald-400">{{ peopleKpis.present }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-gray-400">Late</span>
+              <span class="text-gray-600 dark:text-gray-400">Late</span>
               <span class="font-bold text-amber-400">{{ peopleKpis.late }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-gray-400">Early checkout</span>
+              <span class="text-gray-600 dark:text-gray-400">Early checkout</span>
               <span class="font-bold text-orange-300">{{ peopleKpis.earlyCheckout }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-gray-400">No check-in</span>
+              <span class="text-gray-600 dark:text-gray-400">No check-in</span>
               <span class="font-bold text-red-400">{{ peopleKpis.noCheckIn }}</span>
             </div>
-            <div class="pt-3 border-t border-gray-700">
-              <p class="text-gray-500">You can manage attendance config and records from <NuxtLink to="/admin/attendance-config" class="text-blue-400 hover:text-blue-300">Attendance Admin</NuxtLink>.</p>
+            <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
+              <p class="text-gray-500 dark:text-gray-400">You can manage attendance config and records from <NuxtLink to="/admin/attendance-config" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">Attendance Admin</NuxtLink>.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
+      <section class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-5">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-semibold text-white">Project Command Center</h3>
-          <NuxtLink to="/projects" class="text-xs text-gray-400 hover:text-white">View all projects</NuxtLink>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Project Command Center</h3>
+          <NuxtLink to="/projects" class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">View all projects</NuxtLink>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -167,35 +167,35 @@
             v-for="project in riskyProjects"
             :key="project.id"
             :to="`/projects/${project.id}`"
-            class="block rounded-xl border border-amber-500/25 bg-amber-900/10 p-4 transition hover:border-amber-400/50 hover:bg-amber-900/20 hover:shadow-lg hover:shadow-amber-900/20 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
+            class="block rounded-xl border border-amber-300 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-900/10 p-4 transition hover:border-amber-400 dark:hover:border-amber-400/50 hover:bg-amber-100 dark:hover:bg-amber-900/20 hover:shadow-lg hover:shadow-amber-200/40 dark:hover:shadow-amber-900/20 focus:outline-none focus:ring-2 focus:ring-amber-400/60"
           >
             <div class="flex items-center justify-between mb-2 gap-2">
-              <p class="text-sm font-semibold text-white truncate">{{ project.name }}</p>
-              <span class="text-[10px] uppercase px-2 py-0.5 rounded-full border border-amber-500/40 text-amber-300">At Risk</span>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ project.name }}</p>
+              <span class="text-[10px] uppercase px-2 py-0.5 rounded-full border border-amber-400 dark:border-amber-500/40 text-amber-700 dark:text-amber-300">At Risk</span>
             </div>
-            <p class="text-xs text-gray-400">Code: {{ project.code || 'N/A' }}</p>
+            <p class="text-xs text-gray-600 dark:text-gray-400">Code: {{ project.code || 'N/A' }}</p>
             <div class="mt-3 space-y-1.5 text-xs">
               <div class="flex justify-between"><span class="text-gray-500">Overdue tasks</span><span class="font-semibold text-red-400">{{ project.task_overdue || 0 }}</span></div>
               <div class="flex justify-between"><span class="text-gray-500">Completed</span><span class="font-semibold text-emerald-400">{{ project.task_completed || 0 }}/{{ project.task_total || 0 }}</span></div>
-              <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-semibold text-gray-300">{{ project.status }}</span></div>
+              <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-500">Status</span><span class="font-semibold text-gray-700 dark:text-gray-300">{{ project.status }}</span></div>
             </div>
           </NuxtLink>
 
-          <div v-if="riskyProjects.length === 0" class="rounded-xl border border-emerald-500/30 bg-emerald-900/10 p-4 sm:col-span-2 lg:col-span-3">
-            <p class="text-sm font-semibold text-emerald-300">All active projects are currently stable.</p>
-            <p class="text-xs text-emerald-400/80 mt-1">No overdue-heavy project found in current scope.</p>
+          <div v-if="riskyProjects.length === 0" class="rounded-xl border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-900/10 p-4 sm:col-span-2 lg:col-span-3">
+            <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">All active projects are currently stable.</p>
+            <p class="text-xs text-emerald-600 dark:text-emerald-400/80 mt-1">No overdue-heavy project found in current scope.</p>
           </div>
         </div>
       </section>
 
       <section class="grid gap-6 lg:grid-cols-2">
-        <div class="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
-          <h3 class="text-sm font-semibold text-white mb-4">Leave Trend by Team / Month</h3>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-5">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">Leave Trend by Team / Month</h3>
           <div class="space-y-2">
-            <div v-for="m in monthlyTrend" :key="m.month" class="rounded-lg border border-gray-700/70 bg-gray-900/30 p-3 text-xs">
+            <div v-for="m in monthlyTrend" :key="m.month" class="rounded-lg border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-900/30 p-3 text-xs">
               <div class="flex items-center justify-between">
-                <span class="text-gray-300 font-semibold">{{ m.month }}</span>
-                <span class="text-gray-400">Days {{ m.totalDays }}</span>
+                <span class="text-gray-700 dark:text-gray-300 font-semibold">{{ m.month }}</span>
+                <span class="text-gray-500 dark:text-gray-400">Days {{ m.totalDays }}</span>
               </div>
               <div class="mt-1 flex gap-4 text-[11px]">
                 <span class="text-cyan-300">Requested {{ m.requested }}</span>
@@ -206,34 +206,34 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
-          <h3 class="text-sm font-semibold text-white mb-4">Leave Policy & Holiday Calendar</h3>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-5">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">Leave Policy & Holiday Calendar</h3>
           <div class="space-y-3 text-xs">
-            <div v-for="p in leavePolicies" :key="p.id" class="rounded-lg border border-gray-700/70 bg-gray-900/30 p-3">
-              <div class="flex justify-between"><span class="text-gray-300">{{ p.leave_type }}</span><span class="text-emerald-300">{{ p.annual_quota_days }} days</span></div>
-              <p class="text-gray-500 mt-1">Carry forward max: {{ p.max_carry_forward_days }} · {{ p.is_active ? 'Active' : 'Inactive' }}</p>
+            <div v-for="p in leavePolicies" :key="p.id" class="rounded-lg border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-900/30 p-3">
+              <div class="flex justify-between"><span class="text-gray-700 dark:text-gray-300">{{ p.leave_type }}</span><span class="text-emerald-700 dark:text-emerald-300">{{ p.annual_quota_days }} days</span></div>
+              <p class="text-gray-500 dark:text-gray-500 mt-1">Carry forward max: {{ p.max_carry_forward_days }} · {{ p.is_active ? 'Active' : 'Inactive' }}</p>
             </div>
-            <div class="pt-2 border-t border-gray-700">
-              <p class="text-gray-400 mb-1">Upcoming holidays</p>
-              <p v-for="h in holidays.slice(0, 5)" :key="h.id" class="text-gray-500">{{ formatDate(h.date) }} · {{ h.name }}</p>
+            <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <p class="text-gray-600 dark:text-gray-400 mb-1">Upcoming holidays</p>
+              <p v-for="h in holidays.slice(0, 5)" :key="h.id" class="text-gray-500 dark:text-gray-500">{{ formatDate(h.date) }} · {{ h.name }}</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section v-if="selectedAuditLeaveId" class="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
+      <section v-if="selectedAuditLeaveId" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-5">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-white">Audit Log · Leave #{{ selectedAuditLeaveId }}</h3>
-          <button class="text-xs text-gray-400 hover:text-white" @click="selectedAuditLeaveId = null">Close</button>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Audit Log · Leave #{{ selectedAuditLeaveId }}</h3>
+          <button class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" @click="selectedAuditLeaveId = null">Close</button>
         </div>
         <div class="space-y-2 text-xs">
-          <div v-for="log in selectedLeaveAudit" :key="log.id" class="rounded-lg border border-gray-700/70 bg-gray-900/30 p-3">
+          <div v-for="log in selectedLeaveAudit" :key="log.id" class="rounded-lg border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-900/30 p-3">
             <div class="flex items-center justify-between">
-              <span class="text-gray-300 font-semibold">{{ log.action }}</span>
-              <span class="text-gray-500">{{ formatDate(log.created_at) }}</span>
+              <span class="text-gray-700 dark:text-gray-300 font-semibold">{{ log.action }}</span>
+              <span class="text-gray-500 dark:text-gray-500">{{ formatDate(log.created_at) }}</span>
             </div>
-            <p class="text-gray-500 mt-1">{{ log.old_status || '-' }} → {{ log.new_status || '-' }} · {{ log.actor_name || log.actor_email || 'System' }}</p>
-            <p v-if="log.comment" class="text-gray-400 mt-1">{{ log.comment }}</p>
+            <p class="text-gray-500 dark:text-gray-500 mt-1">{{ log.old_status || '-' }} → {{ log.new_status || '-' }} · {{ log.actor_name || log.actor_email || 'System' }}</p>
+            <p v-if="log.comment" class="text-gray-600 dark:text-gray-400 mt-1">{{ log.comment }}</p>
           </div>
         </div>
       </section>
@@ -380,7 +380,7 @@ onMounted(() => {
   @apply text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1.5;
 }
 .card-value {
-  @apply text-2xl font-black text-white tabular-nums;
+  @apply text-2xl font-black text-gray-900 dark:text-white tabular-nums;
 }
 .card-sub {
   @apply text-xs text-gray-500 mt-1;

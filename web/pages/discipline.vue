@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-900 p-6">
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
   <DisciplineDayDetailModal
     :show="modalOpen"
     :user-id="modalUserId"
@@ -240,9 +240,9 @@
                   </div>
                   <!-- Check-in / check-out times -->
                   <div v-if="day.check_in_at || day.check_out_at" class="flex items-center gap-1 text-[9px] text-gray-500 mb-0.5">
-                    <span v-if="day.check_in_at" class="text-gray-400">↑{{ day.check_in_at }}</span>
+                    <span v-if="day.check_in_at" class="text-gray-600 dark:text-gray-400">↑{{ day.check_in_at }}</span>
                     <span v-if="day.check_in_at && day.check_out_at" class="text-gray-700">·</span>
-                    <span v-if="day.check_out_at" class="text-gray-400">↓{{ day.check_out_at }}</span>
+                    <span v-if="day.check_out_at" class="text-gray-600 dark:text-gray-400">↓{{ day.check_out_at }}</span>
                   </div>
                   <!-- Metrics -->
                   <div class="space-y-0.5">
@@ -488,13 +488,13 @@ function disciplineScore(user: DisciplineUser): number {
 
 function dayCellBg(day: DisciplineUserDayStat): string {
   if (!day.has_daily_pulse && day.logged_minutes === 0 && day.tasks_closed === 0 && !day.attendance_status) {
-    return 'bg-gray-800/40 border border-red-900/30'
+    return 'bg-red-50 dark:bg-gray-800/40 border border-red-200 dark:border-red-900/30'
   }
-  if (day.reworks > 0) return 'bg-red-950/30 border border-red-700/20'
-  if (day.is_late) return 'bg-rose-950/25 border border-rose-800/30'
-  if (day.early_checkout) return 'bg-amber-950/20 border border-amber-800/25'
-  if (day.logged_minutes > 0 || day.tasks_closed > 0) return 'bg-gray-800/60 border border-gray-700/30'
-  return 'bg-gray-800/20 border border-gray-800'
+  if (day.reworks > 0) return 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700/20'
+  if (day.is_late) return 'bg-rose-50 dark:bg-rose-950/25 border border-rose-200 dark:border-rose-800/30'
+  if (day.early_checkout) return 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/25'
+  if (day.logged_minutes > 0 || day.tasks_closed > 0) return 'bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/30'
+  return 'bg-gray-100 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-800'
 }
 
 function userCardBorderClass(user: DisciplineUser): string {

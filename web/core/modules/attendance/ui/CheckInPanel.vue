@@ -1,6 +1,6 @@
 <template>
-  <div class="rounded-xl border border-gray-700 bg-gray-800/80 p-6 space-y-4">
-    <h2 class="text-lg font-semibold text-white">Check-in / check-out</h2>
+  <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 p-6 space-y-4">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Check-in / check-out</h2>
     <p v-if="isWfhToday" class="text-sm text-sky-300/90">
       Today is a <strong>WFH</strong> day: check in from any location (GPS is still recorded for the log only).
     </p>
@@ -93,9 +93,9 @@
       </button>
     </div>
 
-    <div class="rounded-lg border border-amber-800/60 bg-amber-950/20 p-3 space-y-2">
-      <p class="text-sm text-amber-200">อยู่นอกสถานที่?</p>
-      <p class="text-xs text-gray-400">
+    <div class="rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+      <p class="text-sm text-amber-800 dark:text-amber-200">อยู่นอกสถานที่?</p>
+      <p class="text-xs text-gray-700 dark:text-gray-400">
         ส่งคำขอ check-in นอกสถานที่พร้อมเหตุผล แล้วรอ CEO อนุมัติ เมื่ออนุมัติแล้วจะบันทึก check-in ให้อัตโนมัติ
       </p>
       <textarea

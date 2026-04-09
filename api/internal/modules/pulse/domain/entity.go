@@ -29,6 +29,7 @@ type UserPulse struct {
 	UserID          uint           `json:"user_id"`
 	UserEmail       string         `json:"user_email"`
 	UserDisplayName string         `json:"user_display_name"`
+	UserAvatarURL   string         `json:"user_avatar_url,omitempty"`
 	Standup         *DailyStandup  `json:"standup"`
 	TotalLoggedMin  int            `json:"total_logged_minutes"`
 	TotalLoggedHrs  float64        `json:"total_logged_hours"`

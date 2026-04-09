@@ -1,10 +1,10 @@
 <template>
   <section class="space-y-6">
     <div>
-      <h2 class="section-label text-blue-400/90">Performance</h2>
-      <p class="text-xs text-gray-500 -mt-2 mb-4 max-w-3xl leading-relaxed">
+      <h2 class="section-label text-blue-700 dark:text-blue-400/90">Performance</h2>
+      <p class="text-xs text-gray-500 dark:text-gray-500 -mt-2 mb-4 max-w-3xl leading-relaxed">
         Portfolio metrics use projects on this dashboard.
-        <span class="text-gray-400">{{ audienceDescription }}</span>
+        <span class="text-gray-600 dark:text-gray-400">{{ audienceDescription }}</span>
       </p>
     </div>
 
@@ -19,8 +19,8 @@
     <template v-else>
       <!-- Command metrics: portfolio + squad roll-up -->
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <div class="rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">Health pulse</p>
+        <div class="rounded-2xl border border-blue-300 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-950/20 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1.5">Health pulse</p>
           <p
             v-if="performanceStore.personal"
             class="text-xl font-extrabold tabular-nums"
@@ -28,46 +28,46 @@
           >
             {{ performanceStore.personal.health_score.toFixed(0) }}
           </p>
-          <p class="text-xs text-gray-500 mt-0.5">Org wellness index</p>
+          <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Org wellness index</p>
         </div>
 
-        <div class="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">Portfolio done</p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1.5">Portfolio done</p>
           <p
             class="text-xl font-extrabold tabular-nums"
             :class="portfolioCompletionPct === null ? 'text-gray-500' : pctColor(portfolioCompletionPct)"
           >
             {{ portfolioCompletionPct === null ? '—' : portfolioCompletionPct.toFixed(1) + '%' }}
           </p>
-          <p class="text-xs text-gray-500 mt-0.5">Tasks completed / total</p>
+          <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Tasks completed / total</p>
         </div>
 
-        <div class="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">Overdue</p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1.5">Overdue</p>
           <p
             class="text-xl font-extrabold tabular-nums"
             :class="portfolioOverdue > 0 ? 'text-red-400' : 'text-gray-400'"
           >
             {{ portfolioOverdue }}
           </p>
-          <p class="text-xs text-gray-500 mt-0.5">Across visible projects</p>
+          <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Across visible projects</p>
         </div>
 
-        <div class="rounded-2xl border border-gray-700 bg-gray-800/60 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">Active projects</p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1.5">Active projects</p>
           <p class="text-xl font-extrabold tabular-nums text-emerald-400">{{ activeProjectCount }}</p>
-          <p class="text-xs text-gray-500 mt-0.5">Status ACTIVE</p>
+          <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Status ACTIVE</p>
         </div>
 
-        <div class="rounded-2xl border border-gray-700 bg-gradient-to-br from-blue-900/25 to-indigo-900/20 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-1.5">{{ deliveryIndexLabel }}</p>
+        <div class="rounded-2xl border border-blue-200 dark:border-gray-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/25 dark:to-indigo-900/20 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1.5">{{ deliveryIndexLabel }}</p>
           <p
             class="text-xl font-black tabular-nums"
             :class="squadIndex === null ? 'text-gray-500' : scoreColor(squadIndex)"
           >
             {{ squadIndex === null ? '—' : squadIndex.toFixed(1) }}
           </p>
-          <p class="text-xs text-gray-500 mt-0.5">Avg composite · devs you assign</p>
+          <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Avg composite · devs you assign</p>
         </div>
       </div>
 

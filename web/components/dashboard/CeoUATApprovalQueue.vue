@@ -17,7 +17,7 @@
         <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">Final approval queue</h2>
         <p class="text-xs text-gray-500">Sub-tasks awaiting your final approval</p>
       </div>
-      <span class="text-xs font-bold px-3 py-1 rounded-full bg-gray-700/60 border border-gray-600 text-gray-500">
+      <span class="text-xs font-bold px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-500">
         0 pending
       </span>
     </div>

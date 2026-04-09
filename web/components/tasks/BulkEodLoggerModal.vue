@@ -23,7 +23,7 @@
               </h2>
               <p class="text-xs text-gray-400 mt-0.5">Log หลาย tasks ในครั้งเดียว — สำหรับสรุปท้ายวัน</p>
             </div>
-            <button type="button" @click="$emit('close')" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
+            <button type="button" @click="$emit('close')" class="p-2 rounded-lg text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-800 transition-colors">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -80,7 +80,7 @@
                     <button
                       v-if="entry.task_id"
                       type="button"
-                      class="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-indigo-900/40 border border-indigo-700/40 text-xs text-indigo-300 hover:bg-indigo-900/60 transition-colors"
+                      class="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-indigo-900/40 border border-indigo-300 dark:border-indigo-700/40 text-xs text-indigo-300 hover:bg-indigo-900/60 transition-colors"
                       @click="entry.task_id = ''; entry.search = ''"
                     >
                       <span class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ background: entry.project_color || '#6366f1' }" />
@@ -216,7 +216,7 @@
             <button
               type="button"
               @click="$emit('close')"
-              class="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              class="px-4 py-2 text-sm text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-800 rounded-lg transition-colors"
             >
               {{ submitted ? 'ปิด' : 'ยกเลิก' }}
             </button>

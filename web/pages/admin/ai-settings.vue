@@ -146,7 +146,7 @@
         <button
           @click="saveConfiguration"
           :disabled="isSaving"
-          class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
+          class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:from-purple-700 hover:to-pink-200 dark:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
         >
           <span v-if="isSaving" class="animate-spin">⚙️</span>
           <span v-else>💾</span>

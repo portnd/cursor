@@ -12,7 +12,7 @@
       </div>
       <button
         @click="openCreateModal"
-        class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity"
+        class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 text-gray-900 dark:text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -33,7 +33,7 @@
       <p class="text-sm text-gray-500 mb-6">สร้าง backup แรกเพื่อปกป้องข้อมูลโครงการของคุณ</p>
       <button
         @click="openCreateModal"
-        class="px-4 py-2 bg-purple-600/20 border border-purple-500/30 text-purple-300 text-sm rounded-lg hover:bg-purple-600/30 transition-colors"
+        class="px-4 py-2 bg-purple-100 dark:bg-purple-600/20 border border-purple-300 dark:border-purple-500/30 text-purple-300 text-sm rounded-lg hover:bg-purple-100 dark:bg-purple-600/30 transition-colors"
       >
         สร้าง Backup แรก
       </button>
@@ -64,7 +64,7 @@
           <button
             @click="downloadBackup(backup)"
             :disabled="downloading === backup.id"
-            class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-medium rounded-lg hover:bg-blue-600/30 transition-colors disabled:opacity-50"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-600/20 border border-blue-300 dark:border-blue-500/30 text-blue-300 text-xs font-medium rounded-lg hover:bg-blue-100 dark:bg-blue-600/30 transition-colors disabled:opacity-50"
             title="ดาวน์โหลดเป็นไฟล์ JSON"
           >
             <div v-if="downloading === backup.id" class="w-3.5 h-3.5 border border-blue-300 border-t-transparent rounded-full animate-spin" />
@@ -75,7 +75,7 @@
           </button>
           <button
             @click="confirmRestore(backup)"
-            class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 border border-green-500/30 text-green-300 text-xs font-medium rounded-lg hover:bg-green-600/30 transition-colors"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-600/20 border border-green-300 dark:border-green-500/30 text-green-300 text-xs font-medium rounded-lg hover:bg-green-100 dark:bg-green-600/30 transition-colors"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -84,7 +84,7 @@
           </button>
           <button
             @click="confirmDelete(backup)"
-            class="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 border border-red-500/30 text-red-300 text-xs font-medium rounded-lg hover:bg-red-600/30 transition-colors"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 dark:bg-red-600/20 border border-red-300 dark:border-red-500/30 text-red-300 text-xs font-medium rounded-lg hover:bg-red-100 dark:bg-red-600/30 transition-colors"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -134,7 +134,7 @@
           <button
             @click="handleCreate"
             :disabled="creating"
-            class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            class="px-4 py-2 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 text-gray-900 dark:text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <div v-if="creating" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             {{ creating ? 'กำลังสร้าง...' : 'สร้าง Backup' }}
@@ -168,7 +168,7 @@
           <button
             @click="handleRestore"
             :disabled="restoring"
-            class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            class="px-4 py-2 bg-green-100 dark:bg-green-600 hover:bg-green-100 dark:bg-green-500 text-gray-900 dark:text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <div v-if="restoring" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             {{ restoring ? 'กำลัง Restore...' : 'ยืนยัน Restore' }}
@@ -194,7 +194,7 @@
           <button
             @click="handleDelete"
             :disabled="deleting"
-            class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            class="px-4 py-2 bg-red-100 dark:bg-red-600 hover:bg-red-100 dark:bg-red-500 text-gray-900 dark:text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <div v-if="deleting" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             {{ deleting ? 'กำลังลบ...' : 'ลบ Backup' }}

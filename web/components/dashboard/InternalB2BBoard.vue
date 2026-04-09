@@ -5,7 +5,7 @@
       <button
         v-if="canCreate"
         @click="showNewRequestModal = true"
-        class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 px-3 py-1.5 text-xs font-semibold text-blue-300 transition-colors"
+        class="inline-flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-600/20 border border-blue-300 dark:border-blue-500/30 hover:bg-blue-100 dark:bg-blue-600/30 px-3 py-1.5 text-xs font-semibold text-blue-300 transition-colors"
       >
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -92,7 +92,7 @@
                   <button
                     @click="acceptInbound(req)"
                     :disabled="actionLoading === req.id"
-                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white transition-colors disabled:opacity-50"
                   >
                     <svg v-if="actionLoading === req.id" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -103,14 +103,14 @@
                   <button
                     @click="openCounterModal(req)"
                     :disabled="actionLoading === req.id"
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-300 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 hover:bg-amber-100 dark:bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-300 transition-colors disabled:opacity-50"
                   >
                     Counter
                   </button>
                   <button
                     @click="rejectRequest(req)"
                     :disabled="actionLoading === req.id"
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-red-300 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 hover:bg-red-100 dark:bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors disabled:opacity-50"
                   >
                     Reject
                   </button>
@@ -162,12 +162,12 @@
                       <button
                         @click="acceptOutbound(req)"
                         :disabled="actionLoading === req.id"
-                        class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+                        class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-gray-900 dark:text-white transition-colors disabled:opacity-50"
                       >Accept Counter</button>
                       <button
                         @click="rejectRequest(req)"
                         :disabled="actionLoading === req.id"
-                        class="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors disabled:opacity-50"
+                        class="inline-flex items-center gap-1 rounded-lg border border-red-300 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 hover:bg-red-100 dark:bg-red-500/20 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors disabled:opacity-50"
                       >Reject</button>
                     </div>
                   </div>

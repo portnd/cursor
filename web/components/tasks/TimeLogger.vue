@@ -1,28 +1,28 @@
 <template>
   <div class="time-logger">
     <!-- Summary Bar -->
-    <div class="flex items-center justify-between mb-4 p-3 bg-gray-800/60 rounded-xl border border-gray-700/50">
+    <div class="flex items-center justify-between mb-4 p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700/50">
       <div class="flex items-center gap-6">
         <div class="text-center">
           <div class="text-lg font-bold text-purple-400">{{ totalLoggedHours }}h</div>
-          <div class="text-xs text-gray-500">Logged</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">Logged</div>
         </div>
         <div class="text-center">
           <div class="text-lg font-bold text-gray-400">{{ estimatedHours }}h</div>
-          <div class="text-xs text-gray-500">Estimated</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">Estimated</div>
         </div>
         <div class="text-center">
           <div class="text-lg font-bold" :class="varianceClass">{{ varianceLabel }}</div>
-          <div class="text-xs text-gray-500">Variance</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">Variance</div>
         </div>
       </div>
       <!-- Progress bar -->
       <div class="flex-1 max-w-48 ml-6">
-        <div class="flex justify-between text-xs text-gray-500 mb-1">
+        <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
           <span>Progress</span>
           <span>{{ progressPct }}%</span>
         </div>
-        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+        <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
           <div
             class="h-full rounded-full transition-all"
             :class="progressPct > 100 ? 'bg-red-500' : progressPct > 80 ? 'bg-yellow-500' : 'bg-purple-500'"
@@ -33,14 +33,14 @@
     </div>
 
     <!-- Daily Quota Bar -->
-    <div v-if="dailySummary" class="mb-4 p-3 bg-cyan-900/10 border border-cyan-700/20 rounded-xl">
+    <div v-if="dailySummary" class="mb-4 p-3 bg-cyan-50 dark:bg-cyan-900/10 border border-cyan-200 dark:border-cyan-700/20 rounded-xl">
       <div class="flex justify-between items-center mb-1.5">
-        <span class="text-xs text-cyan-400 font-medium">Today's Log</span>
-        <span class="text-xs text-cyan-300">
+        <span class="text-xs text-cyan-700 dark:text-cyan-400 font-medium">Today's Log</span>
+        <span class="text-xs text-cyan-700 dark:text-cyan-300">
           {{ formatMinutes(dailySummary.total_minutes) }} / 8h
         </span>
       </div>
-      <div class="h-2 bg-gray-700/60 rounded-full overflow-hidden">
+      <div class="h-2 bg-cyan-100 dark:bg-gray-700/60 rounded-full overflow-hidden">
         <div
           class="h-full rounded-full transition-all"
           :class="dailyPct > 100 ? 'bg-red-400' : 'bg-gradient-to-r from-cyan-500 to-purple-500'"
@@ -50,8 +50,8 @@
     </div>
 
     <!-- Log Work Form -->
-    <div class="bg-gray-800/60 rounded-xl border border-gray-700/50 p-4 mb-4">
-      <h4 class="text-sm font-semibold text-gray-300 mb-3">Log Work</h4>
+    <div class="bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700/50 p-4 mb-4">
+      <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Log Work</h4>
 
       <!-- Work Type -->
       <div class="mb-3">
@@ -65,8 +65,8 @@
             :class="[
               'px-2.5 py-1 rounded-lg text-xs font-medium border transition-all',
               workType === wt.value
-                ? 'bg-purple-600/30 border-purple-500/60 text-purple-300'
-                : 'bg-gray-700/50 border-gray-600/40 text-gray-400 hover:border-gray-500'
+                ? 'bg-purple-100 dark:bg-purple-600/30 border-purple-300 dark:border-purple-500/60 text-purple-700 dark:text-purple-300'
+                : 'bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600/40 text-gray-600 dark:text-gray-400 hover:border-purple-300 dark:hover:border-gray-500 hover:text-purple-700 dark:hover:text-gray-200'
             ]"
           >
             {{ wt.emoji }} {{ wt.label }}
@@ -211,7 +211,9 @@
                     v-for="wt in WORK_TYPES" :key="wt.value" type="button"
                     @click="editWorkType = wt.value"
                     :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all',
-                      editWorkType === wt.value ? 'bg-purple-600/30 border-purple-500/60 text-purple-300' : 'bg-gray-700/50 border-gray-600/40 text-gray-400 hover:border-gray-500']"
+                      editWorkType === wt.value
+                        ? 'bg-purple-100 dark:bg-purple-600/30 border-purple-300 dark:border-purple-500/60 text-purple-700 dark:text-purple-300'
+                        : 'bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600/40 text-gray-600 dark:text-gray-400 hover:border-purple-300 dark:hover:border-gray-500 hover:text-purple-700 dark:hover:text-gray-200']"
                   >{{ wt.emoji }} {{ wt.label }}</button>
                 </div>
               </div>
@@ -418,13 +420,13 @@ function formatDate(dateStr: string) {
 
 <style scoped>
 .input-field {
-  @apply bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-purple-500 transition-colors;
+  @apply bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-purple-500 transition-colors;
 }
 .btn-primary {
   @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-colors;
 }
 .preset-btn {
-  @apply bg-gray-700/60 border border-gray-600/40 text-purple-400 hover:bg-purple-900/20 hover:border-purple-500/40 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors;
+  @apply bg-white dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600/40 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-400 dark:hover:border-purple-500/40 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors;
 }
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.2s ease; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }

@@ -1,16 +1,16 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-gray-100">
+  <div class="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
     <!-- Header -->
-    <header class="sticky top-0 z-10 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+    <header class="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between gap-4 py-5">
           <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 shadow-lg text-xl">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-600 dark:to-indigo-600 shadow-sm dark:shadow-lg text-xl">
               🕐
             </div>
             <div>
-              <h1 class="text-xl font-bold tracking-tight text-white">Work Log</h1>
-              <p class="text-xs text-gray-400 mt-0.5">บันทึกเวลาทำงาน · ดู · แก้ไข · ลบ</p>
+              <h1 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">Work Log</h1>
+              <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">บันทึกเวลาทำงาน · ดู · แก้ไข · ลบ</p>
             </div>
           </div>
 
@@ -19,7 +19,7 @@
             <button
               type="button"
               @click="showQuickLog = true"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
+              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 dark:bg-purple-600 hover:bg-purple-700 dark:hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -38,10 +38,10 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         <!-- Timer Card -->
-        <div class="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-5">
+        <div class="bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-2xl p-5">
           <div class="flex items-center gap-2 mb-4">
             <span class="text-base">⏱</span>
-            <h2 class="text-sm font-semibold text-white">Timer</h2>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Timer</h2>
           </div>
 
           <!-- Running -->
@@ -68,16 +68,16 @@
 
           <!-- Idle -->
           <div v-else class="space-y-3">
-            <p class="text-sm text-gray-500">ไม่มี timer กำลังทำงาน</p>
+            <p class="text-sm text-gray-600 dark:text-gray-500">ไม่มี timer กำลังทำงาน</p>
             <div class="relative">
               <input
                 v-model="timerSearch"
                 type="text"
                 placeholder="🔍 ค้นหา task เพื่อเริ่ม timer..."
-                class="w-full bg-gray-700/60 border border-gray-600 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                class="w-full bg-white dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
                 @focus="loadTimerTasks"
               />
-              <div v-if="timerTasks.length" class="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+              <div v-if="timerTasks.length" class="mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                 <div v-if="timerLoading" class="py-3 text-center text-xs text-gray-500">Loading...</div>
                 <template v-else-if="filteredTimerTasks.length">
                   <button
@@ -85,11 +85,11 @@
                     :key="task.id"
                     type="button"
                     @click="startTimerFor(task)"
-                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-700/60 text-left border-b border-gray-700/30 last:border-0 transition-colors"
+                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700/60 text-left border-b border-gray-200 dark:border-gray-700/30 last:border-0 transition-colors"
                   >
                     <span class="text-sm shrink-0">{{ taskIcon(task.task_type) }}</span>
                     <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
-                    <span class="text-xs text-gray-200 truncate flex-1">{{ task.title }}</span>
+                    <span class="text-xs text-gray-700 dark:text-gray-200 truncate flex-1">{{ task.title }}</span>
                     <span v-if="task.assigned_to_display_name || task.assigned_to_email" class="text-[10px] text-indigo-400/70 shrink-0 hidden sm:block">
                       {{ task.assigned_to_display_name || task.assigned_to_email }}
                     </span>
@@ -110,7 +110,7 @@
         </div>
 
         <!-- Today Summary Card -->
-        <div class="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-5">
+        <div class="bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-2xl p-5">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
               <span class="text-base">📊</span>
@@ -145,13 +145,13 @@
       </div>
 
       <!-- My Work Logs History -->
-      <section class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
+      <section class="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60 rounded-2xl overflow-hidden">
         <!-- Section header -->
-        <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-700/60">
+        <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-700/60">
           <div class="flex items-center gap-2.5">
             <span class="text-base">📋</span>
             <div>
-              <h2 class="text-sm font-semibold text-white">Log History</h2>
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Log History</h2>
               <p class="text-xs text-gray-500 mt-0.5">
                 {{ logsDate === today ? 'วันนี้' : logsDate }}
                 <span v-if="!logsLoading" class="ml-1">
@@ -203,17 +203,17 @@
         </div>
 
         <!-- Log list -->
-        <div v-else class="divide-y divide-gray-700/30">
+        <div v-else class="divide-y divide-gray-200 dark:divide-gray-700/30">
           <div
             v-for="log in logEntries"
             :key="log.id"
-            class="group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-700/20 transition-colors"
+            class="group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-100 dark:hover:bg-gray-700/20 transition-colors"
           >
             <span class="text-lg shrink-0">{{ workTypeEmoji(log.work_type) }}</span>
 
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-sm font-bold text-white tabular-nums">{{ formatMinutes(log.minutes) }}</span>
+                <span class="text-sm font-bold text-gray-900 dark:text-white tabular-nums">{{ formatMinutes(log.minutes) }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide shrink-0" :class="workTypeBadge(log.work_type)">
                   {{ log.work_type || 'DEV' }}
                 </span>
@@ -400,7 +400,8 @@ async function loadTimerTasks() {
       getTeamActiveTasks().catch(() => [] as GlobalActiveTask[]),
       getKomgripTasks().catch(() => [] as GlobalActiveTask[]),
     ])
-    const komgripAsGlobal = komgrip.map((t: any) => ({
+    const activeKomgrip = komgrip.filter((t: any) => t?.status !== 'COMPLETED')
+    const komgripAsGlobal = activeKomgrip.map((t: any) => ({
       ...t,
       project_name: 'Komgrip',
       project_color: '#8b5cf6',

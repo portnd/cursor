@@ -1,5 +1,5 @@
 <template>
-  <section class="bg-gray-800/50 border border-gray-700/80 rounded-xl p-5">
+  <section class="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/80 rounded-xl p-5">
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
       <div class="flex items-center gap-2">

@@ -9,7 +9,7 @@
       <div class="flex items-center gap-2">
         <button
           @click="openInjectModal"
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-400 rounded-lg text-sm font-medium transition-all"
+          class="flex items-center gap-2 px-4 py-2 bg-emerald-100 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:bg-emerald-600/30 border border-emerald-300 dark:border-emerald-600/40 text-emerald-400 rounded-lg text-sm font-medium transition-all"
         >
           + Inject Capital
         </button>
@@ -107,7 +107,7 @@
               <!-- Delete: show confirm inline on first click -->
               <div v-if="deletingTxId === tx.id" class="flex items-center gap-1.5">
                 <span class="text-xs text-red-400">ลบ?</span>
-                <button @click="confirmDeleteTx(tx.id)" class="px-2 py-0.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded font-medium transition-all">ใช่</button>
+                <button @click="confirmDeleteTx(tx.id)" class="px-2 py-0.5 text-xs bg-red-100 dark:bg-red-600 hover:bg-red-100 dark:bg-red-500 text-gray-900 dark:text-white rounded font-medium transition-all">ใช่</button>
                 <button @click="deletingTxId = null" class="px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-all">ยกเลิก</button>
               </div>
               <button
@@ -192,7 +192,7 @@
           <button
             @click="confirmInject"
             :disabled="!injectModal.amount || injectModal.amount <= 0 || saving"
-            class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
+            class="flex-1 py-2.5 bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 disabled:opacity-50 text-gray-900 dark:text-white rounded-xl text-sm font-bold transition-all"
           >
             {{ saving ? 'Injecting...' : 'Inject Capital' }}
           </button>
@@ -244,7 +244,7 @@
           <button
             @click="confirmEdit"
             :disabled="editModal.newBalance === null || editModal.newBalance === ('' as any) || isNaN(Number(editModal.newBalance)) || saving"
-            class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
+            class="flex-1 py-2.5 bg-indigo-100 dark:bg-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500 disabled:opacity-50 text-gray-900 dark:text-white rounded-xl text-sm font-bold transition-all"
           >
             {{ saving ? 'Saving...' : 'Save' }}
           </button>

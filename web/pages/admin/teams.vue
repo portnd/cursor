@@ -6,7 +6,7 @@
         <div class="text-6xl mb-4">🚫</div>
         <h2 class="text-3xl font-bold text-red-400 mb-2">ACCESS DENIED</h2>
         <p class="text-gray-400 mb-6">This area is restricted to CEO access only.</p>
-        <button @click="navigateTo('/dashboard')" class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded font-bold transition-colors">
+        <button @click="navigateTo('/dashboard')" class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-gray-900 dark:text-white rounded font-bold transition-colors">
           Return to Dashboard
         </button>
       </div>
@@ -26,7 +26,7 @@
             type="button"
             @click="confirmDisableFeatureTeam"
             :disabled="isDisablingFeature"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-700 hover:bg-red-900/40 border border-gray-600 hover:border-red-600/50 text-gray-300 hover:text-red-400 font-medium rounded-lg transition-all"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-700 hover:bg-red-900/40 border border-gray-600 hover:border-red-300 dark:border-red-600/50 text-gray-300 hover:text-red-400 font-medium rounded-lg transition-all"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
             {{ isDisablingFeature ? 'Disabling...' : 'Disable feature team' }}
@@ -36,7 +36,7 @@
             type="button"
             @click="enableFeatureTeam"
             :disabled="isEnablingFeature"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-400 font-medium rounded-lg transition-all"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-100 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:bg-emerald-600/30 border border-emerald-300 dark:border-emerald-500/40 text-emerald-400 font-medium rounded-lg transition-all"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {{ isEnablingFeature ? 'Enabling...' : 'Enable feature team' }}
@@ -44,7 +44,7 @@
           <button
             v-if="teamsStore.teamsFeatureEnabled"
             @click="showCreateTeamModal = true"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-lg shadow-lg transition-all"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 text-gray-900 dark:text-white font-medium rounded-lg shadow-lg transition-all"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             New Team
@@ -127,7 +127,7 @@
               </button>
               <button
                 @click="deleteTeam(team)"
-                class="px-3 py-1.5 text-xs bg-red-900/40 hover:bg-red-700/40 text-red-400 rounded-lg transition-colors"
+                class="px-3 py-1.5 text-xs bg-red-900/40 hover:bg-red-200 dark:bg-red-700/40 text-red-400 rounded-lg transition-colors"
               >
                 Delete
               </button>
@@ -232,7 +232,7 @@
               <div class="flex items-center gap-2 pt-1">
                 <button
                   @click="openInjectModal(team.id)"
-                  class="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-400 rounded-lg transition-all"
+                  class="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium bg-emerald-100 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:bg-emerald-600/30 border border-emerald-300 dark:border-emerald-600/40 text-emerald-400 rounded-lg transition-all"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                   Inject Capital
@@ -292,7 +292,7 @@
               <button
                 @click="addMemberToTeam(team.id)"
                 :disabled="!addMemberUserID[team.id]"
-                class="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-600 text-white rounded-lg transition-colors"
+                class="px-4 py-1.5 text-sm bg-purple-100 dark:bg-purple-600 hover:bg-purple-100 dark:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-600 text-gray-900 dark:text-white rounded-lg transition-colors"
               >
                 Add
               </button>
@@ -339,7 +339,7 @@
             <button
               @click="createTeam"
               :disabled="!newTeamName.trim() || isCreatingTeam"
-              class="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-700 disabled:to-gray-700 text-white font-semibold rounded-xl transition-all"
+              class="flex-1 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 disabled:from-gray-700 disabled:to-gray-700 text-gray-900 dark:text-white font-semibold rounded-xl transition-all"
             >
               {{ isCreatingTeam ? 'Creating...' : 'Create Team' }}
             </button>
@@ -366,7 +366,7 @@
           <button
             @click="doDisableFeatureTeam"
             :disabled="isDisablingFeature"
-            class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+            class="flex-1 py-2.5 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 disabled:opacity-50 text-gray-900 dark:text-white font-semibold rounded-xl transition-colors"
           >
             {{ isDisablingFeature ? 'Disabling...' : 'Disable' }}
           </button>
@@ -392,7 +392,7 @@
         <div class="flex gap-3">
           <button
             @click="confirmDeleteTeam"
-            class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors"
+            class="flex-1 py-2.5 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 text-gray-900 dark:text-white font-semibold rounded-xl transition-colors"
           >
             Delete Team
           </button>
@@ -464,7 +464,7 @@
             <button
               @click="confirmInjectCapital"
               :disabled="!injectModal.amount || injectModal.amount <= 0 || injectModal.loading"
-              class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-600 text-white font-semibold rounded-xl transition-all"
+              class="flex-1 py-2.5 bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-600 text-gray-900 dark:text-white font-semibold rounded-xl transition-all"
             >
               {{ injectModal.loading ? 'Injecting...' : 'Inject Capital' }}
             </button>
@@ -505,7 +505,7 @@
             <button
               @click="confirmEditName"
               :disabled="!editNameModal.name.trim() || editNameModal.loading"
-              class="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-600 text-white font-semibold rounded-xl transition-all"
+              class="flex-1 py-2.5 bg-purple-100 dark:bg-purple-600 hover:bg-purple-100 dark:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-600 text-gray-900 dark:text-white font-semibold rounded-xl transition-all"
             >
               {{ editNameModal.loading ? 'Saving...' : 'Save' }}
             </button>
@@ -598,7 +598,7 @@
             <button
               @click="confirmEditCapital"
               :disabled="editCapitalModal.newBalance === null || editCapitalModal.newBalance < 0 || editCapitalModal.loading"
-              class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-600 text-white font-semibold rounded-xl transition-all"
+              class="flex-1 py-2.5 bg-blue-100 dark:bg-blue-600 hover:bg-blue-100 dark:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-600 text-gray-900 dark:text-white font-semibold rounded-xl transition-all"
             >
               {{ editCapitalModal.loading ? 'Saving...' : 'Save Changes' }}
             </button>

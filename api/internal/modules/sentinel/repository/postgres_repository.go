@@ -1064,6 +1064,22 @@ func (r *postgresRepository) GetCommentsByTaskID(taskID uuid.UUID) ([]domain.Tas
 	return comments, err
 }
 
+func (r *postgresRepository) GetTaskCommentByID(commentID uuid.UUID) (*domain.TaskComment, error) {
+	var c domain.TaskComment
+	err := r.db.First(&c, "id = ?", commentID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (r *postgresRepository) UpdateTaskComment(c *domain.TaskComment) error {
+	return r.db.Save(c).Error
+}
+
 // --- Time Log Operations ---
 
 func (r *postgresRepository) CreateTimeLog(t *domain.TimeLog) error {

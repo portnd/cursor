@@ -34,6 +34,7 @@ export interface UserPulse {
   user_id: number
   user_email: string
   user_display_name: string
+  user_avatar_url?: string
   standup: DailyStandup | null
   total_logged_minutes: number
   total_logged_hours: number

@@ -37,7 +37,7 @@
               </div>
               <button
                 @click="$emit('update:modelValue', false)"
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-gray-700/60 transition-colors"
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -99,14 +99,14 @@
             <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-700/60">
               <button
                 @click="$emit('update:modelValue', false)"
-                class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 hover:text-white hover:bg-gray-700/60 transition-colors"
+                class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
               >
                 Cancel
               </button>
               <button
                 @click="handleSubmit"
                 :disabled="submitting || !form.staging_url"
-                class="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold bg-amber-500 text-gray-900 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                class="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold bg-amber-100 dark:bg-amber-500 text-gray-900 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg v-if="submitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

@@ -116,7 +116,7 @@
           <button
             @click="approve(task)"
             :disabled="actionLoading === task.id"
-            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-3 text-sm font-bold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20"
+            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 px-4 py-3 text-sm font-bold text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20"
           >
             <svg v-if="actionLoading === task.id" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -130,7 +130,7 @@
           <button
             @click="startReject(task.id)"
             :disabled="actionLoading === task.id"
-            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600/20 hover:bg-red-600 border border-red-500/40 hover:border-red-500 px-4 py-3 text-sm font-bold text-red-300 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-100 dark:bg-red-600/20 hover:bg-red-100 dark:bg-red-600 border border-red-300 dark:border-red-500/40 hover:border-red-300 dark:border-red-500 px-4 py-3 text-sm font-bold text-red-300 hover:text-gray-900 dark:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
@@ -141,14 +141,14 @@
         <div v-else class="flex gap-3">
           <button
             @click="cancelReject"
-            class="flex-1 rounded-xl border border-gray-600 px-4 py-3 text-sm font-semibold text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+            class="flex-1 rounded-xl border border-gray-600 px-4 py-3 text-sm font-semibold text-gray-400 hover:bg-gray-700 hover:text-gray-900 dark:text-white transition-colors"
           >
             Cancel
           </button>
           <button
             @click="confirmReject(task)"
             :disabled="rejectReason.trim().length < 10 || actionLoading === task.id"
-            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-500 px-4 py-3 text-sm font-bold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-900/20"
+            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-100 dark:bg-red-600 hover:bg-red-100 dark:bg-red-500 px-4 py-3 text-sm font-bold text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-900/20"
           >
             <svg v-if="actionLoading === task.id" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

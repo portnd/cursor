@@ -45,7 +45,7 @@
           <button
             v-if="activeTab === 'timeline'"
             type="button"
-            class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white disabled:opacity-60 shrink-0"
+            class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-gray-900 dark:text-white disabled:opacity-60 shrink-0"
             :disabled="timelineRefreshing"
             title="โหลดข้อมูลใหม่ / Refresh"
             @click="refreshTimeline"
@@ -374,10 +374,10 @@
               </div>
               <div class="flex items-center gap-2">
                 <div v-if="matrixGanttRows.length > 0" class="flex items-center rounded-lg border border-slate-600/60 bg-slate-800/50 overflow-hidden">
-                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
+                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
                     Expand all
                   </button>
-                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
+                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
                     Collapse all
                   </button>
                 </div>
@@ -387,7 +387,7 @@
                 <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
                   <span aria-hidden="true">📄</span> Export PDF
                 </button>
-                <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
+                <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-300 dark:border-purple-500/50 bg-purple-100 dark:bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-100 dark:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
                   <span aria-hidden="true">◉</span> Today
                 </button>
               </div>
@@ -446,20 +446,20 @@
                 </div>
                 <div class="flex items-center gap-2">
                   <div class="flex items-center rounded-lg border border-slate-600/60 bg-slate-800/50 overflow-hidden">
-                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
+                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
                       Expand all
                     </button>
-                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
+                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
                       Collapse all
                     </button>
                   </div>
-                  <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
+                  <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-300 dark:border-purple-500/50 bg-purple-100 dark:bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-100 dark:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
                     <span aria-hidden="true">◉</span> Today
                   </button>
-                  <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
+                  <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-gray-900 dark:text-white" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
                     <span aria-hidden="true">📄</span> Export PDF
                   </button>
-                  <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-500 bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-600 hover:text-white" @click="timelineFullscreen = false" title="ย่อกลับ / Exit fullscreen">
+                  <button type="button" class="flex items-center gap-2 rounded-lg border border-slate-500 bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-600 hover:text-gray-900 dark:text-white" @click="timelineFullscreen = false" title="ย่อกลับ / Exit fullscreen">
                     ✕ ย่อกลับ
                   </button>
                 </div>
@@ -575,14 +575,14 @@
               <!-- Selection toolbar when items selected -->
               <template v-if="backlogSelectedCount > 0">
                 <span class="text-xs text-gray-400">{{ backlogSelectedCount }} selected</span>
-                <button type="button" @click="clearBacklogSelection" class="px-3 py-2 text-xs font-medium text-gray-400 hover:text-white rounded-lg border border-gray-600 hover:bg-gray-700/60 transition-colors">
+                <button type="button" @click="clearBacklogSelection" class="px-3 py-2 text-xs font-medium text-gray-400 hover:text-gray-900 dark:text-white rounded-lg border border-gray-600 hover:bg-gray-700/60 transition-colors">
                   Clear
                 </button>
                 <button
                   type="button"
                   @click="bulkDeleteSelectedBacklogTasks"
                   :disabled="isBulkDeletingBacklog"
-                  class="px-3 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
+                  class="px-3 py-2 text-xs font-medium text-gray-900 dark:text-white bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <span v-if="isBulkDeletingBacklog" class="w-3.5 h-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Delete selected
@@ -593,7 +593,7 @@
                 <button
                   type="button"
                   @click="expandAllBacklog"
-                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700/60 transition-colors border-r border-gray-600/60"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors border-r border-gray-600/60"
                   title="กางทั้งหมด"
                 >
                   <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -604,7 +604,7 @@
                 <button
                   type="button"
                   @click="collapseAllBacklog"
-                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700/60 transition-colors"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
                   title="ย่อทั้งหมด"
                 >
                   <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -621,7 +621,7 @@
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
                 Import EU
               </button>
-              <button @click="openIODImportModal()" class="btn-import-sm border border-blue-500/40 text-blue-300 hover:bg-blue-500/10">
+              <button @click="openIODImportModal()" class="btn-import-sm border border-blue-300 dark:border-blue-500/40 text-blue-300 hover:bg-blue-100 dark:bg-blue-500/10">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Import IOD
               </button>
@@ -1327,13 +1327,13 @@
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2" @click.stop>
-                <button type="button" @click="openAddTasksToSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-sm font-medium transition-colors">
+                <button type="button" @click="openAddTasksToSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-600/80 hover:bg-emerald-100 dark:bg-emerald-600 text-gray-900 dark:text-white text-sm font-medium transition-colors">
                   + Add Tasks
                 </button>
-                <button type="button" @click="openCompleteSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-600 text-amber-100 text-sm font-medium transition-colors">
+                <button type="button" @click="openCompleteSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-amber-100 dark:bg-amber-600/80 hover:bg-amber-100 dark:bg-amber-600 text-amber-100 text-sm font-medium transition-colors">
                   Complete Sprint
                 </button>
-                <button type="button" @click="openEditSprintModal(activeSprint)" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors" title="Edit sprint">
+                <button type="button" @click="openEditSprintModal(activeSprint)" class="p-2 rounded-lg text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700/50 transition-colors" title="Edit sprint">
                   ✎
                 </button>
               </div>
@@ -1412,22 +1412,22 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2 shrink-0" @click.stop>
                   <template v-if="s.status === 'PLANNING'">
-                    <button type="button" :disabled="!!activeSprint" @click="!activeSprint && handleStartSprint(s.id)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors" :title="activeSprint ? 'Complete or reopen the active sprint first' : 'Start this sprint'">
+                    <button type="button" :disabled="!!activeSprint" @click="!activeSprint && handleStartSprint(s.id)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-100 dark:bg-purple-600 hover:bg-purple-100 dark:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white transition-colors" :title="activeSprint ? 'Complete or reopen the active sprint first' : 'Start this sprint'">
                       Start
                     </button>
                   </template>
                   <template v-if="s.status === 'COMPLETED'">
-                    <button type="button" @click="openReopenSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition-colors" title="Reopen sprint">
+                    <button type="button" @click="openReopenSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-400 hover:bg-amber-100 dark:bg-amber-500/20 transition-colors" title="Reopen sprint">
                       Reopen
                     </button>
                   </template>
-                  <button type="button" @click="openAddTasksToSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors" title="Add tasks to sprint">
+                  <button type="button" @click="openAddTasksToSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-100 dark:bg-emerald-500/20 transition-colors" title="Add tasks to sprint">
                     + Tasks
                   </button>
                   <button type="button" @click="openEditSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-gray-600/50 transition-colors" title="Edit sprint">
                     Edit
                   </button>
-                  <button type="button" @click="openDeleteSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors" title="Delete sprint">
+                  <button type="button" @click="openDeleteSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-100 dark:bg-red-500/20 transition-colors" title="Delete sprint">
                     Delete
                   </button>
                 </div>
@@ -2275,7 +2275,7 @@
             <div class="flex gap-3">
               <button type="button" @click="submitIODImport"
                 :disabled="isIODImporting || iodImportSelectedRowIndices.length === 0"
-                class="flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors">
+                class="flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-100 dark:bg-blue-600 hover:bg-blue-100 dark:bg-blue-500 text-gray-900 dark:text-white font-semibold rounded-xl transition-colors">
                 <svg v-if="isIODImporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                 {{ isIODImporting ? 'กำลัง import...' : `Import ${iodImportSelectedRowIndices.length} bugs` }}
               </button>
@@ -2313,7 +2313,7 @@
             <div class="flex gap-3">
               <button type="button" @click="loadIODImportPreview"
                 :disabled="isIODLoadingPreview || !iodImportForm.sheet_url.trim()"
-                class="flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors">
+                class="flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-100 dark:bg-blue-600 hover:bg-blue-100 dark:bg-blue-500 text-gray-900 dark:text-white font-semibold rounded-xl transition-colors">
                 <svg v-if="isIODLoadingPreview" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                 {{ isIODLoadingPreview ? 'กำลังโหลด...' : 'โหลด preview' }}
               </button>
@@ -2330,7 +2330,7 @@
       <div class="create-task-modal create-task-modal-enterprise rounded-2xl w-full max-w-7xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
         <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
           <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">{{ createTaskForm.parent_id ? 'Add Sub-task' : 'Add Task' }}</h2>
-          <button type="button" @click="closeCreateTaskModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 text-xl leading-none" aria-label="Close">✕</button>
+          <button type="button" @click="closeCreateTaskModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700 text-xl leading-none" aria-label="Close">✕</button>
         </div>
         <div class="px-6 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-7 flex-1 overflow-y-auto overscroll-contain min-h-0">
           <!-- Task Type Selector -->
@@ -2340,7 +2340,7 @@
               <button
                 type="button"
                 @click="createTaskForm.task_type = 'FEATURE'"
-                :class="createTaskForm.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'"
+                :class="createTaskForm.task_type === 'FEATURE' ? 'border-purple-300 dark:border-purple-500 bg-purple-100 dark:bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-300 dark:border-purple-500/50'"
                 class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
                 <span class="text-xl sm:text-2xl leading-none">★</span> Feature
@@ -2348,7 +2348,7 @@
               <button
                 type="button"
                 @click="createTaskForm.task_type = 'TASK'"
-                :class="createTaskForm.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'"
+                :class="createTaskForm.task_type === 'TASK' ? 'border-blue-300 dark:border-blue-500 bg-blue-100 dark:bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-300 dark:border-blue-500/50'"
                 class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
                 <span class="text-xl sm:text-2xl leading-none">📋</span> Task
@@ -2356,7 +2356,7 @@
               <button
                 type="button"
                 @click="createTaskForm.task_type = 'BUG'"
-                :class="createTaskForm.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'"
+                :class="createTaskForm.task_type === 'BUG' ? 'border-red-300 dark:border-red-500 bg-red-100 dark:bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-300 dark:border-red-500/50'"
                 class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
                 <span class="text-xl sm:text-2xl leading-none">⚠</span> Bug
@@ -2545,7 +2545,7 @@
           <div v-if="editProjectError" class="p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ editProjectError }}</div>
         </div>
         <div class="flex gap-3 mt-5">
-          <button @click="saveEditProject" :disabled="isSavingProject || !editProjectForm.name.trim()" class="flex-1 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-xl transition-colors disabled:opacity-40">
+          <button @click="saveEditProject" :disabled="isSavingProject || !editProjectForm.name.trim()" class="flex-1 px-5 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:from-purple-700 hover:to-pink-200 dark:to-pink-700 text-gray-900 dark:text-white font-medium rounded-xl transition-colors disabled:opacity-40">
             {{ isSavingProject ? 'กำลังบันทึก...' : 'บันทึก' }}
           </button>
           <button @click="closeEditProjectModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
@@ -2567,7 +2567,7 @@
           </div>
         </div>
         <div class="flex gap-3 mt-5">
-          <button type="button" @click="saveEditTaskTitle" :disabled="isSavingTaskTitle || !editTaskTitleValue.trim()" class="flex-1 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium rounded-xl transition-colors disabled:opacity-40">
+          <button type="button" @click="saveEditTaskTitle" :disabled="isSavingTaskTitle || !editTaskTitleValue.trim()" class="flex-1 px-5 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:from-purple-700 hover:to-pink-200 dark:to-pink-700 text-gray-900 dark:text-white font-medium rounded-xl transition-colors disabled:opacity-40">
             {{ isSavingTaskTitle ? 'กำลังบันทึก...' : 'บันทึก' }}
           </button>
           <button type="button" @click="closeEditTaskTitleModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
@@ -2700,7 +2700,7 @@
         </p>
         <div v-if="deleteSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ deleteSprintError }}</div>
         <div class="flex gap-3">
-          <button @click="confirmDeleteSprint" :disabled="isDeletingSprint" class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-medium rounded-xl transition-colors">
+          <button @click="confirmDeleteSprint" :disabled="isDeletingSprint" class="flex-1 px-4 py-2.5 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-xl transition-colors">
             {{ isDeletingSprint ? 'กำลังลบ...' : 'ยืนยันการลบ' }}
           </button>
           <button @click="closeDeleteSprintModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
@@ -2720,7 +2720,7 @@
         </p>
         <div v-if="completeSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ completeSprintError }}</div>
         <div class="flex gap-3">
-          <button @click="confirmCompleteSprint" :disabled="isCompletingSprint" class="flex-1 px-4 py-2.5 bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 text-white font-medium rounded-xl transition-colors">
+          <button @click="confirmCompleteSprint" :disabled="isCompletingSprint" class="flex-1 px-4 py-2.5 bg-yellow-100 dark:bg-yellow-600 hover:bg-yellow-200 dark:bg-yellow-700 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-xl transition-colors">
             {{ isCompletingSprint ? 'กำลังปิด...' : 'ยืนยันการปิด' }}
           </button>
           <button @click="closeCompleteSprintModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
@@ -2740,7 +2740,7 @@
         </p>
         <div v-if="reopenSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ reopenSprintError }}</div>
         <div class="flex gap-3">
-          <button @click="confirmReopenSprint" :disabled="isReopeningSprint" class="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-medium rounded-xl transition-colors">
+          <button @click="confirmReopenSprint" :disabled="isReopeningSprint" class="flex-1 px-4 py-2.5 bg-amber-100 dark:bg-amber-600 hover:bg-amber-200 dark:bg-amber-700 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-xl transition-colors">
             {{ isReopeningSprint ? 'กำลังเปิด...' : 'ยืนยันการเปิด' }}
           </button>
           <button @click="closeReopenSprintModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">ยกเลิก</button>
@@ -2785,7 +2785,7 @@
           <button
             v-if="editingMilestone"
             @click="deleteMilestone"
-            class="px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white rounded-xl transition-colors text-sm"
+            class="px-4 py-2.5 bg-red-200 dark:bg-red-700 hover:bg-red-100 dark:bg-red-600 text-gray-900 dark:text-white rounded-xl transition-colors text-sm"
           >Delete</button>
           <button @click="closeMilestoneModal" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors">Cancel</button>
         </div>

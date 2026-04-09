@@ -10,6 +10,7 @@ export interface TaskComment {
   task_id: string
   user_id: number
   user_email: string
+  user_display_name?: string
   user_avatar_url?: string
   content: string
   attachments?: Array<{
@@ -19,7 +20,15 @@ export interface TaskComment {
     data_url: string
     is_image: boolean
   }>
+  edit_history?: Array<{
+    edited_at: string
+    edited_by: number
+    old_content: string
+    new_content: string
+  }>
+  edited_at?: string
   created_at: string
+  updated_at?: string
 }
 
 export interface TimeLog {
@@ -225,6 +234,14 @@ function useTasksApi() {
     const data = await fetchWithAuth<{ data: TaskComment }>(`/sentinel/tasks/${taskId}/comments`, {
       method: 'POST',
       body,
+    })
+    return data.data
+  }
+
+  async function editComment(commentId: string, content: string): Promise<TaskComment> {
+    const data = await fetchWithAuth<{ data: TaskComment }>(`/sentinel/comments/${commentId}`, {
+      method: 'PATCH',
+      body: { content },
     })
     return data.data
   }
@@ -563,6 +580,7 @@ function useTasksApi() {
     bulkUpdateStatus,
     getComments,
     addComment,
+    editComment,
     getTimeLogs,
     logTime,
     editTimeLog,

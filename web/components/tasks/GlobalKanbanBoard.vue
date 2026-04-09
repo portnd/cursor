@@ -31,7 +31,7 @@
         <button
           @click="load"
           :disabled="loading"
-          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-gray-900 dark:text-white transition-colors disabled:opacity-50"
         >
           <svg class="h-3.5 w-3.5" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -182,7 +182,7 @@
             >
               <button
                 :disabled="markingReadyId === task.id"
-                class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-500/20 hover:border-cyan-400/50 transition-colors disabled:opacity-50"
+                class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-100 dark:bg-cyan-500/10 border border-cyan-300 dark:border-cyan-500/30 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-100 dark:bg-cyan-500/20 hover:border-cyan-400/50 transition-colors disabled:opacity-50"
                 @click="handleMarkReadyForTest(task)"
               >
                 <svg v-if="markingReadyId === task.id" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">

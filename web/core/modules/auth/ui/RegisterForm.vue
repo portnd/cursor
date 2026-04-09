@@ -86,7 +86,7 @@
         <button
           type="submit"
           :disabled="isLoading"
-          class="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-purple-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          class="w-full py-3 px-4 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:from-purple-700 hover:to-pink-200 dark:to-pink-700 text-gray-900 dark:text-white font-semibold rounded-lg shadow-lg hover:shadow-purple-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           <span v-if="!isLoading">Create Account</span>
           <span v-else class="flex items-center justify-center">

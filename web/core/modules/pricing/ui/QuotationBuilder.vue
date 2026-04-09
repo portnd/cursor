@@ -385,7 +385,7 @@
               <p class="mt-0.5 text-xs text-gray-400">เลือก Epic และ Task ที่ต้องการนำมาคำนวณต้นทุน</p>
             </div>
             <button
-              class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-700 hover:text-white transition-colors"
+              class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-700 hover:text-gray-900 dark:text-white transition-colors"
               @click="showTaskModal = false"
             >
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

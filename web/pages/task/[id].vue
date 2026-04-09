@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen task-enterprise-bg text-gray-100">
+  <div class="min-h-screen task-enterprise-bg text-gray-800 dark:text-gray-100">
 
     <!-- Loading State -->
     <div v-if="isLoading" class="flex flex-col items-center justify-center min-h-screen">
@@ -20,7 +20,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
           </svg>
         </div>
-        <h2 class="text-lg font-bold text-white mb-2">Failed to load task</h2>
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Failed to load task</h2>
         <p class="text-sm text-red-300 mb-6">{{ error }}</p>
         <button @click="goToDashboard" class="btn-primary px-6 py-2.5 text-sm">← Back</button>
       </div>
@@ -33,7 +33,7 @@
       <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
         <!-- Breadcrumb + nav -->
         <div class="flex items-center gap-2 min-w-0">
-          <NuxtLink :to="backTarget" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-200 transition-colors group">
+          <NuxtLink :to="backTarget" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-200 transition-colors group">
             <svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
@@ -52,7 +52,7 @@
               @click="goToPrevTask"
               :disabled="!activePrevTaskLink"
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-              :class="activePrevTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
+              :class="activePrevTaskLink ? 'border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
               Prev
@@ -62,7 +62,7 @@
               @click="goToNextTask"
               :disabled="!activeNextTaskLink"
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-              :class="activeNextTaskLink ? 'border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
+              :class="activeNextTaskLink ? 'border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 hover:text-white' : 'border-gray-700 text-gray-600 cursor-default'"
             >
               Next
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -76,21 +76,21 @@
               type="button"
               :disabled="ceoQuickFinishSubmitting"
               @click="markTaskFinishedByCEO"
-              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400/60 transition-colors disabled:opacity-50"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 dark:border-emerald-500/45 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-300 hover:bg-emerald-100 dark:bg-emerald-500/25 hover:border-emerald-400/60 transition-colors disabled:opacity-50"
             >
               <span>✅</span>
               {{ ceoQuickFinishSubmitting ? 'Finishing…' : 'Finished' }}
             </button>
             <button
               @click="openEditModal"
-              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors border border-gray-600 hover:border-gray-500"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors border border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
               Edit
             </button>
             <button
               @click="openDeleteConfirmation"
-              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-900/20 hover:bg-red-900/40 border border-red-800/60 hover:border-red-700 rounded-lg transition-colors"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-900/20 hover:bg-red-900/40 border border-red-800/60 hover:border-red-300 dark:border-red-700 rounded-lg transition-colors"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
               Delete
@@ -107,7 +107,7 @@
           'bg-purple-900/20 border-purple-700/40': task.parent_task.task_type === 'FEATURE',
           'bg-blue-900/20 border-blue-700/40': task.parent_task.task_type === 'TASK',
           'bg-red-900/20 border-red-700/40': task.parent_task.task_type === 'BUG',
-          'bg-gray-800/40 border-gray-700/40': !task.parent_task.task_type,
+          'bg-gray-800/40 border-gray-200 dark:border-gray-700/40': !task.parent_task.task_type,
         }"
       >
         <NuxtLink
@@ -118,7 +118,7 @@
           'text-purple-400': task.parent_task.task_type === 'FEATURE',
           'text-blue-400': task.parent_task.task_type === 'TASK',
           'text-red-400': task.parent_task.task_type === 'BUG',
-          'text-gray-400': !task.parent_task.task_type,
+          'text-gray-500 dark:text-gray-400': !task.parent_task.task_type,
         }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
         </svg>
@@ -126,7 +126,7 @@
           'text-purple-400/70 hover:text-purple-400': task.parent_task.task_type === 'FEATURE',
           'text-blue-400/70 hover:text-blue-400': task.parent_task.task_type === 'TASK',
           'text-red-400/70 hover:text-red-400': task.parent_task.task_type === 'BUG',
-          'text-gray-400/70 hover:text-gray-400': !task.parent_task.task_type,
+          'text-gray-400/70 hover:text-gray-500 dark:text-gray-400': !task.parent_task.task_type,
         }">Part of {{ task.parent_task.parent_id ? 'Sub-task' : (task.parent_task.task_type === 'FEATURE' ? 'Feature' : task.parent_task.task_type === 'BUG' ? 'Bug' : 'Task') }}</span>
         <svg class="w-3 h-3 shrink-0" :class="{
           'text-purple-600': task.parent_task.task_type === 'FEATURE',
@@ -144,7 +144,7 @@
             'text-purple-300 hover:text-purple-100': task.parent_task.task_type === 'FEATURE',
             'text-blue-300 hover:text-blue-100': task.parent_task.task_type === 'TASK',
             'text-red-300 hover:text-red-100': task.parent_task.task_type === 'BUG',
-            'text-gray-300 hover:text-gray-100': !task.parent_task.task_type,
+            'text-gray-600 dark:text-gray-300 hover:text-gray-100': !task.parent_task.task_type,
           }"
         >
           <span v-if="task.parent_task.task_type === 'FEATURE'" class="text-purple-500">★</span>
@@ -158,7 +158,7 @@
               'bg-purple-900/40 border-purple-700/50 text-purple-400': task.parent_task.task_type === 'FEATURE',
               'bg-blue-900/40 border-blue-700/50 text-blue-400': task.parent_task.task_type === 'TASK',
               'bg-red-900/40 border-red-700/50 text-red-400': task.parent_task.task_type === 'BUG',
-              'bg-slate-800/70 border-gray-700/50 text-gray-400': !task.parent_task.task_type,
+              'bg-slate-800/70 border-gray-200 dark:border-gray-700/50 text-gray-500 dark:text-gray-400': !task.parent_task.task_type,
             }"
           >
             {{ String(Number(task.parent_task.code.split('-').pop()) || 0).padStart(4, '0') }}
@@ -208,12 +208,12 @@
             </div>
 
             <!-- Title -->
-            <h1 class="text-2xl sm:text-3xl font-bold text-white leading-tight tracking-tight mb-2">{{ task.title }}</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight tracking-tight mb-2">{{ task.title }}</h1>
 
             <!-- Meta row -->
             <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
               <span>Created {{ formatDate(task.created_at) }}</span>
-              <span v-if="creatorLabel">by <span class="text-gray-400">{{ creatorLabel }}</span></span>
+              <span v-if="creatorLabel">by <span class="text-gray-500 dark:text-gray-400">{{ creatorLabel }}</span></span>
               <span v-if="task.story_points" class="flex items-center gap-1">
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                 {{ task.story_points }} SP
@@ -228,7 +228,7 @@
               :class="{
                 'bg-red-900/30 border-red-700/60 text-red-300': getDeadlineUrgency(task) === 'overdue',
                 'bg-amber-900/30 border-amber-700/60 text-amber-300': getDeadlineUrgency(task) === 'urgent',
-                'bg-gray-800/60 border-gray-700/60 text-gray-300': getDeadlineUrgency(task) === 'normal',
+                'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300': getDeadlineUrgency(task) === 'normal',
                 'bg-green-900/30 border-green-700/60 text-green-300': task.status === 'COMPLETED',
               }"
             >
@@ -240,12 +240,12 @@
         </div>
 
         <!-- Progress bar (sub-tasks aggregated) -->
-        <div v-if="isParentTask" class="mt-5 pt-4 border-t border-gray-700/40">
+        <div v-if="isParentTask" class="mt-5 pt-4 border-t border-gray-200 dark:border-gray-700/40">
           <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
             <span>Sub-task progress</span>
-            <span class="text-gray-400 font-medium">{{ subtaskAggregateProgress }}%</span>
+            <span class="text-gray-500 dark:text-gray-400 font-medium">{{ subtaskAggregateProgress }}%</span>
           </div>
-          <div class="h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
+          <div class="h-1.5 bg-gray-100 dark:bg-gray-700/60 rounded-full overflow-hidden">
             <div
               class="h-full rounded-full transition-all duration-500"
               :class="subtaskAggregateProgress === 100 ? 'bg-green-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'"
@@ -263,7 +263,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400 mb-1">Awaiting your test approval</p>
-            <p class="text-sm text-gray-400">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
               This sub-task is in <span class="text-cyan-300 font-medium">Ready for Test</span>. Approve with test evidence to move it to <span class="text-orange-300 font-medium">Wait for Deploy</span>, or reject to send it back to the engineer.
             </p>
           </div>
@@ -271,7 +271,7 @@
             <button
               type="button"
               :disabled="uatActionLoading || uatApproveSubmitting"
-              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/25 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/35 text-emerald-400 text-sm font-semibold hover:bg-emerald-100 dark:bg-emerald-500/25 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
               @click="openUATApproveConfirm"
             >
               <span>✅</span>
@@ -280,7 +280,7 @@
             <button
               type="button"
               :disabled="uatActionLoading"
-              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35 text-red-400 text-sm font-semibold hover:bg-red-500/25 hover:border-red-400/50 transition-colors disabled:opacity-50"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-100 dark:bg-red-500/15 border border-red-300 dark:border-red-500/35 text-red-400 text-sm font-semibold hover:bg-red-100 dark:bg-red-500/25 hover:border-red-400/50 transition-colors disabled:opacity-50"
               @click="openUATRejectModal"
             >
               <span>❌</span>
@@ -299,7 +299,7 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-xs font-semibold uppercase tracking-widest text-orange-400 mb-1">🚀 Waiting for Deployment</p>
-              <p class="text-sm text-gray-400">
+              <p class="text-sm text-gray-500 dark:text-gray-400">
                 Test approved by Product Owner. The Chief Engineer must create a deployment request, get it reviewed, and mark it as deployed before this task advances to
                 <span class="text-amber-300 font-medium">Ready for UAT</span>.
               </p>
@@ -314,7 +314,7 @@
             </div>
             <button
               @click="openDeploymentModal()"
-              class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-sm font-semibold transition-all shadow-lg"
+              class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-100 dark:from-orange-600 to-amber-100 dark:to-amber-600 hover:from-orange-200 dark:hover:from-orange-500 hover:to-amber-200 dark:hover:to-amber-500 text-gray-900 dark:text-white text-sm font-semibold transition-all shadow-lg"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
@@ -324,10 +324,10 @@
           </div>
 
           <!-- Deployment request exists — show status -->
-          <div v-else-if="deploymentForTask" class="px-4 py-3 rounded-xl bg-gray-800/60 border border-gray-700/50 space-y-2">
+          <div v-else-if="deploymentForTask" class="px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/50 space-y-2">
             <div class="flex items-center justify-between gap-3 flex-wrap">
               <div class="flex items-center gap-2 min-w-0">
-                <span class="text-sm font-semibold text-white truncate">{{ deploymentForTask.title }}</span>
+                <span class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ deploymentForTask.title }}</span>
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase"
                   :class="{
                     'bg-yellow-500/10 text-yellow-400 border-yellow-500/30': deploymentForTask.status === 'PENDING',
@@ -367,7 +367,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-1">CEO Final Approval Required</p>
-            <p class="text-sm text-gray-400">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
               The Product Owner has tested this task and submitted evidence. Review the test details below and give your <span class="text-amber-300 font-medium">final approval</span> or reject it back to the Product Owner.
             </p>
             <!-- Display Product Owner test evidence from uat_payload -->
@@ -379,7 +379,7 @@
                 </div>
                 <div v-if="uatPayloadData.test_steps" class="flex items-start gap-2">
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 w-20 shrink-0 mt-0.5">Test Steps</span>
-                  <pre class="text-xs text-gray-300 whitespace-pre-wrap break-words max-w-lg">{{ uatPayloadData.test_steps }}</pre>
+                  <pre class="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-words max-w-lg">{{ uatPayloadData.test_steps }}</pre>
                 </div>
               </div>
             </template>
@@ -388,7 +388,7 @@
             <button
               type="button"
               :disabled="uatActionLoading || uatApproveSubmitting"
-              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/25 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/35 text-emerald-400 text-sm font-semibold hover:bg-emerald-100 dark:bg-emerald-500/25 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
               @click="openUATApproveConfirm"
             >
               <span>✅</span>
@@ -397,7 +397,7 @@
             <button
               type="button"
               :disabled="uatActionLoading"
-              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35 text-red-400 text-sm font-semibold hover:bg-red-500/25 hover:border-red-400/50 transition-colors disabled:opacity-50"
+              class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-100 dark:bg-red-500/15 border border-red-300 dark:border-red-500/35 text-red-400 text-sm font-semibold hover:bg-red-100 dark:bg-red-500/25 hover:border-red-400/50 transition-colors disabled:opacity-50"
               @click="openUATRejectModal"
             >
               <span>❌</span>
@@ -415,10 +415,10 @@
 
           <!-- Description Card -->
           <div class="enterprise-card rounded-2xl overflow-hidden">
-            <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+            <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/60">
               <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</h2>
+                <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</h2>
               </div>
               <div class="flex items-center gap-2">
                 <a
@@ -439,10 +439,10 @@
                     </button>
                   </template>
                   <template v-else>
-                    <button @click="saveInlineDescription" :disabled="isSavingDescription" class="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors">
+                    <button @click="saveInlineDescription" :disabled="isSavingDescription" class="text-xs px-3 py-1 bg-blue-100 dark:bg-blue-600 hover:bg-blue-200 dark:bg-blue-700 disabled:opacity-50 text-gray-900 dark:text-white rounded-lg transition-colors">
                       {{ isSavingDescription ? 'Saving…' : 'Save' }}
                     </button>
-                    <button @click="cancelInlineEdit" class="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors">Cancel</button>
+                    <button @click="cancelInlineEdit" class="text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-lg transition-colors">Cancel</button>
                   </template>
                 </template>
               </div>
@@ -470,13 +470,13 @@
           <!-- Discussion & Time Tracking -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Comments -->
-            <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
-              <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+            <div class="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60 rounded-2xl overflow-hidden">
+              <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/60">
                 <div class="flex items-center gap-2">
                   <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                  <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Discussion</h2>
+                  <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Discussion</h2>
                 </div>
-                <span class="text-xs text-gray-600 bg-gray-700/60 px-2 py-0.5 rounded-full">{{ comments.length }}</span>
+                <span class="text-xs text-gray-600 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded-full">{{ comments.length }}</span>
               </div>
               <div class="p-5">
                 <TaskComments
@@ -484,16 +484,18 @@
                   :loading="commentsLoading"
                   :current-user-avatar="currentUserAvatarURL"
                   :current-user-initial="currentUserInitial"
+                  :current-user-id="Number(effectiveUser?.id || authStore.userId || 0)"
                   @add-comment="handleAddComment"
+                  @edit-comment="handleEditComment"
                 />
               </div>
             </div>
 
             <!-- Time Tracking -->
-            <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
-              <div class="flex items-center gap-2 px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
+            <div class="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60 rounded-2xl overflow-hidden">
+              <div class="flex items-center gap-2 px-5 py-3.5 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/60">
                 <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time Tracking</h2>
+                <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time Tracking</h2>
               </div>
               <div class="p-5">
                 <TimeLogger
@@ -521,11 +523,11 @@
           </div>
 
           <!-- Details card -->
-          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
-            <div class="px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60">
-              <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Details</h2>
+          <div class="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60 rounded-2xl overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/60">
+              <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</h2>
             </div>
-            <div class="divide-y divide-gray-700/40">
+            <div class="divide-y divide-gray-200 dark:divide-gray-700/40">
 
               <!-- Project board link (not shown for Komgrip tasks) -->
               <div v-if="task.project_id && !task.is_komgrip" class="px-5 py-3.5">
@@ -554,10 +556,10 @@
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Assignee</p>
                 <div class="flex items-center gap-2 flex-wrap">
                   <div v-if="task.assigned_to" class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-gray-900 dark:text-white shrink-0">
                       {{ (task.assigned_to_display_name || task.assigned_to_email || 'U').charAt(0).toUpperCase() }}
                     </div>
-                    <span class="text-sm text-white">{{ task.assigned_to_display_name || task.assigned_to_email || `Dev #${task.assigned_to}` }}</span>
+                    <span class="text-sm text-gray-900 dark:text-white">{{ task.assigned_to_display_name || task.assigned_to_email || `Dev #${task.assigned_to}` }}</span>
                   </div>
                   <span v-else class="text-sm text-gray-500">Unassigned</span>
                   <button
@@ -565,7 +567,7 @@
                     type="button"
                     @click="claimTask"
                     :disabled="assignLoading"
-                    class="text-[11px] text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded-md bg-emerald-900/20 border border-emerald-800/40 hover:border-emerald-700/60 transition-colors disabled:opacity-50"
+                    class="text-[11px] text-emerald-300 hover:text-emerald-200 px-2 py-0.5 rounded-md bg-emerald-900/20 border border-emerald-800/40 hover:border-emerald-300 dark:border-emerald-700/60 transition-colors disabled:opacity-50"
                   >
                     {{ assignLoading ? 'Claiming…' : 'Claim task' }}
                   </button>
@@ -573,7 +575,7 @@
                     v-if="canEditOrDelete && !showAssignDropdown"
                     type="button"
                     @click="openAssignDropdown"
-                    class="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded-md bg-blue-900/20 border border-blue-800/40 hover:border-blue-700/60 transition-colors"
+                    class="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded-md bg-blue-900/20 border border-blue-800/40 hover:border-blue-300 dark:border-blue-700/60 transition-colors"
                   >
                     Change
                   </button>
@@ -582,14 +584,14 @@
                   <select
                     v-model="assignSelectedId"
                     @change="confirmChangeAssignee"
-                    class="mt-2 block w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    class="mt-2 block w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                   >
                     <option value="">— Select —</option>
                     <option value="0">— Unassign —</option>
                     <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name || u.email }} ({{ u.role }})</option>
                   </select>
                   <div class="flex items-center gap-2 mt-1.5">
-                    <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+                    <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-600 dark:text-gray-300">Cancel</button>
                     <p v-if="assignError" class="text-xs text-red-400">{{ assignError }}</p>
                   </div>
                 </template>
@@ -598,9 +600,9 @@
               <!-- Estimated Effort (hours, 1 decimal; stored as minutes API-side) -->
               <div class="px-5 py-3.5">
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Estimated Effort</p>
-                <div v-if="!canEditOrDelete" class="text-sm font-semibold text-white">
+                <div v-if="!canEditOrDelete" class="text-sm font-semibold text-gray-900 dark:text-white">
                   {{ formatMinutesAsHours(task.estimated_minutes ?? 0) }}
-                  <span class="text-gray-400 font-normal text-xs">h</span>
+                  <span class="text-gray-500 dark:text-gray-400 font-normal text-xs">h</span>
                   <span class="text-gray-500 font-normal text-xs ml-1">({{ task.estimated_minutes ?? 0 }} min)</span>
                 </div>
                 <div v-else class="flex items-center gap-2 flex-wrap">
@@ -615,7 +617,7 @@
                   <button
                     v-if="estimatedMinutesDirty"
                     type="button"
-                    class="text-xs px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+                    class="text-xs px-2.5 py-1 bg-blue-100 dark:bg-blue-600 hover:bg-blue-200 dark:bg-blue-700 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 transition-colors"
                     :disabled="isSavingEstimate"
                     @click="saveEstimatedMinutes"
                   >
@@ -628,11 +630,11 @@
               <div v-if="task.start_date || task.end_date || task.completed_at" class="px-5 py-3.5 space-y-3">
                 <div v-if="task.start_date">
                   <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Start</p>
-                  <p class="text-sm text-gray-300">{{ formatDateTime(task.start_date) }}</p>
+                  <p class="text-sm text-gray-600 dark:text-gray-300">{{ formatDateTime(task.start_date) }}</p>
                 </div>
                 <div v-if="task.end_date">
                   <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1">End</p>
-                  <p class="text-sm text-gray-300">{{ formatDateTime(task.end_date) }}</p>
+                  <p class="text-sm text-gray-600 dark:text-gray-300">{{ formatDateTime(task.end_date) }}</p>
                 </div>
                 <div v-if="task.completed_at">
                   <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Completed</p>
@@ -646,7 +648,7 @@
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">B2B Outsource</p>
                 <button
                   @click="showOutsourceModal = true"
-                  class="w-full flex items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-2 text-xs font-semibold text-blue-300 transition-colors"
+                  class="w-full flex items-center justify-center gap-2 rounded-xl border border-blue-300 dark:border-blue-500/30 bg-blue-100 dark:bg-blue-500/10 hover:bg-blue-100 dark:bg-blue-500/20 px-3 py-2 text-xs font-semibold text-blue-300 transition-colors"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414A1 1 0 0014.414 13H17"/>
@@ -659,17 +661,17 @@
           </div>
 
           <!-- Activity timeline (audit trail) -->
-          <div class="bg-gray-800/50 border border-gray-700/60 rounded-2xl overflow-hidden">
-            <div class="px-5 py-3.5 border-b border-gray-700/60 bg-gray-800/60 flex items-center justify-between gap-2">
+          <div class="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/60 rounded-2xl overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/60 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 min-w-0">
                 <svg class="w-4 h-4 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider truncate">Activity</h2>
+                <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">Activity</h2>
               </div>
               <button
                 type="button"
-                class="text-[11px] text-violet-400 hover:text-violet-300 px-2 py-1 rounded-lg border border-violet-500/25 hover:border-violet-400/40 bg-violet-500/5 transition-colors disabled:opacity-40 shrink-0"
+                class="text-[11px] text-violet-400 hover:text-violet-300 px-2 py-1 rounded-lg border border-violet-300 dark:border-violet-500/25 hover:border-violet-400/40 bg-violet-100 dark:bg-violet-500/5 transition-colors disabled:opacity-40 shrink-0"
                 :disabled="activityLoading"
                 @click="fetchTaskActivity"
               >
@@ -691,13 +693,13 @@
                 No activity entries yet.<br />
                 <span class="text-gray-600">New events will appear here automatically.</span>
               </p>
-              <ol v-else class="relative ms-2 border-s border-gray-700/70 ps-0 list-none space-y-0">
+              <ol v-else class="relative ms-2 border-s border-gray-200 dark:border-gray-700/70 ps-0 list-none space-y-0">
                 <li
                   v-for="(item, idx) in taskActivity"
                   :key="item.id + '-' + idx"
                   class="relative pb-7 last:pb-1 ps-6"
                 >
-                  <span class="absolute start-0 top-1 -translate-x-1/2 flex h-7 w-7 rounded-full bg-gray-900 shadow-sm">
+                  <span class="absolute start-0 top-1 -translate-x-1/2 flex h-7 w-7 rounded-full bg-white dark:bg-gray-900 shadow-sm">
                     <span
                       class="flex h-full w-full items-center justify-center rounded-full border text-[11px] font-bold"
                       :class="activityDotClass(item.action)"
@@ -707,14 +709,14 @@
                   </span>
                   <div class="pt-0.5 space-y-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <span class="text-sm font-semibold text-white leading-snug">{{ activityTitle(item) }}</span>
+                      <span class="text-sm font-semibold text-gray-900 dark:text-white leading-snug">{{ activityTitle(item) }}</span>
                       <span
                         v-if="item.inferred"
                         class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/25"
                       >Inferred from record</span>
                     </div>
                     <p class="text-[11px] text-gray-500 font-mono tabular-nums">{{ formatActivityDateTime(item.at) }}</p>
-                    <p class="text-xs text-gray-400 leading-relaxed break-words">{{ activityDetailLine(item) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed break-words">{{ activityDetailLine(item) }}</p>
                   </div>
                 </li>
               </ol>
@@ -727,18 +729,18 @@
     <!-- ══ EDIT MODAL ══ -->
     <div v-if="showEditModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto" @click.self="closeEditModal">
       <div class="edit-task-modal edit-task-modal-enterprise rounded-2xl w-full max-w-7xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
-        <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
-          <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Edit Task</h2>
-          <button type="button" @click="closeEditModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-40" :disabled="isUpdatingTask" aria-label="Close">✕</button>
+        <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-200 dark:border-gray-700/80">
+          <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Edit Task</h2>
+          <button type="button" @click="closeEditModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700 transition-colors disabled:opacity-40" :disabled="isUpdatingTask" aria-label="Close">✕</button>
         </div>
         <div class="overflow-y-auto flex-1 px-6 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-7 min-h-0 overscroll-contain">
           <div v-if="editError" class="p-4 md:p-5 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-base">{{ editError }}</div>
           <div>
             <label class="label">Type *</label>
             <div class="grid grid-cols-3 gap-3 sm:gap-4">
-              <button type="button" @click="editForm.task_type = 'FEATURE'" :class="editForm.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">★</span> Feature</button>
-              <button type="button" @click="editForm.task_type = 'TASK'" :class="editForm.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">📋</span> Task</button>
-              <button type="button" @click="editForm.task_type = 'BUG'" :class="editForm.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">⚠</span> Bug</button>
+              <button type="button" @click="editForm.task_type = 'FEATURE'" :class="editForm.task_type === 'FEATURE' ? 'border-purple-300 dark:border-purple-500 bg-purple-100 dark:bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 hover:border-purple-300 dark:border-purple-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">★</span> Feature</button>
+              <button type="button" @click="editForm.task_type = 'TASK'" :class="editForm.task_type === 'TASK' ? 'border-blue-300 dark:border-blue-500 bg-blue-100 dark:bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 hover:border-blue-300 dark:border-blue-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">📋</span> Task</button>
+              <button type="button" @click="editForm.task_type = 'BUG'" :class="editForm.task_type === 'BUG' ? 'border-red-300 dark:border-red-500 bg-red-100 dark:bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 hover:border-red-300 dark:border-red-500/50'" class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]" :disabled="isUpdatingTask"><span class="text-xl sm:text-2xl leading-none">⚠</span> Bug</button>
             </div>
             <div v-if="editForm.task_type === 'FEATURE'" class="mt-3 flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
               <span class="shrink-0 mt-0.5">★</span>
@@ -759,7 +761,7 @@
               <span v-if="editForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
             </label>
             <template v-if="isParentTask && editForm.task_type !== 'FEATURE'">
-              <div class="flex items-center gap-3 px-4 py-4 bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-200 text-base font-medium">{{ formatMinutesAsHours(subtaskTotalEstimatedMinutes) }} h (roll-up, {{ subtaskTotalEstimatedMinutes }} min)</div>
+              <div class="flex items-center gap-3 px-4 py-4 bg-gray-100 dark:bg-gray-900/60 border border-amber-700/30 rounded-xl text-amber-200 text-base font-medium">{{ formatMinutesAsHours(subtaskTotalEstimatedMinutes) }} h (roll-up, {{ subtaskTotalEstimatedMinutes }} min)</div>
             </template>
             <template v-else>
               <input v-model.number="editForm.estimated_hours" type="number" min="0" step="0.5" class="input-field w-full" :class="editForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''" :disabled="isUpdatingTask || editForm.task_type === 'FEATURE'" placeholder="e.g. 1.5" />
@@ -802,12 +804,12 @@
             </div>
           </div>
         </div>
-        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 px-6 sm:px-8 py-5 sm:py-6 border-t border-gray-700/60 shrink-0">
+        <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 px-6 sm:px-8 py-5 sm:py-6 border-t border-gray-200 dark:border-gray-700/60 shrink-0">
           <button type="button" @click="submitEdit" :disabled="isUpdatingTask || !editForm.title.trim()" class="flex-1 btn-primary py-4 text-base sm:text-lg font-semibold rounded-xl disabled:opacity-40 flex items-center justify-center gap-2 min-h-[3.25rem]">
             <svg v-if="isUpdatingTask" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
             {{ isUpdatingTask ? 'Saving…' : 'Save Changes' }}
           </button>
-          <button type="button" @click="closeEditModal" :disabled="isUpdatingTask" class="sm:shrink-0 px-6 py-4 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded-xl transition-colors text-base font-medium min-h-[3.25rem]">Cancel</button>
+          <button type="button" @click="closeEditModal" :disabled="isUpdatingTask" class="sm:shrink-0 px-6 py-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 text-gray-700 dark:text-gray-200 rounded-xl transition-colors text-base font-medium min-h-[3.25rem]">Cancel</button>
         </div>
       </div>
     </div>
@@ -820,25 +822,25 @@
             <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           </div>
           <div>
-            <h2 class="text-base font-bold text-white">Delete Task?</h2>
+            <h2 class="text-base font-bold text-gray-900 dark:text-white">Delete Task?</h2>
             <p class="text-xs text-gray-500 mt-0.5">This action cannot be undone</p>
           </div>
           <button @click="closeDeleteModal" :disabled="isDeletingTask" class="ml-auto text-gray-500 hover:text-white transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="p-4 bg-gray-900/60 border border-gray-700/60 rounded-xl mb-4">
+        <div class="p-4 bg-gray-100 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700/60 rounded-xl mb-4">
           <p class="text-xs text-gray-500 mb-1">Task to delete</p>
-          <p class="text-sm font-semibold text-white">{{ task?.title }}</p>
+          <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ task?.title }}</p>
           <p class="text-xs text-gray-600 mt-0.5 font-mono">{{ task?.id }}</p>
         </div>
         <div v-if="deleteError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-xl text-red-400 text-sm">{{ deleteError }}</div>
         <div class="flex gap-3">
-          <button @click="confirmDelete" :disabled="isDeletingTask" class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+          <button @click="confirmDelete" :disabled="isDeletingTask" class="flex-1 px-4 py-2.5 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-gray-900 dark:text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
             <svg v-if="isDeletingTask" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
             {{ isDeletingTask ? 'Deleting…' : 'Yes, Delete Forever' }}
           </button>
-          <button @click="closeDeleteModal" :disabled="isDeletingTask" class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 text-sm font-medium rounded-xl transition-colors">Cancel</button>
+          <button @click="closeDeleteModal" :disabled="isDeletingTask" class="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 text-gray-600 dark:text-gray-300 text-sm font-medium rounded-xl transition-colors">Cancel</button>
         </div>
       </div>
     </div>
@@ -856,14 +858,14 @@
               <span class="text-lg" aria-hidden="true">🧪</span>
             </div>
             <div class="min-w-0">
-              <h3 class="text-sm font-bold text-white">Submit Test Evidence to CEO</h3>
+              <h3 class="text-sm font-bold text-gray-900 dark:text-white">Submit Test Evidence to CEO</h3>
               <p class="text-xs text-gray-500 truncate max-w-[320px]">{{ task?.title }}</p>
               <p class="text-xs text-amber-400/80 mt-1">Task will be forwarded to CEO for final approval — not marked as Done yet.</p>
             </div>
           </div>
           <!-- Test URL -->
           <div class="mb-4">
-            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+            <label class="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
               Test / Staging URL <span class="text-red-400">*</span>
             </label>
             <input
@@ -872,7 +874,7 @@
               type="url"
               placeholder="https://staging.example.com/feature-xyz"
               :disabled="uatApproveSubmitting"
-              class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-50"
+              class="w-full rounded-xl border border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-50"
             />
             <p v-if="uatTestUrl.length > 0 && !uatTestUrl.startsWith('http')" class="text-[11px] text-red-400 mt-1">
               URL must start with http:// or https://
@@ -880,7 +882,7 @@
           </div>
           <!-- Test Steps -->
           <div class="mb-5">
-            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+            <label class="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
               Test Steps for CEO <span class="text-red-400">*</span>
             </label>
             <textarea
@@ -888,7 +890,7 @@
               rows="6"
               placeholder="Describe step-by-step how the CEO should test this feature:&#10;1. Navigate to...&#10;2. Click on...&#10;3. Verify that..."
               :disabled="uatApproveSubmitting"
-              class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 resize-none disabled:opacity-50"
+              class="w-full rounded-xl border border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 resize-none disabled:opacity-50"
             />
             <div class="flex items-center justify-between mt-1">
               <p v-if="uatTestSteps.length > 0 && uatTestSteps.length < 20" class="text-[11px] text-red-400">
@@ -901,13 +903,13 @@
             <button
               type="button"
               :disabled="uatApproveSubmitting"
-              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-colors disabled:opacity-50"
+              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-600 hover:text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50"
               @click="closeUATApproveConfirm"
             >Cancel</button>
             <button
               type="button"
               :disabled="uatApproveSubmitting || !isUATApproveFormValid"
-              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/40 text-emerald-400 text-xs font-bold hover:bg-emerald-100 dark:bg-emerald-500/25 transition-colors disabled:opacity-50"
               @click="submitUATApprove"
             >
               <svg v-if="uatApproveSubmitting" class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
@@ -935,24 +937,24 @@
               <span class="text-lg" aria-hidden="true">👑</span>
             </div>
             <div>
-              <h3 class="text-sm font-bold text-white">Final Approval — Mark as Done?</h3>
+              <h3 class="text-sm font-bold text-gray-900 dark:text-white">Final Approval — Mark as Done?</h3>
               <p class="text-xs text-gray-500 truncate max-w-[280px]">{{ task?.title }}</p>
             </div>
           </div>
-          <p class="text-xs text-gray-400 mb-4">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
             This marks the task as <span class="text-emerald-400 font-medium">COMPLETED</span>. Continue only if you have verified the test evidence.
           </p>
           <div class="flex items-center justify-end gap-3">
             <button
               type="button"
               :disabled="uatApproveSubmitting"
-              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-colors disabled:opacity-50"
+              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-600 hover:text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50"
               @click="closeUATApproveConfirm"
             >Cancel</button>
             <button
               type="button"
               :disabled="uatApproveSubmitting"
-              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-400 text-xs font-bold hover:bg-amber-500/25 transition-colors disabled:opacity-50"
+              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/40 text-amber-400 text-xs font-bold hover:bg-amber-100 dark:bg-amber-500/25 transition-colors disabled:opacity-50"
               @click="submitUATApprove"
             >
               <svg v-if="uatApproveSubmitting" class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
@@ -982,17 +984,17 @@
               </svg>
             </div>
             <div>
-              <h3 class="text-sm font-bold text-white">Reject sub-task</h3>
+              <h3 class="text-sm font-bold text-gray-900 dark:text-white">Reject sub-task</h3>
               <p class="text-xs text-gray-500 truncate max-w-[280px]">{{ task?.title }}</p>
             </div>
           </div>
-          <p class="text-xs text-gray-400 mb-3">Explain what failed so the developer can fix it. This will be logged as a comment.</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Explain what failed so the developer can fix it. This will be logged as a comment.</p>
           <textarea
             ref="uatRejectTextareaRef"
             v-model="uatRejectReason"
             rows="4"
             placeholder="Describe the issue (min. 10 characters)…"
-            class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none focus:ring-1 focus:ring-red-500/30 resize-none"
+            class="w-full rounded-xl border border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:border-red-500/50 focus:outline-none focus:ring-1 focus:ring-red-500/30 resize-none"
           />
           <p v-if="uatRejectReason.length > 0 && uatRejectReason.length < 10" class="text-[11px] text-red-400 mt-1">
             At least {{ 10 - uatRejectReason.length }} more character(s) required
@@ -1000,13 +1002,13 @@
           <div class="flex items-center justify-end gap-3 mt-4">
             <button
               type="button"
-              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-400 hover:border-gray-600 hover:text-gray-200 transition-colors"
+              class="px-4 py-2 rounded-lg border border-gray-700 text-xs font-medium text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-600 hover:text-gray-700 dark:text-gray-200 transition-colors"
               @click="closeUATRejectModal"
             >Cancel</button>
             <button
               type="button"
               :disabled="uatRejectReason.length < 10 || uatRejectSubmitting"
-              class="px-4 py-2 rounded-lg bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold hover:bg-red-500/25 transition-colors disabled:opacity-50"
+              class="px-4 py-2 rounded-lg bg-red-100 dark:bg-red-500/15 border border-red-300 dark:border-red-500/40 text-red-400 text-xs font-bold hover:bg-red-100 dark:bg-red-500/25 transition-colors disabled:opacity-50"
               @click="submitUATReject"
             >
               <span v-if="uatRejectSubmitting">Rejecting…</span>
@@ -1029,44 +1031,44 @@
     <!-- ══ NEW DEPLOYMENT REQUEST MODAL ══ -->
     <Teleport to="body">
       <div v-if="showCreateDeploymentModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="showCreateDeploymentModal = false">
-        <div class="w-full max-w-lg bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/50 bg-gray-800/60">
+        <div class="w-full max-w-lg bg-gray-900 border border-gray-200 dark:border-gray-700/60 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/60">
             <div class="flex items-center gap-2">
               <span class="text-orange-400">🚀</span>
-              <h2 class="text-sm font-bold text-white">New Deployment Request</h2>
+              <h2 class="text-sm font-bold text-gray-900 dark:text-white">New Deployment Request</h2>
             </div>
-            <button @click="showCreateDeploymentModal = false" class="text-gray-500 hover:text-gray-300 transition-colors">
+            <button @click="showCreateDeploymentModal = false" class="text-gray-500 hover:text-gray-600 dark:text-gray-300 transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
           <form @submit.prevent="submitCreateDeployment" class="px-6 py-5 space-y-4">
-            <p class="text-xs text-gray-400">This deployment request is linked to task <span class="text-orange-300 font-mono">{{ task?.code }}</span> and will automatically advance it to <span class="text-amber-300 font-medium">Ready for UAT</span> once deployed.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">This deployment request is linked to task <span class="text-orange-300 font-mono">{{ task?.code }}</span> and will automatically advance it to <span class="text-amber-300 font-medium">Ready for UAT</span> once deployed.</p>
             <div>
-              <label class="block text-xs font-medium text-gray-400 mb-1.5">Title <span class="text-red-400">*</span></label>
-              <input v-model="deployForm.title" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors" :placeholder="`Deploy: ${task?.title}`" required />
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Title <span class="text-red-400">*</span></label>
+              <input v-model="deployForm.title" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors" :placeholder="`Deploy: ${task?.title}`" required />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-400 mb-1.5">Branch <span class="text-red-400">*</span></label>
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Branch <span class="text-red-400">*</span></label>
               <input v-model="deployForm.branch" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-cyan-300 focus:outline-none focus:border-orange-500 transition-colors" placeholder="feature/my-branch" required />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1.5">Environment</label>
-                <select v-model="deployForm.environment" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Environment</label>
+                <select v-model="deployForm.environment" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors">
                   <option value="STAGING">STAGING</option>
                   <option value="PRE-PROD">PRE-PROD</option>
                   <option value="PRODUCTION">PRODUCTION</option>
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1.5">PR URL</label>
-                <input v-model="deployForm.pr_url" type="url" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors" placeholder="https://github.com/…" />
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">PR URL</label>
+                <input v-model="deployForm.pr_url" type="url" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors" placeholder="https://github.com/…" />
               </div>
             </div>
             <!-- Assignee selector -->
             <div>
-              <label class="block text-xs font-medium text-gray-400 mb-1.5">Assign to Chief Engineer</label>
-              <select v-model="deployForm.reviewer_id" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors">
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Assign to Chief Engineer</label>
+              <select v-model="deployForm.reviewer_id" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors">
                 <option value="">— Unassigned (anyone can pick up) —</option>
                 <option v-for="ce in deployChiefEngineers" :key="ce.id" :value="String(ce.id)">
                   {{ ce.display_name || ce.email }}
@@ -1075,12 +1077,12 @@
               <p v-if="deployChiefEngineers.length === 0" class="text-[10px] text-gray-500 mt-1">No Chief Engineers found</p>
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-400 mb-1.5">Release Notes</label>
-              <textarea v-model="deployForm.description" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors resize-none" placeholder="What changed, what to watch out for…" />
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Release Notes</label>
+              <textarea v-model="deployForm.description" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-colors resize-none" placeholder="What changed, what to watch out for…" />
             </div>
             <div class="flex justify-end gap-2 pt-1">
-              <button type="button" @click="showCreateDeploymentModal = false" class="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 transition-colors">Cancel</button>
-              <button type="submit" :disabled="deployFormSubmitting || !deployForm.title || !deployForm.branch" class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white transition-all disabled:opacity-50">
+              <button type="button" @click="showCreateDeploymentModal = false" class="px-4 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-white border border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 transition-colors">Cancel</button>
+              <button type="submit" :disabled="deployFormSubmitting || !deployForm.title || !deployForm.branch" class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-orange-100 dark:from-orange-600 to-amber-100 dark:to-amber-600 hover:from-orange-200 dark:hover:from-orange-500 hover:to-amber-200 dark:hover:to-amber-500 text-gray-900 dark:text-white transition-all disabled:opacity-50">
                 <span v-if="deployFormSubmitting" class="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
                 {{ deployFormSubmitting ? 'Creating…' : 'Create Request' }}
               </button>
@@ -2574,6 +2576,20 @@ async function handleAddComment(payload: { content: string; attachments: File[] 
     comments.value.push(comment)
   } catch (e: any) {
     console.error('Failed to add comment:', e)
+  } finally {
+    commentsLoading.value = false
+  }
+}
+
+async function handleEditComment(payload: { commentId: string; content: string }) {
+  const tasksApi = useTasksApi()
+  commentsLoading.value = true
+  try {
+    const updated = await tasksApi.editComment(payload.commentId, payload.content)
+    const idx = comments.value.findIndex(c => c.id === payload.commentId)
+    if (idx >= 0) comments.value[idx] = updated
+  } catch (e: any) {
+    console.error('Failed to edit comment:', e)
   } finally {
     commentsLoading.value = false
   }

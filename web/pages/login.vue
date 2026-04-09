@@ -79,7 +79,7 @@
             <button
               type="submit"
               :disabled="isLoading"
-              class="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-violet-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 text-sm"
+              class="w-full py-3 px-4 bg-gradient-to-r from-violet-100 dark:from-violet-600 to-purple-100 dark:to-purple-600 hover:from-violet-200 dark:hover:from-violet-500 hover:to-purple-200 dark:hover:to-purple-500 text-gray-900 dark:text-white font-semibold rounded-xl shadow-lg hover:shadow-violet-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 text-sm"
             >
               <svg v-if="isLoading" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

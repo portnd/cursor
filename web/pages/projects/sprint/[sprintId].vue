@@ -74,7 +74,7 @@
               v-if="showHeavyTaskUI"
               type="button"
               @click="openBacklogImportModal"
-              class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-500/40 bg-emerald-100 dark:bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/20 transition-colors"
               title="Add existing tasks from the backlog (or another sprint)"
             >
               <svg class="w-3.5 h-3.5 shrink-0 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -364,7 +364,7 @@
       <div class="create-task-modal bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-7xl shadow-2xl my-4 sm:my-8 flex flex-col max-h-[calc(100dvh-2rem)] min-h-0">
         <div class="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 border-b border-gray-700/80">
           <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Add Task</h2>
-          <button type="button" @click="closeCreateTaskModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-700 text-xl leading-none" aria-label="Close">✕</button>
+          <button type="button" @click="closeCreateTaskModal" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700 text-xl leading-none" aria-label="Close">✕</button>
         </div>
         <div class="px-6 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-7 flex-1 overflow-y-auto overscroll-contain min-h-0">
           <div>

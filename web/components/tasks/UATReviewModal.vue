@@ -37,7 +37,7 @@
               </div>
               <button
                 @click="closeModal"
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-gray-700/60 transition-colors"
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -115,7 +115,7 @@
                 v-if="!showRejectForm"
                 @click="handleApprove"
                 :disabled="actioning"
-                class="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-base tracking-wide bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all shadow-lg shadow-emerald-900/30 hover:shadow-emerald-800/40"
+                class="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-base tracking-wide bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white transition-all shadow-lg shadow-emerald-900/30 hover:shadow-emerald-800/40"
               >
                 <svg v-if="actioning && approving" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -132,7 +132,7 @@
                 <button
                   @click="showRejectForm = true"
                   :disabled="actioning"
-                  class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:border-red-500/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border border-red-300 dark:border-red-500/40 text-red-400 bg-red-100 dark:bg-red-500/10 hover:bg-red-100 dark:bg-red-500/20 hover:border-red-300 dark:border-red-500/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -141,7 +141,7 @@
                 </button>
                 <button
                   @click="closeModal"
-                  class="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-white hover:bg-gray-700/60 transition-colors"
+                  class="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
                 >
                   Close
                 </button>
@@ -152,7 +152,7 @@
                 <button
                   @click="handleReject"
                   :disabled="actioning || !rejectReason.trim()"
-                  class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all"
+                  class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm bg-red-100 dark:bg-red-600 hover:bg-red-100 dark:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white transition-all"
                 >
                   <svg v-if="actioning && !approving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -166,7 +166,7 @@
                 <button
                   @click="showRejectForm = false; rejectReason = ''"
                   :disabled="actioning"
-                  class="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-white hover:bg-gray-700/60 transition-colors"
+                  class="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
                 >
                   Cancel
                 </button>

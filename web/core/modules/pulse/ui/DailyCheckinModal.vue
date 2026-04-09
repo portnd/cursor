@@ -35,7 +35,7 @@
               </div>
               <button
                 v-if="!forced"
-                class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition"
+                class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-gray-900 dark:text-white transition"
                 @click="close"
               >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -171,7 +171,7 @@
                 <button
                   v-if="!forced"
                   type="button"
-                  class="rounded-lg px-4 py-2 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition"
+                  class="rounded-lg px-4 py-2 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-900 dark:text-white transition"
                   @click="close"
                 >
                   Cancel
@@ -179,7 +179,7 @@
                 <button
                   type="submit"
                   :disabled="store.submitting"
-                  class="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                  class="flex items-center gap-2 rounded-lg bg-indigo-100 dark:bg-indigo-600 px-5 py-2 text-sm font-semibold text-gray-900 dark:text-white transition hover:bg-indigo-100 dark:bg-indigo-500 disabled:opacity-50"
                 >
                   <svg v-if="store.submitting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />

@@ -28,7 +28,7 @@
               <button
                 type="button"
                 @click="form.task_type = 'FEATURE'"
-                :class="form.task_type === 'FEATURE' ? 'border-purple-500 bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-500/50'"
+                :class="form.task_type === 'FEATURE' ? 'border-purple-300 dark:border-purple-500 bg-purple-100 dark:bg-purple-500/20 text-purple-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-purple-300 dark:border-purple-500/50'"
                 class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
                 <span class="text-xl sm:text-2xl leading-none">★</span> Feature
@@ -36,7 +36,7 @@
               <button
                 type="button"
                 @click="form.task_type = 'TASK'"
-                :class="form.task_type === 'TASK' ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-500/50'"
+                :class="form.task_type === 'TASK' ? 'border-blue-300 dark:border-blue-500 bg-blue-100 dark:bg-blue-500/20 text-blue-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-blue-300 dark:border-blue-500/50'"
                 class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
                 <span class="text-xl sm:text-2xl leading-none">📋</span> Task
@@ -44,7 +44,7 @@
               <button
                 type="button"
                 @click="form.task_type = 'BUG'"
-                :class="form.task_type === 'BUG' ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-500/50'"
+                :class="form.task_type === 'BUG' ? 'border-red-300 dark:border-red-500 bg-red-100 dark:bg-red-500/20 text-red-300' : 'border-gray-600 bg-gray-900/50 text-gray-400 hover:border-red-300 dark:border-red-500/50'"
                 class="flex flex-col items-center justify-center gap-1.5 px-4 py-4 sm:py-5 rounded-xl border text-sm sm:text-base font-semibold transition-all min-h-[4.5rem]"
               >
                 <span class="text-xl sm:text-2xl leading-none">⚠</span> Bug

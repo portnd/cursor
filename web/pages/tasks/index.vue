@@ -39,7 +39,7 @@
       <p class="text-sm">{{ error }}</p>
       <button 
         @click="fetchData"
-        class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-colors"
+        class="mt-4 px-4 py-2 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 text-gray-900 dark:text-white text-sm font-medium rounded transition-colors"
       >
         Retry
       </button>
@@ -152,14 +152,14 @@
             <div class="flex items-center gap-3">
               <button
                 @click.stop="approveNegotiation(task.code || task.id, task.proposed_minutes || 0)"
-                class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
+                class="flex-1 px-4 py-2 bg-green-100 dark:bg-green-600 hover:bg-green-200 dark:bg-green-700 text-gray-900 dark:text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
               >
                 <span>✅</span>
                 <span>Approve Time</span>
               </button>
               <button
                 @click.stop="rejectNegotiation(task.code || task.id)"
-                class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
+                class="flex-1 px-4 py-2 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 text-gray-900 dark:text-white text-sm font-bold rounded transition-all flex items-center justify-center gap-2"
               >
                 <span>❌</span>
                 <span>Reject</span>

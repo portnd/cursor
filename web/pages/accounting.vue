@@ -14,7 +14,7 @@
           <button
             type="button"
             @click="loadEntries"
-            class="inline-flex items-center gap-2 rounded-xl border border-gray-600 bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:border-gray-500 hover:bg-gray-700 hover:text-white"
+            class="inline-flex items-center gap-2 rounded-xl border border-gray-600 bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:border-gray-500 hover:bg-gray-700 hover:text-gray-900 dark:text-white"
           >
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -92,7 +92,7 @@
             <button
               type="submit"
               :disabled="saving"
-              class="w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:opacity-50"
+              class="w-full rounded-xl bg-amber-100 dark:bg-amber-600 px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-white transition-colors hover:bg-amber-100 dark:bg-amber-500 disabled:opacity-50"
             >
               {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
             </button>
@@ -175,7 +175,7 @@
                     <button
                       type="button"
                       @click="editEntry(e)"
-                      class="rounded-lg border border-gray-600 px-2 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-white"
+                      class="rounded-lg border border-gray-600 px-2 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-gray-900 dark:text-white"
                     >
                       เลือก
                     </button>

@@ -21,7 +21,7 @@
           <button
             type="button"
             :disabled="isLoading"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-800/60 px-3 py-2 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-800/60 px-3 py-2 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-gray-900 dark:text-white transition-colors disabled:opacity-50"
             @click="fetchTasks"
           >
             <svg class="h-3.5 w-3.5" :class="isLoading ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -286,7 +286,7 @@
                 type="button"
                 @click.stop="markReadyForTest(task)"
                 :disabled="markingReadyId === task.id"
-                class="rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                class="rounded-lg bg-gradient-to-r from-cyan-100 dark:from-cyan-600 to-teal-100 dark:to-teal-600 hover:from-cyan-200 dark:hover:from-cyan-500 hover:to-teal-200 dark:hover:to-teal-500 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg v-if="markingReadyId === task.id" class="inline mr-1.5 h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -348,7 +348,7 @@
                   <td class="px-5 py-3.5 text-right">
                     <button
                       type="button"
-                      class="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                      class="rounded-lg bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white transition-all"
                       @click.stop="goToTask(task)"
                     >
                       Open
@@ -427,7 +427,7 @@
                 </div>
                 <button
                   type="button"
-                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-3 py-1 text-xs font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 px-3 py-1 text-xs font-semibold text-gray-900 dark:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   :disabled="startingTaskId === task.id"
                   @click.stop="startTask(task)"
                 >
@@ -473,7 +473,7 @@
                 </div>
                 <button
                   type="button"
-                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 px-3 py-1 text-xs font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-100 dark:from-cyan-600 to-teal-100 dark:to-teal-600 hover:from-cyan-200 dark:hover:from-cyan-500 hover:to-teal-200 dark:hover:to-teal-500 px-3 py-1 text-xs font-semibold text-gray-900 dark:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   :disabled="markingReadyId === task.id"
                   @click.stop="markReadyForTest(task)"
                 >

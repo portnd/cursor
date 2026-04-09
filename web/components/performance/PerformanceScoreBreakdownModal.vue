@@ -23,7 +23,7 @@
           </div>
           <button
             type="button"
-            class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+            class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-gray-900 dark:text-white transition-colors"
             aria-label="Close"
             @click="close"
           >

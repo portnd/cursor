@@ -141,6 +141,10 @@ type addCommentReq struct {
 	Content string `json:"content" binding:"required"`
 }
 
+type editCommentReq struct {
+	Content string `json:"content" binding:"required"`
+}
+
 type logTimeReq struct {
 	Minutes        int    `json:"minutes" binding:"required,gt=0"`
 	Description    string `json:"description"`

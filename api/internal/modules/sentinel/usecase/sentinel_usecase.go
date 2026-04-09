@@ -2020,6 +2020,7 @@ func (u *sentinelUsecase) AddComment(taskID uuid.UUID, userID uint, content stri
 	user, err := u.authRepo.FindByID(userID)
 	if err == nil && user != nil {
 		c.UserEmail = user.Email
+		c.UserDisplayName = user.DisplayName
 		c.UserAvatarURL = user.AvatarURL
 	}
 	return c, nil
@@ -2034,10 +2035,67 @@ func (u *sentinelUsecase) GetComments(taskID uuid.UUID) ([]domain.TaskComment, e
 		user, err := u.authRepo.FindByID(comments[i].UserID)
 		if err == nil && user != nil {
 			comments[i].UserEmail = user.Email
+			comments[i].UserDisplayName = user.DisplayName
 			comments[i].UserAvatarURL = user.AvatarURL
 		}
 	}
 	return comments, nil
+}
+
+func (u *sentinelUsecase) EditComment(commentID uuid.UUID, editorUserID uint, content string) (*domain.TaskComment, error) {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return nil, &domain.ErrBadRequest{Msg: "comment content is required"}
+	}
+	comment, err := u.repo.GetTaskCommentByID(commentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comment: %w", err)
+	}
+	if comment == nil {
+		return nil, &domain.ErrBadRequest{Msg: "comment not found"}
+	}
+	if comment.UserID != editorUserID {
+		return nil, &domain.ErrBadRequest{Msg: "you can only edit your own comments"}
+	}
+	if comment.Content == trimmed {
+		user, _ := u.authRepo.FindByID(comment.UserID)
+		if user != nil {
+			comment.UserEmail = user.Email
+			comment.UserDisplayName = user.DisplayName
+			comment.UserAvatarURL = user.AvatarURL
+		}
+		return comment, nil
+	}
+
+	now := time.Now().UTC()
+	history := make([]domain.TaskCommentEditHistoryItem, 0)
+	if len(comment.EditHistory) > 0 {
+		_ = json.Unmarshal(comment.EditHistory, &history)
+	}
+	history = append(history, domain.TaskCommentEditHistoryItem{
+		EditedAt:   now,
+		EditedBy:   editorUserID,
+		OldContent: comment.Content,
+		NewContent: trimmed,
+	})
+	rawHistory, err := json.Marshal(history)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode edit history: %w", err)
+	}
+
+	comment.Content = trimmed
+	comment.EditedAt = &now
+	comment.EditHistory = datatypes.JSON(rawHistory)
+	if err := u.repo.UpdateTaskComment(comment); err != nil {
+		return nil, fmt.Errorf("failed to update comment: %w", err)
+	}
+	user, err := u.authRepo.FindByID(comment.UserID)
+	if err == nil && user != nil {
+		comment.UserEmail = user.Email
+		comment.UserDisplayName = user.DisplayName
+		comment.UserAvatarURL = user.AvatarURL
+	}
+	return comment, nil
 }
 
 // --- Time Log Operations ---

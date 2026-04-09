@@ -11,30 +11,21 @@
       <span class="text-sm text-gray-400">View:</span>
       <button
         type="button"
-        :class="[
-          'px-4 py-2 rounded-lg font-medium transition-all',
-          viewMode === 'day' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-        ]"
+        :class="[ 'px-4 py-2 rounded-lg font-medium transition-all', viewMode === 'day' ? 'bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 text-gray-900 dark:text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600' ]"
         @click="viewMode = 'day'"
       >
         Day
       </button>
       <button
         type="button"
-        :class="[
-          'px-4 py-2 rounded-lg font-medium transition-all',
-          viewMode === 'week' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-        ]"
+        :class="[ 'px-4 py-2 rounded-lg font-medium transition-all', viewMode === 'week' ? 'bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 text-gray-900 dark:text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600' ]"
         @click="viewMode = 'week'"
       >
         Week
       </button>
       <button
         type="button"
-        :class="[
-          'px-4 py-2 rounded-lg font-medium transition-all',
-          viewMode === 'month' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-        ]"
+        :class="[ 'px-4 py-2 rounded-lg font-medium transition-all', viewMode === 'month' ? 'bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 text-gray-900 dark:text-white shadow-lg shadow-purple-500/20' : 'bg-gray-700 text-gray-300 hover:bg-gray-600' ]"
         @click="viewMode = 'month'"
       >
         Month
@@ -54,7 +45,7 @@
       <p class="text-sm mt-1">{{ error }}</p>
       <button
         type="button"
-        class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white text-sm font-medium"
+        class="mt-4 px-4 py-2 bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 rounded text-gray-900 dark:text-white text-sm font-medium"
         @click="loadGanttData"
       >
         Retry

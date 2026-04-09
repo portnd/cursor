@@ -3,8 +3,8 @@
     <!-- ── Header ──────────────────────────────────────────────────────────── -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 class="text-xl font-bold text-white tracking-tight">Team Pulse Board</h2>
-        <p class="mt-0.5 text-sm text-gray-400">Async daily check-in for {{ displayDate }}</p>
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Team Pulse Board</h2>
+        <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Async daily check-in for {{ displayDate }}</p>
       </div>
       <div class="flex items-center gap-3">
         <UiDatePicker
@@ -13,7 +13,7 @@
           @update:modelValue="onDateChange"
         />
         <button
-          class="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50 flex items-center gap-1.5"
+          class="rounded-lg bg-indigo-100 dark:bg-indigo-600 px-4 py-1.5 text-sm font-medium text-gray-900 dark:text-white transition hover:bg-indigo-100 dark:bg-indigo-500 disabled:opacity-50 flex items-center gap-1.5"
           :disabled="store.loading"
           @click="store.fetchDailyPulse(selectedDate)"
         >
@@ -28,39 +28,39 @@
 
     <!-- ── Summary Stats ───────────────────────────────────────────────────── -->
     <div v-if="store.pulse" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <div class="flex flex-col gap-1 rounded-xl border border-gray-700 bg-gray-800 px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">👥</span>
-        <span class="text-2xl font-bold text-white">{{ store.pulse.total_members }}</span>
-        <span class="text-xs text-gray-400 uppercase tracking-wide">Team Size</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ store.pulse.total_members }}</span>
+        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Team Size</span>
       </div>
-      <div class="flex flex-col gap-1 rounded-xl border border-gray-700 bg-gray-800 px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">✅</span>
-        <span class="text-2xl font-bold text-white">{{ store.pulse.checked_in }} / {{ store.pulse.total_members }}</span>
-        <span class="text-xs text-gray-400 uppercase tracking-wide">Checked In</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ store.pulse.checked_in }} / {{ store.pulse.total_members }}</span>
+        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Checked In</span>
       </div>
-      <div class="flex flex-col gap-1 rounded-xl border border-gray-700 bg-gray-800 px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">📊</span>
-        <span class="text-2xl font-bold text-white">{{ store.checkinRate }}%</span>
-        <span class="text-xs text-gray-400 uppercase tracking-wide">Check-in Rate</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ store.checkinRate }}%</span>
+        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Check-in Rate</span>
       </div>
-      <div class="flex flex-col gap-1 rounded-xl border border-gray-700 bg-gray-800 px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">⏱️</span>
-        <span class="text-2xl font-bold text-white">{{ (store.pulse.total_minutes_logged / 60).toFixed(1) }}h</span>
-        <span class="text-xs text-gray-400 uppercase tracking-wide">Total Hours Logged</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ (store.pulse.total_minutes_logged / 60).toFixed(1) }}h</span>
+        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Hours Logged</span>
       </div>
     </div>
 
     <!-- ── Error ───────────────────────────────────────────────────────────── -->
     <div
       v-if="store.error"
-      class="rounded-lg border border-red-700 bg-red-900/40 px-4 py-3 text-sm text-red-300"
+      class="rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/40 px-4 py-3 text-sm text-red-600 dark:text-red-300"
     >
       {{ store.error }}
     </div>
 
     <!-- ── Skeleton ────────────────────────────────────────────────────────── -->
     <div v-if="store.loading && !store.pulse" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <div v-for="i in 6" :key="i" class="h-52 animate-pulse rounded-xl bg-gray-800" />
+      <div v-for="i in 6" :key="i" class="h-52 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
     </div>
 
     <!-- ── Member Grid ─────────────────────────────────────────────────────── -->
@@ -75,7 +75,7 @@
     <!-- ── Empty state ─────────────────────────────────────────────────────── -->
     <div
       v-if="store.pulse && store.pulse.members.length === 0"
-      class="rounded-xl border border-gray-700 bg-gray-800/50 py-16 text-center text-gray-400"
+      class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 py-16 text-center text-gray-500 dark:text-gray-400"
     >
       <p class="text-3xl">📭</p>
       <p class="mt-2 text-sm">No team members found.</p>

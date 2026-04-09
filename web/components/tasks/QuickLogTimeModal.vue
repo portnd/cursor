@@ -143,8 +143,7 @@
                     <button
                       v-for="wt in WORK_TYPES" :key="wt.value" type="button"
                       @click="workType = wt.value"
-                      :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all',
-                        workType === wt.value ? 'bg-purple-600/30 border-purple-500/60 text-purple-300' : 'bg-gray-800 border-gray-600/40 text-gray-400 hover:border-gray-500']"
+                      :class="['px-2.5 py-1 rounded-lg text-xs font-medium border transition-all', workType === wt.value ? 'bg-purple-100 dark:bg-purple-600/30 border-purple-300 dark:border-purple-500/60 text-purple-300' : 'bg-gray-800 border-gray-600/40 text-gray-400 hover:border-gray-500']"
                     >{{ wt.emoji }} {{ wt.label }}</button>
                   </div>
                 </div>
@@ -214,7 +213,7 @@
               type="button"
               :disabled="!canSubmit || submitting"
               @click="submitLog"
-              class="px-5 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-all flex items-center gap-2"
+              class="px-5 py-2 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:from-purple-700 hover:to-pink-200 dark:to-pink-700 disabled:opacity-40 disabled:cursor-not-allowed text-gray-900 dark:text-white text-sm font-medium rounded-xl transition-all flex items-center gap-2"
             >
               <svg v-if="submitting" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -346,7 +345,8 @@ async function loadTeamTasks() {
       tasksApi.getTeamActiveTasks().catch(() => [] as GlobalActiveTask[]),
       tasksApi.getKomgripTasks().catch(() => [] as GlobalActiveTask[]),
     ])
-    const komgripAsGlobal = komgrip.map((t: any) => ({
+    const activeKomgrip = komgrip.filter((t: any) => t?.status !== 'COMPLETED')
+    const komgripAsGlobal = activeKomgrip.map((t: any) => ({
       ...t,
       project_name: 'Komgrip',
       project_color: '#8b5cf6',

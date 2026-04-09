@@ -64,7 +64,7 @@
               v-for="sw in strokeWidths"
               :key="sw"
               @click="strokeWidth = sw"
-              :class="{ 'bg-blue-600': strokeWidth === sw, 'bg-gray-700 hover:bg-gray-600': strokeWidth !== sw }"
+              :class="{ 'bg-blue-100 dark:bg-blue-600': strokeWidth === sw, 'bg-gray-700 hover:bg-gray-600': strokeWidth !== sw }"
               class="px-2 py-0.5 rounded text-xs text-white transition-colors"
               type="button"
             >{{ sw }}px</button>
@@ -104,7 +104,7 @@
             </button>
             <button
               @click="saveAnnotated"
-              class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center gap-1.5"
+              class="px-4 py-1.5 text-sm bg-blue-100 dark:bg-blue-600 hover:bg-blue-200 dark:bg-blue-700 text-gray-900 dark:text-white font-medium rounded-lg transition-colors flex items-center gap-1.5"
               type="button"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

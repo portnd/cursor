@@ -25,7 +25,7 @@
       <button
         type="button"
         @click="handleStop"
-        class="shrink-0 px-2 py-0.5 bg-red-900/30 border border-red-700/30 text-red-400 hover:bg-red-800/40 rounded text-[10px] font-bold tracking-wide transition-colors"
+        class="shrink-0 px-2 py-0.5 bg-red-900/30 border border-red-300 dark:border-red-700/30 text-red-400 hover:bg-red-800/40 rounded text-[10px] font-bold tracking-wide transition-colors"
         title="Stop & log time"
       >
         ■

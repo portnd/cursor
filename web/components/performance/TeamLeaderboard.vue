@@ -87,7 +87,7 @@
                 <button
                   @click="confirmReset(m.user_id)"
                   :disabled="resettingUserId === m.user_id"
-                  class="rounded px-2 py-0.5 text-xs font-bold bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
+                  class="rounded px-2 py-0.5 text-xs font-bold bg-red-100 dark:bg-red-600 hover:bg-red-100 dark:bg-red-500 text-gray-900 dark:text-white disabled:opacity-50 transition-colors"
                 >
                   {{ resettingUserId === m.user_id ? '…' : 'Yes' }}
                 </button>
@@ -101,7 +101,7 @@
               <button
                 v-else
                 @click="confirmingUserId = m.user_id"
-                class="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold border border-gray-600/60 text-gray-500 hover:border-amber-500/40 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                class="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold border border-gray-600/60 text-gray-500 hover:border-amber-300 dark:border-amber-500/40 hover:text-amber-400 hover:bg-amber-100 dark:bg-amber-500/10 transition-all"
                 title="Reset Rework Rate for this developer"
               >
                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -142,7 +142,7 @@
                   type="button"
                   :disabled="savingProfile"
                   @click="saveProfile"
-                  class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-medium rounded-lg transition-all"
+                  class="px-4 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-lg transition-all"
                 >
                   {{ savingProfile ? 'Saving...' : 'Save identity' }}
                 </button>
@@ -201,7 +201,7 @@
                 type="button"
                 :disabled="savingPassword"
                 @click="changePassword"
-                class="w-full px-4 py-2.5 bg-amber-600/80 hover:bg-amber-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+                class="w-full px-4 py-2.5 bg-amber-100 dark:bg-amber-600/80 hover:bg-amber-100 dark:bg-amber-600 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
               >
                 {{ savingPassword ? 'Updating...' : 'Update password' }}
               </button>
@@ -246,6 +246,7 @@
 <script setup lang="ts">
 import { authApi } from '~/core/modules/auth/infrastructure/auth-api'
 import type { User } from '~/core/modules/auth/infrastructure/auth-api'
+import { useNotification } from '~/composables/useNotification'
 
 definePageMeta({
   layout: 'default',
@@ -267,6 +268,7 @@ const avatarError = ref<string | null>(null)
 
 // Shared with sidebar layout
 const sidebarAvatarURL = useState<string>('sidebarAvatarURL', () => '')
+const { showSuccess, showError } = useNotification()
 
 const form = reactive({
   display_name: '',
@@ -343,8 +345,9 @@ async function saveProfile() {
     if (updated.display_name !== undefined) form.display_name = updated.display_name
     if (Array.isArray(updated.tech_stack)) form.tech_stack = [...updated.tech_stack]
     sidebarAvatarURL.value = updated.avatar_url || ''
+    showSuccess('Your display name and preferences have been saved.', 'Identity updated')
   } catch (e: any) {
-    loadError.value = e?.message ?? 'Failed to update profile'
+    showError(e?.message ?? 'Failed to update profile', 'Save failed')
   } finally {
     savingProfile.value = false
   }

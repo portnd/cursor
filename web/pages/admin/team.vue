@@ -8,7 +8,7 @@
         <p class="text-gray-400 mb-6">This area is restricted to CEO access only.</p>
         <button
           @click="navigateTo('/dashboard')"
-          class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded font-bold transition-colors"
+          class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-gray-900 dark:text-white rounded font-bold transition-colors"
         >
           Return to Dashboard
         </button>
@@ -37,7 +37,7 @@
           <button
             type="button"
             @click="showCreateModal = true"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-lg shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 text-gray-900 dark:text-white font-medium rounded-lg shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-gray-900"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
             Add user
@@ -218,7 +218,7 @@
               <button
                 type="button"
                 @click="showCreateModal = false"
-                class="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
+                class="p-2 text-gray-400 hover:text-gray-900 dark:text-white rounded-lg hover:bg-gray-700 transition-colors"
                 aria-label="Close"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -290,7 +290,7 @@
                 <button
                   type="submit"
                   :disabled="createSubmitting || (createForm.password !== createForm.confirmPassword)"
-                  class="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                  class="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
                 >
                   {{ createSubmitting ? 'Creating…' : 'Create user' }}
                 </button>
@@ -320,7 +320,7 @@
               <button
                 type="button"
                 @click="closeImportPanel"
-                class="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
+                class="p-2 text-gray-400 hover:text-gray-900 dark:text-white rounded-lg hover:bg-gray-700 transition-colors"
                 aria-label="Close"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -428,7 +428,7 @@
                 <button
                   type="button"
                   @click="exportImportResultsToExcel"
-                  class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors"
+                  class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-200 dark:bg-emerald-700 hover:bg-emerald-100 dark:bg-emerald-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
                 >
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   Export to Excel
@@ -444,7 +444,7 @@
                   <button
                     type="button"
                     @click="importResult = null; importRaw = ''"
-                    class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium transition-colors"
+                    class="px-4 py-2 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
                   >
                     Import more
                   </button>
@@ -498,7 +498,7 @@
                 type="button"
                 @click="executeDeleteMember"
                 :disabled="deletingUserId !== null"
-                class="px-4 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                class="px-4 py-2.5 bg-red-100 dark:bg-red-600 hover:bg-red-100 dark:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
               >
                 {{ deletingUserId !== null ? 'กำลังลบ…' : 'ลบผู้ใช้' }}
               </button>
@@ -548,7 +548,7 @@
                   type="button"
                   @click="submitResetPassword"
                   :disabled="resetPasswordSubmitting"
-                  class="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                  class="flex-1 px-4 py-2.5 bg-amber-100 dark:bg-amber-600 hover:bg-amber-100 dark:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
                 >
                   {{ resetPasswordSubmitting ? 'กำลังสร้างรหัส…' : 'รีเซ็ตรหัสผ่าน' }}
                 </button>
@@ -563,7 +563,7 @@
                 <button
                   type="button"
                   @click="copyTempPassword(resetPasswordResult.temp_password)"
-                  class="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg transition-colors"
+                  class="px-4 py-2.5 bg-amber-100 dark:bg-amber-600 hover:bg-amber-100 dark:bg-amber-500 text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
                 >
                   Copy
                 </button>

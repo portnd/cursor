@@ -96,7 +96,7 @@
           <div class="flex flex-col gap-2 flex-shrink-0">
             <button
               :disabled="actioningId === task.id || approveSubmitting"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-100 dark:bg-emerald-500/20 hover:border-emerald-400/50 transition-colors disabled:opacity-50"
               @click="openApproveModal(task)"
             >
               <span>✅</span>
@@ -104,7 +104,7 @@
             </button>
             <button
               :disabled="actioningId === task.id"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 hover:border-red-400/50 transition-colors disabled:opacity-50"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-100 dark:bg-red-500/20 hover:border-red-400/50 transition-colors disabled:opacity-50"
               @click="openRejectModal(task)"
             >
               <span>❌</span>
@@ -185,7 +185,7 @@
           <button
             type="button"
             :disabled="approveSubmitting || !isApproveFormValid"
-            class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/40 text-emerald-400 text-xs font-bold hover:bg-emerald-100 dark:bg-emerald-500/25 transition-colors disabled:opacity-50"
             @click="submitApprove"
           >
             <svg v-if="approveSubmitting" class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
@@ -242,7 +242,7 @@
           >Cancel</button>
           <button
             :disabled="rejectReason.length < 10 || rejectSubmitting"
-            class="px-4 py-2 rounded-lg bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold hover:bg-red-500/25 transition-colors disabled:opacity-50"
+            class="px-4 py-2 rounded-lg bg-red-100 dark:bg-red-500/15 border border-red-300 dark:border-red-500/40 text-red-400 text-xs font-bold hover:bg-red-100 dark:bg-red-500/25 transition-colors disabled:opacity-50"
             @click="submitReject"
           >
             <span v-if="rejectSubmitting">Rejecting…</span>

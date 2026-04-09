@@ -21,15 +21,68 @@
             v-else
             class="w-full h-full bg-purple-600 flex items-center justify-center text-white text-sm font-bold"
           >
-            {{ (comment.user_email || String(comment.user_id)).charAt(0).toUpperCase() }}
+            {{ (comment.user_display_name || comment.user_email || String(comment.user_id)).charAt(0).toUpperCase() }}
           </div>
         </div>
         <div class="flex-1 bg-gray-800 rounded-xl px-4 py-3 border border-gray-700/50">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-sm font-medium text-gray-300">{{ comment.user_email || `User #${comment.user_id}` }}</span>
-            <span class="text-xs text-gray-500">{{ formatTime(comment.created_at) }}</span>
+          <div class="flex items-center justify-between mb-1.5 gap-2">
+            <span class="text-sm font-medium text-gray-300">{{ comment.user_display_name || comment.user_email || `User #${comment.user_id}` }}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500">{{ formatTime(comment.created_at) }}</span>
+              <button
+                v-if="canEditComment(comment) && editingCommentId !== comment.id"
+                class="text-xs text-purple-300 hover:text-purple-200"
+                @click="startEdit(comment)"
+              >Edit</button>
+            </div>
           </div>
-          <p v-if="comment.content" class="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{{ comment.content }}</p>
+
+          <template v-if="editingCommentId === comment.id">
+            <textarea
+              v-model="editingContent"
+              rows="3"
+              class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+            />
+            <div class="mt-2 flex items-center justify-end gap-2">
+              <button class="px-3 py-1.5 rounded-lg text-xs border border-gray-600 text-gray-300 hover:bg-gray-700/50" @click="cancelEdit">Cancel</button>
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs bg-purple-100 dark:bg-purple-600 hover:bg-purple-100 dark:bg-purple-500 text-gray-900 dark:text-white disabled:opacity-50"
+                :disabled="editSubmitting || !editingContent.trim()"
+                @click="submitEdit(comment.id)"
+              >{{ editSubmitting ? 'Saving...' : 'Save' }}</button>
+            </div>
+          </template>
+
+          <template v-else>
+            <p v-if="comment.content" class="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{{ comment.content }}</p>
+            <div class="mt-1 flex items-center gap-2" v-if="comment.edited_at || (comment.edit_history?.length || 0) > 0">
+              <span class="text-[11px] text-amber-300">edited</span>
+              <button
+                class="text-[11px] text-purple-300 hover:text-purple-200"
+                @click="toggleHistory(comment.id)"
+              >{{ showHistoryForId === comment.id ? 'Hide history' : 'View history' }}</button>
+            </div>
+            <div v-if="showHistoryForId === comment.id" class="mt-2 rounded-lg border border-gray-700/70 bg-gray-900/60 p-2.5 space-y-2">
+              <div
+                v-for="(h, idx) in (comment.edit_history || [])"
+                :key="`${comment.id}-hist-${idx}`"
+                class="text-xs text-gray-300"
+              >
+                <div class="text-gray-400 mb-1">{{ formatTime(h.edited_at) }}</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <div class="text-[11px] text-gray-500 mb-0.5">Before</div>
+                    <div class="whitespace-pre-wrap text-gray-400">{{ h.old_content }}</div>
+                  </div>
+                  <div>
+                    <div class="text-[11px] text-gray-500 mb-0.5">After</div>
+                    <div class="whitespace-pre-wrap">{{ h.new_content }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
           <div v-if="comment.attachments?.length" class="mt-3 space-y-2">
             <div v-for="(att, idx) in comment.attachments" :key="`${comment.id}-${idx}`">
               <img
@@ -137,16 +190,22 @@ const props = defineProps<{
   loading?: boolean
   currentUserAvatar?: string
   currentUserInitial?: string
+  currentUserId?: number
 }>()
 
 const emit = defineEmits<{
   (e: 'add-comment', payload: { content: string; attachments: File[] }): void
+  (e: 'edit-comment', payload: { commentId: string; content: string }): void
 }>()
 
 const newComment = ref('')
 const attachments = ref<File[]>([])
 const previewImageUrl = ref('')
 const previewImageName = ref('')
+const editingCommentId = ref<string | null>(null)
+const editingContent = ref('')
+const editSubmitting = ref(false)
+const showHistoryForId = ref<string | null>(null)
 
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
@@ -197,6 +256,36 @@ function formatFileSize(size: number) {
 function openImagePreview(url: string, name: string) {
   previewImageUrl.value = url
   previewImageName.value = name
+}
+
+function canEditComment(comment: TaskComment) {
+  return Number(props.currentUserId || 0) > 0 && Number(comment.user_id) === Number(props.currentUserId)
+}
+
+function startEdit(comment: TaskComment) {
+  editingCommentId.value = comment.id
+  editingContent.value = comment.content || ''
+}
+
+function cancelEdit() {
+  editingCommentId.value = null
+  editingContent.value = ''
+  editSubmitting.value = false
+}
+
+function submitEdit(commentId: string) {
+  const content = editingContent.value.trim()
+  if (!content) return
+  editSubmitting.value = true
+  emit('edit-comment', { commentId, content })
+  setTimeout(() => {
+    editSubmitting.value = false
+    cancelEdit()
+  }, 250)
+}
+
+function toggleHistory(commentId: string) {
+  showHistoryForId.value = showHistoryForId.value === commentId ? null : commentId
 }
 
 function closeImagePreview() {

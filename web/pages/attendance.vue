@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-900 text-gray-100 p-6">
+  <div class="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 p-6">
     <header class="mb-8 border-b border-gray-800 pb-6">
       <div class="flex items-center gap-3">
         <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-2xl shadow-lg">
@@ -28,7 +28,7 @@
 
       <div
         v-else
-        class="rounded-xl border border-gray-700 bg-gray-800/50 p-4 text-sm text-gray-300 space-y-1"
+        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-4 text-sm text-gray-700 dark:text-gray-300 space-y-1"
       >
         <p><span class="text-gray-500">Office</span> {{ store.officeConfig.name }}</p>
         <p><span class="text-gray-500">Hours</span> {{ store.officeConfig.work_start_time?.slice(0, 5) }} – {{ store.officeConfig.work_end_time?.slice(0, 5) }}</p>
@@ -78,7 +78,7 @@
 
       <CheckInPanel v-if="store.officeConfig" />
 
-      <section class="rounded-xl border border-gray-700 bg-gray-800/40 p-6">
+      <section class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-white">History</h2>
           <button

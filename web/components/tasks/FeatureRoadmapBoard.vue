@@ -44,7 +44,7 @@
         <button
           @click="load"
           :disabled="loading"
-          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800/60 text-xs font-medium text-gray-300 hover:border-gray-600 hover:bg-gray-700 hover:text-gray-900 dark:text-white transition-colors disabled:opacity-50"
         >
           <svg class="h-3.5 w-3.5" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -217,7 +217,7 @@
               <button
                 v-if="isDev && feature.status === 'READY_FOR_UAT'"
                 @click="openSubmitUAT(feature)"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-400 hover:border-amber-400/60 hover:bg-amber-500/20 transition-all"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-100 dark:bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-400 hover:border-amber-400/60 hover:bg-amber-100 dark:bg-amber-500/20 transition-all"
               >
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
@@ -229,7 +229,7 @@
               <button
                 v-if="isPMOrCEO && feature.status === 'REVIEW_PENDING'"
                 @click="openUATReview(feature)"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 hover:border-violet-400/60 hover:bg-violet-500/20 transition-all"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-violet-300 dark:border-violet-500/40 bg-violet-100 dark:bg-violet-500/10 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 hover:border-violet-400/60 hover:bg-violet-100 dark:bg-violet-500/20 transition-all"
               >
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>

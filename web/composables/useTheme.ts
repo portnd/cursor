@@ -47,8 +47,8 @@ export const useTheme = () => {
   }
 
   // Called on page load — resolves theme in priority order:
-  //   1. Explicit user account preference (passed in from /auth/me response)
-  //   2. localStorage (browser-level fallback)
+  //   1. localStorage (most recent device-level choice)
+  //   2. Explicit user account preference (from /auth/me)
   //   3. OS dark-mode preference
   function initTheme(accountTheme?: 'dark' | 'light') {
     if (!import.meta.client) return
@@ -56,10 +56,10 @@ export const useTheme = () => {
     const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
 
     let dark: boolean
-    if (accountTheme !== undefined) {
-      dark = accountTheme === 'dark'
-    } else if (saved !== null) {
+    if (saved !== null) {
       dark = saved === 'dark'
+    } else if (accountTheme !== undefined) {
+      dark = accountTheme === 'dark'
     } else {
       dark = prefersDark
     }

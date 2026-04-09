@@ -40,7 +40,7 @@
             <button
               type="button"
               @click="$emit('close')"
-              class="shrink-0 p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              class="shrink-0 p-2 rounded-lg text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-800 transition-colors"
               aria-label="Close"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

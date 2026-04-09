@@ -116,14 +116,14 @@
               <button
                 type="button"
                 @click="close"
-                class="flex-1 inline-flex items-center justify-center rounded-lg border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                class="flex-1 inline-flex items-center justify-center rounded-lg border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-700 hover:text-gray-900 dark:text-white"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 :disabled="isSubmitting || !form.title || !form.target_team_id || !form.estimated_minutes"
-                class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-blue-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-100 dark:from-blue-600 to-indigo-100 dark:to-indigo-600 px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-white shadow-lg transition-all hover:from-blue-200 dark:hover:from-blue-500 hover:to-indigo-200 dark:hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <svg v-if="isSubmitting" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

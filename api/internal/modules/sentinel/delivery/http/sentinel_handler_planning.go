@@ -407,6 +407,34 @@ func (h *SentinelHandler) GetComments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Comments retrieved", "data": comments})
 }
 
+func (h *SentinelHandler) EditComment(c *gin.Context) {
+	commentID, err := uuid.Parse(c.Param("commentId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid comment ID"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	var req editCommentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": err.Error()})
+		return
+	}
+	updated, err := h.usecase.EditComment(commentID, userID, req.Content)
+	if err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to edit comment", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Comment updated", "data": updated})
+}
+
 // --- Time Log Handlers ---
 
 func (h *SentinelHandler) LogTime(c *gin.Context) {

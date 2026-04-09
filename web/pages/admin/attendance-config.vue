@@ -58,7 +58,7 @@
                   <td class="px-4 py-3 text-right space-x-2">
                     <button
                       type="button"
-                      class="px-3 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium disabled:opacity-50"
+                      class="px-3 py-1.5 rounded-md bg-emerald-200 dark:bg-emerald-700 hover:bg-emerald-100 dark:bg-emerald-600 text-gray-900 dark:text-white text-xs font-medium disabled:opacity-50"
                       :disabled="reviewingOffsiteId === r.id"
                       @click="reviewOffsite(r.id, 'APPROVED')"
                     >
@@ -66,7 +66,7 @@
                     </button>
                     <button
                       type="button"
-                      class="px-3 py-1.5 rounded-md bg-rose-700 hover:bg-rose-600 text-white text-xs font-medium disabled:opacity-50"
+                      class="px-3 py-1.5 rounded-md bg-rose-200 dark:bg-rose-700 hover:bg-rose-100 dark:bg-rose-600 text-gray-900 dark:text-white text-xs font-medium disabled:opacity-50"
                       :disabled="reviewingOffsiteId === r.id"
                       @click="reviewOffsite(r.id, 'REJECTED')"
                     >
@@ -105,7 +105,7 @@
                   <td class="px-4 py-3 text-right space-x-2">
                     <button
                       type="button"
-                      class="px-3 py-1.5 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium disabled:opacity-50"
+                      class="px-3 py-1.5 rounded-md bg-emerald-200 dark:bg-emerald-700 hover:bg-emerald-100 dark:bg-emerald-600 text-gray-900 dark:text-white text-xs font-medium disabled:opacity-50"
                       :disabled="reviewingOffsiteCheckoutId === r.id"
                       @click="reviewOffsiteCheckout(r.id, 'APPROVED')"
                     >
@@ -113,7 +113,7 @@
                     </button>
                     <button
                       type="button"
-                      class="px-3 py-1.5 rounded-md bg-rose-700 hover:bg-rose-600 text-white text-xs font-medium disabled:opacity-50"
+                      class="px-3 py-1.5 rounded-md bg-rose-200 dark:bg-rose-700 hover:bg-rose-100 dark:bg-rose-600 text-gray-900 dark:text-white text-xs font-medium disabled:opacity-50"
                       :disabled="reviewingOffsiteCheckoutId === r.id"
                       @click="reviewOffsiteCheckout(r.id, 'REJECTED')"
                     >
@@ -134,7 +134,7 @@
             </div>
             <button
               type="button"
-              class="h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-50"
+              class="h-10 px-4 rounded-lg bg-emerald-100 dark:bg-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500 text-gray-900 dark:text-white text-sm font-medium disabled:opacity-50"
               :disabled="recordsLoading"
               @click="loadRecords"
             >
@@ -192,7 +192,7 @@
                   <td class="px-4 py-3 text-right">
                     <button
                       type="button"
-                      class="px-3 py-1.5 rounded-md bg-rose-700 hover:bg-rose-600 text-white text-xs font-medium disabled:opacity-50"
+                      class="px-3 py-1.5 rounded-md bg-rose-200 dark:bg-rose-700 hover:bg-rose-100 dark:bg-rose-600 text-gray-900 dark:text-white text-xs font-medium disabled:opacity-50"
                       :disabled="recordsLoading || deletingId === r.id"
                       @click="onDeleteRecord(r.id)"
                     >
@@ -277,7 +277,7 @@
           <button
             type="submit"
             :disabled="store.actionLoading || (form.work_days.length === 0 && form.wfh_days.length === 0)"
-            class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium disabled:opacity-40"
+            class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-emerald-100 dark:from-emerald-600 to-teal-100 dark:to-teal-600 text-gray-900 dark:text-white font-medium disabled:opacity-40"
           >
             {{ store.actionLoading ? 'Saving…' : 'Save configuration' }}
           </button>

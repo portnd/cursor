@@ -17,7 +17,7 @@
         <button
           type="button"
           @click="sidebarCollapsed = !sidebarCollapsed"
-          class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700 transition-colors"
           :title="sidebarCollapsed ? 'ขยายแถบด้านข้าง' : 'ย่อแถบด้านข้าง'"
         >
           <svg class="w-5 h-5 transition-transform" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,22 +229,19 @@
         <button
           type="button"
           @click="toggleTheme"
-          class="theme-toggle-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200"
-          :class="isDark
-            ? 'border-white/10 text-gray-400 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-300'
-            : 'bg-violet-50/70 border-violet-200/60 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-800'"
           :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          :class="isDark ? 'theme-toggle-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 bg-violet-100/70 dark:bg-violet-500/10 border-violet-300/70 dark:border-violet-500/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:border-violet-400/80 dark:hover:border-violet-400/50 hover:text-violet-800 dark:hover:text-violet-200' : 'theme-toggle-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 bg-violet-100/70 border-violet-300/70 text-violet-700 hover:bg-violet-100 hover:border-violet-400/80 hover:text-violet-800'"
         >
           <Transition name="theme-icon" mode="out-in">
-            <!-- Sun: in dark mode, click to go light -->
-            <span v-if="isDark" key="sun" class="shrink-0 w-5 h-5 flex items-center justify-center">
+            <!-- Sun: dark mode → switch to light -->
+            <span v-if="isDark" key="sun" class="shrink-0 w-5 h-5 flex items-center justify-center text-violet-500 dark:text-violet-300">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="4"/>
                 <path stroke-linecap="round" d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
               </svg>
             </span>
-            <!-- Moon: in light mode, click to go dark -->
-            <span v-else key="moon" class="shrink-0 w-5 h-5 flex items-center justify-center">
+            <!-- Moon: light mode → switch to dark -->
+            <span v-else key="moon" class="shrink-0 w-5 h-5 flex items-center justify-center text-violet-500">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
               </svg>
@@ -283,7 +280,7 @@
         <!-- Logout -->
         <button
           @click="handleLogout"
-          class="nav-link w-full hover:bg-red-600/20 hover:text-red-400 text-gray-400"
+          class="nav-link w-full hover:bg-red-100 dark:bg-red-600/20 hover:text-red-400 text-gray-400"
           title="Logout"
         >
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
@@ -303,6 +300,9 @@
 
   <!-- EOD Batch Log Modal -->
   <TasksBulkEodLoggerModal :show="showBulkLog" @close="showBulkLog = false" @done="showBulkLog = false" />
+
+  <!-- Global notification & confirm modal -->
+  <AppModal />
 </template>
 
 <script setup lang="ts">
@@ -334,16 +334,16 @@ onMounted(async () => {
   onUnmounted(() => clearInterval(interval))
   refreshSidebarAvatar()
 
-  // Restore user's account-level theme preference
+  // Apply stored theme immediately to reduce hydration flicker,
+  // then reconcile with account-level preference.
+  initTheme()
   try {
     const me = await authApi.getMe()
     if (me.theme_preference) {
       initTheme(me.theme_preference as 'dark' | 'light')
-    } else {
-      initTheme()
     }
   } catch {
-    initTheme()
+    /* keep current theme */
   }
 })
 
