@@ -71,12 +71,18 @@ type PulseRepository interface {
 	GetTimeLogsByDate(date time.Time) ([]TimeLogSummary, error)
 	GetSubmissionsByDate(date time.Time) ([]SubmissionSummary, error)
 	GetApprovedLeavesByDate(date time.Time) ([]LeaveSummary, error)
+
+	// CEO-configured hidden users for pulse board visibility
+	GetHiddenPulseUserIDs() ([]uint, error)
+	SetHiddenPulseUserIDs(userIDs []uint) error
 }
 
 // PulseUsecase defines business operations.
 type PulseUsecase interface {
 	SubmitStandup(userID uint, date time.Time, yesterday, blocker string, todayTaskIDs []string) (*DailyStandup, error)
-	GetDailyCompanyPulse(date time.Time) (*CompanyPulseResponse, error)
+	GetDailyCompanyPulse(date time.Time, viewerRole string) (*CompanyPulseResponse, error)
+	GetHiddenPulseUserIDs(requesterRole string) ([]uint, error)
+	SetHiddenPulseUserIDs(requesterRole string, userIDs []uint) error
 }
 
 // ─── Lightweight cross-module read models ─────────────────────────────────────

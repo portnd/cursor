@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ type postgresRepo struct {
 }
 
 const disciplineStartDateKey = "discipline_start_date"
+const hiddenPulseUsersSettingKey = "pulse_hidden_user_ids"
 
 // NewPostgresRepository returns a performance repository that queries existing tables
 func NewPostgresRepository(db *gorm.DB) perfDomain.Repository {
@@ -537,12 +539,37 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		dates = append(dates, d.Format("2006-01-02"))
 	}
 
-	// 2. Load working-level users only (exclude CEO and SUPPORT)
+	// 2. Load globally hidden pulse users (CEO setting), then working-level users only.
+	hiddenSet := map[uint]bool{}
+	{
+		var row struct {
+			Value string `gorm:"column:value"`
+		}
+		if err := r.db.Raw("SELECT value FROM app_settings WHERE key = ?", hiddenPulseUsersSettingKey).Scan(&row).Error; err == nil && strings.TrimSpace(row.Value) != "" {
+			var hiddenIDs []uint
+			if err := json.Unmarshal([]byte(row.Value), &hiddenIDs); err == nil {
+				for _, id := range hiddenIDs {
+					hiddenSet[id] = true
+				}
+			}
+		}
+	}
+
 	var users []authDomain.User
 	if err := r.db.Select("id", "email", "display_name", "role", "avatar_url").
 		Where("role NOT IN ?", []string{"CEO", "SUPPORT"}).
 		Find(&users).Error; err != nil {
 		return nil, err
+	}
+	if len(hiddenSet) > 0 {
+		filtered := make([]authDomain.User, 0, len(users))
+		for _, u := range users {
+			if hiddenSet[u.ID] {
+				continue
+			}
+			filtered = append(filtered, u)
+		}
+		users = filtered
 	}
 
 	// 3. Bulk-query stats with raw SQL for efficiency

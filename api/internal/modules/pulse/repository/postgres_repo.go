@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,8 @@ import (
 type postgresRepository struct {
 	db *gorm.DB
 }
+
+const hiddenPulseUsersSettingKey = "pulse_hidden_user_ids"
 
 // NewPostgresRepository returns a PulseRepository backed by PostgreSQL.
 func NewPostgresRepository(db *gorm.DB) domain.PulseRepository {
@@ -172,4 +175,38 @@ func (r *postgresRepository) GetApprovedLeavesByDate(date time.Time) ([]domain.L
 		}
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) GetHiddenPulseUserIDs() ([]uint, error) {
+	var row struct {
+		Value string `gorm:"column:value"`
+	}
+	err := r.db.Raw("SELECT value FROM app_settings WHERE key = ?", hiddenPulseUsersSettingKey).Scan(&row).Error
+	if err != nil {
+		return nil, fmt.Errorf("pulse: get hidden pulse user ids: %w", err)
+	}
+	if strings.TrimSpace(row.Value) == "" {
+		return []uint{}, nil
+	}
+	var parsed []uint
+	if err := json.Unmarshal([]byte(row.Value), &parsed); err != nil {
+		return []uint{}, nil
+	}
+	return parsed, nil
+}
+
+func (r *postgresRepository) SetHiddenPulseUserIDs(userIDs []uint) error {
+	payload, err := json.Marshal(userIDs)
+	if err != nil {
+		return fmt.Errorf("pulse: marshal hidden pulse user ids: %w", err)
+	}
+	err = r.db.Exec(`
+		INSERT INTO app_settings (key, value)
+		VALUES (?, ?)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+	`, hiddenPulseUsersSettingKey, string(payload)).Error
+	if err != nil {
+		return fmt.Errorf("pulse: set hidden pulse user ids: %w", err)
+	}
+	return nil
 }

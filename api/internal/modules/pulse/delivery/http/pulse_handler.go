@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/portnd/the-sentinel-core/internal/modules/pulse/domain"
 )
@@ -15,6 +16,17 @@ type pulseHandler struct {
 
 func newPulseHandler(uc domain.PulseUsecase) *pulseHandler {
 	return &pulseHandler{usecase: uc}
+}
+
+func getRole(c *gin.Context) string {
+	role, exists := c.Get("role")
+	if !exists {
+		return ""
+	}
+	if s, ok := role.(string); ok {
+		return s
+	}
+	return ""
 }
 
 // POST /api/v1/pulse/standup
@@ -71,11 +83,55 @@ func (h *pulseHandler) getDailyPulse(c *gin.Context) {
 		}
 	}
 
-	pulse, err := h.usecase.GetDailyCompanyPulse(date)
+	role := getRole(c)
+	pulse, err := h.usecase.GetDailyCompanyPulse(date, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, pulse)
+}
+
+// GET /api/v1/pulse/hidden-users
+func (h *pulseHandler) getHiddenUsers(c *gin.Context) {
+	role := getRole(c)
+	ids, err := h.usecase.GetHiddenPulseUserIDs(role)
+	if err != nil {
+		if errors.Is(err, domain.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO only"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user_ids": ids})
+}
+
+// PUT /api/v1/pulse/hidden-users
+func (h *pulseHandler) setHiddenUsers(c *gin.Context) {
+	role := getRole(c)
+	if role != authDomain.RoleCEO {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO only"})
+		return
+	}
+	var req struct {
+		UserIDs []uint `json:"user_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid request body"})
+		return
+	}
+	if req.UserIDs == nil {
+		req.UserIDs = []uint{}
+	}
+	if err := h.usecase.SetHiddenPulseUserIDs(role, req.UserIDs); err != nil {
+		if errors.Is(err, domain.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO only"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user_ids": req.UserIDs})
 }

@@ -1,5 +1,6 @@
 <template>
-  <div class="layout-enterprise-shell flex h-screen text-gray-100">
+  <ClientOnly>
+    <div class="layout-enterprise-shell flex h-screen text-gray-100">
     <!-- Sidebar (collapsible) -->
     <aside
       class="sidebar-enterprise flex flex-col transition-[width] duration-200 ease-out shrink-0"
@@ -303,6 +304,7 @@
 
   <!-- Global notification & confirm modal -->
   <AppModal />
+  </ClientOnly>
 </template>
 
 <script setup lang="ts">

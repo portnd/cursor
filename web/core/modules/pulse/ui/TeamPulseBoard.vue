@@ -118,7 +118,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { usePulseStore } from '../store/pulse-store'
 import PulseMemberCard from './PulseMemberCard.vue'
-import { localDateStr } from '~/composables/useLocalDate'
 
 const props = withDefaults(defineProps<{
   canManageVisibility?: boolean
@@ -134,7 +133,7 @@ const emit = defineEmits<{
 
 const store = usePulseStore()
 
-const today = localDateStr()
+const today = new Date().toISOString().slice(0, 10)
 const selectedDate = ref(today)
 const pollMs = 10000 // Polling so other users' check-ins appear without manual refresh
 let pollTimer: ReturnType<typeof setInterval> | null = null

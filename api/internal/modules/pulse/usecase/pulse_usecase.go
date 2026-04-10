@@ -60,7 +60,7 @@ func (u *pulseUsecase) SubmitStandup(
 
 // GetDailyCompanyPulse aggregates standups, time-logs, and submissions for a date
 // into a structured per-user board.
-func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPulseResponse, error) {
+func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time, viewerRole string) (*domain.CompanyPulseResponse, error) {
 	// ── Fetch all source data in parallel-friendly sequence ────────────────────
 	standups, err := u.repo.GetStandupsByDate(date)
 	if err != nil {
@@ -191,8 +191,21 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 	}
 
 	// ── Assemble response ─────────────────────────────────────────────────────
+	hiddenIDs, err := u.repo.GetHiddenPulseUserIDs()
+	if err != nil {
+		return nil, fmt.Errorf("pulse: fetch hidden user ids: %w", err)
+	}
+	hiddenSet := make(map[uint]bool, len(hiddenIDs))
+	for _, id := range hiddenIDs {
+		hiddenSet[id] = true
+	}
+	isCEOViewer := strings.ToUpper(strings.TrimSpace(viewerRole)) == authDomain.RoleCEO
+
 	members := make([]domain.UserPulse, 0, len(memberMap))
 	for _, p := range memberMap {
+		if !isCEOViewer && hiddenSet[p.UserID] {
+			continue
+		}
 		members = append(members, *p)
 	}
 	// Sort: blockers first, then by user_id for stable order
@@ -224,6 +237,36 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		TotalMinLogged: totalLoggedMin,
 		Members:        members,
 	}, nil
+}
+
+func (u *pulseUsecase) GetHiddenPulseUserIDs(requesterRole string) ([]uint, error) {
+	if strings.ToUpper(strings.TrimSpace(requesterRole)) != authDomain.RoleCEO {
+		return nil, domain.ErrPermissionDenied
+	}
+	ids, err := u.repo.GetHiddenPulseUserIDs()
+	if err != nil {
+		return nil, fmt.Errorf("pulse: get hidden user ids: %w", err)
+	}
+	return ids, nil
+}
+
+func (u *pulseUsecase) SetHiddenPulseUserIDs(requesterRole string, userIDs []uint) error {
+	if strings.ToUpper(strings.TrimSpace(requesterRole)) != authDomain.RoleCEO {
+		return domain.ErrPermissionDenied
+	}
+	uniq := make(map[uint]bool, len(userIDs))
+	normalized := make([]uint, 0, len(userIDs))
+	for _, id := range userIDs {
+		if id == 0 || uniq[id] {
+			continue
+		}
+		uniq[id] = true
+		normalized = append(normalized, id)
+	}
+	if err := u.repo.SetHiddenPulseUserIDs(normalized); err != nil {
+		return fmt.Errorf("pulse: set hidden user ids: %w", err)
+	}
+	return nil
 }
 
 func min(a, b int) int {

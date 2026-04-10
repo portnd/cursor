@@ -13,5 +13,7 @@ func RegisterRoutes(r *gin.RouterGroup, uc domain.PulseUsecase) {
 	{
 		pulse.POST("/standup", h.submitStandup)
 		pulse.GET("/daily", h.getDailyPulse)
+		pulse.GET("/hidden-users", h.getHiddenUsers)
+		pulse.PUT("/hidden-users", h.setHiddenUsers)
 	}
 }

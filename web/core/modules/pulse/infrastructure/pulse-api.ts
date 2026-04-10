@@ -54,6 +54,10 @@ export interface CompanyPulseResponse {
   members: UserPulse[]
 }
 
+export interface PulseHiddenUsersResponse {
+  user_ids: number[]
+}
+
 // ─── API composable ───────────────────────────────────────────────────────────
 
 function usePulseApi() {
@@ -71,7 +75,18 @@ function usePulseApi() {
     return await fetchWithAuth<CompanyPulseResponse>(`/pulse/daily${query}`)
   }
 
-  return { submitStandup, getDailyPulse }
+  async function getHiddenUsers(): Promise<PulseHiddenUsersResponse> {
+    return await fetchWithAuth<PulseHiddenUsersResponse>('/pulse/hidden-users')
+  }
+
+  async function setHiddenUsers(userIds: number[]): Promise<PulseHiddenUsersResponse> {
+    return await fetchWithAuth<PulseHiddenUsersResponse>('/pulse/hidden-users', {
+      method: 'PUT',
+      body: { user_ids: userIds },
+    })
+  }
+
+  return { submitStandup, getDailyPulse, getHiddenUsers, setHiddenUsers }
 }
 
 export { usePulseApi }
