@@ -68,32 +68,213 @@
     <template v-else-if="store.discipline">
       <!-- Summary cards -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
+        <button
+          type="button"
+          class="text-left bg-gray-800 border border-gray-700 rounded-xl p-4 transition hover:border-gray-500"
+          :class="activeSummaryFilter === 'all' ? 'ring-2 ring-orange-500/70 border-orange-500/70' : ''"
+          @click="applySummaryFilter('all')"
+        >
           <div class="text-xs text-gray-400 mb-1">พนักงานทั้งหมด</div>
           <div class="text-3xl font-bold text-white">{{ store.discipline.users.length }}</div>
-        </div>
-        <div class="bg-gray-800 border border-emerald-700/50 rounded-xl p-4">
+        </button>
+        <button
+          type="button"
+          class="text-left bg-gray-800 border border-emerald-700/50 rounded-xl p-4 transition hover:border-emerald-500"
+          :class="activeSummaryFilter === 'jobDone' ? 'ring-2 ring-emerald-500/70 border-emerald-500/80' : ''"
+          @click="applySummaryFilter('jobDone')"
+        >
           <div class="text-xs text-gray-400 mb-1">Job Done รวม</div>
           <div class="text-3xl font-bold text-emerald-400">{{ totalTasksClosed }}</div>
-        </div>
-        <div class="bg-gray-800 border border-red-700/50 rounded-xl p-4">
+        </button>
+        <button
+          type="button"
+          class="text-left bg-gray-800 border border-red-700/50 rounded-xl p-4 transition hover:border-red-500"
+          :class="activeSummaryFilter === 'rework' ? 'ring-2 ring-red-500/70 border-red-500/80' : ''"
+          @click="applySummaryFilter('rework')"
+        >
           <div class="text-xs text-gray-400 mb-1">Rework รวม</div>
           <div class="text-3xl font-bold text-red-400">{{ totalReworks }}</div>
-        </div>
-        <div class="bg-gray-800 border border-yellow-700/50 rounded-xl p-4">
+        </button>
+        <button
+          type="button"
+          class="text-left bg-gray-800 border border-yellow-700/50 rounded-xl p-4 transition hover:border-yellow-500"
+          :class="activeSummaryFilter === 'missedPulse' ? 'ring-2 ring-yellow-500/70 border-yellow-500/80' : ''"
+          @click="applySummaryFilter('missedPulse')"
+        >
           <div class="text-xs text-gray-400 mb-1">Missed Pulse</div>
           <div class="text-3xl font-bold text-yellow-400">{{ totalMissedPulse }}</div>
           <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
-        </div>
-        <div class="bg-gray-800 border border-rose-700/50 rounded-xl p-4">
+        </button>
+        <button
+          type="button"
+          class="text-left bg-gray-800 border border-rose-700/50 rounded-xl p-4 transition hover:border-rose-500"
+          :class="activeSummaryFilter === 'late' ? 'ring-2 ring-rose-500/70 border-rose-500/80' : ''"
+          @click="applySummaryFilter('late')"
+        >
           <div class="text-xs text-gray-400 mb-1">🕐 สายรวม</div>
           <div class="text-3xl font-bold text-rose-400">{{ totalLateDays }}</div>
           <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
-        </div>
-        <div class="bg-gray-800 border border-amber-700/50 rounded-xl p-4">
+        </button>
+        <button
+          type="button"
+          class="text-left bg-gray-800 border border-amber-700/50 rounded-xl p-4 transition hover:border-amber-500"
+          :class="activeSummaryFilter === 'earlyCheckout' ? 'ring-2 ring-amber-500/70 border-amber-500/80' : ''"
+          @click="applySummaryFilter('earlyCheckout')"
+        >
           <div class="text-xs text-gray-400 mb-1">🚪 กลับก่อนรวม</div>
           <div class="text-3xl font-bold text-amber-400">{{ totalEarlyCheckoutDays }}</div>
           <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
+        </button>
+      </div>
+
+      <div v-if="activeSummaryFilter !== 'all'" class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-orange-500/40 bg-orange-950/20 px-4 py-2 text-sm">
+        <span class="text-orange-200">
+          กำลังแสดงเฉพาะ: {{ activeSummaryFilterLabel }} ({{ filteredUsers.length }} คน)
+        </span>
+        <button
+          type="button"
+          class="px-3 py-1 rounded-md bg-gray-800 border border-gray-600 text-gray-200 hover:border-gray-500"
+          @click="activeSummaryFilter = 'all'"
+        >
+          ล้างตัวกรอง
+        </button>
+      </div>
+
+      <!-- Job Done: task list + timestamp (API job_done_items) -->
+      <div
+        v-if="activeSummaryFilter === 'jobDone' && store.discipline && filteredUsers.length === 0"
+        class="mb-6 rounded-lg border border-gray-700 bg-gray-800/40 px-4 py-6 text-center text-sm text-gray-500"
+      >
+        ไม่มีพนักงานที่มี Job Done ในช่วงวันที่นี้
+      </div>
+      <div
+        v-else-if="activeSummaryFilter === 'jobDone' && store.discipline"
+        class="mb-6 rounded-xl border border-emerald-800/50 bg-gray-900/80 overflow-hidden"
+      >
+        <div class="px-4 py-3 border-b border-emerald-900/40 bg-emerald-950/20">
+          <h2 class="text-sm font-semibold text-emerald-200">รายการ Job Done ในช่วงที่เลือก</h2>
+          <p class="text-xs text-gray-500 mt-0.5">งาน / วันที่และเวลา (เวลาไทย) / ประเภทเหตุการณ์ / ผู้เปลี่ยนสถานะ</p>
+        </div>
+        <div class="p-4 space-y-5 max-h-[min(70vh,520px)] overflow-y-auto">
+          <div
+            v-for="u in filteredUsers"
+            :key="'jd-' + u.user_id"
+            class="rounded-lg border border-gray-700/80 bg-gray-800/40 overflow-hidden"
+          >
+            <div class="px-3 py-2 bg-gray-800/80 border-b border-gray-700 text-xs font-medium text-gray-300">
+              {{ u.user_display_name || u.user_email.split('@')[0] }}
+              <span class="text-gray-500 font-normal">· {{ u.user_email }}</span>
+              <span class="text-emerald-400 ml-2">{{ u.total_tasks_closed }} ครั้ง</span>
+            </div>
+            <ul v-if="jobDoneItemsForUser(u).length" class="divide-y divide-gray-700/60">
+              <li
+                v-for="(item, i) in jobDoneItemsForUser(u)"
+                :key="item.task_id + '-' + item.done_date + '-' + item.done_time + '-' + item.event_kind + '-' + i"
+                class="px-3 py-2.5 text-xs flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 hover:bg-gray-800/60"
+              >
+                <div class="min-w-0 flex-1">
+                  <NuxtLink
+                    v-if="item.task_id"
+                    :to="`/task/${item.task_id}`"
+                    class="text-emerald-400 hover:text-emerald-300 font-medium break-words"
+                  >
+                    {{ item.task_code || item.task_id.slice(0, 8) }}
+                  </NuxtLink>
+                  <span
+                    v-else
+                    class="text-emerald-400/90 font-medium font-mono text-[11px]"
+                  >Deploy #{{ item.deployment_id }}</span>
+                  <span class="text-gray-500 mx-1">·</span>
+                  <span class="text-gray-200">{{ item.task_title }}</span>
+                  <span
+                    v-if="item.task_type"
+                    class="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400"
+                  >{{ item.task_type }}</span>
+                  <p
+                    v-if="item.deployment_id && (item.environment || item.branch)"
+                    class="mt-1 text-[10px] text-gray-500"
+                  >
+                    {{ item.environment }}<span v-if="item.branch"> · {{ item.branch }}</span>
+                    <span v-if="item.deployment_title && item.deployment_title !== item.task_title" class="block text-gray-600 mt-0.5">{{ item.deployment_title }}</span>
+                  </p>
+                </div>
+                <div class="shrink-0 text-gray-400 sm:text-right">
+                  <div class="text-gray-300">{{ formatJobDoneWhen(item) }}</div>
+                  <div class="text-[10px] text-gray-500 mt-0.5">{{ jobDoneEventLabel(item.event_kind) }}</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">
+                    โดย {{ jobDoneActorLabel(item) }}
+                  </div>
+                </div>
+              </li>
+            </ul>
+            <p v-else class="px-3 py-4 text-xs text-gray-500 text-center">
+              ยังไม่มีรายละเอียดรายการ — โหลดข้อมูลอีกครั้งหลังอัปเดต API หรือยังไม่มี event ในช่วงนี้
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rework: task list + comment snippet (API rework_items) -->
+      <div
+        v-if="activeSummaryFilter === 'rework' && store.discipline && filteredUsers.length === 0"
+        class="mb-6 rounded-lg border border-gray-700 bg-gray-800/40 px-4 py-6 text-center text-sm text-gray-500"
+      >
+        ไม่มีพนักงานที่มี Rework ในช่วงวันที่นี้
+      </div>
+      <div
+        v-else-if="activeSummaryFilter === 'rework' && store.discipline"
+        class="mb-6 rounded-xl border border-red-900/50 bg-gray-900/80 overflow-hidden"
+      >
+        <div class="px-4 py-3 border-b border-red-950/50 bg-red-950/20">
+          <h2 class="text-sm font-semibold text-red-200">รายการ Rework ในช่วงที่เลือก</h2>
+          <p class="text-xs text-gray-500 mt-0.5">งานที่ assign / วันที่และเวลา (เวลาไทย) / ผู้บันทึก [REJECTED] / ข้อความ</p>
+        </div>
+        <div class="p-4 space-y-5 max-h-[min(70vh,520px)] overflow-y-auto">
+          <div
+            v-for="u in filteredUsers"
+            :key="'rw-' + u.user_id"
+            class="rounded-lg border border-gray-700/80 bg-gray-800/40 overflow-hidden"
+          >
+            <div class="px-3 py-2 bg-gray-800/80 border-b border-gray-700 text-xs font-medium text-gray-300">
+              {{ u.user_display_name || u.user_email.split('@')[0] }}
+              <span class="text-gray-500 font-normal">· {{ u.user_email }}</span>
+              <span class="text-red-400 ml-2">{{ u.total_reworks }} ครั้ง</span>
+            </div>
+            <ul v-if="reworkItemsForUser(u).length" class="divide-y divide-gray-700/60">
+              <li
+                v-for="(item, i) in reworkItemsForUser(u)"
+                :key="item.task_id + '-' + item.event_date + '-' + item.event_time + '-' + i"
+                class="px-3 py-2.5 text-xs flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 hover:bg-gray-800/60"
+              >
+                <div class="min-w-0 flex-1">
+                  <NuxtLink
+                    :to="`/task/${item.task_id}`"
+                    class="text-red-400 hover:text-red-300 font-medium break-words"
+                  >
+                    {{ item.task_code || item.task_id.slice(0, 8) }}
+                  </NuxtLink>
+                  <span class="text-gray-500 mx-1">·</span>
+                  <span class="text-gray-200">{{ item.task_title }}</span>
+                  <span
+                    v-if="item.task_type"
+                    class="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400"
+                  >{{ item.task_type }}</span>
+                  <p class="mt-1.5 text-[11px] text-gray-500 leading-snug line-clamp-3" :title="item.comment_snippet">
+                    {{ item.comment_snippet }}
+                  </p>
+                </div>
+                <div class="shrink-0 text-gray-400 sm:text-right">
+                  <div class="text-gray-300">{{ formatReworkWhen(item) }}</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">
+                    โดย {{ reworkAuthorLabel(item) }}
+                  </div>
+                </div>
+              </li>
+            </ul>
+            <p v-else class="px-3 py-4 text-xs text-gray-500 text-center">
+              ยังไม่มีรายละเอียดรายการ — โหลดข้อมูลอีกครั้งหลังอัปเดต API
+            </p>
+          </div>
         </div>
       </div>
 
@@ -133,7 +314,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="(user, idx) in sortedUsers"
+              v-for="(user, idx) in filteredUsers"
               :key="user.user_id"
               class="border-b border-gray-700/50 hover:bg-gray-800/50 transition-colors"
               :class="idx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-900/60'"
@@ -277,7 +458,7 @@
         <h2 class="text-base font-semibold text-white mb-4">สรุปรายบุคคล</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <div
-            v-for="user in sortedUsers"
+            v-for="user in filteredUsers"
             :key="'card-' + user.user_id"
             class="bg-gray-800 border rounded-xl p-4 transition-colors"
             :class="userCardBorderClass(user)"
@@ -366,7 +547,7 @@
 
 <script setup lang="ts">
 import { usePerformanceStore } from '~/core/modules/performance/performance-store'
-import type { DisciplineUser, DisciplineUserDayStat } from '~/core/modules/performance/performance-api'
+import type { DisciplineJobDoneItem, DisciplineReworkItem, DisciplineUser, DisciplineUserDayStat } from '~/core/modules/performance/performance-api'
 
 // ─── Day Detail Modal state ───────────────────────────────────────────────────
 const modalOpen = ref(false)
@@ -445,6 +626,54 @@ function dayOfWeek(d: string) {
   return days[new Date(d + 'T00:00:00').getDay()]
 }
 
+function jobDoneItemsForUser(u: DisciplineUser): DisciplineJobDoneItem[] {
+  return u.job_done_items ?? []
+}
+
+function reworkItemsForUser(u: DisciplineUser): DisciplineReworkItem[] {
+  return u.rework_items ?? []
+}
+
+function jobDoneEventLabel(kind: string): string {
+  if (kind === 'PM_APPROVED_TEST') return 'อนุมัติส่ง Deploy (PO/PM)'
+  if (kind === 'DEPLOYMENT_DEPLOYED') return 'Deploy สำเร็จ → Task พร้อม UAT'
+  if (kind === 'DEPLOYED_TO_UAT') return 'ย้ายสถานะไป Ready for UAT (หลัง deploy)'
+  return 'ส่งพร้อมทดสอบ (dev → Ready for test)'
+}
+
+function formatJobDoneWhen(item: DisciplineJobDoneItem): string {
+  const date = new Date(item.done_date + 'T12:00:00')
+  const dStr = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${dStr} · ${item.done_time} น.`
+}
+
+function formatReworkWhen(item: DisciplineReworkItem): string {
+  const date = new Date(item.event_date + 'T12:00:00')
+  const dStr = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${dStr} · ${item.event_time} น.`
+}
+
+function disciplinePersonLabel(
+  displayName: string | undefined,
+  email: string | undefined,
+  id?: number,
+): string {
+  const d = displayName?.trim()
+  if (d) return d
+  const e = email?.trim()
+  if (e) return e
+  if (id != null && id > 0) return `#${id}`
+  return 'ไม่ระบุ'
+}
+
+function jobDoneActorLabel(item: DisciplineJobDoneItem): string {
+  return disciplinePersonLabel(item.actor_display_name, item.actor_email, item.actor_id)
+}
+
+function reworkAuthorLabel(item: DisciplineReworkItem): string {
+  return disciplinePersonLabel(item.author_display_name, item.author_email, item.author_id)
+}
+
 // ─── Computed ─────────────────────────────────────────────────────────────────
 
 const totalTasksClosed = computed(() =>
@@ -466,9 +695,47 @@ const totalEarlyCheckoutDays = computed(() =>
   store.discipline?.users.reduce((s, u) => s + (u.total_early_checkout_days ?? 0), 0) ?? 0
 )
 
+type SummaryFilter = 'all' | 'jobDone' | 'rework' | 'missedPulse' | 'late' | 'earlyCheckout'
+
+const activeSummaryFilter = ref<SummaryFilter>('all')
+
+function applySummaryFilter(filter: SummaryFilter) {
+  activeSummaryFilter.value = filter
+}
+
 const sortedUsers = computed(() => {
   if (!store.discipline) return []
   return [...store.discipline.users].sort((a, b) => disciplineScore(b) - disciplineScore(a))
+})
+
+const filteredUsers = computed(() => {
+  const users = sortedUsers.value
+  switch (activeSummaryFilter.value) {
+    case 'jobDone':
+      return users.filter((u) => u.total_tasks_closed > 0)
+    case 'rework':
+      return users.filter((u) => u.total_reworks > 0)
+    case 'missedPulse':
+      return users.filter((u) => u.missed_pulse_count > 0)
+    case 'late':
+      return users.filter((u) => (u.total_late_days ?? 0) > 0)
+    case 'earlyCheckout':
+      return users.filter((u) => (u.total_early_checkout_days ?? 0) > 0)
+    default:
+      return users
+  }
+})
+
+const activeSummaryFilterLabel = computed(() => {
+  const labels: Record<SummaryFilter, string> = {
+    all: 'ทั้งหมด',
+    jobDone: 'Job Done รวม',
+    rework: 'Rework รวม',
+    missedPulse: 'Missed Pulse',
+    late: '🕐 สายรวม',
+    earlyCheckout: '🚪 กลับก่อนรวม',
+  }
+  return labels[activeSummaryFilter.value]
 })
 
 // ─── Discipline score (0–100) ─────────────────────────────────────────────────

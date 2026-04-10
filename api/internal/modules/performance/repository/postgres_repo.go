@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"database/sql"
+	"sort"
 	"time"
 
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
@@ -541,20 +543,47 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 	}
 
 	// 3. Bulk-query stats with raw SQL for efficiency
+	// Job Done indexes by role:
+	// - Engineer/Chief Engineer: assigned TASK/BUG moved IN_PROGRESS -> READY_FOR_TEST. Counts both
+	//   dedicated READY_FOR_TEST events (MarkReadyForTest) and STATUS_CHANGED from Kanban bulk update.
+	// - Product Owner: approved task moved READY_FOR_TEST -> WAIT_FOR_DEPLOY.
+	// - Chief Engineer (reviewer): deployment_requests marked DEPLOYED (merged into tasks_closed; see job_done_items).
 	type tasksClosedRow struct {
 		UserID uint
 		Date   string
 		Count  int
 	}
-	var closedRows []tasksClosedRow
+	var engineerClosedRows []tasksClosedRow
 	r.db.Raw(`
-		SELECT assigned_to AS user_id, completed_at::date::text AS date, COUNT(*) AS count
-		FROM tasks
-		WHERE status = 'COMPLETED'
-		  AND completed_at IS NOT NULL
-		  AND completed_at::date BETWEEN ? AND ?
-		GROUP BY assigned_to, completed_at::date
-	`, from, to).Scan(&closedRows)
+		SELECT t.assigned_to AS user_id, tae.created_at::date::text AS date, COUNT(*) AS count
+		FROM task_activity_events tae
+		JOIN tasks t ON t.id = tae.task_id
+		WHERE t.assigned_to IS NOT NULL
+		  AND t.task_type IN ('TASK', 'BUG')
+		  AND tae.created_at::date BETWEEN ? AND ?
+		  AND (
+		    (tae.action = 'READY_FOR_TEST'
+		      AND COALESCE(tae.payload->>'from_status', '') = 'IN_PROGRESS'
+		      AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_TEST')
+		    OR
+		    (tae.action = 'STATUS_CHANGED'
+		      AND COALESCE(tae.payload->>'from_status', '') = 'IN_PROGRESS'
+		      AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_TEST')
+		  )
+		GROUP BY t.assigned_to, tae.created_at::date
+	`, from, to).Scan(&engineerClosedRows)
+
+	var productOwnerClosedRows []tasksClosedRow
+	r.db.Raw(`
+		SELECT tae.actor_id AS user_id, tae.created_at::date::text AS date, COUNT(*) AS count
+		FROM task_activity_events tae
+		WHERE tae.action = 'PM_APPROVED_TEST'
+		  AND COALESCE(tae.payload->>'from_status', '') = 'READY_FOR_TEST'
+		  AND COALESCE(tae.payload->>'to_status', '') = 'WAIT_FOR_DEPLOY'
+		  AND tae.actor_id IS NOT NULL
+		  AND tae.created_at::date BETWEEN ? AND ?
+		GROUP BY tae.actor_id, tae.created_at::date
+	`, from, to).Scan(&productOwnerClosedRows)
 
 	type reworkRow struct {
 		UserID uint
@@ -613,6 +642,48 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		GROUP BY reviewer_id, deployed_at::date
 	`, from, to).Scan(&deployRows)
 
+	// WAIT_FOR_DEPLOY → READY_FOR_UAT when logged as DEPLOYED activity but no matching deployment_requests
+	// on the same Bangkok calendar day for that task (avoids double-count with deployment-based Job Done).
+	type uatAdvanceRow struct {
+		UserID           uint
+		TaskID           string
+		TaskCode         string
+		TaskTitle        string
+		TaskType         string
+		CreatedAt        time.Time
+		ActorID          sql.NullInt64
+		ActorEmail       string
+		ActorDisplayName string
+	}
+	var uatAdvanceRows []uatAdvanceRow
+	r.db.Raw(`
+		SELECT tae.actor_id AS user_id,
+		       t.id::text AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       t.title AS task_title,
+		       COALESCE(t.task_type, '') AS task_type,
+		       tae.created_at AS created_at,
+		       tae.actor_id AS actor_id,
+		       COALESCE(actor.email, '') AS actor_email,
+		       COALESCE(actor.display_name, '') AS actor_display_name
+		FROM task_activity_events tae
+		JOIN tasks t ON t.id = tae.task_id
+		LEFT JOIN users actor ON actor.id = tae.actor_id
+		WHERE tae.action = 'DEPLOYED'
+		  AND COALESCE(tae.payload->>'from_status', '') = 'WAIT_FOR_DEPLOY'
+		  AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_UAT'
+		  AND tae.actor_id IS NOT NULL
+		  AND tae.created_at::date BETWEEN ? AND ?
+		  AND NOT EXISTS (
+		    SELECT 1 FROM deployment_requests dr
+		    WHERE dr.task_id = tae.task_id
+		      AND dr.status = 'DEPLOYED'
+		      AND dr.deployed_at IS NOT NULL
+		      AND (timezone('Asia/Bangkok', dr.deployed_at))::date = (timezone('Asia/Bangkok', tae.created_at))::date
+		  )
+		ORDER BY tae.created_at DESC
+	`, from, to).Scan(&uatAdvanceRows)
+
 	// Attendance records (is_late, early_checkout, check-in/out times)
 	type attDayRow struct {
 		UserID        uint
@@ -638,11 +709,30 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 
 	// 4. Index rows by userID+date for O(1) lookup
 	closedIndex := map[uint]map[string]int{}
-	for _, row := range closedRows {
+	for _, row := range engineerClosedRows {
 		if closedIndex[row.UserID] == nil {
 			closedIndex[row.UserID] = map[string]int{}
 		}
-		closedIndex[row.UserID][row.Date] = row.Count
+		closedIndex[row.UserID][row.Date] += row.Count
+	}
+	for _, row := range productOwnerClosedRows {
+		if closedIndex[row.UserID] == nil {
+			closedIndex[row.UserID] = map[string]int{}
+		}
+		closedIndex[row.UserID][row.Date] += row.Count
+	}
+	for _, row := range deployRows {
+		if closedIndex[row.UserID] == nil {
+			closedIndex[row.UserID] = map[string]int{}
+		}
+		closedIndex[row.UserID][row.Date] += row.Count
+	}
+	for _, row := range uatAdvanceRows {
+		d := row.CreatedAt.In(ict).Format("2006-01-02")
+		if closedIndex[row.UserID] == nil {
+			closedIndex[row.UserID] = map[string]int{}
+		}
+		closedIndex[row.UserID][d]++
 	}
 	reworkIndex := map[uint]map[string]int{}
 	for _, row := range reworkRows {
@@ -665,13 +755,8 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		}
 		pulseIndex[row.UserID][row.Date] = true
 	}
+	// Deploy completions are included in tasks_closed / total_tasks_closed (Job Done) for the CE reviewer.
 	deployIndex := map[uint]map[string]int{}
-	for _, row := range deployRows {
-		if deployIndex[row.UserID] == nil {
-			deployIndex[row.UserID] = map[string]int{}
-		}
-		deployIndex[row.UserID][row.Date] = row.Count
-	}
 
 	type attDayData struct {
 		IsLate        bool
@@ -692,6 +777,269 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			CheckInTime:   row.CheckInTime,
 			CheckOutTime:  row.CheckOutTime,
 		}
+	}
+
+	// 4b. Job Done line items (matches engineer + PO aggregates; for UI drill-down)
+	type jobDoneEventRow struct {
+		UserID           uint
+		TaskID           string
+		TaskCode         string
+		TaskTitle        string
+		TaskType         string
+		CreatedAt        time.Time
+		EventKind        string
+		ActorID          sql.NullInt64
+		ActorEmail       string
+		ActorDisplayName string
+	}
+	var engJobRows []jobDoneEventRow
+	r.db.Raw(`
+		SELECT t.assigned_to AS user_id,
+		       t.id::text AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       t.title AS task_title,
+		       COALESCE(t.task_type, '') AS task_type,
+		       tae.created_at AS created_at,
+		       'READY_FOR_TEST' AS event_kind,
+		       tae.actor_id AS actor_id,
+		       COALESCE(actor.email, '') AS actor_email,
+		       COALESCE(actor.display_name, '') AS actor_display_name
+		FROM task_activity_events tae
+		JOIN tasks t ON t.id = tae.task_id
+		LEFT JOIN users actor ON actor.id = tae.actor_id
+		WHERE t.assigned_to IS NOT NULL
+		  AND t.task_type IN ('TASK', 'BUG')
+		  AND tae.created_at::date BETWEEN ? AND ?
+		  AND (
+		    (tae.action = 'READY_FOR_TEST'
+		      AND COALESCE(tae.payload->>'from_status', '') = 'IN_PROGRESS'
+		      AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_TEST')
+		    OR
+		    (tae.action = 'STATUS_CHANGED'
+		      AND COALESCE(tae.payload->>'from_status', '') = 'IN_PROGRESS'
+		      AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_TEST')
+		  )
+		ORDER BY tae.created_at DESC
+	`, from, to).Scan(&engJobRows)
+
+	var poJobRows []jobDoneEventRow
+	r.db.Raw(`
+		SELECT tae.actor_id AS user_id,
+		       t.id::text AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       t.title AS task_title,
+		       COALESCE(t.task_type, '') AS task_type,
+		       tae.created_at AS created_at,
+		       'PM_APPROVED_TEST' AS event_kind,
+		       tae.actor_id AS actor_id,
+		       COALESCE(actor.email, '') AS actor_email,
+		       COALESCE(actor.display_name, '') AS actor_display_name
+		FROM task_activity_events tae
+		JOIN tasks t ON t.id = tae.task_id
+		LEFT JOIN users actor ON actor.id = tae.actor_id
+		WHERE tae.action = 'PM_APPROVED_TEST'
+		  AND COALESCE(tae.payload->>'from_status', '') = 'READY_FOR_TEST'
+		  AND COALESCE(tae.payload->>'to_status', '') = 'WAIT_FOR_DEPLOY'
+		  AND tae.actor_id IS NOT NULL
+		  AND tae.created_at::date BETWEEN ? AND ?
+		ORDER BY tae.created_at DESC
+	`, from, to).Scan(&poJobRows)
+
+	// Chief Engineer: deployment marked DEPLOYED (linked task advances to READY_FOR_UAT when task_id set)
+	type deployJobDoneRow struct {
+		UserID           uint
+		TaskID           string
+		TaskCode         string
+		TaskTitle        string
+		TaskType         string
+		DeployedAt       time.Time
+		ActorID          sql.NullInt64
+		ActorEmail       string
+		ActorDisplayName string
+		DeploymentID     uint
+		DeploymentTitle  string
+		Branch           string
+		Environment      string
+	}
+	var deployJobDoneRows []deployJobDoneRow
+	r.db.Raw(`
+		SELECT dr.reviewer_id AS user_id,
+		       COALESCE(dr.task_id::text, '') AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       COALESCE(NULLIF(TRIM(t.title), ''), dr.title) AS task_title,
+		       COALESCE(t.task_type, '') AS task_type,
+		       dr.deployed_at AS deployed_at,
+		       dr.reviewer_id AS actor_id,
+		       COALESCE(actor.email, '') AS actor_email,
+		       COALESCE(actor.display_name, '') AS actor_display_name,
+		       dr.id AS deployment_id,
+		       dr.title AS deployment_title,
+		       dr.branch AS branch,
+		       dr.environment AS environment
+		FROM deployment_requests dr
+		LEFT JOIN tasks t ON t.id = dr.task_id
+		LEFT JOIN users actor ON actor.id = dr.reviewer_id
+		WHERE dr.status = 'DEPLOYED'
+		  AND dr.deployed_at IS NOT NULL
+		  AND dr.reviewer_id IS NOT NULL
+		  AND dr.deployed_at::date BETWEEN ? AND ?
+		ORDER BY dr.deployed_at DESC
+	`, from, to).Scan(&deployJobDoneRows)
+
+	jobDoneItemFromRow := func(row jobDoneEventRow) perfDomain.DisciplineJobDoneItem {
+		ts := row.CreatedAt.In(ict)
+		item := perfDomain.DisciplineJobDoneItem{
+			TaskID:           row.TaskID,
+			TaskCode:         row.TaskCode,
+			TaskTitle:        row.TaskTitle,
+			TaskType:         row.TaskType,
+			DoneDate:         ts.Format("2006-01-02"),
+			DoneTime:         ts.Format("15:04"),
+			EventKind:        row.EventKind,
+			ActorEmail:       row.ActorEmail,
+			ActorDisplayName: row.ActorDisplayName,
+		}
+		if row.ActorID.Valid && row.ActorID.Int64 > 0 {
+			item.ActorID = uint(row.ActorID.Int64)
+		}
+		return item
+	}
+
+	jobDoneByUser := map[uint][]perfDomain.DisciplineJobDoneItem{}
+	for _, row := range engJobRows {
+		jobDoneByUser[row.UserID] = append(jobDoneByUser[row.UserID], jobDoneItemFromRow(row))
+	}
+	for _, row := range poJobRows {
+		jobDoneByUser[row.UserID] = append(jobDoneByUser[row.UserID], jobDoneItemFromRow(row))
+	}
+	for _, row := range deployJobDoneRows {
+		ts := row.DeployedAt.In(ict)
+		item := perfDomain.DisciplineJobDoneItem{
+			TaskID:           row.TaskID,
+			TaskCode:         row.TaskCode,
+			TaskTitle:        row.TaskTitle,
+			TaskType:         row.TaskType,
+			DoneDate:         ts.Format("2006-01-02"),
+			DoneTime:         ts.Format("15:04"),
+			EventKind:        "DEPLOYMENT_DEPLOYED",
+			ActorEmail:       row.ActorEmail,
+			ActorDisplayName: row.ActorDisplayName,
+			DeploymentID:     row.DeploymentID,
+			DeploymentTitle:  row.DeploymentTitle,
+			Branch:           row.Branch,
+			Environment:      row.Environment,
+		}
+		if row.ActorID.Valid && row.ActorID.Int64 > 0 {
+			item.ActorID = uint(row.ActorID.Int64)
+		}
+		jobDoneByUser[row.UserID] = append(jobDoneByUser[row.UserID], item)
+	}
+	for _, row := range uatAdvanceRows {
+		ts := row.CreatedAt.In(ict)
+		item := perfDomain.DisciplineJobDoneItem{
+			TaskID:           row.TaskID,
+			TaskCode:         row.TaskCode,
+			TaskTitle:        row.TaskTitle,
+			TaskType:         row.TaskType,
+			DoneDate:         ts.Format("2006-01-02"),
+			DoneTime:         ts.Format("15:04"),
+			EventKind:        "DEPLOYED_TO_UAT",
+			ActorEmail:       row.ActorEmail,
+			ActorDisplayName: row.ActorDisplayName,
+		}
+		if row.ActorID.Valid && row.ActorID.Int64 > 0 {
+			item.ActorID = uint(row.ActorID.Int64)
+		}
+		jobDoneByUser[row.UserID] = append(jobDoneByUser[row.UserID], item)
+	}
+	for uid, items := range jobDoneByUser {
+		sort.Slice(items, func(i, j int) bool {
+			if items[i].DoneDate != items[j].DoneDate {
+				return items[i].DoneDate > items[j].DoneDate
+			}
+			if items[i].DoneTime != items[j].DoneTime {
+				return items[i].DoneTime > items[j].DoneTime
+			}
+			if items[i].EventKind != items[j].EventKind {
+				return items[i].EventKind > items[j].EventKind
+			}
+			if items[i].DeploymentID != items[j].DeploymentID {
+				return items[i].DeploymentID > items[j].DeploymentID
+			}
+			return items[i].TaskCode > items[j].TaskCode
+		})
+		jobDoneByUser[uid] = items
+	}
+
+	// 4c. Rework line items ([REJECTED] comments → assignee’s discipline rework count)
+	type reworkDetailRow struct {
+		UserID             uint
+		TaskID             string
+		TaskCode           string
+		TaskTitle          string
+		TaskType           string
+		CreatedAt          time.Time
+		Content            string
+		AuthorID           sql.NullInt64
+		AuthorEmail        string
+		AuthorDisplayName  string
+	}
+	var reworkDetailRows []reworkDetailRow
+	r.db.Raw(`
+		SELECT t.assigned_to AS user_id,
+		       t.id::text AS task_id,
+		       COALESCE(t.code, '') AS task_code,
+		       t.title AS task_title,
+		       COALESCE(t.task_type, '') AS task_type,
+		       tc.created_at AS created_at,
+		       tc.content AS content,
+		       tc.user_id AS author_id,
+		       COALESCE(au.email, '') AS author_email,
+		       COALESCE(au.display_name, '') AS author_display_name
+		FROM task_comments tc
+		JOIN tasks t ON t.id = tc.task_id
+		LEFT JOIN users au ON au.id = tc.user_id
+		WHERE tc.content LIKE '[REJECTED]%'
+		  AND tc.created_at::date BETWEEN ? AND ?
+		  AND t.assigned_to IS NOT NULL
+		ORDER BY tc.created_at DESC
+	`, from, to).Scan(&reworkDetailRows)
+
+	reworkByUser := map[uint][]perfDomain.DisciplineReworkItem{}
+	for _, row := range reworkDetailRows {
+		ts := row.CreatedAt.In(ict)
+		snippet := row.Content
+		runes := []rune(snippet)
+		if len(runes) > 220 {
+			snippet = string(runes[:220]) + "…"
+		}
+		rw := perfDomain.DisciplineReworkItem{
+			TaskID:             row.TaskID,
+			TaskCode:           row.TaskCode,
+			TaskTitle:          row.TaskTitle,
+			TaskType:           row.TaskType,
+			EventDate:          ts.Format("2006-01-02"),
+			EventTime:          ts.Format("15:04"),
+			CommentSnippet:     snippet,
+			AuthorEmail:        row.AuthorEmail,
+			AuthorDisplayName:  row.AuthorDisplayName,
+		}
+		if row.AuthorID.Valid && row.AuthorID.Int64 > 0 {
+			rw.AuthorID = uint(row.AuthorID.Int64)
+		}
+		reworkByUser[row.UserID] = append(reworkByUser[row.UserID], rw)
+	}
+	for uid, items := range reworkByUser {
+		sort.Slice(items, func(i, j int) bool {
+			if items[i].EventDate != items[j].EventDate {
+				return items[i].EventDate > items[j].EventDate
+			}
+			if items[i].EventTime != items[j].EventTime {
+				return items[i].EventTime > items[j].EventTime
+			}
+			return items[i].TaskCode > items[j].TaskCode
+		})
+		reworkByUser[uid] = items
 	}
 
 	// 5. Assemble per-user stats
@@ -751,6 +1099,16 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		du.TotalDeployments = totalDeploys
 		du.TotalLateDays = totalLate
 		du.TotalEarlyCheckoutDays = totalEarlyOut
+		jdi := jobDoneByUser[u.ID]
+		if jdi == nil {
+			jdi = []perfDomain.DisciplineJobDoneItem{}
+		}
+		du.JobDoneItems = jdi
+		ri := reworkByUser[u.ID]
+		if ri == nil {
+			ri = []perfDomain.DisciplineReworkItem{}
+		}
+		du.ReworkItems = ri
 		resp.Users = append(resp.Users, du)
 	}
 	return resp, nil
@@ -851,7 +1209,9 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 	}
 	detail.TotalLoggedMin = totalMins
 
-	// Completed tasks on this date
+	// Job Done tasks on this date (role-based)
+	// - Product Owner: approved READY_FOR_TEST -> WAIT_FOR_DEPLOY
+	// - Engineer/Chief Engineer and others: moved IN_PROGRESS -> READY_FOR_TEST on own assigned task
 	type ctRow struct {
 		TaskID      string
 		TaskCode    string
@@ -860,19 +1220,46 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 		TaskType    string
 	}
 	var ctRows []ctRow
-	r.db.Raw(`
-		SELECT id::text AS task_id,
-		       COALESCE(code, '') AS task_code,
-		       title AS task_title,
-		       story_points,
-		       task_type
-		FROM tasks
-		WHERE assigned_to = ?
-		  AND status = 'COMPLETED'
-		  AND completed_at IS NOT NULL
-		  AND completed_at::date = ?
-		ORDER BY completed_at
-	`, userID, date).Scan(&ctRows)
+	if u.Role == authDomain.RoleProductOwner {
+		r.db.Raw(`
+			SELECT t.id::text AS task_id,
+			       COALESCE(t.code, '') AS task_code,
+			       t.title AS task_title,
+			       t.story_points,
+			       t.task_type
+			FROM task_activity_events tae
+			JOIN tasks t ON t.id = tae.task_id
+			WHERE tae.action = 'PM_APPROVED_TEST'
+			  AND COALESCE(tae.payload->>'from_status', '') = 'READY_FOR_TEST'
+			  AND COALESCE(tae.payload->>'to_status', '') = 'WAIT_FOR_DEPLOY'
+			  AND tae.actor_id = ?
+			  AND tae.created_at::date = ?
+			ORDER BY tae.created_at
+		`, userID, date).Scan(&ctRows)
+	} else {
+		r.db.Raw(`
+			SELECT t.id::text AS task_id,
+			       COALESCE(t.code, '') AS task_code,
+			       t.title AS task_title,
+			       t.story_points,
+			       t.task_type
+			FROM task_activity_events tae
+			JOIN tasks t ON t.id = tae.task_id
+			WHERE t.assigned_to = ?
+			  AND t.task_type IN ('TASK', 'BUG')
+			  AND tae.created_at::date = ?
+			  AND (
+			    (tae.action = 'READY_FOR_TEST'
+			      AND COALESCE(tae.payload->>'from_status', '') = 'IN_PROGRESS'
+			      AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_TEST')
+			    OR
+			    (tae.action = 'STATUS_CHANGED'
+			      AND COALESCE(tae.payload->>'from_status', '') = 'IN_PROGRESS'
+			      AND COALESCE(tae.payload->>'to_status', '') = 'READY_FOR_TEST')
+			  )
+			ORDER BY tae.created_at
+		`, userID, date).Scan(&ctRows)
+	}
 
 	for _, row := range ctRows {
 		detail.CompletedTasks = append(detail.CompletedTasks, perfDomain.DisciplineCompletedTask{

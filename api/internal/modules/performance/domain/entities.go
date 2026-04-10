@@ -47,6 +47,41 @@ type OverviewKPIs struct {
 
 // ─── Discipline Dashboard ──────────────────────────────────────────────────────
 
+// DisciplineJobDoneItem is one credited "Job Done" event in the queried range.
+type DisciplineJobDoneItem struct {
+	TaskID    string `json:"task_id"`
+	TaskCode  string `json:"task_code,omitempty"`
+	TaskTitle string `json:"task_title"`
+	TaskType  string `json:"task_type"`
+	DoneDate  string `json:"done_date"`  // YYYY-MM-DD (Bangkok)
+	DoneTime  string `json:"done_time"`  // HH:MM (Bangkok)
+	EventKind string `json:"event_kind"` // READY_FOR_TEST | PM_APPROVED_TEST | DEPLOYMENT_DEPLOYED
+	// Actor = user who changed status (task_activity_events.actor_id or deployment reviewer)
+	ActorID          uint   `json:"actor_id,omitempty"`
+	ActorEmail       string `json:"actor_email,omitempty"`
+	ActorDisplayName string `json:"actor_display_name,omitempty"`
+	// When EventKind is DEPLOYMENT_DEPLOYED (Chief Engineer marked deployment deployed → task may advance to READY_FOR_UAT)
+	DeploymentID    uint   `json:"deployment_id,omitempty"`
+	DeploymentTitle string `json:"deployment_title,omitempty"`
+	Branch          string `json:"branch,omitempty"`
+	Environment     string `json:"environment,omitempty"`
+}
+
+// DisciplineReworkItem is one [REJECTED] comment credited to the task assignee in the range.
+type DisciplineReworkItem struct {
+	TaskID         string `json:"task_id"`
+	TaskCode       string `json:"task_code,omitempty"`
+	TaskTitle      string `json:"task_title"`
+	TaskType       string `json:"task_type,omitempty"`
+	EventDate      string `json:"event_date"` // YYYY-MM-DD (Bangkok)
+	EventTime      string `json:"event_time"` // HH:MM (Bangkok)
+	CommentSnippet string `json:"comment_snippet"`
+	// Author = user who posted the [REJECTED] comment (task_comments.user_id)
+	AuthorID          uint   `json:"author_id,omitempty"`
+	AuthorEmail       string `json:"author_email,omitempty"`
+	AuthorDisplayName string `json:"author_display_name,omitempty"`
+}
+
 // DisciplineUserDayStat holds one employee's activity metrics for a single date.
 type DisciplineUserDayStat struct {
 	Date                 string `json:"date"`                  // YYYY-MM-DD
@@ -78,6 +113,8 @@ type DisciplineUser struct {
 	TotalLateDays         int                     `json:"total_late_days"`        // times checked in late
 	TotalEarlyCheckoutDays int                    `json:"total_early_checkout_days"` // times left early
 	Days                  []DisciplineUserDayStat `json:"days"`
+	JobDoneItems          []DisciplineJobDoneItem `json:"job_done_items"`
+	ReworkItems           []DisciplineReworkItem  `json:"rework_items"`
 }
 
 // DisciplineAttendanceRecord holds attendance check-in/out data for one day.

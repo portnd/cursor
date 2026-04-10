@@ -121,6 +121,7 @@
               :key="task.id"
               class="kanban-card group"
               draggable="true"
+              :aria-label="`${taskDisplayCode(task)}: ${task.title}. Column: ${kanbanColumnLabelForTask(task)}.`"
               @dragstart="onDragStart($event, task)"
               @click="$emit('task-click', task)"
             >
@@ -134,7 +135,11 @@
                 <span class="text-xs border rounded px-1 shrink-0" :class="priorityCls(task.priority)">{{ task.priority }}</span>
               </div>
               <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate" :title="sprintNameById(task.sprint_id)">📌 {{ sprintNameById(task.sprint_id) }}</p>
-              <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
+              <p class="text-sm text-gray-200 font-medium leading-snug mb-1 lg:mb-2 line-clamp-2">{{ task.title }}</p>
+              <p
+                class="text-[10px] font-semibold uppercase tracking-wide lg:hidden mb-2"
+                :class="kanbanColumnHeaderClassForTask(task)"
+              >{{ kanbanColumnLabelForTask(task) }}</p>
               <!-- WAIT_FOR_DEPLOY: no deployment request yet -->
               <div
                 v-if="col.status === 'WAIT_FOR_DEPLOY' && !(props.deployedTaskIds ?? []).includes(task.id)"
@@ -174,6 +179,7 @@
                 :key="task.id"
                 class="kanban-card group"
                 draggable="true"
+                :aria-label="`${taskDisplayCode(task)}: ${task.title}. Column: ${kanbanColumnLabelForTask(task)}.`"
                 @dragstart="onDragStart($event, task)"
                 @click="$emit('task-click', task)"
               >
@@ -187,7 +193,11 @@
                   <span class="text-xs border rounded px-1 shrink-0" :class="priorityCls(task.priority)">{{ task.priority }}</span>
                 </div>
                 <p v-if="task.sprint_id && sprintNameById(task.sprint_id)" class="text-[10px] text-purple-400 mb-1 truncate">📌 {{ sprintNameById(task.sprint_id) }}</p>
-                <p class="text-sm text-gray-200 font-medium leading-snug mb-2 line-clamp-2">{{ task.title }}</p>
+                <p class="text-sm text-gray-200 font-medium leading-snug mb-1 lg:mb-2 line-clamp-2">{{ task.title }}</p>
+                <p
+                  class="text-[10px] font-semibold uppercase tracking-wide lg:hidden mb-2"
+                  :class="kanbanColumnHeaderClassForTask(task)"
+                >{{ kanbanColumnLabelForTask(task) }}</p>
                 <!-- WAIT_FOR_DEPLOY: no deployment request yet -->
                 <div
                   v-if="col.status === 'WAIT_FOR_DEPLOY' && !(props.deployedTaskIds ?? []).includes(task.id)"
@@ -347,7 +357,7 @@ function assigneeAvatar(task: Task): string {
 }
 
 const columns = [
-  { status: 'PENDING',         label: 'To Do',           icon: '📋', headerClass: 'text-gray-300',   wipLimit: 0,  droppable: true },
+  { status: 'PENDING',         label: 'To Do',           icon: '📝', headerClass: 'text-gray-300',   wipLimit: 0,  droppable: true },
   { status: 'IN_PROGRESS',     label: 'In Progress',     icon: '⚡', headerClass: 'text-blue-400',   wipLimit: 5,  droppable: true },
   { status: 'READY_FOR_TEST',  label: 'Ready for Test',  icon: '🧪', headerClass: 'text-cyan-400',   wipLimit: 3,  droppable: true },
   { status: 'WAIT_FOR_DEPLOY', label: 'Wait for Deploy', icon: '🚀', headerClass: 'text-orange-400', wipLimit: 0,  droppable: true },
@@ -370,6 +380,19 @@ const filteredTasks = computed(() =>
 )
 
 const COLUMN_STATUSES = ['PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'WAIT_FOR_DEPLOY', 'READY_FOR_UAT', 'COMPLETED'] as const
+
+function columnLabelForBucket(key: string): string {
+  return columns.find((c) => c.status === key)?.label ?? key
+}
+
+function kanbanColumnLabelForTask(t: Task): string {
+  return columnLabelForBucket(bucketForTask(t))
+}
+
+function kanbanColumnHeaderClassForTask(t: Task): string {
+  const key = bucketForTask(t)
+  return columns.find((c) => c.status === key)?.headerClass ?? 'text-slate-500'
+}
 
 /** Maps a task to a kanban column key. */
 function bucketForTask(t: Task): string {

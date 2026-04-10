@@ -2367,13 +2367,17 @@ func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status strin
 		return fmt.Errorf("invalid status: %s", status)
 	}
 
-	oldByID := make(map[uuid.UUID]string, len(taskIDs))
+	type bulkPrev struct {
+		Status   string
+		TaskType string
+	}
+	prevByID := make(map[uuid.UUID]bulkPrev, len(taskIDs))
 	for _, id := range taskIDs {
 		t, err := u.repo.GetTaskByID(id)
 		if err != nil || t == nil {
 			continue
 		}
-		oldByID[id] = t.Status
+		prevByID[id] = bulkPrev{Status: t.Status, TaskType: t.TaskType}
 	}
 
 	if err := u.repo.BulkUpdateTaskStatus(taskIDs, status); err != nil {
@@ -2382,17 +2386,46 @@ func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status strin
 
 	aid := actorID
 	for _, id := range taskIDs {
-		old, ok := oldByID[id]
-		if !ok || old == status {
+		prev, ok := prevByID[id]
+		if !ok || prev.Status == status {
 			continue
 		}
 		u.recordTaskActivity(id, domain.TaskActivityStatusChanged, &aid, map[string]interface{}{
-			"from_status": old,
+			"from_status": prev.Status,
 			"to_status":   status,
 			"source":      "kanban_bulk",
 		})
+		// Discipline "Rework" counts task_comments LIKE '[REJECTED]%'. Dragging from Ready for Test → In Progress is rework.
+		if status == "IN_PROGRESS" && u.prevStatusWasReadyForTestColumn(prev.Status, prev.TaskType) {
+			u.recordKanbanReworkComment(id, actorID)
+		}
 	}
 	return nil
+}
+
+// prevStatusWasReadyForTestColumn is true when the task was shown in the Kanban "Ready for Test" column before the move.
+func (u *sentinelUsecase) prevStatusWasReadyForTestColumn(oldStatus, taskType string) bool {
+	if oldStatus == "READY_FOR_TEST" {
+		return true
+	}
+	if oldStatus == "REVIEW_PENDING" && (taskType == "TASK" || taskType == "BUG") {
+		return true
+	}
+	return false
+}
+
+// recordKanbanReworkComment persists a [REJECTED] comment so performance/discipline rework metrics include Kanban send-backs.
+func (u *sentinelUsecase) recordKanbanReworkComment(taskID uuid.UUID, actorID uint) {
+	c := &domain.TaskComment{
+		ID:          uuid.New(),
+		TaskID:      taskID,
+		UserID:      actorID,
+		Content:     "[REJECTED] Moved back to In Progress from Ready for Test (Kanban).",
+		Attachments: datatypes.JSON([]byte("[]")),
+	}
+	if err := u.repo.CreateTaskComment(c); err != nil {
+		log.Printf("kanban rework comment: failed task=%s: %v", taskID, err)
+	}
 }
 
 // SplitTask decomposes one task into N new sub-tasks (inheriting same parent_id, project, epic, sprint)

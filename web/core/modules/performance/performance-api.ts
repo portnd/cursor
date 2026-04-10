@@ -32,6 +32,36 @@ export interface TeamKPIsResponse {
 
 // ─── Discipline Dashboard types ────────────────────────────────────────────────
 
+export interface DisciplineJobDoneItem {
+  task_id: string
+  task_code: string
+  task_title: string
+  task_type: string
+  done_date: string
+  done_time: string
+  event_kind: string
+  actor_id?: number
+  actor_email?: string
+  actor_display_name?: string
+  deployment_id?: number
+  deployment_title?: string
+  branch?: string
+  environment?: string
+}
+
+export interface DisciplineReworkItem {
+  task_id: string
+  task_code: string
+  task_title: string
+  task_type: string
+  event_date: string
+  event_time: string
+  comment_snippet: string
+  author_id?: number
+  author_email?: string
+  author_display_name?: string
+}
+
 export interface DisciplineUserDayStat {
   date: string
   tasks_closed: number
@@ -61,6 +91,8 @@ export interface DisciplineUser {
   total_late_days: number            // times checked in late
   total_early_checkout_days: number  // times left before work_end
   days: DisciplineUserDayStat[]
+  job_done_items?: DisciplineJobDoneItem[]
+  rework_items?: DisciplineReworkItem[]
 }
 
 export interface DisciplineAttendanceRecord {
