@@ -90,6 +90,8 @@ func mapAttendanceErr(err error) (string, int) {
 		return err.Error(), http.StatusNotFound
 	case errors.Is(err, domain.ErrLeaveNotPending):
 		return err.Error(), http.StatusConflict
+	case errors.Is(err, domain.ErrLeaveNotEditable), errors.Is(err, domain.ErrLeaveNotCancellable):
+		return err.Error(), http.StatusConflict
 	case errors.Is(err, domain.ErrOffsiteAlreadyRequested), errors.Is(err, domain.ErrOffsiteRequestNotPending):
 		return err.Error(), http.StatusConflict
 	case errors.Is(err, domain.ErrOffsiteCheckOutAlreadyRequested), errors.Is(err, domain.ErrOffsiteCheckOutRequestNotPending):
@@ -409,6 +411,17 @@ func (h *attendanceHandler) listPendingLeaves(c *gin.Context) {
 	c.JSON(http.StatusOK, domain.LeaveListResponse{Items: items})
 }
 
+// GET /api/v1/attendance/admin/leaves
+func (h *attendanceHandler) listAdminLeaves(c *gin.Context) {
+	role := roleFromContext(c)
+	items, err := h.uc.ListAdminLeaveRequests(role)
+	if err != nil {
+		respondAttendanceErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, domain.LeaveListResponse{Items: items})
+}
+
 // PATCH /api/v1/attendance/admin/leaves/:id/review
 func (h *attendanceHandler) reviewLeave(c *gin.Context) {
 	role := roleFromContext(c)
@@ -433,6 +446,78 @@ func (h *attendanceHandler) reviewLeave(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// PATCH /api/v1/attendance/admin/leaves/:id
+func (h *attendanceHandler) updateAdminLeave(c *gin.Context) {
+	role := roleFromContext(c)
+	actorID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	leaveID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || leaveID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid leave id"})
+		return
+	}
+	var req domain.UpdateLeaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, uerr := h.uc.UpdateAdminLeaveRequest(role, actorID, leaveID, &req)
+	if uerr != nil {
+		respondAttendanceErr(c, uerr)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// PATCH /api/v1/attendance/admin/leaves/:id/cancel
+func (h *attendanceHandler) cancelAdminLeave(c *gin.Context) {
+	role := roleFromContext(c)
+	actorID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	leaveID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || leaveID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid leave id"})
+		return
+	}
+	var req domain.CancelLeaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, uerr := h.uc.CancelAdminLeaveRequest(role, actorID, leaveID, &req)
+	if uerr != nil {
+		respondAttendanceErr(c, uerr)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// DELETE /api/v1/attendance/admin/leaves/:id
+func (h *attendanceHandler) deleteAdminLeave(c *gin.Context) {
+	role := roleFromContext(c)
+	actorID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	leaveID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || leaveID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid leave id"})
+		return
+	}
+	if uerr := h.uc.DeleteAdminLeaveRequest(role, actorID, leaveID); uerr != nil {
+		respondAttendanceErr(c, uerr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // GET /api/v1/attendance/leaves/balance?year=YYYY

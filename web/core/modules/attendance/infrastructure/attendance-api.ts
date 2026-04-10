@@ -171,6 +171,19 @@ export interface ReviewLeaveRequestPayload {
   comment?: string
 }
 
+export interface UpdateLeaveRequestPayload {
+  start_date: string
+  end_date: string
+  leave_type: 'ANNUAL' | 'SICK' | 'PERSONAL' | 'UNPAID'
+  is_half_day?: boolean
+  half_day_session?: 'AM' | 'PM'
+  reason: string
+}
+
+export interface CancelLeaveRequestPayload {
+  comment?: string
+}
+
 export interface LeaveBalanceSummary {
   leave_type: string
   annual_quota_days: number
@@ -407,10 +420,34 @@ function useAttendanceApi() {
     return await fetchWithAuth<LeaveListResponse>('/attendance/admin/leaves/pending')
   }
 
+  async function getAdminLeaveRequests(): Promise<LeaveListResponse> {
+    return await fetchWithAuth<LeaveListResponse>('/attendance/admin/leaves')
+  }
+
   async function reviewLeaveRequest(id: number, payload: ReviewLeaveRequestPayload): Promise<LeaveRequest> {
     return await fetchWithAuth<LeaveRequest>(`/attendance/admin/leaves/${id}/review`, {
       method: 'PATCH',
       body: payload,
+    })
+  }
+
+  async function updateAdminLeaveRequest(id: number, payload: UpdateLeaveRequestPayload): Promise<LeaveRequest> {
+    return await fetchWithAuth<LeaveRequest>(`/attendance/admin/leaves/${id}`, {
+      method: 'PATCH',
+      body: payload,
+    })
+  }
+
+  async function cancelAdminLeaveRequest(id: number, payload: CancelLeaveRequestPayload = {}): Promise<LeaveRequest> {
+    return await fetchWithAuth<LeaveRequest>(`/attendance/admin/leaves/${id}/cancel`, {
+      method: 'PATCH',
+      body: payload,
+    })
+  }
+
+  async function deleteAdminLeaveRequest(id: number): Promise<{ ok: boolean }> {
+    return await fetchWithAuth<{ ok: boolean }>(`/attendance/admin/leaves/${id}`, {
+      method: 'DELETE',
     })
   }
 
@@ -499,7 +536,11 @@ function useAttendanceApi() {
     createLeaveRequest,
     getMyLeaveRequests,
     getPendingLeaveRequests,
+    getAdminLeaveRequests,
     reviewLeaveRequest,
+    updateAdminLeaveRequest,
+    cancelAdminLeaveRequest,
+    deleteAdminLeaveRequest,
     getMyLeaveBalance,
     getLeavePolicies,
     upsertLeavePolicy,

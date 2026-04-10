@@ -166,6 +166,7 @@ export interface Task {
   assigned_to: number | null
   assigned_to_display_name?: string
   assigned_to_email?: string
+  assigned_to_avatar_url?: string
   /** GET /sentinel/tasks/my — display enrichment */
   project_name?: string
   project_color?: string

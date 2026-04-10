@@ -485,8 +485,54 @@ func (r *postgresRepository) ListPendingLeaveRequests() ([]domain.LeaveRequest, 
 	return out, nil
 }
 
+func (r *postgresRepository) ListAllLeaveRequests() ([]domain.LeaveRequest, error) {
+	type row struct {
+		domain.LeaveRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var raw []row
+	err := r.db.Raw(`
+		SELECT lr.*, 
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM leave_requests lr
+		JOIN users u ON u.id = lr.user_id
+		LEFT JOIN users au ON au.id = lr.approver_id
+		ORDER BY lr.created_at DESC, lr.id DESC
+	`).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.LeaveRequest, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.LeaveRequest
+		item.UserEmail = rw.UserEmail
+		item.UserDisplayName = rw.UserDisplayName
+		item.ApproverEmail = rw.ApproverEmail
+		item.ApproverName = rw.ApproverName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) UpdateLeaveRequest(req *domain.LeaveRequest) error {
 	return r.db.Save(req).Error
+}
+
+func (r *postgresRepository) DeleteLeaveRequestByID(id int64) error {
+	res := r.db.Delete(&domain.LeaveRequest{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrLeaveNotFound
+	}
+	return nil
 }
 
 func (r *postgresRepository) ListLeavePolicies() ([]domain.LeavePolicy, error) {

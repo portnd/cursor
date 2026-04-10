@@ -422,6 +422,7 @@ type Task struct {
 
 	AssignedToDisplayName string `json:"assigned_to_display_name,omitempty" gorm:"-"`
 	AssignedToEmail       string `json:"assigned_to_email,omitempty" gorm:"-"`
+	AssignedToAvatarURL   string `json:"assigned_to_avatar_url,omitempty" gorm:"-"`
 
 	// My Board (GET /tasks/my): populated in repository, not stored
 	ProjectName       string     `json:"project_name,omitempty" gorm:"-"`

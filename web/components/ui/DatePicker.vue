@@ -3,18 +3,19 @@
     <!-- ── Trigger ── -->
     <button
       type="button"
+      :disabled="disabled"
       @click="toggle"
       class="dp-trigger"
-      :class="[modelValue ? 'dp-trigger--filled' : 'dp-trigger--empty', isOpen && 'dp-trigger--open']"
+      :class="[modelValue ? 'dp-trigger--filled' : 'dp-trigger--empty', isOpen && 'dp-trigger--open', disabled && 'dp-trigger--disabled']"
     >
       <svg class="dp-trigger-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.75"/>
         <path stroke-linecap="round" stroke-width="1.75" d="M16 2v4M8 2v4M3 10h18"/>
       </svg>
       <span class="dp-trigger-value">{{ displayValue }}</span>
-      <button
+      <span
         v-if="modelValue"
-        type="button"
+        role="button"
         @click.stop="clearValue"
         class="dp-clear-btn"
         tabindex="-1"
@@ -23,7 +24,7 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3 h-3">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
         </svg>
-      </button>
+      </span>
       <svg
         class="dp-chevron"
         :class="isOpen && 'rotate-180'"
@@ -124,7 +125,9 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface DayCell {
   key: string
@@ -192,7 +195,9 @@ const displayValue = computed(() => {
   const [y, m, d] = props.modelValue.split('-').map(Number)
   if (!y || !m || !d) return props.placeholder
   const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+  const weekday = WEEKDAYS_SHORT[date.getDay()]
+  const month = MONTHS_SHORT[m - 1]
+  return `${weekday}, ${month} ${d}, ${y}`
 })
 
 const calendarDays = computed((): DayCell[] => {
@@ -359,6 +364,12 @@ onUnmounted(() => {
 .dp-trigger--open  { @apply border-violet-500 ring-2 ring-violet-500/25; }
 .dp-trigger--filled .dp-trigger-value { @apply text-white; }
 .dp-trigger--empty  .dp-trigger-value { @apply text-gray-500; }
+.dp-trigger--disabled {
+  @apply opacity-50 cursor-not-allowed border-gray-700;
+}
+.dp-trigger--disabled:hover {
+  @apply border-gray-700;
+}
 
 .dp-trigger-icon {
   @apply w-3.5 h-3.5 shrink-0 text-gray-500;

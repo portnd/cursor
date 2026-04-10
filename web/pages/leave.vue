@@ -51,6 +51,16 @@
               <label class="label">เหตุผลการลา</label>
               <textarea v-model="form.reason" rows="3" class="input" required placeholder="ระบุเหตุผลเพื่อประกอบการอนุมัติ" />
             </div>
+
+            <div class="rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-2 text-sm">
+              <p class="font-semibold text-blue-700 dark:text-blue-300">Preview วันลาที่จะถูกหัก</p>
+              <p class="mt-1 text-blue-700/90 dark:text-blue-200">
+                <span v-if="leavePreview.valid">ระบบจะหัก <b>{{ leavePreview.daysText }}</b></span>
+                <span v-else>{{ leavePreview.message }}</span>
+              </p>
+              <p v-if="leavePreview.valid && leavePreview.meta" class="mt-1 text-xs text-blue-700/80 dark:text-blue-300/90">{{ leavePreview.meta }}</p>
+            </div>
+
             <div class="flex justify-end">
               <button
                 type="submit"
@@ -94,7 +104,7 @@
               <tr v-for="item in requests" :key="item.id" class="border-b border-gray-200 dark:border-gray-800/70">
                 <td class="py-2 text-gray-700 dark:text-gray-300">{{ fmt(item.start_date) }} → {{ fmt(item.end_date) }}</td>
                 <td class="py-2 text-gray-700 dark:text-gray-300">{{ item.leave_type }}<span v-if="item.is_half_day" class="ml-1 text-xs text-cyan-700 dark:text-cyan-300">({{ item.half_day_session === 'AM' ? 'ครึ่งเช้า' : 'ครึ่งบ่าย' }})</span></td>
-                <td class="py-2 text-gray-700 dark:text-gray-300">{{ formatDays(item.days_requested) }}</td>
+                <td class="py-2 text-gray-700 dark:text-gray-300">{{ displayRequestedDays(item) }}</td>
                 <td class="py-2">
                   <span class="text-xs px-2 py-0.5 rounded-full" :class="statusCls(item.status)">{{ item.status }}</span>
                 </td>
@@ -176,6 +186,85 @@ const requests = ref<LeaveRequest[]>([])
 const holidays = ref<HolidayCalendar[]>([])
 const notifications = ref<LeaveNotification[]>([])
 
+function parseYmdToUtcDate(ymd: string): Date | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null
+  const [y, m, d] = ymd.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null
+  return dt
+}
+
+function toYmdUtc(dt: Date): string {
+  const y = dt.getUTCFullYear()
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(dt.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const holidaySet = computed(() => {
+  const set = new Set<string>()
+  for (const h of holidays.value) {
+    const key = (h.date || '').slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) set.add(key)
+  }
+  return set
+})
+
+const leavePreview = computed(() => {
+  if (!form.start_date || !form.end_date) {
+    return { valid: false, days: 0, daysText: '-', message: 'เลือกวันที่เริ่มและสิ้นสุดเพื่อดูจำนวนวันที่จะถูกหัก', meta: '' }
+  }
+
+  const start = parseYmdToUtcDate(form.start_date)
+  const end = parseYmdToUtcDate(form.is_half_day ? form.start_date : form.end_date)
+  if (!start || !end) {
+    return { valid: false, days: 0, daysText: '-', message: 'รูปแบบวันที่ไม่ถูกต้อง', meta: '' }
+  }
+
+  if (end.getTime() < start.getTime()) {
+    return { valid: false, days: 0, daysText: '-', message: 'วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่ม', meta: '' }
+  }
+
+  if (form.is_half_day) {
+    if (toYmdUtc(start) !== toYmdUtc(end)) {
+      return { valid: false, days: 0, daysText: '-', message: 'การลาครึ่งวันต้องเป็นวันเดียวกัน', meta: '' }
+    }
+    const sessionText = form.half_day_session === 'PM' ? 'ครึ่งวันบ่าย' : 'ครึ่งวันเช้า'
+    return { valid: true, days: 0.5, daysText: '0.5 วัน', message: '', meta: `รูปแบบลา: ${sessionText}` }
+  }
+
+  let businessDays = 0
+  let weekendCount = 0
+  let holidayCount = 0
+
+  for (let d = new Date(start); d.getTime() <= end.getTime(); d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1))) {
+    const weekday = d.getUTCDay() // 0=Sun, 6=Sat
+    if (weekday === 0 || weekday === 6) {
+      weekendCount++
+      continue
+    }
+    const key = toYmdUtc(d)
+    if (holidaySet.value.has(key)) {
+      holidayCount++
+      continue
+    }
+    businessDays++
+  }
+
+  const metaParts = [] as string[]
+  if (weekendCount > 0) metaParts.push(`ไม่นับเสาร์-อาทิตย์ ${weekendCount} วัน`)
+  if (holidayCount > 0) metaParts.push(`ไม่นับวันหยุดบริษัท ${holidayCount} วัน`)
+  const meta = metaParts.join(' · ')
+
+  return {
+    valid: true,
+    days: businessDays,
+    daysText: Number.isInteger(businessDays) ? `${businessDays} วัน` : `${businessDays.toFixed(1)} วัน`,
+    message: '',
+    meta,
+  }
+})
+
 watch(() => [form.is_half_day, form.start_date] as const, ([isHalf, start]) => {
   if (isHalf && start) {
     form.end_date = start
@@ -184,7 +273,23 @@ watch(() => [form.is_half_day, form.start_date] as const, ([isHalf, start]) => {
 
 const fmt = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 const fmtDateTime = (s: string) => new Date(s).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
-const formatDays = (days: number) => Number.isInteger(days) ? `${days}` : `${days.toFixed(1)}`
+
+function fallbackRequestedDays(r: Pick<LeaveRequest, 'start_date' | 'end_date' | 'is_half_day'>): number {
+  if (r.is_half_day) return 0.5
+  const start = new Date(r.start_date)
+  const end = new Date(r.end_date)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+  const diff = Math.floor((endUtc - startUtc) / (1000 * 60 * 60 * 24)) + 1
+  return diff > 0 ? diff : 0
+}
+
+function displayRequestedDays(r: LeaveRequest): string {
+  const raw = Number(r.days_requested)
+  const days = raw > 0 ? raw : fallbackRequestedDays(r)
+  return Number.isInteger(days) ? `${days}` : `${days.toFixed(1)}`
+}
 
 function statusCls(status: string) {
   if (status === 'APPROVED') return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'

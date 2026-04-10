@@ -83,14 +83,14 @@
 
       <section v-if="activeTab === 'approvals'" class="card">
         <h2 class="section">คำขอลารออนุมัติ</h2>
+        <p class="text-xs text-gray-400 mt-0.5">แสดงประเภทลาและช่วงเวลาที่พนักงานขอ</p>
         <div v-if="pending.length === 0" class="text-sm text-gray-500 italic">ไม่มีคำขอค้างอนุมัติ</div>
         <div v-else class="space-y-3">
           <article v-for="r in pending" :key="r.id" class="rounded-xl border border-gray-700 bg-gray-900/40 p-4">
             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
               <div>
                 <p class="text-sm font-semibold">
-                  {{ r.user_display_name || r.user_email || ('User #' + r.user_id) }}
-                  <span v-if="r.user_display_name && r.user_email" class="text-xs font-normal text-gray-400">({{ r.user_email }})</span>
+                  {{ r.user_email || ('User #' + r.user_id) }}
                 </p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ leaveTypeLabel(r.leave_type) }} · {{ requestedDurationLabel(r) }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ fmt(r.start_date) }} → {{ fmt(r.end_date) }}</p>
@@ -217,44 +217,132 @@
       <section v-if="activeTab === 'trend'" class="card">
         <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 class="section mb-1">แนวโน้มการลา (รายเดือน)</h2>
-            <p class="text-xs text-gray-500">เมื่อปิด Feature Team ระบบจะแสดงรายบุคคลแทนรายทีม</p>
-          </div>
-          <div class="w-full md:w-[280px]">
-            <label class="label">ดูย้อนหลัง</label>
-            <select v-model.number="trendMonthsBack" class="input" @change="refreshTrend">
-              <option :value="1">1 เดือน</option>
-              <option :value="3">3 เดือน</option>
-              <option :value="6">6 เดือน</option>
-              <option :value="12">12 เดือน</option>
-            </select>
+            <h2 class="section mb-1">ข้อมูลการลา</h2>
+            <p class="text-xs text-gray-500">แสดงรายการคำขอลาทั้งหมดของพนักงาน</p>
           </div>
         </div>
 
-        <div v-if="trend.length === 0" class="mt-4 text-sm text-gray-500 italic">ไม่มีข้อมูลในช่วงย้อนหลังที่เลือก</div>
-        <div v-else class="overflow-x-auto mt-4">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-gray-500 border-b border-gray-700">
-                <th class="py-2 text-left">เดือน</th>
-                <th class="py-2 text-left">ทีม/พนักงาน</th>
-                <th class="py-2 text-left">ขอ</th>
-                <th class="py-2 text-left">อนุมัติ</th>
-                <th class="py-2 text-left">ไม่อนุมัติ</th>
-                <th class="py-2 text-left">รวมวันลา</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="t in trend" :key="trendRowKey(t)" class="border-b border-gray-800/60">
-                <td class="py-2">{{ t.month }}</td>
-                <td class="py-2">{{ trendOwnerLabel(t) }}</td>
-                <td class="py-2">{{ t.requested }}</td>
-                <td class="py-2 text-emerald-300">{{ t.approved }}</td>
-                <td class="py-2 text-red-300">{{ t.rejected }}</td>
-                <td class="py-2">{{ t.total_days }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <form class="form-search mt-4 grid gap-3 md:grid-cols-4" @submit.prevent>
+          <div>
+            <label class="label">วันที่</label>
+            <UiDatePicker v-model="leaveFilter.from" placeholder="จากวันที่…" />
+          </div>
+          <div>
+            <label class="label">ถึง</label>
+            <UiDatePicker v-model="leaveFilter.to" placeholder="ถึงวันที่…" />
+          </div>
+          <div>
+            <label class="label">ประเภทลา</label>
+            <select v-model="leaveFilter.leave_type" class="input">
+              <option v-for="t in leaveTypeOptions" :key="t.value" :value="t.value">{{ t.label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">พนักงาน</label>
+            <select v-model="leaveFilter.employee_key" class="input">
+              <option value="ALL">ทั้งหมด</option>
+              <option v-for="u in leaveEmployeeOptions" :key="u.key" :value="u.key">{{ u.label }}</option>
+            </select>
+          </div>
+        </form>
+
+        <div v-if="leaveRecords.length === 0" class="mt-4 text-sm text-gray-500 italic">ยังไม่มีข้อมูลการลา</div>
+        <div v-else-if="filteredLeaveRecords.length === 0" class="mt-4 text-sm text-gray-500 italic">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>
+        <div v-else class="table-responsive mt-4">
+          <div id="datatable_wrapper">
+            <div class="dt-row">
+              <div class="dt-col">
+                <table class="leave-table w-full text-sm">
+                  <thead>
+                    <tr class="text-xs text-gray-400">
+                      <th class="text-left">ลำดับ</th>
+                      <th class="text-left">พนักงาน</th>
+                      <th class="text-left">ประเภท</th>
+                      <th class="text-left">วันที่ลา</th>
+                      <th class="text-left">จำนวนวัน</th>
+                      <th class="text-left">รายละเอียด</th>
+                      <th class="text-left">สถานะ</th>
+                      <th class="text-left">ประวัติการแก้ไข</th>
+                      <th v-if="canManageLeaveRecords" class="text-left">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(r, idx) in filteredLeaveRecords" :key="r.id">
+                      <td>{{ idx + 1 }}</td>
+                      <td>{{ r.user_email || ('User #' + r.user_id) }}</td>
+                      <template v-if="editingLeaveId === r.id">
+                        <td>
+                          <select v-model="editLeaveForm.leave_type" class="input text-xs">
+                            <option value="ANNUAL">ลาพักร้อน</option>
+                            <option value="SICK">ลาป่วย</option>
+                            <option value="PERSONAL">ลากิจ</option>
+                            <option value="UNPAID">ลาไม่รับค่าจ้าง</option>
+                          </select>
+                        </td>
+                        <td>
+                          <div class="space-y-2">
+                            <UiDatePicker v-model="editLeaveForm.start_date" placeholder="วันที่เริ่ม…" />
+                            <UiDatePicker v-model="editLeaveForm.end_date" placeholder="วันที่สิ้นสุด…" :disabled="editLeaveForm.is_half_day" />
+                          </div>
+                        </td>
+                        <td>
+                          <div class="space-y-2 text-xs">
+                            <label class="inline-flex items-center gap-2"><input v-model="editLeaveForm.is_half_day" type="checkbox" /> ครึ่งวัน</label>
+                            <select v-if="editLeaveForm.is_half_day" v-model="editLeaveForm.half_day_session" class="input text-xs">
+                              <option value="AM">เช้า</option>
+                              <option value="PM">บ่าย</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td><input v-model="editLeaveForm.reason" class="input text-xs" /></td>
+                      </template>
+                      <template v-else>
+                        <td>{{ leaveTypeLabel(r.leave_type) }} <span class="text-xs text-gray-500">({{ r.is_half_day ? requestedDurationLabel(r) : 'เต็มวัน' }})</span></td>
+                        <td>{{ leaveDateRangeLabel(r) }}</td>
+                        <td>{{ formatRequestedDays(r) }}</td>
+                        <td>{{ r.reason }}</td>
+                      </template>
+                      <td :class="leaveStatusClass(r.status)">{{ leaveStatusLabel(r.status) }}</td>
+                      <td>
+                        <button class="btn" :disabled="actionLoadingId === r.id" @click="openLeaveHistory(r.id)">ดูประวัติ</button>
+                      </td>
+                      <td v-if="canManageLeaveRecords" class="whitespace-nowrap">
+                        <div class="flex flex-wrap gap-2">
+                          <button v-if="editingLeaveId !== r.id" class="btn" :disabled="actionLoadingId === r.id" @click="startEditLeave(r)">แก้ไข</button>
+                          <button v-if="editingLeaveId === r.id" class="btn-primary" :disabled="actionLoadingId === r.id" @click="saveEditLeave(r.id)">บันทึก</button>
+                          <button v-if="editingLeaveId === r.id" class="btn" :disabled="actionLoadingId === r.id" @click="cancelEditLeave">ยกเลิกแก้ไข</button>
+                          <button class="btn-danger" :disabled="actionLoadingId === r.id" @click="cancelLeaveByAdmin(r)">ยกเลิกคำขอ</button>
+                          <button class="btn-danger" :disabled="actionLoadingId === r.id" @click="deleteLeaveByAdmin(r)">ลบ</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="historyLeaveId !== null" class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" @click.self="closeLeaveHistory">
+          <div class="w-full max-w-3xl rounded-2xl border border-gray-700 bg-gray-900 p-5">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold">ประวัติการแก้ไขคำขอลา #{{ historyLeaveId }}</h3>
+              <button class="btn" @click="closeLeaveHistory">ปิด</button>
+            </div>
+
+            <div v-if="historyLoading" class="text-sm text-gray-400">กำลังโหลดประวัติ...</div>
+            <div v-else-if="historyLogs.length === 0" class="text-sm text-gray-500 italic">ไม่พบประวัติการแก้ไข</div>
+            <div v-else class="space-y-2 max-h-[60vh] overflow-y-auto">
+              <div v-for="item in historyLogs" :key="item.id" class="row">
+                <div class="space-y-0.5">
+                  <p class="text-xs text-gray-200">{{ auditActionLabel(item.action) }}</p>
+                  <p class="text-xs text-gray-500">สถานะ: {{ auditStatusLabel(item.old_status) }} → {{ auditStatusLabel(item.new_status) }}</p>
+                  <p v-if="item.comment" class="text-xs text-gray-400">หมายเหตุ: {{ item.comment }}</p>
+                </div>
+                <span class="text-xs text-gray-500">{{ fmtDateTime(item.created_at) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -263,12 +351,16 @@
 
 <script setup lang="ts">
 import { useAttendanceApi, type LeavePolicy, type HolidayCalendar, type LeaveRequest, type LeaveAuditLog, type LeaveTrendPoint, type LeaveBackfillBulkResultItem } from '~/core/modules/attendance/infrastructure/attendance-api'
+import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useNotification } from '~/composables/useNotification'
+import { useAuth } from '~/composables/useAuth'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
 const api = useAttendanceApi()
+const teamsApi = useTeamsApi()
 const { showSuccess, showError } = useNotification()
+const { currentUser } = useAuth()
 
 const loading = ref(false)
 const savingPolicy = ref(false)
@@ -280,13 +372,14 @@ const tabs = [
   { id: 'holidays', label: 'วันหยุดประจำปี' },
   { id: 'approvals', label: 'อนุมัติวันลา' },
   { id: 'backfill', label: 'กรอกย้อนหลัง' },
-  { id: 'trend', label: 'รายงานแนวโน้ม' },
+  { id: 'trend', label: 'ข้อมูลการลา' },
 ]
 const activeTab = ref('policies')
 
 const policies = ref<LeavePolicy[]>([])
 const holidays = ref<HolidayCalendar[]>([])
 const pending = ref<LeaveRequest[]>([])
+const leaveRecords = ref<LeaveRequest[]>([])
 const trend = ref<LeaveTrendPoint[]>([])
 const trendMonthsBack = ref(6)
 const auditLogs = ref<LeaveAuditLog[]>([])
@@ -296,6 +389,35 @@ const backfillSubmitting = ref(false)
 const backfillBulkSubmitting = ref(false)
 const backfillBulkResults = ref<LeaveBackfillBulkResultItem[]>([])
 const backfillBulkSummary = ref<{ total: number; succeeded: number; failed: number } | null>(null)
+const editingLeaveId = ref<number | null>(null)
+const actionLoadingId = ref<number | null>(null)
+const historyLoading = ref(false)
+const historyLogs = ref<LeaveAuditLog[]>([])
+const historyLeaveId = ref<number | null>(null)
+const editLeaveForm = reactive({
+  start_date: '',
+  end_date: '',
+  leave_type: 'ANNUAL' as LeaveRequest['leave_type'],
+  is_half_day: false,
+  half_day_session: 'AM' as 'AM' | 'PM',
+  reason: '',
+})
+
+const leaveFilter = reactive({
+  from: '',
+  to: '',
+  leave_type: 'ALL',
+  employee_key: 'ALL',
+})
+const allEmployees = ref<Array<{ key: string; label: string }>>([])
+const leaveTypeOptions = [
+  { value: 'ALL', label: 'ทั้งหมด' },
+  { value: 'ANNUAL', label: 'ลาพักร้อน' },
+  { value: 'SICK', label: 'ลาป่วย' },
+  { value: 'PERSONAL', label: 'ลากิจ' },
+  { value: 'ORDINATION', label: 'ลาบวช' },
+  { value: 'MATERNITY', label: 'ลาคลอด' },
+]
 
 const policyForm = reactive({
   leave_type: 'ANNUAL' as 'ANNUAL' | 'SICK' | 'PERSONAL',
@@ -346,6 +468,7 @@ function leaveTypeLabel(t: string) {
   if (t === 'ANNUAL') return 'ลาพักร้อน'
   if (t === 'SICK') return 'ลาป่วย'
   if (t === 'PERSONAL') return 'ลากิจ'
+  if (t === 'UNPAID') return 'ลาไม่รับค่าจ้าง'
   return t
 }
 
@@ -373,15 +496,17 @@ function formatRequestedDays(r: LeaveRequest): string {
 function requestedDurationLabel(r: LeaveRequest): string {
   if (r.is_half_day) {
     const session = (r.half_day_session || '').toUpperCase()
-    const period = session === 'PM' ? 'บ่าย' : 'เช้า'
-    return `ครึ่งวัน (${period})`
+    if (session === 'PM') return 'ครึ่งวันบ่าย'
+    return 'ครึ่งวันเช้า'
   }
   return `${formatRequestedDays(r)} วัน`
 }
 
 function trendOwnerLabel(t: LeaveTrendPoint): string {
   if (t.user_name || t.user_email) {
-    return t.user_name || t.user_email || `User #${t.user_id}`
+    const name = t.user_name || (t.user_id ? `User #${t.user_id}` : 'Unknown user')
+    if (t.user_email) return `${name} (${t.user_email})`
+    return name
   }
   return t.team_name || 'Unassigned'
 }
@@ -390,6 +515,88 @@ function trendRowKey(t: LeaveTrendPoint): string {
   if (t.user_id) return `${t.month}-u-${t.user_id}`
   return `${t.month}-t-${t.team_id || 0}-${t.team_name || 'unassigned'}`
 }
+
+function leaveDateRangeLabel(r: LeaveRequest): string {
+  const start = fmtDate(r.start_date)
+  const end = fmtDate(r.end_date)
+  return `${start} ถึง ${end}`
+}
+
+function fmtDate(s: string): string {
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return s
+  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function leaveStatusLabel(status: LeaveRequest['status']): string {
+  if (status === 'PENDING') return 'กำลังพิจารณา'
+  if (status === 'APPROVED') return 'อนุมัติ'
+  if (status === 'REJECTED') return 'ไม่อนุมัติ'
+  return status
+}
+
+function leaveStatusClass(status: LeaveRequest['status']): string {
+  if (status === 'APPROVED') return 'text-emerald-300'
+  if (status === 'REJECTED') return 'text-red-300'
+  return 'text-amber-300'
+}
+
+function auditActionLabel(action: string): string {
+  if (action === 'UPDATED') return 'แก้ไขคำขอ'
+  if (action === 'REVIEWED') return 'พิจารณาคำขอ'
+  if (action === 'CANCELLED') return 'ยกเลิกคำขอ'
+  if (action === 'DELETED') return 'ลบคำขอ'
+  if (action === 'CREATED') return 'สร้างคำขอ'
+  return action
+}
+
+function auditStatusLabel(status: string | null | undefined): string {
+  if (!status) return '-'
+  if (status === 'PENDING' || status === 'APPROVED' || status === 'REJECTED') {
+    return leaveStatusLabel(status)
+  }
+  return status
+}
+
+const leaveEmployeeOptions = computed<Array<{ key: string; label: string }>>(() => {
+  const map = new Map<string, string>()
+
+  for (const u of allEmployees.value) {
+    map.set(u.key, u.label)
+  }
+
+  for (const r of leaveRecords.value) {
+    const key = String(r.user_id || '')
+    if (!key) continue
+    if (!map.has(key)) {
+      map.set(key, r.user_email || `User #${r.user_id}`)
+    }
+  }
+
+  return Array.from(map.entries()).map(([key, label]) => ({ key, label }))
+})
+
+const filteredLeaveRecords = computed<LeaveRequest[]>(() => {
+  const fromTs = leaveFilter.from ? new Date(leaveFilter.from).setHours(0, 0, 0, 0) : null
+  const toTs = leaveFilter.to ? new Date(leaveFilter.to).setHours(23, 59, 59, 999) : null
+
+  return leaveRecords.value.filter((r) => {
+    if (leaveFilter.leave_type !== 'ALL' && r.leave_type !== leaveFilter.leave_type) return false
+    if (leaveFilter.employee_key !== 'ALL' && String(r.user_id) !== leaveFilter.employee_key) return false
+
+    const start = new Date(r.start_date).getTime()
+    const end = new Date(r.end_date).getTime()
+    if (fromTs != null && end < fromTs) return false
+    if (toTs != null && start > toTs) return false
+
+    return true
+  })
+})
+
+const canManageLeaveRecords = computed(() => {
+  const role = String(currentUser.value?.role || '').toUpperCase()
+  return role === 'CEO' || role === 'SUPPORT'
+})
 
 function toLocalDateString(d: Date): string {
   const y = d.getFullYear()
@@ -422,16 +629,31 @@ async function refreshAll() {
     const to = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10)
     const trendRange = trendRangeFromMonthsBack(trendMonthsBack.value)
 
-    const [p, h, pend, tr] = await Promise.all([
+    const [p, h, pend, allLeaves, tr, teams] = await Promise.all([
       api.getLeavePolicies(),
       api.getHolidays(from, to),
       api.getPendingLeaveRequests(),
+      api.getAdminLeaveRequests().catch(() => ({ items: [] })),
       api.getLeaveTrend(trendRange.from, trendRange.to),
+      teamsApi.getTeams().catch(() => []),
     ])
     policies.value = p.items || []
     holidays.value = h.items || []
     pending.value = pend.items || []
+    leaveRecords.value = (allLeaves.items && allLeaves.items.length > 0) ? allLeaves.items : (pend.items || [])
     trend.value = tr.items || []
+
+    const employeeMap = new Map<string, string>()
+    for (const team of teams) {
+      for (const user of (team.users || [])) {
+        const key = String(user.id || '')
+        if (!key) continue
+        if (!employeeMap.has(key)) {
+          employeeMap.set(key, user.email || `User #${user.id}`)
+        }
+      }
+    }
+    allEmployees.value = Array.from(employeeMap.entries()).map(([key, label]) => ({ key, label }))
   } catch (e: any) {
     showError(e?.data?.error || e?.message || 'โหลดข้อมูล Leave Admin ไม่สำเร็จ')
   } finally {
@@ -489,6 +711,24 @@ async function loadAudit(leaveId: number) {
   } catch (e: any) {
     showError(e?.data?.error || e?.message || 'โหลด Audit log ไม่สำเร็จ')
   }
+}
+
+async function openLeaveHistory(leaveId: number) {
+  historyLeaveId.value = leaveId
+  historyLoading.value = true
+  try {
+    const res = await api.getLeaveAudit(leaveId)
+    historyLogs.value = res.items || []
+  } catch (e: any) {
+    showError(e?.data?.error || e?.message || 'โหลดประวัติการแก้ไขไม่สำเร็จ')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function closeLeaveHistory() {
+  historyLeaveId.value = null
+  historyLogs.value = []
 }
 
 async function submitBackfillSingle() {
@@ -597,6 +837,73 @@ function downloadBackfillTemplate() {
   URL.revokeObjectURL(url)
 }
 
+function startEditLeave(r: LeaveRequest) {
+  editingLeaveId.value = r.id
+  editLeaveForm.start_date = String(r.start_date || '').slice(0, 10)
+  editLeaveForm.end_date = String(r.end_date || '').slice(0, 10)
+  editLeaveForm.leave_type = r.leave_type
+  editLeaveForm.is_half_day = !!r.is_half_day
+  editLeaveForm.half_day_session = (r.half_day_session === 'PM' ? 'PM' : 'AM')
+  editLeaveForm.reason = r.reason || ''
+}
+
+function cancelEditLeave() {
+  editingLeaveId.value = null
+}
+
+async function saveEditLeave(leaveID: number) {
+  actionLoadingId.value = leaveID
+  try {
+    const payload = {
+      start_date: editLeaveForm.start_date,
+      end_date: editLeaveForm.is_half_day ? editLeaveForm.start_date : editLeaveForm.end_date,
+      leave_type: editLeaveForm.leave_type,
+      is_half_day: editLeaveForm.is_half_day,
+      half_day_session: editLeaveForm.is_half_day ? editLeaveForm.half_day_session : undefined,
+      reason: editLeaveForm.reason,
+    }
+    await api.updateAdminLeaveRequest(leaveID, payload)
+    showSuccess('แก้ไขคำขอลาเรียบร้อย')
+    editingLeaveId.value = null
+    await refreshAll()
+  } catch (e: any) {
+    showError(e?.data?.error || e?.message || 'แก้ไขคำขอลาไม่สำเร็จ')
+  } finally {
+    actionLoadingId.value = null
+  }
+}
+
+async function cancelLeaveByAdmin(r: LeaveRequest) {
+  const ok = window.confirm(`ยืนยันยกเลิกคำขอลา #${r.id} ?`)
+  if (!ok) return
+  actionLoadingId.value = r.id
+  try {
+    await api.cancelAdminLeaveRequest(r.id, { comment: 'Cancelled by admin' })
+    showSuccess('ยกเลิกคำขอเรียบร้อย')
+    await refreshAll()
+  } catch (e: any) {
+    showError(e?.data?.error || e?.message || 'ยกเลิกคำขอไม่สำเร็จ')
+  } finally {
+    actionLoadingId.value = null
+  }
+}
+
+async function deleteLeaveByAdmin(r: LeaveRequest) {
+  const ok = window.confirm(`ยืนยันลบคำขอลา #${r.id} ? การลบไม่สามารถย้อนกลับได้`)
+  if (!ok) return
+  actionLoadingId.value = r.id
+  try {
+    await api.deleteAdminLeaveRequest(r.id)
+    showSuccess('ลบคำขอเรียบร้อย')
+    if (editingLeaveId.value === r.id) editingLeaveId.value = null
+    await refreshAll()
+  } catch (e: any) {
+    showError(e?.data?.error || e?.message || 'ลบคำขอไม่สำเร็จ')
+  } finally {
+    actionLoadingId.value = null
+  }
+}
+
 onMounted(refreshAll)
 </script>
 
@@ -612,4 +919,17 @@ onMounted(refreshAll)
 .tab { @apply px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-gray-200 whitespace-nowrap; }
 .tab-active { @apply bg-gray-700 text-white; }
 .row { @apply flex items-center justify-between rounded-lg border border-gray-700/70 px-3 py-2 bg-gray-900/30; }
+
+.dt-row { @apply rounded-xl border border-gray-700/80 bg-gray-900/30 overflow-hidden; }
+.dt-col { @apply w-full overflow-x-auto; }
+.leave-table { @apply min-w-[980px] border-separate border-spacing-0; }
+.leave-table thead tr { @apply bg-gray-800/70; }
+.leave-table th { @apply px-4 py-3 font-semibold uppercase tracking-wide whitespace-nowrap border-b border-gray-700; }
+.leave-table td { @apply px-4 py-3 align-top border-b border-gray-800/70; }
+.leave-table tbody tr:nth-child(even) { @apply bg-gray-800/20; }
+.leave-table tbody tr:hover { @apply bg-cyan-900/10; }
+.leave-table tbody tr:last-child td { @apply border-b-0; }
+.leave-table td:nth-child(1) { @apply w-14 text-gray-400; }
+.leave-table td:nth-child(5) { @apply w-24 font-semibold text-gray-200; }
+.leave-table td:nth-child(7) { @apply w-36 font-semibold; }
 </style>

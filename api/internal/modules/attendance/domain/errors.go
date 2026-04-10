@@ -18,6 +18,8 @@ var (
 	ErrInvalidDateRange                 = errors.New("invalid leave date range")
 	ErrLeaveNotFound                    = errors.New("leave request not found")
 	ErrLeaveNotPending                  = errors.New("leave request is already reviewed")
+	ErrLeaveNotEditable                 = errors.New("leave request is not editable")
+	ErrLeaveNotCancellable              = errors.New("leave request is not cancellable")
 	ErrUserNotFound                     = errors.New("user not found")
 	ErrAttendanceRecordNotFound         = errors.New("attendance record not found")
 	ErrHalfDayAMLateCheckIn             = errors.New("half-day morning leave: check-in must be before 13:00")

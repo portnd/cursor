@@ -669,6 +669,7 @@ func (u *sentinelUsecase) getTaskByIDAndEnrich(taskID uuid.UUID, task *domain.Ta
 				task.AssignedToDisplayName = assignee.DisplayName
 			}
 			task.AssignedToEmail = assignee.Email
+			task.AssignedToAvatarURL = assignee.AvatarURL
 		}
 	}
 	return task, nil

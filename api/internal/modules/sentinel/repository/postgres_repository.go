@@ -209,12 +209,14 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 		domain.Task
 		DisplayName string `gorm:"column:assigned_to_display_name"`
 		Email       string `gorm:"column:assigned_to_email"`
+		AvatarURL   string `gorm:"column:assigned_to_avatar_url"`
 	}
 	var rows []taskRow
 	err := r.db.Table("tasks").
 		Select(`tasks.*,
 			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
-			COALESCE(u.email, '') AS assigned_to_email`).
+			COALESCE(u.email, '') AS assigned_to_email,
+			COALESCE(u.avatar_url, '') AS assigned_to_avatar_url`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
 		Where("tasks.project_id = ?", projectID).
 		Order("tasks.created_at desc").
@@ -227,6 +229,7 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 		tasks[i] = rows[i].Task
 		tasks[i].AssignedToDisplayName = rows[i].DisplayName
 		tasks[i].AssignedToEmail = rows[i].Email
+		tasks[i].AssignedToAvatarURL = rows[i].AvatarURL
 	}
 	return tasks, nil
 }
@@ -243,6 +246,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 		domain.Task
 		DisplayName string `gorm:"column:assigned_to_display_name"`
 		Email       string `gorm:"column:assigned_to_email"`
+		AvatarURL   string `gorm:"column:assigned_to_avatar_url"`
 	}
 	const defaultLimit = 600
 	if limit <= 0 {
@@ -259,7 +263,8 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	q := r.db.Table("tasks").
 		Select(projectPageTaskColumns+`,
 			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
-			COALESCE(u.email, '') AS assigned_to_email`).
+			COALESCE(u.email, '') AS assigned_to_email,
+			COALESCE(u.avatar_url, '') AS assigned_to_avatar_url`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
 		Where("tasks.project_id = ?", projectID)
 
@@ -281,6 +286,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 		tasks[i] = rows[i].Task
 		tasks[i].AssignedToDisplayName = rows[i].DisplayName
 		tasks[i].AssignedToEmail = rows[i].Email
+		tasks[i].AssignedToAvatarURL = rows[i].AvatarURL
 	}
 	return tasks, nil
 }

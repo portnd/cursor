@@ -646,9 +646,9 @@ func (u *attendanceUsecase) CreateLeaveRequest(userID uint, req *domain.CreateLe
 		}
 	}
 
-	days := float64(int(end.Sub(start).Hours()/24) + 1)
-	if isHalfDay {
-		days = 0.5
+	days, err := u.calculateRequestedLeaveDays(start, end, isHalfDay)
+	if err != nil {
+		return nil, err
 	}
 	if days <= 0 || days > 365 {
 		return nil, domain.ErrInvalidDateRange
@@ -703,6 +703,13 @@ func (u *attendanceUsecase) ListPendingLeaveRequests(role string) ([]domain.Leav
 	return u.repo.ListPendingLeaveRequests()
 }
 
+func (u *attendanceUsecase) ListAdminLeaveRequests(role string) ([]domain.LeaveRequest, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	return u.repo.ListAllLeaveRequests()
+}
+
 func (u *attendanceUsecase) ReviewLeaveRequest(role string, approverID uint, leaveID int64, req *domain.ReviewLeaveRequest) (*domain.LeaveRequest, error) {
 	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
@@ -733,6 +740,113 @@ func (u *attendanceUsecase) ReviewLeaveRequest(role string, approverID uint, lea
 	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leaveID, Action: "LEAVE_REVIEWED", ActorID: &approverID, ActorRole: strings.ToUpper(strings.TrimSpace(role)), OldStatus: old, NewStatus: status, Comment: leave.ManagerComment})
 	_ = u.notifyLeaveReviewed(leaveID, leave.UserID, status)
 	return u.repo.GetLeaveRequestByID(leaveID)
+}
+
+func (u *attendanceUsecase) UpdateAdminLeaveRequest(role string, actorID uint, leaveID int64, req *domain.UpdateLeaveRequest) (*domain.LeaveRequest, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleSupport {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	leave, err := u.repo.GetLeaveRequestByID(leaveID)
+	if err != nil {
+		return nil, err
+	}
+	if leave == nil {
+		return nil, domain.ErrLeaveNotFound
+	}
+
+	start, err := time.Parse("2006-01-02", strings.TrimSpace(req.StartDate))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	end, err := time.Parse("2006-01-02", strings.TrimSpace(req.EndDate))
+	if err != nil {
+		return nil, domain.ErrInvalidDateRange
+	}
+	if end.Before(start) {
+		return nil, domain.ErrInvalidDateRange
+	}
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
+
+	isHalfDay := req.IsHalfDay
+	halfDaySession := strings.ToUpper(strings.TrimSpace(req.HalfDaySession))
+	if isHalfDay {
+		if !start.Equal(end) {
+			return nil, domain.ErrInvalidDateRange
+		}
+		if halfDaySession != "AM" && halfDaySession != "PM" {
+			return nil, domain.ErrInvalidDateRange
+		}
+	}
+
+	days, err := u.calculateRequestedLeaveDays(start, end, isHalfDay)
+	if err != nil {
+		return nil, err
+	}
+	if days <= 0 || days > 365 {
+		return nil, domain.ErrInvalidDateRange
+	}
+
+	leaveType := strings.ToUpper(strings.TrimSpace(req.LeaveType))
+	if leaveType == "" {
+		leaveType = "ANNUAL"
+	}
+	old := leave.Status
+	leave.StartDate = start
+	leave.EndDate = end
+	leave.DaysRequested = days
+	leave.LeaveType = leaveType
+	leave.IsHalfDay = isHalfDay
+	leave.HalfDaySession = halfDaySession
+	leave.Reason = strings.TrimSpace(req.Reason)
+	if err := u.repo.UpdateLeaveRequest(leave); err != nil {
+		return nil, err
+	}
+	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leaveID, Action: "LEAVE_UPDATED_BY_ADMIN", ActorID: &actorID, ActorRole: strings.ToUpper(strings.TrimSpace(role)), OldStatus: old, NewStatus: leave.Status, Comment: leave.Reason})
+	return u.repo.GetLeaveRequestByID(leaveID)
+}
+
+func (u *attendanceUsecase) CancelAdminLeaveRequest(role string, actorID uint, leaveID int64, req *domain.CancelLeaveRequest) (*domain.LeaveRequest, error) {
+	if role != authDomain.RoleCEO && role != authDomain.RoleSupport {
+		return nil, domain.ErrForbiddenAdmin
+	}
+	leave, err := u.repo.GetLeaveRequestByID(leaveID)
+	if err != nil {
+		return nil, err
+	}
+	if leave == nil {
+		return nil, domain.ErrLeaveNotFound
+	}
+	old := leave.Status
+	leave.Status = domain.LeaveStatusRejected
+	leave.ManagerComment = strings.TrimSpace(req.Comment)
+	now := time.Now().UTC()
+	leave.ApprovedAt = &now
+	leave.ApproverID = &actorID
+	if err := u.repo.UpdateLeaveRequest(leave); err != nil {
+		return nil, err
+	}
+	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leaveID, Action: "LEAVE_CANCELLED_BY_ADMIN", ActorID: &actorID, ActorRole: strings.ToUpper(strings.TrimSpace(role)), OldStatus: old, NewStatus: leave.Status, Comment: leave.ManagerComment})
+	_ = u.notifyLeaveReviewed(leaveID, leave.UserID, leave.Status)
+	return u.repo.GetLeaveRequestByID(leaveID)
+}
+
+func (u *attendanceUsecase) DeleteAdminLeaveRequest(role string, actorID uint, leaveID int64) error {
+	if role != authDomain.RoleCEO && role != authDomain.RoleSupport {
+		return domain.ErrForbiddenAdmin
+	}
+	leave, err := u.repo.GetLeaveRequestByID(leaveID)
+	if err != nil {
+		return err
+	}
+	if leave == nil {
+		return domain.ErrLeaveNotFound
+	}
+	if err := u.repo.DeleteLeaveRequestByID(leaveID); err != nil {
+		return err
+	}
+	_ = u.repo.CreateLeaveAuditLog(&domain.LeaveAuditLog{LeaveID: leaveID, Action: "LEAVE_DELETED_BY_ADMIN", ActorID: &actorID, ActorRole: strings.ToUpper(strings.TrimSpace(role)), OldStatus: leave.Status, NewStatus: "", Comment: ""})
+	return nil
 }
 
 func (u *attendanceUsecase) GetLeaveBalanceSummary(userID uint, year int) ([]domain.LeaveBalanceSummary, error) {
@@ -893,9 +1007,9 @@ func (u *attendanceUsecase) BackfillLeave(role string, actorID uint, req *domain
 			return nil, domain.ErrInvalidDateRange
 		}
 	}
-	days := float64(int(end.Sub(start).Hours()/24) + 1)
-	if isHalfDay {
-		days = 0.5
+	days, err := u.calculateRequestedLeaveDays(start, end, isHalfDay)
+	if err != nil {
+		return nil, err
 	}
 	if days <= 0 || days > 365 {
 		return nil, domain.ErrInvalidDateRange
@@ -1000,6 +1114,42 @@ func (u *attendanceUsecase) getApprovedHalfDaySessionForDate(userID uint, attDat
 		}
 	}
 	return "", nil
+}
+
+func (u *attendanceUsecase) calculateRequestedLeaveDays(startUTC, endUTC time.Time, isHalfDay bool) (float64, error) {
+	if isHalfDay {
+		return 0.5, nil
+	}
+	if endUTC.Before(startUTC) {
+		return 0, domain.ErrInvalidDateRange
+	}
+
+	holidays, err := u.repo.ListHolidayCalendars(startUTC, endUTC)
+	if err != nil {
+		return 0, err
+	}
+	holidaySet := make(map[string]struct{}, len(holidays))
+	for _, h := range holidays {
+		hy, hm, hd := h.Date.In(time.UTC).Date()
+		holidaySet[fmt.Sprintf("%04d-%02d-%02d", hy, hm, hd)] = struct{}{}
+	}
+
+	days := 0.0
+	for d := startUTC; !d.After(endUTC); d = d.AddDate(0, 0, 1) {
+		local := d.In(u.loc)
+		wd := local.Weekday()
+		if wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		dy, dm, dd := d.In(time.UTC).Date()
+		key := fmt.Sprintf("%04d-%02d-%02d", dy, dm, dd)
+		if _, isHoliday := holidaySet[key]; isHoliday {
+			continue
+		}
+		days += 1
+	}
+
+	return days, nil
 }
 
 func calendarDateUTC(nowLocal time.Time) time.Time {

@@ -88,6 +88,7 @@ export interface GlobalActiveTask extends Task {
   project_color: string
   assigned_to_display_name?: string
   assigned_to_email?: string
+  assigned_to_avatar_url?: string
 }
 
 export interface UATPayload {

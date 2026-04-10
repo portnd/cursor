@@ -556,8 +556,16 @@
                 <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Assignee</p>
                 <div class="flex items-center gap-2 flex-wrap">
                   <div v-if="task.assigned_to" class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-gray-900 dark:text-white shrink-0">
-                      {{ (task.assigned_to_display_name || task.assigned_to_email || 'U').charAt(0).toUpperCase() }}
+                    <div class="w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-xs font-bold text-gray-900 dark:text-white shrink-0">
+                      <img
+                        v-if="task.assigned_to_avatar_url"
+                        :src="task.assigned_to_avatar_url"
+                        alt="Assignee avatar"
+                        class="w-full h-full object-cover"
+                      />
+                      <span v-else>
+                        {{ (task.assigned_to_display_name || task.assigned_to_email || 'U').charAt(0).toUpperCase() }}
+                      </span>
                     </div>
                     <span class="text-sm text-gray-900 dark:text-white">{{ task.assigned_to_display_name || task.assigned_to_email || `Dev #${task.assigned_to}` }}</span>
                   </div>
@@ -588,7 +596,7 @@
                   >
                     <option value="">— Select —</option>
                     <option value="0">— Unassign —</option>
-                    <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name || u.email }} ({{ u.role }})</option>
+                    <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name ? `${u.display_name} (${u.email})` : u.email }} ({{ u.role }})</option>
                   </select>
                   <div class="flex items-center gap-2 mt-1.5">
                     <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-600 dark:text-gray-300">Cancel</button>
@@ -1156,6 +1164,7 @@ interface SubTask {
   assigned_to: number | null
   assigned_to_display_name?: string
   assigned_to_email?: string
+  assigned_to_avatar_url?: string
   estimated_minutes: number
   progress: number
 }
@@ -1202,6 +1211,7 @@ interface Task {
   assigned_to: number | null
   assigned_to_display_name?: string
   assigned_to_email?: string
+  assigned_to_avatar_url?: string
   created_by: number
   created_by_role?: string
   created_by_email?: string

@@ -265,7 +265,9 @@ type AttendanceRepository interface {
 	GetLeaveRequestByID(id int64) (*LeaveRequest, error)
 	ListLeaveRequestsByUser(userID uint) ([]LeaveRequest, error)
 	ListPendingLeaveRequests() ([]LeaveRequest, error)
+	ListAllLeaveRequests() ([]LeaveRequest, error)
 	UpdateLeaveRequest(req *LeaveRequest) error
+	DeleteLeaveRequestByID(id int64) error
 
 	ListLeavePolicies() ([]LeavePolicy, error)
 	UpsertLeavePolicy(req *LeavePolicy) error
@@ -294,6 +296,19 @@ type CreateLeaveRequest struct {
 // ReviewLeaveRequest is manager payload to approve/reject leave request.
 type ReviewLeaveRequest struct {
 	Status  string `json:"status" binding:"required,oneof=APPROVED REJECTED"`
+	Comment string `json:"comment" binding:"max=1000"`
+}
+
+type UpdateLeaveRequest struct {
+	StartDate      string `json:"start_date" binding:"required"`
+	EndDate        string `json:"end_date" binding:"required"`
+	LeaveType      string `json:"leave_type" binding:"required,oneof=ANNUAL SICK PERSONAL UNPAID"`
+	IsHalfDay      bool   `json:"is_half_day"`
+	HalfDaySession string `json:"half_day_session" binding:"omitempty,oneof=AM PM"`
+	Reason         string `json:"reason" binding:"required,min=3,max=1000"`
+}
+
+type CancelLeaveRequest struct {
 	Comment string `json:"comment" binding:"max=1000"`
 }
 
@@ -376,7 +391,11 @@ type AttendanceUsecase interface {
 	CreateLeaveRequest(userID uint, req *CreateLeaveRequest) (*LeaveRequest, error)
 	ListMyLeaveRequests(userID uint) ([]LeaveRequest, error)
 	ListPendingLeaveRequests(role string) ([]LeaveRequest, error)
+	ListAdminLeaveRequests(role string) ([]LeaveRequest, error)
 	ReviewLeaveRequest(role string, approverID uint, leaveID int64, req *ReviewLeaveRequest) (*LeaveRequest, error)
+	UpdateAdminLeaveRequest(role string, actorID uint, leaveID int64, req *UpdateLeaveRequest) (*LeaveRequest, error)
+	CancelAdminLeaveRequest(role string, actorID uint, leaveID int64, req *CancelLeaveRequest) (*LeaveRequest, error)
+	DeleteAdminLeaveRequest(role string, actorID uint, leaveID int64) error
 
 	GetLeaveBalanceSummary(userID uint, year int) ([]LeaveBalanceSummary, error)
 	ListLeavePolicies(role string) ([]LeavePolicy, error)

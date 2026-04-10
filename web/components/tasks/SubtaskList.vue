@@ -133,7 +133,7 @@
             <label class="block text-xs text-gray-500 mb-1">Assignee</label>
             <select v-model.number="newSubtask.assigned_to" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
               <option :value="null">— Unassigned —</option>
-              <option v-for="u in assigneeOptions" :key="u.id" :value="u.id">{{ u.display_name || u.email }} ({{ u.role }})</option>
+              <option v-for="u in assigneeOptions" :key="u.id" :value="u.id">{{ u.display_name ? `${u.display_name} (${u.email})` : u.email }} ({{ u.role }})</option>
             </select>
           </div>
           <div>
