@@ -392,10 +392,37 @@ type CompanyMandayRateResponse struct {
 	Currency      string  `json:"currency"`
 }
 
+// MADeliveryMilestone represents one payment/delivery milestone in an MA quotation.
+type MADeliveryMilestone struct {
+	Label     string  `json:"label"`
+	TaskCount *int    `json:"task_count"` // nil = end-of-MA milestone (no task delivery)
+	Amount    float64 `json:"amount"`
+	IsEndOfMA bool    `json:"is_end_of_ma"`
+}
+
+// MATaskItem is a task included in the MA scope.
+type MATaskItem struct {
+	Code  string `json:"code"`
+	Title string `json:"title"`
+}
+
+// MAQuotationExportRequest is the payload for POST /ma-quotation/export.
+type MAQuotationExportRequest struct {
+	ProjectName     string                `json:"project_name"`
+	QuoteNo         string                `json:"quote_no"`
+	IssueDate       string                `json:"issue_date"`
+	MAPrice         float64               `json:"ma_price"`
+	MADurationYears int                   `json:"ma_duration_years"`
+	Tasks           []MATaskItem          `json:"tasks"`
+	Milestones      []MADeliveryMilestone `json:"milestones"`
+}
+
 // Usecase is the business-logic port for the pricing module.
 type Usecase interface {
 	CalculateQuotation(projectID string, req *QuotationRequest) (*QuotationResponse, error)
 	ExportQuotationPDF(projectID string, req *QuotationRequest) ([]byte, error)
+	// MA Quotation PDF (HTML → chromedp)
+	ExportMAQuotationPDF(req *MAQuotationExportRequest) ([]byte, error)
 	// Cost Analysis Report
 	GenerateCostReport(req *CostReportRequest) ([]byte, error)
 	// Company Manday Rate — fully loaded rate derived from all salaries + overheads

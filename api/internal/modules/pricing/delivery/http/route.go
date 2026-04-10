@@ -31,6 +31,9 @@ func RegisterRoutes(r *gin.RouterGroup, uc domain.Usecase) {
 		q.POST("/export", h.Export)
 	}
 
+	// MA Quotation PDF export
+	r.POST("/sentinel/projects/:id/ma-quotation/export", h.ExportMA)
+
 	// Admin cost config & salary endpoints
 	p := r.Group("/pricing")
 	{

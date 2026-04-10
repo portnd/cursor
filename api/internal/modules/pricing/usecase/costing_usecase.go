@@ -1583,3 +1583,242 @@ func escapeHTML(s string) string {
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	return s
 }
+
+// ─── MA Quotation PDF ─────────────────────────────────────────────────────────
+
+// ExportMAQuotationPDF builds HTML for the MA quotation and renders it to PDF via chromedp.
+func (uc *costingUsecase) ExportMAQuotationPDF(req *domain.MAQuotationExportRequest) ([]byte, error) {
+	html := buildMAQuotationHTML(req)
+	ctx, cancel := chromepdf.NewChromedpContext(context.Background())
+	defer cancel()
+
+	var pdfBytes []byte
+	if err := chromedp.Run(ctx, chromepdf.PrintToPDF(html, &pdfBytes, false)); err != nil {
+		return nil, fmt.Errorf("ma quotation pdf: chromedp: %w", err)
+	}
+	return pdfBytes, nil
+}
+
+func buildMAQuotationHTML(req *domain.MAQuotationExportRequest) string {
+	now := time.Now()
+	issueDate := req.IssueDate
+	if issueDate == "" {
+		issueDate = fmt.Sprintf("%02d/%02d/%d", now.Day(), int(now.Month()), now.Year()+543)
+	}
+
+	monthlyFee := 0.0
+	if req.MADurationYears > 0 {
+		months := float64(req.MADurationYears) * 12
+		monthlyFee = req.MAPrice / months
+	}
+	vat := req.MAPrice * 0.07
+	grandTotal := req.MAPrice + vat
+
+	durationLabel := fmt.Sprintf("%d ปี", req.MADurationYears)
+	if req.MADurationYears == 1 {
+		durationLabel = "1 ปี"
+	}
+
+	// ── Task rows ──
+	var taskRows strings.Builder
+	for i, t := range req.Tasks {
+		cls := ""
+		if i%2 == 1 {
+			cls = " alt"
+		}
+		taskRows.WriteString(fmt.Sprintf(
+			`<tr class="%s"><td class="num">%d</td><td class="code">%s</td><td>%s</td></tr>`,
+			cls, i+1, escapeHTML(t.Code), escapeHTML(t.Title),
+		))
+	}
+
+	// ── Milestone rows ──
+	var milestoneRows strings.Builder
+	var totalAmount float64
+	for i, m := range req.Milestones {
+		cls := ""
+		if i%2 == 1 {
+			cls = " alt"
+		}
+		deliveryCell := ""
+		if m.IsEndOfMA {
+			deliveryCell = `<td><span class="badge-end">เบิกเมื่อสิ้นสุดระยะเวลา MA</span></td>`
+		} else if m.TaskCount != nil {
+			deliveryCell = fmt.Sprintf(`<td>ส่งมอบ <strong>%d tasks</strong></td>`, *m.TaskCount)
+		} else {
+			deliveryCell = `<td>—</td>`
+		}
+		milestoneRows.WriteString(fmt.Sprintf(
+			`<tr class="%s"><td>%s</td>%s<td class="right money">%s</td></tr>`,
+			cls, escapeHTML(m.Label), deliveryCell, commaSep(m.Amount),
+		))
+		totalAmount += m.Amount
+	}
+
+	quoteNo := req.QuoteNo
+	if quoteNo == "" {
+		quoteNo = fmt.Sprintf("MA-%d%02d%02d", now.Year()+543, int(now.Month()), now.Day())
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=block" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { size: A4; margin: 18mm 15mm; }
+  body { font-family: 'Sarabun', sans-serif; font-size: 10pt; color: #1a2035; background: #fff; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 3px solid #1e3a5f; }
+  .brand-block { display: flex; flex-direction: column; gap: 4px; }
+  .company-name { font-size: 20pt; font-weight: 800; color: #1e3a5f; letter-spacing: 1px; text-transform: uppercase; }
+  .company-tagline { font-size: 8.5pt; color: #4a6fa5; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  .doc-meta { text-align: right; font-size: 9pt; color: #4b5563; line-height: 1.8; }
+  .doc-meta .doc-title { font-size: 12pt; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .doc-meta strong { color: #1a2035; }
+
+  h2 { font-size: 10pt; font-weight: 700; color: #1e3a5f; margin-bottom: 10px; margin-top: 22px;
+       border-bottom: 1.5px solid #c7d8ed; padding-bottom: 5px; text-transform: uppercase; letter-spacing: 0.8px; }
+
+  .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+  .ov-card { border: 1px solid #c7d8ed; border-radius: 6px; padding: 12px 16px; background: #f5f9ff; }
+  .ov-card label { display: block; font-size: 7.5pt; font-weight: 700; color: #4a6fa5; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+  .ov-card .val { font-size: 13pt; font-weight: 800; color: #1e3a5f; }
+  .ov-card .sub { font-size: 8pt; color: #6b7280; margin-top: 2px; }
+
+  table { width: 100%%; border-collapse: collapse; margin-bottom: 22px; font-size: 9pt; }
+  thead tr { background: #1e3a5f; }
+  th { color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.4px; }
+  th.right, td.right { text-align: right; }
+  th.num, td.num { text-align: center; width: 28px; }
+  td.code { font-family: monospace; font-size: 8.5pt; color: #4a6fa5; font-weight: 600; }
+  td { padding: 6px 10px; border-bottom: 1px solid #dde8f4; vertical-align: middle; color: #1a2035; }
+  tr.alt td { background: #f5f9ff; }
+  tr:last-child td { border-bottom: none; }
+  td.money { font-weight: 600; color: #1e3a5f; }
+
+  .badge-end { display: inline-block; background: #1e3a5f; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 8pt; font-weight: 600; }
+
+  .summary-wrap { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+  .summary-box { width: 380px; border: 1px solid #c7d8ed; border-radius: 6px; overflow: hidden; }
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 9.5pt; border-bottom: 1px solid #dde8f4; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row:nth-child(odd) { background: #f5f9ff; }
+  .summary-row.grand { background: #1e3a5f !important; }
+  .summary-row.grand .summary-label, .summary-row.grand .summary-val { color: #fff; font-weight: 800; font-size: 11pt; }
+  .summary-label { color: #374151; }
+  .summary-val { font-weight: 600; color: #1e3a5f; }
+
+  .milestone-total { display: flex; justify-content: flex-end; }
+  .milestone-total-box { width: 380px; border-top: 2px solid #1e3a5f; padding: 8px 10px; display: flex; justify-content: space-between; font-weight: 700; font-size: 10pt; color: #1e3a5f; align-items: flex-start; }
+  .milestone-total-box .vat-note { display: block; font-weight: 500; font-size: 8.5pt; color: #64748b; margin-top: 2px; }
+
+  .note { font-size: 8.5pt; color: #6b7280; margin-top: 6px; line-height: 1.6; }
+  .sig-block { margin-top: 40px; display: flex; justify-content: flex-end; }
+  .sig-box { width: 220px; text-align: center; }
+  .sig-line { border-top: 1px solid #374151; padding-top: 6px; font-size: 9pt; color: #374151; margin-top: 50px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand-block">
+    <div class="company-name">Komgrip Technologies</div>
+    <div class="company-tagline">Development &amp; Technology Solutions</div>
+  </div>
+  <div class="doc-meta">
+    <div class="doc-title">ใบเสนอราคา — MA Agreement</div>
+    <div><strong>เลขที่:</strong> %s</div>
+    <div><strong>วันที่ออก:</strong> %s</div>
+    <div><strong>โครงการ:</strong> %s</div>
+  </div>
+</div>
+
+<h2>ภาพรวม MA (MA Overview)</h2>
+<div class="overview-grid">
+  <div class="ov-card">
+    <label>ราคา MA ต่อปี (Annual MA Fee)</label>
+    <div class="val">%s ฿</div>
+    <div class="sub">ก่อนภาษีมูลค่าเพิ่ม</div>
+  </div>
+  <div class="ov-card">
+    <label>ระยะเวลา MA</label>
+    <div class="val">%s</div>
+    <div class="sub">นับจากวันที่ลงนาม</div>
+  </div>
+  <div class="ov-card">
+    <label>ค่าบำรุงรักษารายเดือน</label>
+    <div class="val">%s ฿</div>
+    <div class="sub">/ เดือน</div>
+  </div>
+</div>
+
+<div class="summary-wrap">
+  <div class="summary-box">
+    <div class="summary-row"><span class="summary-label">ราคา MA ต่อปี</span><span class="summary-val">%s ฿</span></div>
+    <div class="summary-row"><span class="summary-label">ภาษีมูลค่าเพิ่ม 7%%</span><span class="summary-val">%s ฿</span></div>
+    <div class="summary-row grand"><span class="summary-label">รวมทั้งสิ้น (GRAND TOTAL)</span><span class="summary-val">%s ฿</span></div>
+  </div>
+</div>
+
+<h2>ขอบเขตงาน — รายการ Task (%d tasks)</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="num">#</th>
+      <th style="width:90px">Code</th>
+      <th>Task Title</th>
+    </tr>
+  </thead>
+  <tbody>
+    %s
+  </tbody>
+</table>
+
+<h2>ตารางการส่งมอบ &amp; การเบิกเงิน (Delivery Schedule)</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:180px">งวดส่งมอบ</th>
+      <th>การส่งมอบงาน</th>
+      <th class="right" style="width:160px">จำนวนเงิน (฿)</th>
+    </tr>
+  </thead>
+  <tbody>
+    %s
+  </tbody>
+</table>
+<div class="milestone-total">
+  <div class="milestone-total-box">
+    <span>รวมทั้งหมด (TOTAL)<br/><span class="vat-note">*ไม่รวม VAT</span></span>
+    <span>%s ฿</span>
+  </div>
+</div>
+
+<p class="note">
+  * ราคาข้างต้นเป็นราคาสำหรับการบำรุงรักษาระบบ (Maintenance Agreement) ระยะเวลา %s<br/>
+  * ขอบเขตงานและเงื่อนไขอาจมีการปรับเปลี่ยนตามที่ตกลงร่วมกัน
+</p>
+
+<div class="sig-block">
+  <div class="sig-box">
+    <div class="sig-line">ลงนามผู้มีอำนาจ<br/>บริษัท Komgrip Technologies</div>
+  </div>
+</div>
+
+</body></html>`,
+		quoteNo, issueDate, escapeHTML(req.ProjectName),
+		commaSep(req.MAPrice), durationLabel, commaSep(monthlyFee),
+		commaSep(req.MAPrice), commaSep(vat), commaSep(grandTotal),
+		len(req.Tasks), taskRows.String(),
+		milestoneRows.String(),
+		commaSep(totalAmount),
+		durationLabel,
+	))
+
+	return sb.String()
+}

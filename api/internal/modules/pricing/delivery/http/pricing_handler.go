@@ -71,6 +71,30 @@ func (h *pricingHandler) Export(c *gin.Context) {
 	c.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
 
+// ExportMA godoc — POST /api/v1/sentinel/projects/:id/ma-quotation/export
+func (h *pricingHandler) ExportMA(c *gin.Context) {
+	projectID := c.Param("id")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project id is required"})
+		return
+	}
+	var req domain.MAQuotationExportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request: %s", err.Error())})
+		return
+	}
+	pdfBytes, err := h.usecase.ExportMAQuotationPDF(&req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	filename := fmt.Sprintf("ma-quotation-%s.pdf", projectID)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
 // ExportCostReport godoc — POST /pricing/report/export
 func (h *pricingHandler) ExportCostReport(c *gin.Context) {
 	var req domain.CostReportRequest
