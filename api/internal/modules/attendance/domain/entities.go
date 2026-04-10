@@ -206,6 +206,9 @@ type LeaveTrendPoint struct {
 	Month     string  `json:"month"`
 	TeamID    *uint   `json:"team_id,omitempty"`
 	TeamName  string  `json:"team_name,omitempty"`
+	UserID    *uint   `json:"user_id,omitempty"`
+	UserName  string  `json:"user_name,omitempty"`
+	UserEmail string  `json:"user_email,omitempty"`
 	Requested int     `json:"requested"`
 	Approved  int     `json:"approved"`
 	Rejected  int     `json:"rejected"`

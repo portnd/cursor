@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -585,24 +586,54 @@ func (r *postgresRepository) MarkLeaveNotificationRead(userID uint, notification
 
 func (r *postgresRepository) GetLeaveTrendByMonth(role string, fromDate, toDate time.Time) ([]domain.LeaveTrendPoint, error) {
 	var out []domain.LeaveTrendPoint
-	isAdmin := strings.EqualFold(role, authDomain.RoleCEO) || strings.EqualFold(role, authDomain.RoleManager)
+	isAdmin := strings.EqualFold(role, authDomain.RoleCEO) || strings.EqualFold(role, authDomain.RoleManager) || strings.EqualFold(role, authDomain.RoleSupport)
 	if !isAdmin {
 		return out, nil
 	}
+
+	teamFeatureEnabled := true
+	var settingValue string
+	if err := r.db.Raw(`SELECT value FROM app_settings WHERE key = 'teams_feature_enabled'`).Scan(&settingValue).Error; err == nil {
+		if parsed, perr := strconv.ParseBool(strings.TrimSpace(settingValue)); perr == nil {
+			teamFeatureEnabled = parsed
+		}
+	}
+
+	if teamFeatureEnabled {
+		err := r.db.Raw(`
+			SELECT to_char(date_trunc('month', lr.start_date), 'YYYY-MM') AS month,
+			       u.team_id AS team_id,
+			       COALESCE(t.name, 'Unassigned') AS team_name,
+			       COUNT(*) AS requested,
+			       SUM(CASE WHEN lr.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved,
+			       SUM(CASE WHEN lr.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+			       COALESCE(SUM(lr.days_requested), 0) AS total_days
+			FROM leave_requests lr
+			JOIN users u ON u.id = lr.user_id
+			LEFT JOIN teams t ON t.id = u.team_id
+			WHERE lr.start_date >= ? AND lr.start_date <= ?
+			GROUP BY 1, 2, 3
+			ORDER BY 1 ASC, 3 ASC
+		`, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).Scan(&out).Error
+		return out, err
+	}
+
 	err := r.db.Raw(`
-		SELECT to_char(date_trunc('month', lr.created_at), 'YYYY-MM') AS month,
-		       u.team_id AS team_id,
-		       COALESCE(t.name, 'Unassigned') AS team_name,
+		SELECT to_char(date_trunc('month', lr.start_date), 'YYYY-MM') AS month,
+		       NULL::bigint AS team_id,
+		       '' AS team_name,
+		       u.id AS user_id,
+		       COALESCE(NULLIF(TRIM(u.display_name), ''), u.email) AS user_name,
+		       u.email AS user_email,
 		       COUNT(*) AS requested,
 		       SUM(CASE WHEN lr.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved,
 		       SUM(CASE WHEN lr.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
 		       COALESCE(SUM(lr.days_requested), 0) AS total_days
 		FROM leave_requests lr
 		JOIN users u ON u.id = lr.user_id
-		LEFT JOIN teams t ON t.id = u.team_id
-		WHERE lr.created_at::date >= ? AND lr.created_at::date <= ?
-		GROUP BY 1, 2, 3
-		ORDER BY 1 ASC, 3 ASC
+		WHERE lr.start_date >= ? AND lr.start_date <= ?
+		GROUP BY 1, 4, 5, 6
+		ORDER BY 1 ASC, 5 ASC
 	`, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).Scan(&out).Error
 	return out, err
 }

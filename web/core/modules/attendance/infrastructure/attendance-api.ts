@@ -246,6 +246,9 @@ export interface LeaveTrendPoint {
   month: string
   team_id?: number
   team_name?: string
+  user_id?: number
+  user_name?: string
+  user_email?: string
   requested: number
   approved: number
   rejected: number

@@ -1,0 +1,2 @@
+-- No-op rollback: data backfill is irreversible by design.
+-- Intentionally left blank.

@@ -92,7 +92,7 @@
                   {{ r.user_display_name || r.user_email || ('User #' + r.user_id) }}
                   <span v-if="r.user_display_name && r.user_email" class="text-xs font-normal text-gray-400">({{ r.user_email }})</span>
                 </p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ leaveTypeLabel(r.leave_type) }} · {{ r.days_requested }} วัน</p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ leaveTypeLabel(r.leave_type) }} · {{ requestedDurationLabel(r) }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ fmt(r.start_date) }} → {{ fmt(r.end_date) }}</p>
                 <p class="text-xs text-gray-400 mt-2">{{ r.reason }}</p>
               </div>
@@ -215,14 +215,39 @@
       </section>
 
       <section v-if="activeTab === 'trend'" class="card">
-        <h2 class="section">แนวโน้มการลา (รายเดือน)</h2>
-        <div class="overflow-x-auto">
+        <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 class="section mb-1">แนวโน้มการลา (รายเดือน)</h2>
+            <p class="text-xs text-gray-500">เมื่อปิด Feature Team ระบบจะแสดงรายบุคคลแทนรายทีม</p>
+          </div>
+          <div class="w-full md:w-[280px]">
+            <label class="label">ดูย้อนหลัง</label>
+            <select v-model.number="trendMonthsBack" class="input" @change="refreshTrend">
+              <option :value="1">1 เดือน</option>
+              <option :value="3">3 เดือน</option>
+              <option :value="6">6 เดือน</option>
+              <option :value="12">12 เดือน</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="trend.length === 0" class="mt-4 text-sm text-gray-500 italic">ไม่มีข้อมูลในช่วงย้อนหลังที่เลือก</div>
+        <div v-else class="overflow-x-auto mt-4">
           <table class="w-full text-sm">
-            <thead><tr class="text-xs text-gray-500 border-b border-gray-700"><th class="py-2 text-left">เดือน</th><th class="py-2 text-left">ทีม</th><th class="py-2 text-left">ขอ</th><th class="py-2 text-left">อนุมัติ</th><th class="py-2 text-left">ไม่อนุมัติ</th><th class="py-2 text-left">รวมวันลา</th></tr></thead>
+            <thead>
+              <tr class="text-xs text-gray-500 border-b border-gray-700">
+                <th class="py-2 text-left">เดือน</th>
+                <th class="py-2 text-left">ทีม/พนักงาน</th>
+                <th class="py-2 text-left">ขอ</th>
+                <th class="py-2 text-left">อนุมัติ</th>
+                <th class="py-2 text-left">ไม่อนุมัติ</th>
+                <th class="py-2 text-left">รวมวันลา</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr v-for="t in trend" :key="`${t.month}-${t.team_name}`" class="border-b border-gray-800/60">
+              <tr v-for="t in trend" :key="trendRowKey(t)" class="border-b border-gray-800/60">
                 <td class="py-2">{{ t.month }}</td>
-                <td class="py-2">{{ t.team_name || 'Unassigned' }}</td>
+                <td class="py-2">{{ trendOwnerLabel(t) }}</td>
                 <td class="py-2">{{ t.requested }}</td>
                 <td class="py-2 text-emerald-300">{{ t.approved }}</td>
                 <td class="py-2 text-red-300">{{ t.rejected }}</td>
@@ -263,6 +288,7 @@ const policies = ref<LeavePolicy[]>([])
 const holidays = ref<HolidayCalendar[]>([])
 const pending = ref<LeaveRequest[]>([])
 const trend = ref<LeaveTrendPoint[]>([])
+const trendMonthsBack = ref(6)
 const auditLogs = ref<LeaveAuditLog[]>([])
 const selectedAuditId = ref<number | null>(null)
 const reviewComment = ref<Record<number, string>>({})
@@ -326,18 +352,81 @@ function leaveTypeLabel(t: string) {
 const fmt = (s: string) => new Date(s).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
 const fmtDateTime = (s: string) => new Date(s).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
 
+function fallbackRequestedDays(r: Pick<LeaveRequest, 'start_date' | 'end_date' | 'is_half_day'>): number {
+  if (r.is_half_day) return 0.5
+  const start = new Date(r.start_date)
+  const end = new Date(r.end_date)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+  const diff = Math.floor((endUtc - startUtc) / (1000 * 60 * 60 * 24)) + 1
+  return diff > 0 ? diff : 0
+}
+
+function formatRequestedDays(r: LeaveRequest): string {
+  if (r.is_half_day) return '0.5'
+  const raw = Number(r.days_requested)
+  const days = raw > 0 ? raw : fallbackRequestedDays(r)
+  return Number.isInteger(days) ? String(days) : days.toFixed(1)
+}
+
+function requestedDurationLabel(r: LeaveRequest): string {
+  if (r.is_half_day) {
+    const session = (r.half_day_session || '').toUpperCase()
+    const period = session === 'PM' ? 'บ่าย' : 'เช้า'
+    return `ครึ่งวัน (${period})`
+  }
+  return `${formatRequestedDays(r)} วัน`
+}
+
+function trendOwnerLabel(t: LeaveTrendPoint): string {
+  if (t.user_name || t.user_email) {
+    return t.user_name || t.user_email || `User #${t.user_id}`
+  }
+  return t.team_name || 'Unassigned'
+}
+
+function trendRowKey(t: LeaveTrendPoint): string {
+  if (t.user_id) return `${t.month}-u-${t.user_id}`
+  return `${t.month}-t-${t.team_id || 0}-${t.team_name || 'unassigned'}`
+}
+
+function toLocalDateString(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function trendRangeFromMonthsBack(monthsBack: number): { from: string; to: string } {
+  const now = new Date()
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const from = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
+  return {
+    from: toLocalDateString(from),
+    to: toLocalDateString(to),
+  }
+}
+
+async function refreshTrend() {
+  const { from, to } = trendRangeFromMonthsBack(trendMonthsBack.value)
+  const tr = await api.getLeaveTrend(from, to)
+  trend.value = tr.items || []
+}
+
 async function refreshAll() {
   loading.value = true
   try {
     const now = new Date()
     const from = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
     const to = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10)
+    const trendRange = trendRangeFromMonthsBack(trendMonthsBack.value)
 
     const [p, h, pend, tr] = await Promise.all([
       api.getLeavePolicies(),
       api.getHolidays(from, to),
       api.getPendingLeaveRequests(),
-      api.getLeaveTrend(from, to),
+      api.getLeaveTrend(trendRange.from, trendRange.to),
     ])
     policies.value = p.items || []
     holidays.value = h.items || []
