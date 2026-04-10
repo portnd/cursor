@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"sort"
+	"strings"
 	"time"
 
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
@@ -627,6 +628,35 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		WHERE date BETWEEN ? AND ?
 	`, from, to).Scan(&pulseRows)
 
+	type leaveDayRow struct {
+		UserID      uint
+		Date        string
+		IsHalfDay   bool
+		HalfSession string
+	}
+	var leaveDayRows []leaveDayRow
+	r.db.Raw(`
+		SELECT lr.user_id AS user_id,
+		       gs::date::text AS date,
+		       lr.is_half_day AS is_half_day,
+		       COALESCE(lr.half_day_session, '') AS half_session
+		FROM leave_requests lr
+		CROSS JOIN LATERAL generate_series(lr.start_date::date, lr.end_date::date, interval '1 day') gs
+		WHERE lr.status = 'APPROVED'
+		  AND lr.start_date::date <= ?::date
+		  AND lr.end_date::date >= ?::date
+	`, to, from).Scan(&leaveDayRows)
+
+	type holidayRow struct {
+		Date string
+	}
+	var holidayRows []holidayRow
+	r.db.Raw(`
+		SELECT date::text AS date
+		FROM holiday_calendars
+		WHERE date BETWEEN ? AND ?
+	`, from, to).Scan(&holidayRows)
+
 	// Deployment requests marked DEPLOYED (reviewer = Chief Engineer who deployed)
 	type deployRow struct {
 		UserID uint
@@ -756,6 +786,28 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			pulseIndex[row.UserID] = map[string]bool{}
 		}
 		pulseIndex[row.UserID][row.Date] = true
+	}
+	type leaveDayData struct {
+		OnLeave      bool
+		LeaveSession string
+	}
+	leaveIndex := map[uint]map[string]leaveDayData{}
+	for _, row := range leaveDayRows {
+		if leaveIndex[row.UserID] == nil {
+			leaveIndex[row.UserID] = map[string]leaveDayData{}
+		}
+		session := "FULL"
+		if row.IsHalfDay {
+			hs := strings.ToUpper(strings.TrimSpace(row.HalfSession))
+			if hs == "AM" || hs == "PM" {
+				session = hs
+			}
+		}
+		leaveIndex[row.UserID][row.Date] = leaveDayData{OnLeave: true, LeaveSession: session}
+	}
+	holidayIndex := map[string]bool{}
+	for _, row := range holidayRows {
+		holidayIndex[row.Date] = true
 	}
 	// Deploy completions are included in tasks_closed / total_tasks_closed (Job Done) for the CE reviewer.
 	deployIndex := map[uint]map[string]int{}
@@ -1067,7 +1119,10 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			hasPulse := pulseIndex[u.ID][d]
 			deploys := deployIndex[u.ID][d]
 			att := attIndex[u.ID][d]
-			if !hasPulse {
+			leaveData := leaveIndex[u.ID][d]
+			isOnApprovedLeave := leaveData.OnLeave
+			isCompanyHoliday := holidayIndex[d]
+			if !hasPulse && !isOnApprovedLeave && !isCompanyHoliday {
 				missedPulse++
 			}
 			if att.IsLate {
@@ -1075,6 +1130,14 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			}
 			if att.EarlyCheckout {
 				totalEarlyOut++
+			}
+			attendanceStatus := att.Status
+			leaveSession := ""
+			if isOnApprovedLeave {
+				attendanceStatus = "on_leave"
+				leaveSession = leaveData.LeaveSession
+			} else if isCompanyHoliday && attendanceStatus == "" {
+				attendanceStatus = "holiday"
 			}
 			totalClosed += closed
 			totalReworks += rework
@@ -1091,7 +1154,8 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 				EarlyCheckout:        att.EarlyCheckout,
 				CheckInAt:            att.CheckInTime,
 				CheckOutAt:           att.CheckOutTime,
-				AttendanceStatus:     att.Status,
+				AttendanceStatus:     attendanceStatus,
+				LeaveSession:         leaveSession,
 			})
 		}
 		du.TotalTasksClosed = totalClosed

@@ -15,7 +15,8 @@
       v-if="member.is_on_leave"
       class="absolute inset-x-0 top-0 rounded-t-xl bg-orange-100 dark:bg-orange-900/60 px-3 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1"
     >
-      <span>🏖️</span> On leave{{ member.leave_type ? ` · ${member.leave_type}` : '' }}
+      <span>🏖️</span>
+      On leave{{ member.leave_type ? ` · ${member.leave_type}` : '' }}{{ member.leave_session === 'AM' ? ' · Morning (Half day)' : member.leave_session === 'PM' ? ' · Afternoon (Half day)' : '' }}
     </div>
     <div
       v-else-if="member.has_blocker"

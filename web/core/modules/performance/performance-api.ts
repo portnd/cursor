@@ -74,7 +74,8 @@ export interface DisciplineUserDayStat {
   early_checkout: boolean
   check_in_at?: string  // HH:MM ICT — empty if no record
   check_out_at?: string // HH:MM ICT — empty if no record
-  attendance_status?: string // present | late | absent | wfh | ""
+  attendance_status?: string // present | late | absent | wfh | on_leave | holiday | ""
+  leave_session?: string // AM | PM | FULL
 }
 
 export interface DisciplineUser {

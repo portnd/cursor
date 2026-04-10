@@ -38,6 +38,7 @@ export interface UserPulse {
   standup: DailyStandup | null
   is_on_leave: boolean
   leave_type?: string
+  leave_session?: 'AM' | 'PM' | 'FULL'
   total_logged_minutes: number
   total_logged_hours: number
   latest_activities: ActivityItem[]

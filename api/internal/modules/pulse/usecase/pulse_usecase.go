@@ -136,9 +136,13 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		})
 	}
 
-	leaveByUser := make(map[uint]string, len(approvedLeaves))
+	type leaveMeta struct {
+		LeaveType    string
+		LeaveSession string
+	}
+	leaveByUser := make(map[uint]leaveMeta, len(approvedLeaves))
 	for _, lv := range approvedLeaves {
-		leaveByUser[lv.UserID] = lv.LeaveType
+		leaveByUser[lv.UserID] = leaveMeta{LeaveType: lv.LeaveType, LeaveSession: lv.HalfSession}
 	}
 
 	// ── Build UserPulse entries ────────────────────────────────────────────────
@@ -150,15 +154,16 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		if r == authDomain.RoleCEO || r == authDomain.RoleSupport {
 			continue
 		}
-		leaveType := leaveByUser[usr.ID]
+		lv := leaveByUser[usr.ID]
 		p := &domain.UserPulse{
 			UserID:          usr.ID,
 			UserEmail:       usr.Email,
 			UserDisplayName: usr.DisplayName,
 			UserAvatarURL:   usr.AvatarURL,
 			Standup:         standupMap[usr.ID],
-			IsOnLeave:       leaveType != "",
-			LeaveType:       leaveType,
+			IsOnLeave:       lv.LeaveType != "",
+			LeaveType:       lv.LeaveType,
+			LeaveSession:    lv.LeaveSession,
 			HasBlocker:      standupMap[usr.ID] != nil && standupMap[usr.ID].Blocker != "",
 		}
 

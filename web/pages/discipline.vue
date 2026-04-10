@@ -126,23 +126,23 @@
         </button>
         <button
           type="button"
-          class="text-left bg-gray-800 border border-rose-700/50 rounded-xl p-4 transition hover:border-rose-500"
-          :class="activeSummaryFilter === 'late' ? 'ring-2 ring-rose-500/70 border-rose-500/80' : ''"
-          @click="applySummaryFilter('late')"
+          class="text-left bg-gray-800 border border-sky-700/50 rounded-xl p-4 transition hover:border-sky-500"
+          :class="activeSummaryFilter === 'noCheckinCheckout' ? 'ring-2 ring-sky-500/70 border-sky-500/80' : ''"
+          @click="applySummaryFilter('noCheckinCheckout')"
         >
-          <div class="text-xs text-gray-400 mb-1">🕐 สายรวม</div>
-          <div class="text-3xl font-bold text-rose-400">{{ totalLateDays }}</div>
-          <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
+          <div class="text-xs text-gray-400 mb-1">📝 ไม่ลงเวลา Check-in/Check-out</div>
+          <div class="text-3xl font-bold text-sky-400">{{ totalNoCheckinCheckoutUsers }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">คน (ทีมรวม)</div>
         </button>
         <button
           type="button"
-          class="text-left bg-gray-800 border border-amber-700/50 rounded-xl p-4 transition hover:border-amber-500"
-          :class="activeSummaryFilter === 'earlyCheckout' ? 'ring-2 ring-amber-500/70 border-amber-500/80' : ''"
-          @click="applySummaryFilter('earlyCheckout')"
+          class="text-left bg-gray-800 border border-fuchsia-700/50 rounded-xl p-4 transition hover:border-fuchsia-500"
+          :class="activeSummaryFilter === 'onLeave' ? 'ring-2 ring-fuchsia-500/70 border-fuchsia-500/80' : ''"
+          @click="applySummaryFilter('onLeave')"
         >
-          <div class="text-xs text-gray-400 mb-1">🚪 กลับก่อนรวม</div>
-          <div class="text-3xl font-bold text-amber-400">{{ totalEarlyCheckoutDays }}</div>
-          <div class="text-xs text-gray-500 mt-0.5">ครั้ง (ทีมรวม)</div>
+          <div class="text-xs text-gray-400 mb-1">🏖️ ลางาน</div>
+          <div class="text-3xl font-bold text-fuchsia-400">{{ totalOnLeaveUsers }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">คน (ทีมรวม)</div>
         </button>
       </div>
 
@@ -423,20 +423,30 @@
                       {{ day.has_daily_pulse ? '✓ Pulse' : '✗ Pulse' }}
                     </span>
                   </div>
-                  <!-- Attendance row: check-in/out + late/early badges -->
+                  <!-- Attendance row: check-in/out + late/early/leave badges -->
                   <div v-if="day.attendance_status" class="flex items-center gap-1 flex-wrap mb-0.5">
-                    <span
-                      class="text-[9px] px-1 py-0.5 rounded font-semibold"
-                      :class="day.is_late
-                        ? 'bg-rose-900/60 text-rose-300'
-                        : 'bg-teal-900/50 text-teal-300'"
-                    >
-                      {{ day.is_late ? '🕐 สาย' : '✓ ตรงเวลา' }}
-                    </span>
-                    <span
-                      v-if="day.early_checkout"
-                      class="text-[9px] px-1 py-0.5 rounded font-semibold bg-amber-900/60 text-amber-300"
-                    >🚪 ก่อนเวลา</span>
+                    <template v-if="day.attendance_status === 'on_leave'">
+                      <span class="text-[9px] px-1 py-0.5 rounded font-semibold bg-fuchsia-900/60 text-fuchsia-300">
+                        🏖️ ลางาน{{ day.leave_session === 'AM' ? ' (ครึ่งวันเช้า)' : day.leave_session === 'PM' ? ' (ครึ่งวันบ่าย)' : '' }}
+                      </span>
+                    </template>
+                    <template v-else-if="day.attendance_status === 'holiday'">
+                      <span class="text-[9px] px-1 py-0.5 rounded font-semibold bg-cyan-900/60 text-cyan-300">🎉 วันหยุดบริษัท</span>
+                    </template>
+                    <template v-else>
+                      <span
+                        class="text-[9px] px-1 py-0.5 rounded font-semibold"
+                        :class="day.is_late
+                          ? 'bg-rose-900/60 text-rose-300'
+                          : 'bg-teal-900/50 text-teal-300'"
+                      >
+                        {{ day.is_late ? '🕐 สาย' : '✓ ตรงเวลา' }}
+                      </span>
+                      <span
+                        v-if="day.early_checkout"
+                        class="text-[9px] px-1 py-0.5 rounded font-semibold bg-amber-900/60 text-amber-300"
+                      >🚪 ก่อนเวลา</span>
+                    </template>
                   </div>
                   <!-- Check-in / check-out times -->
                   <div v-if="day.check_in_at || day.check_out_at" class="flex items-center gap-1 text-[9px] text-gray-500 mb-0.5">
@@ -612,11 +622,12 @@ function daysAgoStr(n: number) {
   return localDateStr(d)
 }
 
-const fromDate = ref(daysAgoStr(6))
+const fromDate = ref(todayStr())
 const toDate = ref(todayStr())
-const activePreset = ref('7 วัน')
+const activePreset = ref('วันนี้')
 
 const datePresets = [
+  { label: 'วันนี้', from: () => todayStr(), to: () => todayStr() },
   { label: '7 วัน', from: () => daysAgoStr(6), to: () => todayStr() },
   { label: '14 วัน', from: () => daysAgoStr(13), to: () => todayStr() },
   { label: '30 วัน', from: () => daysAgoStr(29), to: () => todayStr() },
@@ -767,14 +778,20 @@ const totalReworks = computed(() =>
 const totalMissedPulse = computed(() =>
   store.discipline?.users.reduce((s, u) => s + u.missed_pulse_count, 0) ?? 0
 )
-const totalLateDays = computed(() =>
-  store.discipline?.users.reduce((s, u) => s + (u.total_late_days ?? 0), 0) ?? 0
-)
-const totalEarlyCheckoutDays = computed(() =>
-  store.discipline?.users.reduce((s, u) => s + (u.total_early_checkout_days ?? 0), 0) ?? 0
-)
+const totalNoCheckinCheckoutUsers = computed(() => {
+  const users = store.discipline?.users ?? []
+  return users.filter((u) =>
+    (u.days ?? []).some((d) => !d.check_in_at && !d.check_out_at && d.attendance_status !== 'on_leave'),
+  ).length
+})
+const totalOnLeaveUsers = computed(() => {
+  const users = store.discipline?.users ?? []
+  return users.filter((u) =>
+    (u.days ?? []).some((d) => d.attendance_status === 'on_leave'),
+  ).length
+})
 
-type SummaryFilter = 'all' | 'jobDone' | 'rework' | 'missedPulse' | 'late' | 'earlyCheckout'
+type SummaryFilter = 'all' | 'jobDone' | 'rework' | 'missedPulse' | 'noCheckinCheckout' | 'onLeave'
 
 const activeSummaryFilter = ref<SummaryFilter>('all')
 
@@ -796,10 +813,14 @@ const filteredUsers = computed(() => {
       return users.filter((u) => u.total_reworks > 0)
     case 'missedPulse':
       return users.filter((u) => u.missed_pulse_count > 0)
-    case 'late':
-      return users.filter((u) => (u.total_late_days ?? 0) > 0)
-    case 'earlyCheckout':
-      return users.filter((u) => (u.total_early_checkout_days ?? 0) > 0)
+    case 'noCheckinCheckout':
+      return users.filter((u) =>
+        (u.days ?? []).some((d) => !d.check_in_at && !d.check_out_at && d.attendance_status !== 'on_leave'),
+      )
+    case 'onLeave':
+      return users.filter((u) =>
+        (u.days ?? []).some((d) => d.attendance_status === 'on_leave'),
+      )
     default:
       return users
   }
@@ -811,8 +832,8 @@ const activeSummaryFilterLabel = computed(() => {
     jobDone: 'Job Done รวม',
     rework: 'Rework รวม',
     missedPulse: 'Missed Pulse',
-    late: '🕐 สายรวม',
-    earlyCheckout: '🚪 กลับก่อนรวม',
+    noCheckinCheckout: '📝 ไม่ลงเวลา Check-in/Check-out',
+    onLeave: '🏖️ ลางาน',
   }
   return labels[activeSummaryFilter.value]
 })
@@ -833,6 +854,8 @@ function disciplineScore(user: DisciplineUser): number {
 // ─── Styling helpers ──────────────────────────────────────────────────────────
 
 function dayCellBg(day: DisciplineUserDayStat): string {
+  if (day.attendance_status === 'on_leave') return 'bg-fuchsia-50 dark:bg-fuchsia-950/25 border border-fuchsia-200 dark:border-fuchsia-800/30'
+  if (day.attendance_status === 'holiday') return 'bg-cyan-50 dark:bg-cyan-950/25 border border-cyan-200 dark:border-cyan-800/30'
   if (!day.has_daily_pulse && day.logged_minutes === 0 && day.tasks_closed === 0 && !day.attendance_status) {
     return 'bg-red-50 dark:bg-gray-800/40 border border-red-200 dark:border-red-900/30'
   }

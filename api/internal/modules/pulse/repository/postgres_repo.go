@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/portnd/the-sentinel-core/internal/modules/pulse/domain"
@@ -136,12 +137,14 @@ func (r *postgresRepository) GetApprovedLeavesByDate(date time.Time) ([]domain.L
 	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 
 	type row struct {
-		UserID    uint   `gorm:"column:user_id"`
-		LeaveType string `gorm:"column:leave_type"`
+		UserID      uint   `gorm:"column:user_id"`
+		LeaveType   string `gorm:"column:leave_type"`
+		IsHalfDay   bool   `gorm:"column:is_half_day"`
+		HalfSession string `gorm:"column:half_day_session"`
 	}
 	var rows []row
 	err := r.db.Raw(
-		`SELECT DISTINCT user_id, leave_type
+		`SELECT DISTINCT user_id, leave_type, is_half_day, COALESCE(half_day_session, '') AS half_day_session
 		 FROM leave_requests
 		 WHERE status = 'APPROVED'
 		   AND start_date <= ?
@@ -154,9 +157,18 @@ func (r *postgresRepository) GetApprovedLeavesByDate(date time.Time) ([]domain.L
 
 	out := make([]domain.LeaveSummary, len(rows))
 	for i, row := range rows {
+		session := "FULL"
+		if row.IsHalfDay {
+			s := strings.ToUpper(strings.TrimSpace(row.HalfSession))
+			if s == "AM" || s == "PM" {
+				session = s
+			}
+		}
 		out[i] = domain.LeaveSummary{
-			UserID:    row.UserID,
-			LeaveType: row.LeaveType,
+			UserID:      row.UserID,
+			LeaveType:   row.LeaveType,
+			IsHalfDay:   row.IsHalfDay,
+			HalfSession: session,
 		}
 	}
 	return out, nil

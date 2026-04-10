@@ -95,7 +95,8 @@ type DisciplineUserDayStat struct {
 	EarlyCheckout    bool   `json:"early_checkout"`
 	CheckInAt        string `json:"check_in_at,omitempty"`        // HH:MM ICT
 	CheckOutAt       string `json:"check_out_at,omitempty"`       // HH:MM ICT
-	AttendanceStatus string `json:"attendance_status,omitempty"` // present|late|absent|wfh
+	AttendanceStatus string `json:"attendance_status,omitempty"` // present|late|absent|wfh|on_leave|holiday
+	LeaveSession     string `json:"leave_session,omitempty"`     // AM|PM|FULL
 }
 
 // DisciplineUser aggregates one employee's discipline stats across the queried range.

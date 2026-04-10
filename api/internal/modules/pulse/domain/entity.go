@@ -33,6 +33,7 @@ type UserPulse struct {
 	Standup          *DailyStandup  `json:"standup"`
 	IsOnLeave        bool           `json:"is_on_leave"`
 	LeaveType        string         `json:"leave_type,omitempty"`
+	LeaveSession     string         `json:"leave_session,omitempty"` // AM|PM|FULL
 	TotalLoggedMin   int            `json:"total_logged_minutes"`
 	TotalLoggedHrs   float64        `json:"total_logged_hours"`
 	LatestActivities []ActivityItem `json:"latest_activities"`
@@ -98,6 +99,8 @@ type SubmissionSummary struct {
 
 // LeaveSummary is a minimal projection of approved leave covering a date.
 type LeaveSummary struct {
-	UserID    uint   `json:"user_id"`
-	LeaveType string `json:"leave_type"`
+	UserID       uint   `json:"user_id"`
+	LeaveType    string `json:"leave_type"`
+	IsHalfDay    bool   `json:"is_half_day"`
+	HalfSession  string `json:"half_day_session"` // AM|PM|""
 }
