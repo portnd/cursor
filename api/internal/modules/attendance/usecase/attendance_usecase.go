@@ -950,7 +950,7 @@ func (u *attendanceUsecase) UpsertHolidayCalendar(role string, req *domain.Holid
 }
 
 func (u *attendanceUsecase) ListLeaveAuditLogs(role string, leaveID int64) ([]domain.LeaveAuditLog, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	return u.repo.ListLeaveAuditLogs(leaveID)
