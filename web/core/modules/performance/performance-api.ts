@@ -111,6 +111,10 @@ export interface DisciplineResponse {
   users: DisciplineUser[]
 }
 
+export interface DisciplineStartDateResponse {
+  start_date: string
+}
+
 export interface DisciplineTimeLogEntry {
   task_id: string
   task_code: string
@@ -196,6 +200,17 @@ function usePerformanceApi() {
     return await fetchWithAuth<DisciplineDayDetail>(`/performance/discipline/detail?user_id=${userId}&date=${date}`)
   }
 
+  async function getDisciplineStartDate(): Promise<DisciplineStartDateResponse> {
+    return await fetchWithAuth<DisciplineStartDateResponse>('/performance/discipline/start-date')
+  }
+
+  async function setDisciplineStartDate(startDate: string): Promise<DisciplineStartDateResponse> {
+    return await fetchWithAuth<DisciplineStartDateResponse>('/performance/discipline/start-date', {
+      method: 'PUT',
+      body: { start_date: startDate },
+    })
+  }
+
   return {
     getPersonalKPIs,
     getTeamKPIs,
@@ -203,6 +218,8 @@ function usePerformanceApi() {
     resetReworkRate,
     getDiscipline,
     getDisciplineDayDetail,
+    getDisciplineStartDate,
+    setDisciplineStartDate,
   }
 }
 

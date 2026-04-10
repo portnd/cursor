@@ -27,25 +27,30 @@
     </div>
 
     <!-- ── Summary Stats ───────────────────────────────────────────────────── -->
-    <div v-if="store.pulse" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div v-if="store.pulse" class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
       <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">👥</span>
-        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ store.pulse.total_members }}</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ visibleTeamSize }}</span>
         <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Team Size</span>
+      </div>
+      <div class="flex flex-col gap-1 rounded-xl border border-orange-200 dark:border-orange-700 bg-orange-50/60 dark:bg-orange-900/20 px-4 py-3">
+        <span class="text-lg">🏖️</span>
+        <span class="text-2xl font-bold text-orange-700 dark:text-orange-300">{{ visibleOnLeaveCount }}</span>
+        <span class="text-xs text-orange-700/80 dark:text-orange-300/80 uppercase tracking-wide">On Leave</span>
       </div>
       <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">✅</span>
-        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ store.pulse.checked_in }} / {{ store.pulse.total_members }}</span>
-        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Checked In</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ visibleCheckedIn }} / {{ activeMembers }}</span>
+        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Checked In (Active)</span>
       </div>
       <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">📊</span>
-        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ store.checkinRate }}%</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ visibleCheckinRate }}%</span>
         <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Check-in Rate</span>
       </div>
       <div class="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
         <span class="text-lg">⏱️</span>
-        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ (store.pulse.total_minutes_logged / 60).toFixed(1) }}h</span>
+        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ (visibleTotalMinutesLogged / 60).toFixed(1) }}h</span>
         <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Hours Logged</span>
       </div>
     </div>
@@ -63,10 +68,36 @@
       <div v-for="i in 6" :key="i" class="h-52 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
     </div>
 
+    <!-- ── Visibility Manager (CEO) ────────────────────────────────────────── -->
+    <div
+      v-if="store.pulse && canManageVisibility"
+      class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-sm font-semibold text-gray-900 dark:text-white">Team size visibility (CEO)</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Checked users are hidden from Team Size</p>
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <label
+          v-for="member in store.pulse.members"
+          :key="`vis-${member.user_id}`"
+          class="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-200"
+        >
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            :checked="isHidden(member.user_id)"
+            @change="onToggleVisibility(member.user_id, ($event.target as HTMLInputElement).checked)"
+          >
+          <span class="truncate">{{ member.user_display_name || member.user_email }}</span>
+        </label>
+      </div>
+    </div>
+
     <!-- ── Member Grid ─────────────────────────────────────────────────────── -->
     <div v-if="store.pulse" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <PulseMemberCard
-        v-for="member in store.pulse.members"
+        v-for="member in visibleMembers"
         :key="member.user_id"
         :member="member"
       />
@@ -89,6 +120,18 @@ import { usePulseStore } from '../store/pulse-store'
 import PulseMemberCard from './PulseMemberCard.vue'
 import { localDateStr } from '~/composables/useLocalDate'
 
+const props = withDefaults(defineProps<{
+  canManageVisibility?: boolean
+  hiddenUserIds?: number[]
+}>(), {
+  canManageVisibility: false,
+  hiddenUserIds: () => [],
+})
+
+const emit = defineEmits<{
+  (e: 'toggle-user-visibility', payload: { userId: number; hidden: boolean }): void
+}>()
+
 const store = usePulseStore()
 
 const today = localDateStr()
@@ -100,6 +143,42 @@ const displayDate = computed(() => {
   const d = new Date(selectedDate.value + 'T00:00:00')
   return d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 })
+
+const hiddenSet = computed(() => new Set(props.hiddenUserIds))
+
+const visibleMembers = computed(() => {
+  const members = store.pulse?.members ?? []
+  return members.filter((m) => !hiddenSet.value.has(m.user_id))
+})
+
+const visibleTeamSize = computed(() => visibleMembers.value.length)
+
+const visibleOnLeaveCount = computed(() =>
+  visibleMembers.value.filter((m) => m.is_on_leave).length,
+)
+
+const activeMembers = computed(() => Math.max(visibleTeamSize.value - visibleOnLeaveCount.value, 0))
+
+const visibleCheckedIn = computed(() =>
+  visibleMembers.value.filter((m) => !m.is_on_leave && m.standup !== null).length,
+)
+
+const visibleCheckinRate = computed(() => {
+  if (activeMembers.value === 0) return 0
+  return Math.round((visibleCheckedIn.value / activeMembers.value) * 100)
+})
+
+const visibleTotalMinutesLogged = computed(() =>
+  visibleMembers.value.reduce((sum, m) => sum + (m.total_logged_minutes ?? 0), 0),
+)
+
+function isHidden(userId: number) {
+  return hiddenSet.value.has(userId)
+}
+
+function onToggleVisibility(userId: number, checked: boolean) {
+  emit('toggle-user-visibility', { userId, hidden: checked })
+}
 
 function onDateChange() {
   store.fetchDailyPulse(selectedDate.value)

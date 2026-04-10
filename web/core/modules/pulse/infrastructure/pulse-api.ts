@@ -36,6 +36,8 @@ export interface UserPulse {
   user_display_name: string
   user_avatar_url?: string
   standup: DailyStandup | null
+  is_on_leave: boolean
+  leave_type?: string
   total_logged_minutes: number
   total_logged_hours: number
   latest_activities: ActivityItem[]
@@ -46,6 +48,7 @@ export interface CompanyPulseResponse {
   date: string
   total_members: number
   checked_in: number
+  on_leave_count: number
   total_minutes_logged: number
   members: UserPulse[]
 }

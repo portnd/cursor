@@ -30,8 +30,8 @@
             <!-- Header -->
             <div class="flex items-center justify-between border-b border-gray-700 px-6 py-4">
               <div>
-                <h3 class="text-lg font-bold text-white">Daily Check-in</h3>
-                <p class="text-xs text-gray-400 mt-0.5">{{ todayFormatted }} — Let the team know what you're up to</p>
+                <h3 class="text-lg font-bold text-white">เช็กอินประจำวัน</h3>
+                <p class="text-xs text-gray-400 mt-0.5">{{ todayFormatted }} — อัปเดตให้ทีมรู้ว่าวันนี้กำลังทำอะไรอยู่</p>
               </div>
               <button
                 v-if="!forced"
@@ -49,7 +49,7 @@
               <!-- Yesterday summary -->
               <div class="flex flex-col gap-1.5">
                 <label class="text-sm font-semibold text-gray-200" for="yesterday">
-                  What did you accomplish yesterday?
+                  เมื่อวานคุณทำอะไรสำเร็จบ้าง?
                   <span class="ml-1 text-red-400">*</span>
                 </label>
                 <div class="relative">
@@ -57,7 +57,7 @@
                     id="yesterday"
                     v-model="form.yesterday_summary"
                     rows="3"
-                    placeholder="e.g. Finished the authentication flow, reviewed 2 PRs…"
+                    placeholder="เช่น ปิดงานระบบล็อกอิน, รีวิว PR ไป 2 งาน…"
                     class="w-full resize-none rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 pr-10 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
                     :class="{ 'border-red-600': errors.yesterday_summary }"
                   />
@@ -87,49 +87,78 @@
               <!-- Today tasks -->
               <div class="flex flex-col gap-1.5">
                 <label class="text-sm font-semibold text-gray-200">
-                  Which task codes are you working on today?
-                  <span class="text-xs font-normal text-gray-500 ml-1">(optional, press Enter to add)</span>
+                  วันนี้กำลังทำงานรหัส Task อะไรบ้าง?
+                  <span class="text-xs font-normal text-gray-500 ml-1">(ไม่บังคับ, กด Enter เพื่อเพิ่ม)</span>
                 </label>
                 <!-- Tag input -->
                 <div
-                  class="flex min-h-[2.5rem] flex-wrap gap-1.5 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 focus-within:border-indigo-500"
+                  class="relative rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 focus-within:border-indigo-500"
                 >
-                  <span
-                    v-for="(tid, i) in form.today_task_ids"
-                    :key="i"
-                    class="flex items-center gap-1 rounded bg-indigo-900/70 px-2 py-0.5 text-xs font-mono text-indigo-300"
-                  >
-                    {{ tid }}
-                    <button
-                      type="button"
-                      class="text-indigo-400 hover:text-white"
-                      @click="removeTaskId(i)"
-                    >×</button>
-                  </span>
                   <input
                     v-model="taskInput"
                     type="text"
-                    placeholder="e.g. SENT-042"
-                    class="min-w-[8rem] flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 outline-none"
-                    @keydown.enter.prevent="addTaskId"
+                    placeholder="🔍 ค้นหา Task ที่จะทำวันนี้..."
+                    class="w-full bg-white dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                    @focus="handleTaskInputFocus"
+                    @blur="onTaskInputBlur"
+                    @keydown.enter.prevent="onTaskEnter"
                     @keydown.backspace="onBackspace"
                     @keydown.comma.prevent="addTaskId"
                   />
+
+                  <div v-if="form.today_task_ids.length" class="mt-2 flex flex-wrap gap-1.5 border-t border-gray-700/70 pt-2">
+                    <span
+                      v-for="(tid, i) in form.today_task_ids"
+                      :key="i"
+                      class="flex items-center gap-1 rounded bg-indigo-900/70 px-2 py-0.5 text-xs font-mono text-indigo-300"
+                    >
+                      {{ tid }}
+                      <button
+                        type="button"
+                        class="text-indigo-400 hover:text-white"
+                        @click="removeTaskId(i)"
+                      >×</button>
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="showTaskSuggestions"
+                    class="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-10 max-h-56 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 shadow-xl"
+                  >
+                    <button
+                      v-for="task in filteredTaskSuggestions"
+                      :key="task.code"
+                      type="button"
+                      class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700/60 text-left border-b border-gray-200 dark:border-gray-700/30 last:border-0 transition-colors"
+                      @mousedown.prevent="selectSuggestedTask(task.code)"
+                    >
+                      <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
+                      <span class="text-xs text-gray-700 dark:text-gray-200 truncate flex-1">{{ task.title || '-' }}</span>
+                      <span v-if="task.assignee" class="text-[10px] text-indigo-400/70 shrink-0 hidden sm:block">{{ task.assignee }}</span>
+                    </button>
+                    <div
+                      v-if="filteredTaskSuggestions.length === 0"
+                      class="px-3 py-2 text-xs text-gray-500"
+                    >
+                      {{ taskSuggestionsLoading ? 'กำลังโหลดรายการ task…' : 'ยังไม่มีรายการแนะนำ ลองพิมพ์รหัสงานแล้วกด Enter เพื่อเพิ่ม' }}
+                    </div>
+                  </div>
                 </div>
+                <p class="text-[11px] text-gray-500">เลือกได้หลายงานสำหรับอัปเดต standup วันนี้</p>
               </div>
 
               <!-- Blocker -->
               <div class="flex flex-col gap-1.5">
                 <label class="text-sm font-semibold text-gray-200" for="blocker">
-                  Any blockers?
-                  <span class="text-xs font-normal text-gray-500 ml-1">(leave empty if none)</span>
+                  มีอุปสรรคในการทำงานไหม?
+                  <span class="text-xs font-normal text-gray-500 ml-1">(ถ้าไม่มี เว้นว่างได้)</span>
                 </label>
                 <div class="relative">
                   <textarea
                     id="blocker"
                     v-model="form.blocker"
                     rows="2"
-                    placeholder="e.g. Waiting on design assets for the dashboard…"
+                    placeholder="เช่น รอไฟล์ดีไซน์สำหรับหน้า Dashboard…"
                     class="w-full resize-none rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 pr-10 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
                     :class="form.blocker ? 'border-red-700 bg-red-900/10' : ''"
                   />
@@ -150,7 +179,7 @@
                   </button>
                 </div>
                 <p v-if="form.blocker" class="text-xs text-red-400 font-medium">
-                  Blocker will be highlighted for the team lead.
+                  ระบบจะไฮไลต์อุปสรรคนี้ให้หัวหน้าทีมเห็นชัดเจน
                 </p>
                 <p v-if="voiceErrorBlocker" class="text-xs text-amber-400 flex items-center gap-1">
                   <span>⚠</span> {{ voiceErrorBlocker }}
@@ -174,7 +203,7 @@
                   class="rounded-lg px-4 py-2 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-900 dark:text-white transition"
                   @click="close"
                 >
-                  Cancel
+ยกเลิก
                 </button>
                 <button
                   type="submit"
@@ -185,7 +214,7 @@
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
-                  {{ store.submitting ? 'Submitting…' : 'Submit Check-in' }}
+                  {{ store.submitting ? 'กำลังส่ง…' : 'ส่งเช็กอิน' }}
                 </button>
               </div>
             </form>
@@ -200,6 +229,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { usePulseStore } from '../store/pulse-store'
 import { useVoiceInput } from '~/composables/useVoiceInput'
+import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 
 // ── Props & Emits ─────────────────────────────────────────────────────────────
 
@@ -217,7 +247,15 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'submitted'): void }>()
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const store = usePulseStore()
+const { getTeamActiveTasks, getKomgripTasks } = useTasksApi()
 const isOpen = ref(false)
+
+type TaskSuggestion = {
+  code: string
+  title?: string
+  assignee?: string
+  projectName?: string
+}
 
 const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
 
@@ -246,7 +284,49 @@ const { isListening: blockerListening, error: voiceErrorBlocker, toggle: toggleB
   })
 
 const taskInput = ref('')
+const showTaskSuggestions = ref(false)
+const taskSuggestionsLoading = ref(false)
+const teamActiveTasks = ref<TaskSuggestion[]>([])
 const errors = reactive({ yesterday_summary: '' })
+
+const suggestedTasks = computed(() => {
+  const byCode = new Map<string, TaskSuggestion>()
+
+  // 1) Suggestions from real active tasks (same source as Work Log timer)
+  for (const task of teamActiveTasks.value) {
+    const code = String(task.code || '').trim()
+    if (!code) continue
+    if (!byCode.has(code)) byCode.set(code, task)
+  }
+
+  // 2) Fallback suggestions from pulse history
+  for (const m of store.pulse?.members ?? []) {
+    const tasks = m.standup?.today_task_ids ?? []
+    for (const t of tasks) {
+      const code = String(t || '').trim()
+      if (!code) continue
+      if (!byCode.has(code)) byCode.set(code, { code })
+    }
+  }
+
+  return [...byCode.values()]
+})
+
+const TASK_SUGGESTION_LIMIT = 100
+
+const filteredTaskSuggestions = computed(() => {
+  const q = taskInput.value.trim().toLowerCase()
+  const candidates = suggestedTasks.value.filter((t) => !form.today_task_ids.includes(t.code))
+  const filtered = q
+    ? candidates.filter((t) =>
+      t.code.toLowerCase().includes(q) ||
+      (t.title ?? '').toLowerCase().includes(q) ||
+      (t.assignee ?? '').toLowerCase().includes(q) ||
+      (t.projectName ?? '').toLowerCase().includes(q),
+    )
+    : candidates
+  return filtered.slice(0, TASK_SUGGESTION_LIMIT)
+})
 
 // ── Task tag helpers ──────────────────────────────────────────────────────────
 
@@ -256,6 +336,58 @@ function addTaskId() {
     form.today_task_ids.push(val)
   }
   taskInput.value = ''
+  showTaskSuggestions.value = true
+}
+
+function selectSuggestedTask(taskId: string) {
+  if (!form.today_task_ids.includes(taskId)) {
+    form.today_task_ids.push(taskId)
+  }
+  taskInput.value = ''
+  showTaskSuggestions.value = true
+}
+
+function onTaskEnter() {
+  const topSuggestion = filteredTaskSuggestions.value[0]
+  if (taskInput.value.trim() && topSuggestion && topSuggestion.code.toLowerCase() === taskInput.value.trim().toLowerCase()) {
+    selectSuggestedTask(topSuggestion.code)
+    return
+  }
+  addTaskId()
+}
+
+function onTaskInputBlur() {
+  // Delay to allow click (mousedown) on suggestion before closing.
+  setTimeout(() => {
+    showTaskSuggestions.value = false
+  }, 120)
+}
+
+async function loadTaskSuggestions() {
+  if (teamActiveTasks.value.length || taskSuggestionsLoading.value) return
+  taskSuggestionsLoading.value = true
+  try {
+    const [active, komgrip] = await Promise.all([
+      getTeamActiveTasks().catch(() => [] as any[]),
+      getKomgripTasks().catch(() => [] as any[]),
+    ])
+    const activeKomgrip = (komgrip ?? []).filter((t: any) => t?.status !== 'COMPLETED')
+    const all = [...(active ?? []), ...activeKomgrip]
+
+    teamActiveTasks.value = all.map((t: any) => ({
+      code: String(t?.code ?? '').trim(),
+      title: String(t?.title ?? '').trim(),
+      assignee: (t?.assigned_to_display_name || t?.assigned_to_email || '').toString().trim(),
+      projectName: String(t?.project_name ?? '').trim(),
+    })).filter((t: TaskSuggestion) => t.code)
+  } finally {
+    taskSuggestionsLoading.value = false
+  }
+}
+
+function handleTaskInputFocus() {
+  showTaskSuggestions.value = true
+  loadTaskSuggestions()
 }
 
 function removeTaskId(index: number) {
@@ -273,7 +405,7 @@ function onBackspace() {
 function validate(): boolean {
   errors.yesterday_summary = ''
   if (!form.yesterday_summary.trim()) {
-    errors.yesterday_summary = 'Please describe what you did yesterday.'
+    errors.yesterday_summary = 'กรุณาอธิบายว่าเมื่อวานทำอะไรไปบ้าง'
     return false
   }
   return true
@@ -304,6 +436,9 @@ async function handleSubmit() {
 function open() {
   store.error = null
   isOpen.value = true
+  if (!store.pulse || store.lastFetchedDate !== today) {
+    store.fetchDailyPulse(today)
+  }
 }
 
 /** Force-close regardless of forced prop — used after a successful submit */

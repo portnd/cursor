@@ -42,8 +42,10 @@ export const usePulseStore = defineStore('pulse', {
       state.pulse?.members.filter((m) => m.has_blocker) ?? [],
 
     checkinRate: (state): number => {
-      if (!state.pulse || state.pulse.total_members === 0) return 0
-      return Math.round((state.pulse.checked_in / state.pulse.total_members) * 100)
+      if (!state.pulse) return 0
+      const activeMembers = Math.max(state.pulse.total_members - state.pulse.on_leave_count, 0)
+      if (activeMembers === 0) return 0
+      return Math.round((state.pulse.checked_in / activeMembers) * 100)
     },
   },
 

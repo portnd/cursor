@@ -26,15 +26,17 @@ func (DailyStandup) TableName() string { return "daily_standups" }
 
 // UserPulse aggregates all activity for a single user on a given day.
 type UserPulse struct {
-	UserID          uint           `json:"user_id"`
-	UserEmail       string         `json:"user_email"`
-	UserDisplayName string         `json:"user_display_name"`
-	UserAvatarURL   string         `json:"user_avatar_url,omitempty"`
-	Standup         *DailyStandup  `json:"standup"`
-	TotalLoggedMin  int            `json:"total_logged_minutes"`
-	TotalLoggedHrs  float64        `json:"total_logged_hours"`
+	UserID           uint           `json:"user_id"`
+	UserEmail        string         `json:"user_email"`
+	UserDisplayName  string         `json:"user_display_name"`
+	UserAvatarURL    string         `json:"user_avatar_url,omitempty"`
+	Standup          *DailyStandup  `json:"standup"`
+	IsOnLeave        bool           `json:"is_on_leave"`
+	LeaveType        string         `json:"leave_type,omitempty"`
+	TotalLoggedMin   int            `json:"total_logged_minutes"`
+	TotalLoggedHrs   float64        `json:"total_logged_hours"`
 	LatestActivities []ActivityItem `json:"latest_activities"`
-	HasBlocker      bool           `json:"has_blocker"`
+	HasBlocker       bool           `json:"has_blocker"`
 }
 
 // ActivityItem is a lightweight summary of a time-log or submission event.
@@ -48,11 +50,12 @@ type ActivityItem struct {
 
 // CompanyPulseResponse is the full daily pulse board payload.
 type CompanyPulseResponse struct {
-	Date          string      `json:"date"` // YYYY-MM-DD
-	TotalMembers  int         `json:"total_members"`
-	CheckedIn     int         `json:"checked_in"`
-	TotalMinLogged int        `json:"total_minutes_logged"`
-	Members       []UserPulse `json:"members"`
+	Date           string      `json:"date"` // YYYY-MM-DD
+	TotalMembers   int         `json:"total_members"`
+	CheckedIn      int         `json:"checked_in"`
+	OnLeaveCount   int         `json:"on_leave_count"`
+	TotalMinLogged int         `json:"total_minutes_logged"`
+	Members        []UserPulse `json:"members"`
 }
 
 // ─── Ports (interfaces) ────────────────────────────────────────────────────────
@@ -66,6 +69,7 @@ type PulseRepository interface {
 	// Cross-module reads (read-only queries into sentinel tables)
 	GetTimeLogsByDate(date time.Time) ([]TimeLogSummary, error)
 	GetSubmissionsByDate(date time.Time) ([]SubmissionSummary, error)
+	GetApprovedLeavesByDate(date time.Time) ([]LeaveSummary, error)
 }
 
 // PulseUsecase defines business operations.
@@ -90,4 +94,10 @@ type SubmissionSummary struct {
 	ReferenceURL string    `json:"reference_url"`
 	Note         string    `json:"note"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+// LeaveSummary is a minimal projection of approved leave covering a date.
+type LeaveSummary struct {
+	UserID    uint   `json:"user_id"`
+	LeaveType string `json:"leave_type"`
 }

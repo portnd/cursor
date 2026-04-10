@@ -15,7 +15,7 @@
           </div>
 
           <div class="flex items-center gap-3">
-            <!-- My check-in status badge (CEO & SUPPORT are exempt) -->
+            <!-- My check-in status badge (SUPPORT is exempt) -->
             <div
               v-if="currentUser && !exemptFromPulse"
               :class="[
@@ -57,7 +57,11 @@
 
     <!-- Main content -->
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <TeamPulseBoard />
+      <TeamPulseBoard
+        :can-manage-visibility="isCEO"
+        :hidden-user-ids="hiddenUserIds"
+        @toggle-user-visibility="onToggleUserVisibility"
+      />
     </main>
 
     <!-- Check-in Modal -->
@@ -86,10 +90,18 @@ const checkinModal = ref<InstanceType<typeof DailyCheckinModal> | null>(null)
 import { localDateStr } from '~/composables/useLocalDate'
 const today = localDateStr()
 
+const hiddenUserIds = ref<number[]>([])
+const hiddenStorageKey = computed(() => {
+  const uid = currentUser.value?.user_id ?? 'guest'
+  return `pulse:hidden-members:${uid}`
+})
+
 const exemptFromPulse = computed(() => {
   const r = currentUser.value?.role?.toUpperCase()
-  return r === 'CEO' || r === 'SUPPORT'
+  return r === 'SUPPORT'
 })
+
+const isCEO = computed(() => currentUser.value?.role?.toUpperCase() === 'CEO')
 
 const hasCheckedIn = computed(() => {
   if (!store.pulse || !currentUser.value) return false
@@ -99,7 +111,51 @@ const hasCheckedIn = computed(() => {
 
 function onCheckinSubmitted() {}
 
+function loadHiddenUserIds() {
+  if (typeof window === 'undefined') return
+  if (!isCEO.value) {
+    hiddenUserIds.value = []
+    return
+  }
+  const raw = window.localStorage.getItem(hiddenStorageKey.value)
+  if (!raw) {
+    hiddenUserIds.value = []
+    return
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    hiddenUserIds.value = Array.isArray(parsed)
+      ? parsed.filter((v) => Number.isInteger(v) && v > 0)
+      : []
+  } catch {
+    hiddenUserIds.value = []
+  }
+}
+
+function saveHiddenUserIds() {
+  if (typeof window === 'undefined') return
+  if (!isCEO.value) return
+  window.localStorage.setItem(hiddenStorageKey.value, JSON.stringify(hiddenUserIds.value))
+}
+
+function onToggleUserVisibility(payload: { userId: number; hidden: boolean }) {
+  if (!isCEO.value) return
+  const current = new Set(hiddenUserIds.value)
+  if (payload.hidden) current.add(payload.userId)
+  else current.delete(payload.userId)
+  hiddenUserIds.value = [...current]
+  saveHiddenUserIds()
+}
+
 onMounted(() => {
+  loadHiddenUserIds()
   store.fetchDailyPulse(today)
 })
+
+watch(
+  () => currentUser.value?.user_id,
+  () => {
+    loadHiddenUserIds()
+  },
+)
 </script>

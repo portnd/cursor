@@ -3,21 +3,29 @@
     :class="[
       'relative flex flex-col gap-3 rounded-xl border p-4 transition',
       'bg-white dark:bg-gray-800/70',
-      member.has_blocker
-        ? 'border-red-400 dark:border-red-700'
-        : 'border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600',
+      member.is_on_leave
+        ? 'border-orange-400 dark:border-orange-700 bg-orange-50/40 dark:bg-orange-950/20'
+        : member.has_blocker
+          ? 'border-red-400 dark:border-red-700'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600',
     ]"
   >
-    <!-- Blocker banner -->
+    <!-- Leave / Blocker banner -->
     <div
-      v-if="member.has_blocker"
+      v-if="member.is_on_leave"
+      class="absolute inset-x-0 top-0 rounded-t-xl bg-orange-100 dark:bg-orange-900/60 px-3 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1"
+    >
+      <span>🏖️</span> On leave{{ member.leave_type ? ` · ${member.leave_type}` : '' }}
+    </div>
+    <div
+      v-else-if="member.has_blocker"
       class="absolute inset-x-0 top-0 rounded-t-xl bg-red-100 dark:bg-red-900/60 px-3 py-1 text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-1"
     >
       <span>🚧</span> Blocker reported
     </div>
 
     <!-- Header row -->
-    <div :class="['flex items-center gap-3', member.has_blocker ? 'mt-5' : '']">
+    <div :class="['flex items-center gap-3', (member.has_blocker || member.is_on_leave) ? 'mt-5' : '']">
       <div class="flex-shrink-0 w-9 h-9 rounded-full overflow-hidden">
         <img
           v-if="member.user_avatar_url"
@@ -42,9 +50,14 @@
     <!-- No standup -->
     <div
       v-if="!member.standup"
-      class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-3 py-2 text-xs text-gray-400 dark:text-gray-500 italic"
+      :class="[
+        'rounded-lg border px-3 py-2 text-xs italic',
+        member.is_on_leave
+          ? 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 not-italic'
+          : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-400 dark:text-gray-500',
+      ]"
     >
-      No standup submitted yet.
+      {{ member.is_on_leave ? 'On approved leave for this day.' : 'No standup submitted yet.' }}
     </div>
 
     <!-- Standup content -->

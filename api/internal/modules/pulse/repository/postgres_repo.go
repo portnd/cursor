@@ -131,3 +131,33 @@ func (r *postgresRepository) GetSubmissionsByDate(date time.Time) ([]domain.Subm
 	}
 	return out, nil
 }
+
+func (r *postgresRepository) GetApprovedLeavesByDate(date time.Time) ([]domain.LeaveSummary, error) {
+	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+
+	type row struct {
+		UserID    uint   `gorm:"column:user_id"`
+		LeaveType string `gorm:"column:leave_type"`
+	}
+	var rows []row
+	err := r.db.Raw(
+		`SELECT DISTINCT user_id, leave_type
+		 FROM leave_requests
+		 WHERE status = 'APPROVED'
+		   AND start_date <= ?
+		   AND end_date >= ?`,
+		dayStart, dayStart,
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("pulse: get approved leaves by date: %w", err)
+	}
+
+	out := make([]domain.LeaveSummary, len(rows))
+	for i, row := range rows {
+		out[i] = domain.LeaveSummary{
+			UserID:    row.UserID,
+			LeaveType: row.LeaveType,
+		}
+	}
+	return out, nil
+}

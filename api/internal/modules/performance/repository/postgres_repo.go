@@ -26,6 +26,8 @@ type postgresRepo struct {
 	db *gorm.DB
 }
 
+const disciplineStartDateKey = "discipline_start_date"
+
 // NewPostgresRepository returns a performance repository that queries existing tables
 func NewPostgresRepository(db *gorm.DB) perfDomain.Repository {
 	return &postgresRepo{db: db}
@@ -1342,6 +1344,29 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 	}
 
 	return detail, nil
+}
+
+func (r *postgresRepo) GetDisciplineStartDate() (*perfDomain.DisciplineStartDateResponse, error) {
+	var row struct {
+		Value string
+	}
+	err := r.db.Raw("SELECT value FROM app_settings WHERE key = ?", disciplineStartDateKey).Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &perfDomain.DisciplineStartDateResponse{StartDate: row.Value}, nil
+}
+
+func (r *postgresRepo) SetDisciplineStartDate(startDate string) (*perfDomain.DisciplineStartDateResponse, error) {
+	err := r.db.Exec(`
+		INSERT INTO app_settings (key, value)
+		VALUES (?, ?)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+	`, disciplineStartDateKey, startDate).Error
+	if err != nil {
+		return nil, err
+	}
+	return &perfDomain.DisciplineStartDateResponse{StartDate: startDate}, nil
 }
 
 func (r *postgresRepo) GetCompanyWideReworkAndTimeAccuracy() (avgReworkPct, avgTimeAccuracyPct float64, err error) {

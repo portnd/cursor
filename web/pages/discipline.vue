@@ -21,9 +21,28 @@
         </div>
         <!-- Date range picker -->
         <div class="flex items-center gap-3 flex-wrap">
-          <UiDatePicker v-model="fromDate" placeholder="จาก…" />
+          <UiDatePicker v-model="fromDate" placeholder="จาก…" :min="disciplineStartDate || undefined" />
           <span class="text-gray-500">→</span>
-          <UiDatePicker v-model="toDate" placeholder="ถึง…" />
+          <UiDatePicker v-model="toDate" placeholder="ถึง…" :min="disciplineStartDate || undefined" />
+
+          <div
+            v-if="disciplineStartDate"
+            class="px-3 py-2 rounded-lg border border-cyan-500/40 bg-cyan-950/20 text-cyan-200 text-xs"
+          >
+            เริ่มนับข้อมูลจากวันที่ {{ formatThaiFullDate(disciplineStartDate) }}
+          </div>
+
+          <div v-if="isCEO" class="flex items-center gap-2">
+            <UiDatePicker v-model="pendingStartDate" placeholder="เลือกวันเริ่มต้นข้อมูล" />
+            <button
+              @click="saveDisciplineStartDate"
+              :disabled="!pendingStartDate || savingStartDate"
+              class="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs rounded-lg font-medium transition-colors"
+            >
+              {{ savingStartDate ? 'กำลังบันทึก...' : 'ปฏิทิน' }}
+            </button>
+          </div>
+
           <!-- Quick presets -->
           <div class="flex gap-1">
             <button
@@ -547,6 +566,8 @@
 
 <script setup lang="ts">
 import { usePerformanceStore } from '~/core/modules/performance/performance-store'
+import { usePerformanceApi } from '~/core/modules/performance/performance-api'
+import { useAuth } from '~/composables/useAuth'
 import type { DisciplineJobDoneItem, DisciplineReworkItem, DisciplineUser, DisciplineUserDayStat } from '~/core/modules/performance/performance-api'
 
 // ─── Day Detail Modal state ───────────────────────────────────────────────────
@@ -571,6 +592,12 @@ function closeDayDetail() {
 definePageMeta({ middleware: 'auth', layout: 'default' })
 
 const store = usePerformanceStore()
+const { currentUser } = useAuth()
+
+const isCEO = computed(() => String(currentUser.value?.role || '').toUpperCase() === 'CEO')
+const disciplineStartDate = ref('')
+const pendingStartDate = ref('')
+const savingStartDate = ref(false)
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 import { localDateStr } from '~/composables/useLocalDate'
@@ -613,7 +640,54 @@ function applyPreset(preset: typeof datePresets[0]) {
 
 async function loadData() {
   activePreset.value = ''
+  if (disciplineStartDate.value && fromDate.value < disciplineStartDate.value) {
+    fromDate.value = disciplineStartDate.value
+  }
+  if (disciplineStartDate.value && toDate.value < disciplineStartDate.value) {
+    toDate.value = disciplineStartDate.value
+  }
+  if (toDate.value < fromDate.value) {
+    toDate.value = fromDate.value
+  }
   await store.fetchDiscipline(fromDate.value, toDate.value)
+}
+
+async function loadDisciplineStartDate() {
+  try {
+    const api = usePerformanceApi()
+    const res = await api.getDisciplineStartDate()
+    disciplineStartDate.value = res.start_date || ''
+    pendingStartDate.value = disciplineStartDate.value
+    if (disciplineStartDate.value && fromDate.value < disciplineStartDate.value) {
+      fromDate.value = disciplineStartDate.value
+    }
+    if (disciplineStartDate.value && toDate.value < disciplineStartDate.value) {
+      toDate.value = disciplineStartDate.value
+    }
+  } catch (e) {
+    disciplineStartDate.value = ''
+  }
+}
+
+async function saveDisciplineStartDate() {
+  if (!isCEO.value || !pendingStartDate.value) return
+  savingStartDate.value = true
+  try {
+    const api = usePerformanceApi()
+    const res = await api.setDisciplineStartDate(pendingStartDate.value)
+    disciplineStartDate.value = res.start_date
+    if (fromDate.value < disciplineStartDate.value) {
+      fromDate.value = disciplineStartDate.value
+    }
+    if (toDate.value < disciplineStartDate.value) {
+      toDate.value = disciplineStartDate.value
+    }
+    await loadData()
+  } catch (e: any) {
+    store.disciplineError = e?.message || 'บันทึกวันเริ่มต้นข้อมูลไม่สำเร็จ'
+  } finally {
+    savingStartDate.value = false
+  }
 }
 
 function formatDateHeader(d: string) {
@@ -624,6 +698,11 @@ function formatDateHeader(d: string) {
 function dayOfWeek(d: string) {
   const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
   return days[new Date(d + 'T00:00:00').getDay()]
+}
+
+function formatThaiFullDate(d: string) {
+  const date = new Date(d + 'T00:00:00')
+  return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 function jobDoneItemsForUser(u: DisciplineUser): DisciplineJobDoneItem[] {
@@ -818,7 +897,8 @@ function avatarColor(email: string): string {
 
 // ─── Auto-load on mount ───────────────────────────────────────────────────────
 
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadDisciplineStartDate()
+  await loadData()
 })
 </script>

@@ -13,8 +13,10 @@ func RegisterRoutes(router *gin.RouterGroup, usecase perfDomain.Usecase) {
 		perf.GET("/me", handler.GetMe)
 		perf.GET("/team", handler.GetTeam)
 		perf.GET("/overview", handler.GetOverview)
-		perf.GET("/discipline", handler.GetDiscipline)               // CEO + PM
-		perf.GET("/discipline/detail", handler.GetDisciplineDayDetail) // CEO + PM
-		perf.POST("/users/:id/reset-rework", handler.ResetReworkRate) // CEO only
+		perf.GET("/discipline", handler.GetDiscipline)                        // CEO + Product Owner + Manager + Engineer + Chief Engineer + Support
+		perf.GET("/discipline/detail", handler.GetDisciplineDayDetail)          // CEO + Product Owner + Manager + Engineer + Chief Engineer + Support
+		perf.GET("/discipline/start-date", handler.GetDisciplineStartDate)      // all discipline viewers
+		perf.PUT("/discipline/start-date", handler.SetDisciplineStartDate)      // CEO only
+		perf.POST("/users/:id/reset-rework", handler.ResetReworkRate)          // CEO only
 	}
 }

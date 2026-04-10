@@ -263,6 +263,14 @@ func (u *performanceUsecase) GetDiscipline(from, to string) (*perfDomain.Discipl
 	return u.repo.GetDisciplineStats(from, to)
 }
 
+func (u *performanceUsecase) GetDisciplineStartDate() (*perfDomain.DisciplineStartDateResponse, error) {
+	return u.repo.GetDisciplineStartDate()
+}
+
+func (u *performanceUsecase) SetDisciplineStartDate(startDate string) (*perfDomain.DisciplineStartDateResponse, error) {
+	return u.repo.SetDisciplineStartDate(startDate)
+}
+
 // ResetReworkRate clears the rework history for a developer by setting rework_reset_at = NOW().
 // Only CEO is allowed to perform this action.
 func (u *performanceUsecase) ResetReworkRate(devUserID uint, requesterRole string) error {

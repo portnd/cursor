@@ -77,6 +77,11 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		return nil, fmt.Errorf("pulse: fetch submissions: %w", err)
 	}
 
+	approvedLeaves, err := u.repo.GetApprovedLeavesByDate(date)
+	if err != nil {
+		return nil, fmt.Errorf("pulse: fetch approved leaves: %w", err)
+	}
+
 	// ── Load all team members to ensure every user appears ────────────────────
 	users, err := u.authRepo.GetAllUsers()
 	if err != nil {
@@ -131,6 +136,11 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		})
 	}
 
+	leaveByUser := make(map[uint]string, len(approvedLeaves))
+	for _, lv := range approvedLeaves {
+		leaveByUser[lv.UserID] = lv.LeaveType
+	}
+
 	// ── Build UserPulse entries ────────────────────────────────────────────────
 	const maxActivities = 5
 
@@ -140,12 +150,15 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		if r == authDomain.RoleCEO || r == authDomain.RoleSupport {
 			continue
 		}
+		leaveType := leaveByUser[usr.ID]
 		p := &domain.UserPulse{
 			UserID:          usr.ID,
 			UserEmail:       usr.Email,
 			UserDisplayName: usr.DisplayName,
 			UserAvatarURL:   usr.AvatarURL,
 			Standup:         standupMap[usr.ID],
+			IsOnLeave:       leaveType != "",
+			LeaveType:       leaveType,
 			HasBlocker:      standupMap[usr.ID] != nil && standupMap[usr.ID].Blocker != "",
 		}
 
@@ -187,10 +200,14 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 
 	totalLoggedMin := 0
 	checkedIn := 0
+	onLeaveCount := 0
 	for _, m := range members {
 		totalLoggedMin += m.TotalLoggedMin
 		if m.Standup != nil {
 			checkedIn++
+		}
+		if m.IsOnLeave {
+			onLeaveCount++
 		}
 	}
 
@@ -198,6 +215,7 @@ func (u *pulseUsecase) GetDailyCompanyPulse(date time.Time) (*domain.CompanyPuls
 		Date:           date.Format("2006-01-02"),
 		TotalMembers:   len(members),
 		CheckedIn:      checkedIn,
+		OnLeaveCount:   onLeaveCount,
 		TotalMinLogged: totalLoggedMin,
 		Members:        members,
 	}, nil

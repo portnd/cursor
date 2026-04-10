@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	"github.com/gin-gonic/gin"
@@ -153,6 +154,56 @@ func (h *Handler) GetDisciplineDayDetail(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, detail)
+}
+
+// GetDisciplineStartDate returns configured global start date for discipline data.
+// GET /api/v1/performance/discipline/start-date
+func (h *Handler) GetDisciplineStartDate(c *gin.Context) {
+	role := getRole(c)
+	if role != "CEO" && role != authDomain.RoleProductOwner && role != authDomain.RoleManager && role != authDomain.RoleEngineer && role != authDomain.RoleChiefEngineer && role != authDomain.RoleSupport {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO, Product Owner, Manager, Engineer, Chief Engineer and Support only"})
+		return
+	}
+
+	resp, err := h.usecase.GetDisciplineStartDate()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// SetDisciplineStartDate sets configured global start date for discipline data.
+// PUT /api/v1/performance/discipline/start-date (CEO only)
+func (h *Handler) SetDisciplineStartDate(c *gin.Context) {
+	role := getRole(c)
+	if role != "CEO" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "CEO only"})
+		return
+	}
+
+	var req struct {
+		StartDate string `json:"start_date"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid request body"})
+		return
+	}
+	if req.StartDate == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "start_date is required (YYYY-MM-DD)"})
+		return
+	}
+	if _, err := time.Parse("2006-01-02", req.StartDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "start_date must be YYYY-MM-DD"})
+		return
+	}
+
+	resp, err := h.usecase.SetDisciplineStartDate(req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // ResetReworkRate resets a developer's Rework Rate by setting rework_reset_at = NOW().

@@ -135,6 +135,11 @@ type DisciplineResponse struct {
 	Users    []DisciplineUser `json:"users"`
 }
 
+// DisciplineStartDateResponse defines global discipline start date.
+type DisciplineStartDateResponse struct {
+	StartDate string `json:"start_date"` // YYYY-MM-DD
+}
+
 // ─── Discipline Day Detail ────────────────────────────────────────────────────
 
 // DisciplineTimeLogEntry is one time-log entry for a specific day.
@@ -197,6 +202,8 @@ type Usecase interface {
 	ResetReworkRate(devUserID uint, requesterRole string) error // CEO only: reset rework history for a dev
 	GetDiscipline(from, to string) (*DisciplineResponse, error)
 	GetDisciplineDayDetail(userID uint, date string) (*DisciplineDayDetail, error)
+	GetDisciplineStartDate() (*DisciplineStartDateResponse, error)
+	SetDisciplineStartDate(startDate string) (*DisciplineStartDateResponse, error)
 }
 
 // Repository defines the data access interface for performance aggregations
@@ -221,6 +228,8 @@ type Repository interface {
 	// Discipline dashboard — cross-module daily stats per user
 	GetDisciplineStats(from, to string) (*DisciplineResponse, error)
 	GetDisciplineDayDetail(userID uint, date string) (*DisciplineDayDetail, error)
+	GetDisciplineStartDate() (*DisciplineStartDateResponse, error)
+	SetDisciplineStartDate(startDate string) (*DisciplineStartDateResponse, error)
 
 	// Company-wide (for overview)
 	GetSprintSuccessRate() (ratePct float64, err error)
