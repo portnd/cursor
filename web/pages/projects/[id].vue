@@ -311,15 +311,15 @@
               <div
                 v-for="t in recentTasks"
                 :key="t.id"
-                class="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-700/40 transition-colors cursor-pointer"
+                class="flex flex-col gap-2 py-2.5 px-3 rounded-lg border-b border-white/10 last:border-b-0 hover:bg-gray-700/40 transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between"
                 @click="navigateToTask(t.id)"
               >
-                <div class="flex items-center gap-3">
-                  <span class="text-xs font-mono text-gray-500">{{ t.code }}</span>
-                  <span class="text-sm text-gray-300 truncate max-w-xs">{{ t.title }}</span>
-                  <span class="px-1.5 py-0.5 text-[10px] rounded font-medium" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
+                <div class="flex min-w-0 items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                  <span class="text-[11px] sm:text-xs font-mono text-gray-500 shrink-0">{{ t.code }}</span>
+                  <span class="text-sm text-gray-300 leading-5 break-words sm:truncate sm:max-w-xs">{{ t.title }}</span>
+                  <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                   <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
                 </div>
               </div>
@@ -343,51 +343,52 @@
         </div>
 
         <!-- TAB 3: Timeline (Gantt) - Enterprise design -->
-        <div v-if="isTabMounted('timeline')" v-show="activeTab === 'timeline'" class="timeline-tab space-y-5">
+        <div v-if="isTabMounted('timeline')" v-show="activeTab === 'timeline'" class="timeline-tab space-y-4 sm:space-y-5">
           <!-- Toolbar: enterprise card -->
-          <div class="timeline-toolbar timeline-enterprise-panel rounded-xl px-4 py-3">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-              <div class="flex flex-wrap items-center gap-4">
+          <div class="timeline-toolbar timeline-enterprise-panel rounded-xl px-3 py-3 sm:px-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                 <!-- Matrix Dimension Toggle: Epic Roadmap | Sprint Execution (both as Gantt) -->
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                   <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mode</span>
                   <div class="flex rounded-lg bg-slate-900/80 p-0.5">
-                    <button @click="timelineMode = 'epic'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
+                    <button @click="timelineMode = 'epic'" class="rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 sm:px-3" :class="timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
                       Epic Roadmap
                     </button>
-                    <button @click="timelineMode = 'sprint'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="timelineMode === 'sprint' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
+                    <button @click="timelineMode = 'sprint'" class="rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 sm:px-3" :class="timelineMode === 'sprint' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
                       Sprint Execution
                     </button>
                   </div>
                 </div>
 
                 <!-- View (Day/Week/Month) for both modes -->
-                <div class="h-4 w-px bg-slate-600" />
-                <div class="flex items-center gap-2">
+                <div class="hidden h-4 w-px bg-slate-600 sm:block" />
+                <div class="flex w-full flex-col items-stretch gap-2 lg:w-auto lg:flex-row lg:items-center lg:justify-end">
                   <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">View</span>
                   <div class="flex rounded-lg bg-slate-900/80 p-0.5">
-                    <button v-for="v in ['Day', 'Week', 'Month']" :key="v" type="button" @click="ganttView = v.toLowerCase()" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="ganttView === v.toLowerCase() ? (timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm') : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'" :title="v === 'Week' ? '1 column = 7 days (Mon–Sun)' : v === 'Day' ? '1 column = 1 day' : '1 column = 1 month'">
+                    <button v-for="v in ['Day', 'Week', 'Month']" :key="v" type="button" @click="ganttView = v.toLowerCase()" class="rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 sm:px-3" :class="ganttView === v.toLowerCase() ? (timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm') : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'" :title="v === 'Week' ? '1 column = 7 days (Mon–Sun)' : v === 'Day' ? '1 column = 1 day' : '1 column = 1 month'">
                       {{ v === 'Week' ? 'Week (7d)' : v }}
                     </button>
                   </div>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
+
+              <div class="flex flex-wrap items-center gap-2">
                 <div v-if="matrixGanttRows.length > 0" class="flex items-center rounded-lg border border-slate-600/60 bg-slate-800/50 overflow-hidden">
-                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
+                  <button type="button" class="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60 sm:px-3" title="กางทั้งหมด" @click="expandAllTimelineTasks">
                     Expand all
                   </button>
-                  <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
+                  <button type="button" class="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors sm:px-3" title="ย่อทั้งหมด" @click="collapseAllTimelineTasks">
                     Collapse all
                   </button>
                 </div>
-                <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" @click="timelineFullscreen = true" title="ขยายเต็มจอ / Fullscreen">
+                <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white sm:px-3" @click="timelineFullscreen = true" title="ขยายเต็มจอ / Fullscreen">
                   <span aria-hidden="true">⛶</span> Fullscreen
                 </button>
-                <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
+                <button v-if="matrixGanttRows.length > 0" type="button" class="flex items-center gap-2 rounded-lg border border-slate-500/50 bg-slate-700/50 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-600/60 hover:text-white sm:px-3" title="Export timeline as PDF (opens in new tab)" @click="onExportTimelinePdf">
                   <span aria-hidden="true">📄</span> Export PDF
                 </button>
-                <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-300 dark:border-purple-500/50 bg-purple-100 dark:bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-100 dark:bg-purple-600/40 hover:text-purple-200" @click="scrollTimelineToToday">
+                <button type="button" class="flex items-center gap-2 rounded-lg border border-purple-300 dark:border-purple-500/50 bg-purple-100 dark:bg-purple-600/20 px-2.5 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-100 dark:bg-purple-600/40 hover:text-purple-200 sm:px-3" @click="scrollTimelineToToday">
                   <span aria-hidden="true">◉</span> Today
                 </button>
               </div>
@@ -422,7 +423,7 @@
                 <span class="text-sm font-medium text-slate-300">Timeline — Fullscreen</span>
                 <div class="flex flex-wrap items-center gap-4">
                   <!-- Mode: Epic Roadmap | Sprint Execution -->
-                  <div class="flex items-center gap-2">
+                  <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                     <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mode</span>
                     <div class="flex rounded-lg bg-slate-900/80 p-0.5">
                       <button type="button" @click="timelineMode = 'epic'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'">
@@ -435,7 +436,7 @@
                   </div>
                   <div class="h-4 w-px bg-slate-600" />
                   <!-- View: Day | Week (7 days) | Month -->
-                  <div class="flex items-center gap-2">
+                  <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                     <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">View</span>
                     <div class="flex rounded-lg bg-slate-900/80 p-0.5">
                       <button v-for="v in ['Day', 'Week', 'Month']" :key="v" type="button" @click="ganttView = v.toLowerCase()" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-200" :class="ganttView === v.toLowerCase() ? (timelineMode === 'epic' ? 'bg-purple-600 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm') : 'text-slate-400 hover:bg-slate-700/60 hover:text-slate-200'" :title="v === 'Week' ? '1 column = 7 days (Mon–Sun)' : v === 'Day' ? '1 column = 1 day' : '1 column = 1 month'">
@@ -444,7 +445,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                   <div class="flex items-center rounded-lg border border-slate-600/60 bg-slate-800/50 overflow-hidden">
                     <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-gray-900 dark:text-white hover:bg-slate-700/60 transition-colors border-r border-slate-600/60" title="กางทั้งหมด" @click="expandAllTimelineTasks">
                       Expand all
@@ -522,10 +523,10 @@
         </div>
 
         <!-- TAB 4: Backlog (WBS + Sprint Planning) -->
-        <div v-if="isTabMounted('backlog')" v-show="activeTab === 'backlog'" class="backlog-enterprise space-y-5">
+        <div v-if="isTabMounted('backlog')" v-show="activeTab === 'backlog'" class="backlog-enterprise space-y-4 sm:space-y-5">
           <!-- Epics Management Section -->
-          <div class="backlog-enterprise-card rounded-xl p-4">
-            <div class="flex items-center justify-between mb-3">
+          <div class="backlog-enterprise-card rounded-xl p-3 sm:p-4">
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-gray-200">Epics</span>
                 <span class="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">{{ epics.length }}</span>
@@ -557,8 +558,8 @@
           </div>
 
           <!-- Backlog Table Header + Add Task + Import Slides -->
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3 flex-wrap">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
               <h3 class="text-base font-semibold text-gray-200">Product Backlog</h3>
               <span class="text-xs text-gray-500">{{ allTasks.filter(t => !t.parent_id).length }} tasks</span>
               <span v-if="projectDetailsTasksMeta?.has_more" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5">
@@ -589,58 +590,61 @@
                 </button>
               </template>
               <!-- Expand / Collapse all (enterprise toolbar) -->
-              <div class="flex items-center rounded-lg border border-gray-600/60 bg-gray-800/50 overflow-hidden">
+              <div class="order-1 flex w-full items-center rounded-lg border border-slate-300/80 bg-white overflow-hidden dark:border-gray-600/60 dark:bg-gray-800/50 lg:order-none lg:w-auto">
                 <button
                   type="button"
                   @click="expandAllBacklog"
-                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors border-r border-gray-600/60"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-black dark:text-white hover:bg-slate-100 dark:hover:bg-gray-700/60 transition-colors border-r border-slate-300/80 dark:border-gray-600/60"
                   title="กางทั้งหมด"
                 >
-                  <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3.5 h-3.5 text-slate-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>
-                  <span class="hidden sm:inline">Expand all</span>
+                  <span>Expand all</span>
                 </button>
                 <button
                   type="button"
                   @click="collapseAllBacklog"
-                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-gray-900 dark:text-white hover:bg-gray-700/60 transition-colors"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-black dark:text-white hover:bg-slate-100 dark:hover:bg-gray-700/60 transition-colors"
                   title="ย่อทั้งหมด"
                 >
                   <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
-                  <span class="hidden sm:inline">Collapse all</span>
+                  <span>Collapse all</span>
                 </button>
               </div>
-              <button @click="openBacklogImportModal()" class="btn-import-sm">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
-                Import Slides
-              </button>
-              <button @click="openSheetsImportModal()" class="btn-import-sm">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
-                Import EU
-              </button>
-              <button @click="openIODImportModal()" class="btn-import-sm border border-blue-300 dark:border-blue-500/40 text-blue-300 hover:bg-blue-100 dark:bg-blue-500/10">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                Import IOD
-              </button>
-              <button @click="openPPTXImportModal()" class="btn-import-sm">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
-                Import PPTX
-              </button>
-              <button @click="openCreateTaskModal()" class="btn-primary-sm">+ Task</button>
+              <div class="order-2 flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
+                <button @click="openBacklogImportModal()" class="btn-import-sm">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+                  Import Slides
+                </button>
+                <button @click="openSheetsImportModal()" class="btn-import-sm">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+                  Import EU
+                </button>
+                <button @click="openIODImportModal()" class="btn-import-sm border border-blue-300 dark:border-blue-500/40 text-blue-300 hover:bg-blue-100 dark:bg-blue-500/10">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  Import IOD
+                </button>
+                <button @click="openPPTXImportModal()" class="btn-import-sm">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
+                  Import PPTX
+                </button>
+                <button @click="openCreateTaskModal()" class="btn-primary-sm">+ Task</button>
+              </div>
             </div>
           </div>
 
           <!-- Backlog Table (horizontal scroll on small screens) -->
-          <div class="backlog-enterprise-table rounded-xl overflow-x-auto overflow-y-hidden min-w-0">
-            <div class="min-w-[640px]">
+          <p class="px-1 text-[11px] text-slate-500 sm:hidden">เลื่อนซ้าย/ขวาเพื่อดูทุกคอลัมน์</p>
+          <div class="backlog-enterprise-table -mx-3 rounded-none overflow-x-auto overflow-y-hidden min-w-0 sm:mx-0 sm:rounded-xl">
+            <div class="min-w-[860px] sm:min-w-[1040px]">
               <!-- Epic Groups: header = Task, SP, Priority, Sprint, Status (no Epic) -->
               <template v-for="(ep, epIdx) in epics" :key="ep.id">
                 <!-- Epic Group Header (draggable to reorder) -->
                 <div
-                  class="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-white/10 bg-slate-900/45 cursor-pointer hover:bg-slate-800/55 group"
+                  class="flex items-center gap-2 px-2.5 sm:px-4 py-2 border-b border-white/10 bg-slate-900/45 cursor-pointer hover:bg-slate-800/55 group"
                   :class="{ 'opacity-60': backlogDrag?.type === 'epic' && backlogDrag?.id === ep.id }"
                   draggable="true"
                   @click="toggleEpicGroup(ep.id)"
@@ -1338,7 +1342,7 @@
                 </button>
               </div>
             </div>
-            <div class="mt-5 grid grid-cols-3 gap-4">
+            <div class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div class="bg-gray-800/60 rounded-xl p-4 text-center">
                 <div class="text-2xl font-bold text-white">{{ sprintTaskCount('total') }}</div>
                 <div class="text-xs text-gray-500 uppercase tracking-wide mt-0.5">Tasks</div>
@@ -5278,6 +5282,15 @@ onMounted(() => {
 
 .backlog-enterprise-table {
   @apply border border-white/10 bg-slate-900/70 shadow-[0_16px_38px_rgba(2,6,23,0.42)] backdrop-blur-sm;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+@media (max-width: 639px) {
+  .backlog-enterprise-table {
+    border-left: 0;
+    border-right: 0;
+  }
 }
 
 /* Backlog table: Task column takes remaining space, + Sub column minimal */

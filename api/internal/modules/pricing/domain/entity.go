@@ -124,6 +124,11 @@ type QuotationRequest struct {
 	// ProjectName is the human-readable project name shown in the customer PDF header.
 	// Falls back to ProjectID when empty.
 	ProjectName string `json:"project_name"`
+	// CustomerLinePricingMode controls how line amounts are shown in customer view.
+	// - "base": show base labor cost per task (legacy behavior)
+	// - "absorbed": distribute risk+profit into each task line so sum matches total before VAT
+	// Defaults to "absorbed" when empty.
+	CustomerLinePricingMode string `json:"customer_line_pricing_mode"`
 }
 
 // TaskCostLine is one task row in the quotation breakdown.

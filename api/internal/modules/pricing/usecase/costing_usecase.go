@@ -735,8 +735,53 @@ func buildCustomerQuotationHTML(r *domain.QuotationResponse, req *domain.Quotati
 		projectLabel = r.ProjectID
 	}
 
+	totalBeforeVAT := round2(r.Subtotal + r.RiskAmount + r.ProfitAmount)
+
+	linePricingMode := strings.ToLower(strings.TrimSpace(req.CustomerLinePricingMode))
+	if linePricingMode == "" {
+		linePricingMode = "absorbed"
+	}
+
+	lineAmounts := make([]float64, len(r.Tasks))
+	if linePricingMode == "base" {
+		for i, t := range r.Tasks {
+			lineAmounts[i] = t.Cost
+		}
+	} else {
+		// "absorbed" mode (default): distribute risk+profit into line items so sum matches total before VAT.
+		if len(r.Tasks) > 0 {
+			running := 0.0
+			if r.Subtotal > 0 {
+				for i, t := range r.Tasks {
+					if i == len(r.Tasks)-1 {
+						lineAmounts[i] = round2(totalBeforeVAT - running)
+						continue
+					}
+					share := (t.Cost / r.Subtotal) * totalBeforeVAT
+					allocated := round2(share)
+					lineAmounts[i] = allocated
+					running += allocated
+				}
+			} else {
+				equalShare := round2(totalBeforeVAT / float64(len(r.Tasks)))
+				for i := range r.Tasks {
+					if i == len(r.Tasks)-1 {
+						lineAmounts[i] = round2(totalBeforeVAT - running)
+						continue
+					}
+					lineAmounts[i] = equalShare
+					running += equalShare
+				}
+			}
+		}
+	}
+
 	var taskRows strings.Builder
 	for i, t := range r.Tasks {
+		lineAmount := t.Cost
+		if i < len(lineAmounts) {
+			lineAmount = lineAmounts[i]
+		}
 		taskRows.WriteString(fmt.Sprintf(`
 		<tr class="%s">
 			<td class="num">%d</td>
@@ -748,11 +793,9 @@ func buildCustomerQuotationHTML(r *domain.QuotationResponse, req *domain.Quotati
 			i+1,
 			escapeHTML(t.EpicTitle),
 			escapeHTML(t.Title),
-			formatTHB(t.Cost),
+			formatTHB(lineAmount),
 		))
 	}
-
-	totalBeforeVAT := r.Subtotal + r.RiskAmount + r.ProfitAmount
 
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">

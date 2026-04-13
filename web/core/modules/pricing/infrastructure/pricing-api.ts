@@ -1,11 +1,16 @@
 import { useAuth } from '~/composables/useAuth'
 
+export type CustomerLinePricingMode = 'base' | 'absorbed'
+
 export interface QuotationRequest {
   dev_user_ids: number[]
   risk_margin_pct: number
   profit_margin_pct: number
   task_ids?: string[]
   epic_ids?: string[]
+  customer_view?: boolean
+  project_name?: string
+  customer_line_pricing_mode?: CustomerLinePricingMode
 }
 
 export interface TaskCostLine {

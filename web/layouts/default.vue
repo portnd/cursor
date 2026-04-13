@@ -1,13 +1,34 @@
 <template>
   <ClientOnly>
     <div class="layout-enterprise-shell flex h-screen text-gray-100">
-    <!-- Sidebar (collapsible) -->
+    <!-- Sidebar backdrop (mobile) -->
+    <div
+      v-if="mobileNavOpen"
+      class="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px] md:hidden"
+      @click="mobileNavOpen = false"
+    />
+
+    <!-- Sidebar (collapsible desktop / drawer mobile) -->
     <aside
-      class="sidebar-enterprise flex flex-col transition-[width] duration-200 ease-out shrink-0"
-      :class="sidebarCollapsed ? 'w-[4.5rem]' : 'w-64'"
+      class="sidebar-enterprise fixed inset-y-0 left-0 z-40 flex w-64 flex-col transition-all duration-200 ease-out md:relative md:z-auto md:translate-x-0"
+      :class="[
+        mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        sidebarCollapsed ? 'w-[4.5rem] md:w-[4.5rem]' : 'w-64 md:w-64'
+      ]"
     >
       <!-- Logo + Toggle -->
       <div class="sidebar-enterprise-top p-4 flex items-center justify-between gap-2">
+        <button
+          v-if="mobileNavOpen"
+          type="button"
+          @click="mobileNavOpen = false"
+          class="md:hidden shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          title="ปิดเมนู"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
         <div class="flex items-center gap-3 min-w-0 overflow-hidden">
           <span class="text-xl shrink-0">🛡️</span>
           <div v-show="!sidebarCollapsed" class="min-w-0">
@@ -18,7 +39,7 @@
         <button
           type="button"
           @click="sidebarCollapsed = !sidebarCollapsed"
-          class="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700 transition-colors"
+          class="shrink-0 p-1.5 rounded-lg bg-slate-100 text-slate-900 hover:text-black hover:bg-slate-200/90 dark:bg-transparent dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700 transition-colors"
           :title="sidebarCollapsed ? 'ขยายแถบด้านข้าง' : 'ย่อแถบด้านข้าง'"
         >
           <svg class="w-5 h-5 transition-transform" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,6 +313,19 @@
 
     <!-- Main Content -->
     <main class="main-enterprise-surface flex-1 overflow-auto">
+      <div class="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-300/70 bg-white/90 px-3 py-2 text-slate-800 backdrop-blur dark:border-white/10 dark:bg-slate-900/90 dark:text-gray-200 md:hidden">
+        <button
+          type="button"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300/80 bg-white text-slate-700 transition-colors hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800/80 dark:text-gray-200 dark:hover:bg-slate-700"
+          aria-label="Open menu"
+          @click="mobileNavOpen = true"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <p class="truncate text-sm font-semibold text-slate-800 dark:text-gray-200">The Sentinel</p>
+      </div>
       <slot />
     </main>
   </div>
@@ -312,6 +346,7 @@ import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deplo
 import { authApi } from '~/core/modules/auth/infrastructure/auth-api'
 
 const { logout, currentUser } = useAuth()
+const route = useRoute()
 const { confirm } = useNotification()
 const { isDark, toggle: toggleTheme, initTheme } = useTheme()
 
@@ -351,6 +386,7 @@ onMounted(async () => {
 
 const SIDEBAR_COLLAPSED_KEY = 'sentinel-sidebar-collapsed'
 const sidebarCollapsed = ref(false)
+const mobileNavOpen = ref(false)
 const showQuickLog = ref(false)
 const showBulkLog = ref(false)
 
@@ -363,6 +399,13 @@ onMounted(() => {
 watch(sidebarCollapsed, (v) => {
   if (import.meta.client) localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? '1' : '0')
 })
+
+watch(
+  () => route.fullPath,
+  () => {
+    mobileNavOpen.value = false
+  }
+)
 
 // ⌘+L → Quick Log Time | ⌘+Shift+L → EOD Batch Log
 function onKeydown(e: KeyboardEvent) {

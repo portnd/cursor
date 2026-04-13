@@ -165,6 +165,27 @@
         </svg>
         {{ exportingCustomer ? 'Generating PDF…' : 'Export PDF for Customer' }}
       </button>
+
+      <div
+        v-if="store.hasResult"
+        class="inline-flex items-center gap-2 rounded-lg border border-gray-600 bg-gray-900/40 px-2 py-1"
+      >
+        <span class="text-xs text-gray-400">Customer Line Pricing</span>
+        <button
+          class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors"
+          :class="customerLinePricingMode === 'base' ? 'bg-slate-700 text-white' : 'text-gray-400 hover:text-white'"
+          @click="customerLinePricingMode = 'base'"
+        >
+          แบบเดิม
+        </button>
+        <button
+          class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors"
+          :class="customerLinePricingMode === 'absorbed' ? 'bg-purple-700/80 text-white' : 'text-gray-400 hover:text-white'"
+          @click="customerLinePricingMode = 'absorbed'"
+        >
+          รวมความเสี่ยง+กำไร
+        </button>
+      </div>
     </div>
 
     <!-- ── MA Quotation Calculator ───────────────────────────────────────── -->
@@ -471,7 +492,12 @@
       <!-- Task Breakdown Table -->
       <div class="rounded-xl border border-gray-700 bg-gray-800/60 overflow-hidden">
         <div class="flex items-center justify-between border-b border-gray-700 px-5 py-3">
-          <h3 class="text-sm font-semibold text-white">Task Cost Breakdown</h3>
+          <div>
+            <h3 class="text-sm font-semibold text-white">Task Cost Breakdown</h3>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ customerLinePricingMode === 'absorbed' ? 'แสดงแบบรวมความเสี่ยงและกำไรในแต่ละรายการ (สำหรับ Customer PDF)' : 'แสดงต้นทุนฐานของแต่ละรายการ (แบบเดิม)' }}
+            </p>
+          </div>
           <span class="text-xs text-gray-500">{{ store.result.currency }}</span>
         </div>
         <div class="overflow-x-auto">
@@ -495,7 +521,7 @@
                 <td class="px-4 py-3 text-gray-200 font-medium">{{ task.title }}</td>
                 <td class="px-4 py-3 text-right text-gray-300">{{ task.mandays.toFixed(2) }}</td>
                 <td class="px-4 py-3 text-right font-semibold text-amber-400">
-                  {{ formatNumber(task.cost) }}
+                  {{ formatNumber(getTaskDisplayAmount(task, idx)) }}
                 </td>
               </tr>
             </tbody>
@@ -976,7 +1002,7 @@ import { useCostingStore } from '../store/costing-store'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { usePricingApi } from '../infrastructure/pricing-api'
-import type { QuotationRequest } from '../infrastructure/pricing-api'
+import type { QuotationRequest, CustomerLinePricingMode } from '../infrastructure/pricing-api'
 import type { Epic, Task } from '~/core/modules/projects/infrastructure/projects-api'
 import { isEngineerLikeRole } from '~/utils/roles'
 
@@ -993,6 +1019,7 @@ const pricingApi = usePricingApi()
 
 const exportingCustomer = ref(false)
 const exportingMA = ref(false)
+const customerLinePricingMode = ref<CustomerLinePricingMode>('absorbed')
 
 const maForm = reactive({
   maPrice: 0,
@@ -1418,6 +1445,7 @@ async function exportCustomerPDF() {
         task_ids: [...selectedTaskIds.value],
         customer_view: true,
         project_name: props.projectName ?? '',
+        customer_line_pricing_mode: customerLinePricingMode.value,
       }),
       signal: AbortSignal.timeout(120_000),
     })
@@ -1834,9 +1862,38 @@ function formatNumber(val: number): string {
   }).format(val)
 }
 
+function getTaskDisplayAmount(task: { cost: number }, idx: number): number {
+  if (!store.result) return task.cost
+  if (customerLinePricingMode.value === 'base') return task.cost
+
+  const tasks = store.result.tasks
+  if (!tasks.length) return task.cost
+
+  const totalBeforeVAT = store.result.subtotal + store.result.risk_amount + store.result.profit_amount
+
+  // Same allocation logic as backend customer PDF (absorbed mode)
+  if (store.result.subtotal > 0) {
+    if (idx === tasks.length - 1) {
+      const prior = tasks.slice(0, idx).reduce((sum, t) => sum + round2((t.cost / store.result!.subtotal) * totalBeforeVAT), 0)
+      return round2(totalBeforeVAT - prior)
+    }
+    return round2((task.cost / store.result.subtotal) * totalBeforeVAT)
+  }
+
+  const equalShare = round2(totalBeforeVAT / tasks.length)
+  if (idx === tasks.length - 1) {
+    return round2(totalBeforeVAT - equalShare * (tasks.length - 1))
+  }
+  return equalShare
+}
+
 function formatDate(d: string | null): string {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
 }
 
 function calculateMAQuotation() {
