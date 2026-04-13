@@ -60,6 +60,18 @@
           <span v-show="!sidebarCollapsed" class="font-medium truncate">Dashboard</span>
         </NuxtLink>
         <NuxtLink
+          v-if="['CEO', 'MANAGER'].includes(currentUser?.role ?? '')"
+          to="/workload"
+          class="nav-link"
+          active-class="bg-gradient-to-r from-rose-600 to-orange-600 shadow-lg"
+          :title="sidebarCollapsed ? 'Work Load' : undefined"
+        >
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-4h4v18h-4V3z" />
+          </svg>
+          <span v-show="!sidebarCollapsed" class="font-medium truncate">Work Load</span>
+        </NuxtLink>
+        <NuxtLink
           v-if="currentUser?.role !== 'SUPPORT'"
           to="/create"
           class="nav-link"
