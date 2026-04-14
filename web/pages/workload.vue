@@ -85,7 +85,12 @@
 
       <div v-if="unassignedTaskRows.length === 0" class="text-sm text-slate-600 dark:text-slate-300">ไม่พบงาน unassigned ตาม filter ปัจจุบัน</div>
       <div v-else class="space-y-3">
-        <article v-for="row in unassignedTaskRows" :key="row.task.id" class="rounded-xl border border-amber-200 bg-white/90 p-4 dark:border-amber-500/30 dark:bg-slate-900/40">
+        <article
+          v-for="row in unassignedTaskRows"
+          :key="row.task.id"
+          class="cursor-pointer rounded-xl border border-amber-200 bg-white/90 p-4 transition hover:border-amber-300 hover:shadow-sm dark:border-amber-500/30 dark:bg-slate-900/40"
+          @click="goToTask(row.task)"
+        >
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p class="font-semibold text-slate-900 dark:text-white">{{ row.task.title }}</p>
@@ -99,7 +104,7 @@
               <button
                 class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
                 :disabled="!row.suggested"
-                @click="openAutoAssignPreview(row)"
+                @click.stop="openAutoAssignPreview(row)"
               >
                 Apply Auto-assign
               </button>
@@ -272,14 +277,14 @@
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="selectedMember" class="fixed inset-0 z-40 flex justify-end bg-black/40" @click.self="selectedMemberKey = null">
+      <div v-if="selectedMember" class="fixed inset-0 z-40 flex justify-end bg-black/40" @click.self="closeMemberDetail">
         <aside class="h-full w-full max-w-lg overflow-y-auto border-l border-slate-200 bg-white p-5 text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
           <div class="mb-4 flex items-start justify-between">
             <div>
               <h3 class="text-lg font-semibold">{{ selectedMember.name }}</h3>
               <p class="text-sm text-slate-500 dark:text-slate-400">{{ selectedMember.role }}</p>
             </div>
-            <button class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" @click="selectedMemberKey = null">ปิด</button>
+            <button class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" @click="closeMemberDetail">ปิด</button>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -306,7 +311,12 @@
           <div class="mt-4 rounded-xl border border-slate-200 p-3 dark:border-white/10 dark:bg-slate-800/50">
             <p class="mb-2 text-sm font-semibold">Task Breakdown</p>
             <ul class="space-y-2 text-sm">
-              <li v-for="task in selectedMember.tasks" :key="task.id" class="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
+              <li
+                v-for="task in selectedMember.tasks"
+                :key="task.id"
+                class="cursor-pointer rounded-lg bg-slate-50 p-2 transition hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70"
+                @click="goToTask(task)"
+              >
                 <p class="font-medium">{{ task.title }}</p>
                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ task.status }} · {{ ((task.estimated_minutes || 0) / 60).toFixed(1) }}h</p>
               </li>
@@ -319,7 +329,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTasksApi, type GlobalActiveTask } from '~/core/modules/tasks/infrastructure/tasks-api'
+import { useTasksApi, type GlobalActiveTask, type TimeLog } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { useProjectsApi, type Project } from '~/core/modules/projects/infrastructure/projects-api'
 import type { User } from '~/core/modules/auth/infrastructure/auth-api'
 
@@ -393,6 +403,8 @@ const { fetchWithAuth } = useAuth()
 const { confirm } = useNotification()
 const tasksApi = useTasksApi()
 const projectsApi = useProjectsApi()
+const route = useRoute()
+const router = useRouter()
 
 const selectedRange = ref<RangeKey>('week')
 const selectedRole = ref('all')
@@ -413,8 +425,9 @@ const auditLogs = ref<AuditLog[]>([])
 const allActiveTasks = ref<GlobalActiveTask[]>([])
 const allUsers = ref<User[]>([])
 const projects = ref<Project[]>([])
+const userTimeLogMinutesMap = ref<Record<number, number>>({})
 
-const rangePlannedHours: Record<RangeKey, number> = { week: 40, month: 160, quarter: 480 }
+const rangeCapacityHours: Record<RangeKey, number> = { week: 40, month: 160, quarter: 480 }
 const AUDIT_STORAGE_KEY = 'sentinel-workload-audit-v1'
 
 const userMap = computed(() => {
@@ -423,9 +436,75 @@ const userMap = computed(() => {
   return map
 })
 
+function getRangeDateWindow(range: RangeKey) {
+  const now = new Date()
+  const start = new Date(now)
+  const end = new Date(now)
+
+  if (range === 'week') {
+    start.setHours(0, 0, 0, 0)
+    end.setDate(end.getDate() + 7)
+  }
+  if (range === 'month') {
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+    end.setMonth(end.getMonth() + 1)
+    end.setDate(0)
+    end.setHours(23, 59, 59, 999)
+  }
+  if (range === 'quarter') {
+    const currentQuarter = Math.floor(now.getMonth() / 3)
+    start.setMonth(currentQuarter * 3, 1)
+    start.setHours(0, 0, 0, 0)
+    end.setMonth(currentQuarter * 3 + 3, 0)
+    end.setHours(23, 59, 59, 999)
+  }
+
+  return { start, end }
+}
+
+function isWithinRange(iso: string | null | undefined, range: RangeKey) {
+  if (!iso) return false
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return false
+  const { start, end } = getRangeDateWindow(range)
+  return d >= start && d <= end
+}
+
+async function buildUserTimeLogMinutesMap(tasks: GlobalActiveTask[], range: RangeKey) {
+  const map: Record<number, number> = {}
+
+  await Promise.all(
+    tasks.map(async (task) => {
+      try {
+        const logs = await tasksApi.getTimeLogs(task.id)
+        for (const log of logs) {
+          const userId = Number(log.user_id)
+          if (!userId) continue
+          const inRange = isWithinRange(log.logged_date || log.logged_at, range)
+          if (!inRange) continue
+          map[userId] = (map[userId] || 0) + (log.minutes || 0)
+        }
+      } catch {
+        // ignore per-task log fetch failures
+      }
+    })
+  )
+
+  return map
+}
+
 const roleOptions = computed(() => {
+  const hiddenRoles = new Set(['CEO', 'SUPPORT'])
   const set = new Set<string>()
-  for (const u of allUsers.value) if (u.role) set.add(u.role)
+
+  for (const u of allUsers.value) {
+    const role = (u.role || '').trim()
+    if (!role) continue
+    if (hiddenRoles.has(role.toUpperCase())) continue
+    set.add(role)
+  }
+
   return [...set].sort()
 })
 
@@ -454,9 +533,11 @@ const filteredTasks = computed(() => {
 
 const sortedMembers = computed<MemberRow[]>(() => {
   const byUser = new Map<string, MemberRow>()
+  const hiddenRoles = new Set(['CEO', 'SUPPORT'])
 
   // Seed all users first so everyone appears even with 0 tasks
   for (const user of allUsers.value) {
+    if (hiddenRoles.has((user.role || '').toUpperCase())) continue
     if (selectedRole.value !== 'all' && user.role !== selectedRole.value) continue
     const key = `id:${user.id}`
     byUser.set(key, {
@@ -465,7 +546,7 @@ const sortedMembers = computed<MemberRow[]>(() => {
       name: user.display_name || user.email || `User #${user.id}`,
       role: user.role || 'Team Member',
       load: 0,
-      planned: rangePlannedHours[selectedRange.value],
+      planned: 0,
       actual: 0,
       inProgress: 0,
       pending: 0,
@@ -481,6 +562,7 @@ const sortedMembers = computed<MemberRow[]>(() => {
     const key = `id:${task.assigned_to}`
     const user = userMap.value.get(task.assigned_to)
 
+    if (hiddenRoles.has((user?.role || '').toUpperCase())) continue
     if (selectedRole.value !== 'all' && user?.role !== selectedRole.value) continue
 
     const current = byUser.get(key) || {
@@ -489,7 +571,7 @@ const sortedMembers = computed<MemberRow[]>(() => {
       name: user?.display_name || task.assigned_to_display_name || task.assigned_to_email || `User #${task.assigned_to}`,
       role: user?.role || 'Team Member',
       load: 0,
-      planned: rangePlannedHours[selectedRange.value],
+      planned: 0,
       actual: 0,
       inProgress: 0,
       pending: 0,
@@ -499,7 +581,7 @@ const sortedMembers = computed<MemberRow[]>(() => {
     }
 
     const hours = Math.max(0, (task.estimated_minutes || 0) / 60)
-    current.actual += hours
+    current.planned += hours
     current.tasks.push(task)
 
     if (task.status === 'IN_PROGRESS' || task.status === 'READY_FOR_TEST' || task.status === 'REVIEW_PENDING') current.inProgress += 1
@@ -520,13 +602,29 @@ const sortedMembers = computed<MemberRow[]>(() => {
   }
 
   return [...byUser.values()]
-    .map((m) => ({
-      ...m,
-      planned: rangePlannedHours[selectedRange.value],
-      actual: Number(m.actual.toFixed(1)),
-      load: Math.round((m.actual / rangePlannedHours[selectedRange.value]) * 100)
-    }))
-    .sort((a, b) => b.load - a.load)
+    .map((m) => {
+      const loggedHours = (userTimeLogMinutesMap.value[m.userId || 0] || 0) / 60
+      const plannedHours = Number(m.planned.toFixed(1))
+      const actualHours = Number(loggedHours.toFixed(1))
+      const capacity = rangeCapacityHours[selectedRange.value]
+      const load = capacity > 0 ? Math.round((plannedHours / capacity) * 100) : 0
+
+      return {
+        ...m,
+        planned: plannedHours,
+        actual: actualHours,
+        load
+      }
+    })
+    .sort((a, b) => {
+      if (a.load !== b.load) return b.load - a.load
+
+      const aActualZero = a.actual === 0
+      const bActualZero = b.actual === 0
+      if (aActualZero && bActualZero) return b.tasks.length - a.tasks.length
+
+      return b.actual - a.actual
+    })
 })
 
 const selectedMember = computed(() => sortedMembers.value.find((m) => m.key === selectedMemberKey.value) || null)
@@ -576,7 +674,7 @@ const autoAssignRecommendations = computed(() => {
   return unassignedTasks.value.map((task) => {
     const taskHours = Math.max(0, (task.estimated_minutes || 0) / 60)
     const receiver = receivers.find((r) => {
-      const nextLoad = Math.round(((r.actual + taskHours) / rangePlannedHours[selectedRange.value]) * 100)
+      const nextLoad = Math.round(((r.planned + taskHours) / rangeCapacityHours[selectedRange.value]) * 100)
       return nextLoad <= 100
     })
 
@@ -588,7 +686,7 @@ const autoAssignRecommendations = computed(() => {
             userId: receiver.userId as number,
             name: receiver.name,
             currentLoad: receiver.load,
-            afterLoad: Math.round(((receiver.actual + taskHours) / rangePlannedHours[selectedRange.value]) * 100)
+            afterLoad: Math.round(((receiver.planned + taskHours) / rangeCapacityHours[selectedRange.value]) * 100)
           }
         : null
     }
@@ -620,9 +718,9 @@ const recommendations = computed<Recommendation[]>(() => {
     const receiver = [...available].filter((r) => r.userId !== from.userId).sort((a, b) => a.load - b.load)[0]
     if (!receiver) continue
 
-    const planned = rangePlannedHours[selectedRange.value]
-    const fromAfter = Math.round(((from.actual - hours) / planned) * 100)
-    const toAfter = Math.round(((receiver.actual + hours) / planned) * 100)
+    const planned = rangeCapacityHours[selectedRange.value]
+    const fromAfter = Math.round(((from.planned - hours) / planned) * 100)
+    const toAfter = Math.round(((receiver.planned + hours) / planned) * 100)
     if (toAfter > 100) continue
 
     output.push({
@@ -743,10 +841,32 @@ async function confirmApplyRebalance() {
   }
 }
 
+function goToTask(task: { id: string; code?: string }) {
+  navigateTo({
+    path: `/task/${task.id}`,
+    query: { from: 'workload' }
+  })
+}
+
+function syncSelectedMemberFromRoute() {
+  const member = route.query.member
+  selectedMemberKey.value = typeof member === 'string' && member ? member : null
+}
+
 function openMemberDetail(memberKey: string) {
   selectedMemberKey.value = memberKey
+  const nextQuery = { ...route.query, member: memberKey }
+  router.replace({ query: nextQuery })
+
   const m = sortedMembers.value.find((x) => x.key === memberKey)
   if (m) trackEvent('open_member_detail', `${m.name} (${m.load}%)`, 'info')
+}
+
+function closeMemberDetail() {
+  selectedMemberKey.value = null
+  const nextQuery = { ...route.query }
+  delete nextQuery.member
+  router.replace({ query: nextQuery })
 }
 
 function clearAuditLogs() {
@@ -767,6 +887,7 @@ async function loadWorkload() {
     allActiveTasks.value = tasks
     allUsers.value = usersRes.data || []
     projects.value = projectData
+    userTimeLogMinutesMap.value = await buildUserTimeLogMinutesMap(tasks, selectedRange.value)
     trackEvent('load_workload', `tasks=${tasks.length}, users=${allUsers.value.length}`, 'info')
   } catch (e: any) {
     error.value = e?.message || 'ไม่สามารถโหลดข้อมูล workload ได้'
@@ -794,6 +915,8 @@ function formatDateTime(iso: string) {
 }
 
 onMounted(() => {
+  syncSelectedMemberFromRoute()
+
   if (import.meta.client) {
     try {
       const raw = localStorage.getItem(AUDIT_STORAGE_KEY)
@@ -806,5 +929,13 @@ onMounted(() => {
     }
   }
   loadWorkload()
+})
+
+watch([selectedRange, selectedRole, selectedProjectId], () => {
+  loadWorkload()
+})
+
+watch(() => route.query.member, () => {
+  syncSelectedMemberFromRoute()
 })
 </script>

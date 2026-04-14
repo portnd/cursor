@@ -596,7 +596,7 @@
                   >
                     <option value="">— Select —</option>
                     <option value="0">— Unassign —</option>
-                    <option v-for="u in assigneeUsers" :key="u.id" :value="u.id">{{ u.display_name ? `${u.display_name} (${u.email})` : u.email }} ({{ u.role }})</option>
+                    <option v-for="u in visibleAssigneeUsers" :key="u.id" :value="u.id">{{ u.display_name ? `${u.display_name} (${u.email})` : u.email }} ({{ u.role }})</option>
                   </select>
                   <div class="flex items-center gap-2 mt-1.5">
                     <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-600 dark:text-gray-300">Cancel</button>
@@ -1117,7 +1117,7 @@ import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import OutsourceRequestModal from '~/components/b2b/OutsourceRequestModal.vue'
 import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from '~/utils/effortHours'
-import { isTaskAssigneeRole } from '~/utils/roles'
+import { canSeeCeoAssigneeOption, isTaskAssigneeRole } from '~/utils/roles'
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
 import { sortBacklogTasks } from '~/utils/backlog-task-utils'
 
@@ -1275,6 +1275,13 @@ const assigneeUsers = ref<{ id: number; email: string; display_name: string; rol
 const assignSelectedId = ref<number | ''>('')
 const assignLoading = ref(false)
 const assignError = ref('')
+
+const visibleAssigneeUsers = computed(() => {
+  const viewerCanSeeCeo = canSeeCeoAssigneeOption(currentRole.value)
+  return assigneeUsers.value.filter((u) => viewerCanSeeCeo || u.role?.toUpperCase() !== 'CEO')
+})
+
+const canLoadCeoAssignee = computed(() => canSeeCeoAssigneeOption(currentRole.value))
 
 // Continuous UAT: approve / reject on this page
 const uatActionLoading = ref(false)
@@ -1932,6 +1939,9 @@ async function openAssignDropdown() {
         const users = res.data ?? []
         assigneeUsers.value = users.filter((u) => isTaskAssigneeRole(u.role))
       }
+      if (!canLoadCeoAssignee.value) {
+        assigneeUsers.value = assigneeUsers.value.filter((u) => u.role?.toUpperCase() !== 'CEO')
+      }
     } catch {
       assignError.value = 'Failed to load users'
     }
@@ -2438,6 +2448,12 @@ const backTarget = computed(() => {
   if (from === 'dashboard') {
     const tab = fromTab || 'board'
     return `/dashboard?tab=${tab}`
+  }
+  if (from === 'workload') {
+    return '/workload'
+  }
+  if (from === 'discipline') {
+    return '/discipline'
   }
   const t = task.value
   if (!t) return '/dashboard'

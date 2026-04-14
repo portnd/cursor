@@ -157,7 +157,12 @@
                 <div
                   v-for="log in detail.time_logs"
                   :key="log.task_id + log.minutes"
-                  class="flex items-start gap-3 bg-gray-800/60 rounded-lg px-3 py-2.5 border border-gray-700/50 hover:border-blue-700/30 transition-colors"
+                  class="flex items-start gap-3 bg-gray-800/60 rounded-lg px-3 py-2.5 border border-gray-700/50 hover:border-blue-700/30 transition-colors cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  @click="goToTask(log.task_id)"
+                  @keydown.enter.prevent="goToTask(log.task_id)"
+                  @keydown.space.prevent="goToTask(log.task_id)"
                 >
                   <div class="shrink-0 mt-0.5">
                     <div class="w-7 h-7 rounded-lg bg-blue-900/50 border border-blue-700/30 flex items-center justify-center text-blue-300 text-xs font-bold">
@@ -372,6 +377,11 @@ function taskTypeBadge(type: string): string {
 
 function cleanComment(comment: string): string {
   return comment.replace(/^\[REJECTED\]\s*/i, '').trim() || '(ไม่มีคำอธิบาย)'
+}
+
+function goToTask(taskId?: number | string) {
+  if (!taskId) return
+  navigateTo(`/task/${taskId}?from=discipline`)
 }
 
 const workTypeBadge = (type: string): string => {
