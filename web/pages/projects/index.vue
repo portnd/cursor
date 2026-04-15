@@ -731,7 +731,7 @@ async function loadPmUserOptions() {
   }
   try {
     const res = await fetchWithAuth<{ data: { id: number; email: string; display_name?: string; role: string }[] }>('/auth/users')
-    pmUserOptions.value = (res.data || []).filter((u) => u.role === 'PRODUCT_OWNER' || u.role === 'PM')
+    pmUserOptions.value = (res.data || []).filter((u) => u.role === 'PRODUCT_OWNER' || u.role === 'PM' || u.role === 'MANAGER')
   } catch {
     pmUserOptions.value = []
   }

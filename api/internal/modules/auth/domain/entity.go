@@ -118,9 +118,10 @@ const (
 )
 
 // IsProductOwnerAssignableRole reports whether the user may be saved as a project PM/Product Owner when squads are disabled.
+// MANAGER is allowed for backward compatibility with existing project selection flows.
 func IsProductOwnerAssignableRole(role string) bool {
 	switch strings.ToUpper(strings.TrimSpace(role)) {
-	case RoleProductOwner, RolePMLegacy:
+	case RoleProductOwner, RolePMLegacy, RoleManager:
 		return true
 	default:
 		return false
