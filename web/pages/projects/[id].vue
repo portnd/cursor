@@ -4023,6 +4023,8 @@ function isoToDateOnly(iso: string | null | undefined): string {
 
 const BACKLOG_EXPANDED_STORAGE_KEY = 'sentinel-backlog-expanded'
 const BACKLOG_EXPECT_RETURN_KEY = 'sentinel-backlog-expect-return'
+const PROJECT_DETAILS_CACHE_KEY = 'sentinel-project-details-cache-v1'
+const PROJECT_DETAILS_CACHE_TTL_MS = 2 * 60 * 1000
 
 function taskUrl(taskId: string) {
   const projectId = route.params.id as string
@@ -4095,6 +4097,64 @@ function navigateToSprint(sprintId: string) {
   router.push(`/projects/sprint/${sprintId}?project=${route.params.id}`)
 }
 
+function getProjectDetailsCacheKey(idOrCode: string) {
+  return `${PROJECT_DETAILS_CACHE_KEY}:${String(idOrCode).toLowerCase()}`
+}
+
+function readCachedProjectDetails(idOrCode: string): {
+  project: Project
+  tasks: Task[]
+  tasks_meta: { limit: number; returned: number; has_more: boolean }
+  sprints: Sprint[]
+  milestones: Milestone[]
+  epics: Epic[]
+  cachedAt: number
+} | null {
+  if (typeof sessionStorage === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(getProjectDetailsCacheKey(idOrCode))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as {
+      project?: Project
+      tasks?: Task[]
+      tasks_meta?: { limit: number; returned: number; has_more: boolean }
+      sprints?: Sprint[]
+      milestones?: Milestone[]
+      epics?: Epic[]
+      cachedAt?: number
+    }
+    if (!parsed?.project || !Array.isArray(parsed.tasks) || !Array.isArray(parsed.sprints) || !Array.isArray(parsed.milestones) || !Array.isArray(parsed.epics)) return null
+    if (typeof parsed.cachedAt !== 'number' || Date.now() - parsed.cachedAt > PROJECT_DETAILS_CACHE_TTL_MS) return null
+    return {
+      project: parsed.project,
+      tasks: parsed.tasks,
+      tasks_meta: parsed.tasks_meta ?? { limit: parsed.tasks.length, returned: parsed.tasks.length, has_more: false },
+      sprints: parsed.sprints,
+      milestones: parsed.milestones,
+      epics: parsed.epics,
+      cachedAt: parsed.cachedAt,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeCachedProjectDetails(idOrCode: string, details: {
+  project: Project
+  tasks: Task[]
+  tasks_meta: { limit: number; returned: number; has_more: boolean }
+  sprints: Sprint[]
+  milestones: Milestone[]
+  epics: Epic[]
+}) {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(getProjectDetailsCacheKey(idOrCode), JSON.stringify({ ...details, cachedAt: Date.now() }))
+  } catch {
+    // ignore cache quota failures
+  }
+}
+
 function toggleEpic(id: string) {
   expandedEpics.value[id] = !expandedEpics.value[id]
 }
@@ -4115,10 +4175,8 @@ async function loadAll() {
   let timelineOk = false
   console.info('[ProjectDetails] page load start', { idOrCode, activeTab: activeTab.value, isServer: import.meta.server })
   try {
-    // When timeline tab: fetch details and timeline in parallel (both support id/code)
+    const cached = readCachedProjectDetails(idOrCode)
     const isHeavyBoardTab = activeTab.value === 'backlog' || activeTab.value === 'board' || activeTab.value === 'timeline'
-    // Keep the initial details payload small so slow projects do not trip the client timeout.
-    // The page can fetch additional task pages lazily after the shell renders.
     const detailsPromise = projectsApi.getProjectDetails(idOrCode, { tasksLimit: isHeavyBoardTab ? 300 : 200 })
     const timelinePromise =
       isTimelineTab
@@ -4127,11 +4185,25 @@ async function loadAll() {
             : projectsApi.getSprintTimelineData(idOrCode))
         : null
 
+    if (cached) {
+      project.value = cached.project
+      allTasks.value = cached.tasks
+      projectDetailsTasksMeta.value = cached.tasks_meta
+      sprints.value = cached.sprints
+      milestones.value = cached.milestones
+      epics.value = cached.epics
+      detailsPromise.then((details) => {
+        writeCachedProjectDetails(idOrCode, details)
+      }).catch(() => {})
+      isLoading.value = false
+    }
+
     const details = await detailsPromise
     console.info('[ProjectDetails] page details resolved', { elapsedMs: Math.round(performance.now() - startedAt), tasks: details.tasks.length, sprints: details.sprints.length, milestones: details.milestones.length, epics: details.epics.length, taskMeta: details.tasks_meta, isServer: import.meta.server })
     project.value = details.project
     allTasks.value = details.tasks
     projectDetailsTasksMeta.value = details.tasks_meta ?? null
+    writeCachedProjectDetails(idOrCode, details)
     if (details.tasks.length > 0) {
       const last = details.tasks[details.tasks.length - 1]
       projectTasksNextCursor.value = { created_at: last.created_at, id: last.id }
@@ -4170,6 +4242,28 @@ async function loadAll() {
     }
 
     isLoading.value = false
+
+    // When returning from task detail to board/backlog, restore scroll position after the current frame.
+    if (!cached && activeTab.value === 'backlog') {
+      const savedScroll = restoreBacklogExpandedState(details.project.id)
+      if (savedScroll) {
+        nextTick(() => {
+          const apply = () => {
+            const main = getMainScrollEl()
+            if (main) {
+              main.scrollTop = savedScroll.scrollTop
+              main.scrollLeft = savedScroll.scrollLeft
+            }
+          }
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              apply()
+              setTimeout(apply, 80)
+            })
+          })
+        })
+      }
+    }
 
     // Fetch deployment requests for WAIT_FOR_DEPLOY tasks (non-blocking)
     const waitForDeployTaskIds = details.tasks
