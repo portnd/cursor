@@ -588,8 +588,8 @@ type SentinelRepository interface {
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
 	// GetTasksByProjectIDForProjectPage returns tasks without large columns (description, resource_urls, negotiation text, uat_payload)
 	// for GET /projects/:id/details and supports limit+1 pagination probe (returned tasks are at most limit+1 before caller trims).
-	GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]ProjectDetailsTask, error)
-	GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]ProjectDetailsTask, error)
+	GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]Task, error)
+	GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]Task, error)
 	UpdateProject(p *Project) error
 	DeleteProject(id uuid.UUID) error
 	DeleteProjectPlan(projectID uuid.UUID) error               // Remove all tasks, sprints, milestones, epics for the project

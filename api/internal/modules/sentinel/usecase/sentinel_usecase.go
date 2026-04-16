@@ -151,7 +151,7 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 	}
 	// Fetch all child data in parallel (4 queries → 1 DB round-trip per type; network already 1 round-trip).
 	type result struct {
-		tasks      []domain.ProjectDetailsTask
+		tasks      []domain.Task
 		sprints    []domain.Sprint
 		milestones []domain.Milestone
 		epics      []domain.Epic
@@ -206,10 +206,46 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 		res.tasks = res.tasks[:taskLimit]
 		returned = taskLimit
 	}
+	lightTasks := make([]domain.ProjectDetailsTask, len(res.tasks))
+	for i := range res.tasks {
+		t := res.tasks[i]
+		lightTasks[i] = domain.ProjectDetailsTask{
+			ID:                    t.ID,
+			Code:                  t.Code,
+			Title:                 t.Title,
+			EstimatedMinutes:      t.EstimatedMinutes,
+			ProjectID:             t.ProjectID,
+			EpicID:                t.EpicID,
+			SprintID:              t.SprintID,
+			MilestoneID:           t.MilestoneID,
+			TaskType:              t.TaskType,
+			Priority:              t.Priority,
+			StoryPoints:           t.StoryPoints,
+			ParentID:              t.ParentID,
+			SortOrder:             t.SortOrder,
+			StartDate:             t.StartDate,
+			EndDate:               t.EndDate,
+			Progress:              t.Progress,
+			NegotiationStatus:     t.NegotiationStatus,
+			ProposedMinutes:       t.ProposedMinutes,
+			DueAt:                 t.DueAt,
+			StartedAt:             t.StartedAt,
+			CompletedAt:           t.CompletedAt,
+			Status:                t.Status,
+			AssignedTo:            t.AssignedTo,
+			AssignedByID:          t.AssignedByID,
+			CreatedBy:             t.CreatedBy,
+			AssignedToDisplayName: t.AssignedToDisplayName,
+			AssignedToEmail:       t.AssignedToEmail,
+			AssignedToAvatarURL:   t.AssignedToAvatarURL,
+			CreatedAt:             t.CreatedAt,
+			UpdatedAt:             t.UpdatedAt,
+		}
+	}
 	log.Printf("[ProjectDetails] done projectID=%s taskCount=%d sprintCount=%d milestoneCount=%d epicCount=%d totalElapsed=%s", p.ID, returned, len(res.sprints), len(res.milestones), len(res.epics), time.Since(startedAt))
 	return &domain.ProjectDetailsResponse{
 		Project:    p,
-		Tasks:      res.tasks,
+		Tasks:      lightTasks,
 		TasksMeta:  domain.ProjectDetailsTasksMeta{Limit: taskLimit, Returned: returned, HasMore: hasMore},
 		Sprints:    res.sprints,
 		Milestones: res.milestones,
