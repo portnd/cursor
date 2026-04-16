@@ -244,8 +244,17 @@ function useProjectsApi() {
     const q = typeof opts?.tasksLimit === 'number' && opts.tasksLimit > 0
       ? `?tasks_limit=${Math.floor(opts.tasksLimit)}`
       : ''
-    const data = await fetchWithAuth<{ data: { project: Project; tasks: Task[]; tasks_meta: ProjectDetailsTasksMeta; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] } }>(`/sentinel/projects/${encodeURIComponent(idOrCode)}/details${q}`)
-    return data.data
+    const startedAt = performance.now()
+    const url = `/sentinel/projects/${encodeURIComponent(idOrCode)}/details${q}`
+    console.info('[ProjectDetails] client start', { url, tasksLimit: opts?.tasksLimit, isServer: import.meta.server })
+    try {
+      const data = await fetchWithAuth<{ data: { project: Project; tasks: Task[]; tasks_meta: ProjectDetailsTasksMeta; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] } }>(url)
+      console.info('[ProjectDetails] client done', { url, elapsedMs: Math.round(performance.now() - startedAt), taskCount: data.data?.tasks?.length ?? 0, hasMore: !!data.data?.tasks_meta?.has_more, isServer: import.meta.server })
+      return data.data
+    } catch (error) {
+      console.error('[ProjectDetails] client error', { url, elapsedMs: Math.round(performance.now() - startedAt), isServer: import.meta.server, error })
+      throw error
+    }
   }
 
   /** Load additional project tasks page (page 2+) using cursor or offset. */

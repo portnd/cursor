@@ -4100,11 +4100,13 @@ async function onProjectRestored() {
 // Load data — use combined details endpoint (1 round-trip) for fast initial load.
 // When tab=timeline: run details + timeline API in parallel; end full-page spinner as soon as details land (timeline shows its own loader).
 async function loadAll() {
+  const startedAt = performance.now()
   isLoading.value = true
   error.value = ''
   const idOrCode = route.params.id as string
   const isTimelineTab = activeTab.value === 'timeline'
   let timelineOk = false
+  console.info('[ProjectDetails] page load start', { idOrCode, activeTab: activeTab.value, isServer: import.meta.server })
   try {
     // When timeline tab: fetch details and timeline in parallel (both support id/code)
     const isHeavyBoardTab = activeTab.value === 'backlog' || activeTab.value === 'board' || activeTab.value === 'timeline'
@@ -4119,6 +4121,7 @@ async function loadAll() {
         : null
 
     const details = await detailsPromise
+    console.info('[ProjectDetails] page details resolved', { elapsedMs: Math.round(performance.now() - startedAt), tasks: details.tasks.length, sprints: details.sprints.length, milestones: details.milestones.length, epics: details.epics.length, taskMeta: details.tasks_meta, isServer: import.meta.server })
     project.value = details.project
     allTasks.value = details.tasks
     projectDetailsTasksMeta.value = details.tasks_meta ?? null
@@ -4198,7 +4201,10 @@ async function loadAll() {
     }
   } catch (e: any) {
     error.value = e.message || 'Failed to load project'
+    console.error('[ProjectDetails] page load error', { elapsedMs: Math.round(performance.now() - startedAt), isServer: import.meta.server, error: e })
     isLoading.value = false
+  } finally {
+    console.info('[ProjectDetails] page load end', { elapsedMs: Math.round(performance.now() - startedAt), isServer: import.meta.server })
   }
   // When timeline tab but we didn't get timeline data (no parallel or parallel failed): load now
   if (activeTab.value === 'timeline' && !timelineOk && project.value) {

@@ -2,10 +2,12 @@
 package http
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
@@ -64,6 +66,7 @@ func (h *SentinelHandler) GetProjects(c *gin.Context) {
 
 // GetProjectDetails handles GET /sentinel/projects/:id/details — returns project + tasks + sprints + milestones + epics (1 round-trip).
 func (h *SentinelHandler) GetProjectDetails(c *gin.Context) {
+	startedAt := time.Now()
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "Project id or code is required"})
@@ -75,8 +78,10 @@ func (h *SentinelHandler) GetProjectDetails(c *gin.Context) {
 			taskLimit = parsed
 		}
 	}
+	log.Printf("[ProjectDetails] handler start id=%s taskLimit=%d path=%s remote=%s ua=%q", idStr, taskLimit, c.Request.URL.String(), c.ClientIP(), c.Request.UserAgent())
 	data, err := h.usecase.GetProjectDetailsPage(idStr, taskLimit, callerCtx(c))
 	if err != nil {
+		log.Printf("[ProjectDetails] handler error id=%s elapsed=%s err=%v", idStr, time.Since(startedAt), err)
 		if err.Error() == "project not found" || contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Project not found"})
 			return
@@ -84,6 +89,11 @@ func (h *SentinelHandler) GetProjectDetails(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project", "message": err.Error()})
 		return
 	}
+	payloadSize := 0
+	if b, marshalErr := json.Marshal(data); marshalErr == nil {
+		payloadSize = len(b)
+	}
+	log.Printf("[ProjectDetails] handler done id=%s elapsed=%s payloadBytes=%d", idStr, time.Since(startedAt), payloadSize)
 	c.JSON(http.StatusOK, gin.H{"message": "Project details retrieved successfully", "data": data})
 }
 
