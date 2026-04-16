@@ -4418,9 +4418,9 @@ const editingTaskForTitle = ref<Task | null>(null)
 const editTaskTitleValue = ref('')
 const isSavingTaskTitle = ref(false)
 
-function openEditTaskTitle(task: Task) {
-  editingTaskForTitle.value = task
-  editTaskTitleValue.value = task.title || ''
+async function openEditTaskTitle(task: Task) {
+  editingTaskForTitle.value = await loadTaskDetailsForAction(task.id)
+  editTaskTitleValue.value = editingTaskForTitle.value.title || task.title || ''
   showEditTaskTitleModal.value = true
 }
 
@@ -4447,17 +4447,16 @@ const isDuplicatingTask = ref(false)
 /** After duplicate: keep new task visually right below original until page refresh. */
 const duplicatePlacement = ref<{ newId: string; afterId: string } | null>(null)
 
+async function loadTaskDetailsForAction(taskId: string): Promise<Task> {
+  return tasksApi.getTask(taskId)
+}
+
 async function duplicateTask(task: Task) {
   if (!project.value) return
   isDuplicatingTask.value = true
   duplicatePlacement.value = null
   try {
-    let source = task
-    try {
-      source = await tasksApi.getTask(task.id)
-    } catch {
-      // list payload may omit description; duplicate still works with empty body
-    }
+    const source = await loadTaskDetailsForAction(task.id)
     const payload: any = {
       title: (source.title || '').trim() ? `${(source.title || '').trim()} (copy)` : 'Task (copy)',
       description: source.description || '',

@@ -388,7 +388,6 @@ type ProjectDetailsTask struct {
 	ID                    uuid.UUID  `json:"id"`
 	Code                  string     `json:"code"`
 	Title                 string     `json:"title"`
-	EstimatedMinutes      int        `json:"estimated_minutes"`
 	ProjectID             *uuid.UUID `json:"project_id"`
 	EpicID                *uuid.UUID `json:"epic_id,omitempty"`
 	SprintID              *uuid.UUID `json:"sprint_id,omitempty"`
@@ -402,15 +401,12 @@ type ProjectDetailsTask struct {
 	EndDate               *time.Time `json:"end_date"`
 	Progress              int        `json:"progress"`
 	DueAt                 *time.Time `json:"due_at"`
-	StartedAt             *time.Time `json:"started_at"`
-	CompletedAt           *time.Time `json:"completed_at"`
 	Status                string     `json:"status"`
 	AssignedTo            *uint      `json:"assigned_to"`
 	AssignedToDisplayName string     `json:"assigned_to_display_name,omitempty"`
 	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
 	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 // Task represents a work assignment
