@@ -235,7 +235,7 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 }
 
 // projectPageTaskColumns is tasks.* minus heavy TEXT/JSONB columns not needed for board/backlog/overview lists.
-const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.negotiation_status, tasks.proposed_minutes, tasks.negotiation_ai_recommendation, tasks.negotiation_ai_confidence, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.assigned_by_id, tasks.created_by, tasks.created_at, tasks.updated_at`
+const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.created_at, tasks.updated_at`
 
 func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]domain.Task, error) {
 	return r.GetTasksByProjectIDForProjectPageCursor(projectID, limit, nil, nil, 0)

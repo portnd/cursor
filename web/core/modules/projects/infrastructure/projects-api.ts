@@ -185,6 +185,39 @@ export interface Task {
   updated_at: string
 }
 
+export interface ProjectDetailsTask {
+  id: string
+  code: string
+  title: string
+  estimated_minutes: number
+  project_id: string | null
+  epic_id: string | null
+  sprint_id: string | null
+  milestone_id: string | null
+  task_type: 'FEATURE' | 'TASK' | 'BUG'
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  story_points: number
+  parent_id: string | null
+  sort_order: number
+  start_date: string | null
+  end_date: string | null
+  progress: number
+  negotiation_status: string
+  proposed_minutes: number
+  due_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  status: Task['status']
+  assigned_to: number | null
+  assigned_by_id: number | null
+  created_by: number | null
+  assigned_to_display_name?: string
+  assigned_to_email?: string
+  assigned_to_avatar_url?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface ProjectDetailsTasksMeta {
   limit: number
   returned: number
@@ -240,7 +273,7 @@ function useProjectsApi() {
   }
 
   /** Combined project + tasks + sprints + milestones + epics (1 round-trip, use for project page). */
-  async function getProjectDetails(idOrCode: string, opts?: { tasksLimit?: number }): Promise<{ project: Project; tasks: Task[]; tasks_meta: ProjectDetailsTasksMeta; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] }> {
+  async function getProjectDetails(idOrCode: string, opts?: { tasksLimit?: number }): Promise<{ project: Project; tasks: ProjectDetailsTask[]; tasks_meta: ProjectDetailsTasksMeta; sprints: Sprint[]; milestones: Milestone[]; epics: Epic[] }> {
     const q = typeof opts?.tasksLimit === 'number' && opts.tasksLimit > 0
       ? `?tasks_limit=${Math.floor(opts.tasksLimit)}`
       : ''

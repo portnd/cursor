@@ -372,15 +372,11 @@ type ProjectDetailsTask struct {
 	StartDate             *time.Time `json:"start_date"`
 	EndDate               *time.Time `json:"end_date"`
 	Progress              int        `json:"progress"`
-	NegotiationStatus     string     `json:"negotiation_status"`
-	ProposedMinutes       int        `json:"proposed_minutes"`
 	DueAt                 *time.Time `json:"due_at"`
 	StartedAt             *time.Time `json:"started_at"`
 	CompletedAt           *time.Time `json:"completed_at"`
 	Status                string     `json:"status"`
 	AssignedTo            *uint      `json:"assigned_to"`
-	AssignedByID          *uint      `json:"assigned_by_id"`
-	CreatedBy             *uint      `json:"created_by"`
 	AssignedToDisplayName string     `json:"assigned_to_display_name,omitempty"`
 	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
 	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
