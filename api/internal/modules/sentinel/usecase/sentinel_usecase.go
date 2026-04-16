@@ -258,6 +258,27 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 			UpdatedAt:             t.UpdatedAt,
 		}
 	}
+	projectBytes := 0
+	if b, err := json.Marshal(p); err == nil {
+		projectBytes = len(b)
+	}
+	tasksBytes := 0
+	if b, err := json.Marshal(lightTasks); err == nil {
+		tasksBytes = len(b)
+	}
+	sprintsBytes := 0
+	if b, err := json.Marshal(res.sprints); err == nil {
+		sprintsBytes = len(b)
+	}
+	milestonesBytes := 0
+	if b, err := json.Marshal(res.milestones); err == nil {
+		milestonesBytes = len(b)
+	}
+	epicsBytes := 0
+	if b, err := json.Marshal(res.epics); err == nil {
+		epicsBytes = len(b)
+	}
+	log.Printf("[ProjectDetails] payload sizes projectID=%s projectBytes=%d tasksBytes=%d sprintsBytes=%d milestonesBytes=%d epicsBytes=%d totalElapsed=%s", p.ID, projectBytes, tasksBytes, sprintsBytes, milestonesBytes, epicsBytes, time.Since(startedAt))
 	log.Printf("[ProjectDetails] done projectID=%s taskCount=%d sprintCount=%d milestoneCount=%d epicCount=%d totalElapsed=%s", p.ID, returned, len(res.sprints), len(res.milestones), len(res.epics), time.Since(startedAt))
 	return &domain.ProjectDetailsResponse{
 		Project:    p,
