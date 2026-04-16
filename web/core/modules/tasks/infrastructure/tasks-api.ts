@@ -154,7 +154,7 @@ function useTasksApi() {
     description: string
     priority: string
     story_points: number
-    sprint_id: string
+    sprint_id: string | null
     milestone_id: string
     parent_id: string
     epic_id: string

@@ -464,9 +464,11 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
   const sprintToComplete = ref<Sprint | null>(null)
   const completeSprintError = ref('')
   const isCompletingSprint = ref(false)
+  const completeSprintCarryOver = ref<'next_sprint' | 'backlog'>('next_sprint')
 
   function openCompleteSprintModal(sprint: Sprint) {
     sprintToComplete.value = sprint
+    completeSprintCarryOver.value = 'next_sprint'
     completeSprintError.value = ''
     showCompleteSprintModal.value = true
   }
@@ -482,9 +484,28 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
     isCompletingSprint.value = true
     completeSprintError.value = ''
     try {
-      const updated = await projectsApi.completeSprint(sprintToComplete.value.id)
-      const idx = sprints.value.findIndex((s) => s.id === sprintToComplete.value!.id)
+      const sprint = sprintToComplete.value
+      const unfinishedTasks = allTasks.value.filter((t) => t.sprint_id === sprint.id && t.status !== 'COMPLETED')
+      const updated = await projectsApi.completeSprint(sprint.id)
+      const idx = sprints.value.findIndex((s) => s.id === sprint.id)
       if (idx !== -1) sprints.value[idx] = updated
+
+      if (unfinishedTasks.length > 0) {
+        const targetSprintId = completeSprintCarryOver.value === 'next_sprint'
+          ? (sprintsOrdered.value.find((s) => s.id !== sprint.id && (s.sort_order ?? 0) > (sprint.sort_order ?? 0))?.id ?? null)
+          : null
+
+        for (const task of unfinishedTasks) {
+          try {
+            await tasksApi.updateTask(task.id, { sprint_id: targetSprintId })
+            task.sprint_id = targetSprintId
+          } catch (err: any) {
+            const msg = err?.data?.message ?? err?.data?.error ?? err?.message ?? 'Failed to move unfinished task'
+            throw new Error(typeof msg === 'string' ? msg : 'Failed to move unfinished task')
+          }
+        }
+      }
+
       closeCompleteSprintModal()
     } catch (e: any) {
       const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'ปิด sprint ไม่สำเร็จ'

@@ -2720,8 +2720,15 @@
           คุณต้องการปิด sprint <strong class="text-white">"{{ sprintToComplete?.name }}"</strong> ใช่หรือไม่?
         </p>
         <p class="text-xs text-gray-500 mb-4">
-          Sprint จะเปลี่ยนเป็นสถานะ Completed งานที่ยังไม่เสร็จจะยังอยู่ในการอ้างอิงของ sprint นี้
+          เลือกได้ว่าจัดการงานที่ยังไม่เสร็จให้ไป sprint ถัดไป หรือย้อนกลับไป backlog
         </p>
+        <div class="mb-4">
+          <label class="label">งานที่ยังไม่เสร็จจะไปที่</label>
+          <select v-model="completeSprintCarryOver" class="input-field w-full">
+            <option value="next_sprint">Sprint ถัดไป</option>
+            <option value="backlog">Backlog</option>
+          </select>
+        </div>
         <div v-if="completeSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ completeSprintError }}</div>
         <div class="flex gap-3">
           <button @click="confirmCompleteSprint" :disabled="isCompletingSprint" class="flex-1 px-4 py-2.5 bg-yellow-100 dark:bg-yellow-600 hover:bg-yellow-200 dark:bg-yellow-700 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-xl transition-colors">

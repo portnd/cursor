@@ -158,9 +158,32 @@
 
       <!-- Task list -->
       <div class="card">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div class="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
           <h3 class="section-title mb-0">Tasks in this sprint</h3>
-          <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:flex-wrap">
+            <div v-if="selectedSprintTaskIds.length > 0" class="flex flex-wrap items-center gap-2 rounded-xl border border-violet-500/25 bg-violet-500/10 px-3 py-2">
+              <span class="text-xs font-medium text-violet-200">{{ selectedSprintTaskIds.length }} selected</span>
+              <select v-model="bulkMoveTargetSprintId" class="input-field min-w-[12rem] py-2 text-xs">
+                <option value="backlog">Backlog</option>
+                <option v-for="s in sprintMoveTargets" :key="s.id" :value="s.id">{{ s.name }}</option>
+              </select>
+              <button
+                type="button"
+                @click="bulkMoveSelectedTasks"
+                :disabled="isBulkMovingSprintTasks || !bulkMoveTargetSprintId"
+                class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span v-if="isBulkMovingSprintTasks" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Move selected
+              </button>
+              <button
+                type="button"
+                @click="clearSprintTaskSelection"
+                class="inline-flex items-center gap-2 rounded-lg border border-gray-600 px-3 py-2 text-xs font-medium text-gray-300 hover:bg-gray-700/50 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
             <button
               v-if="showHeavyTaskUI && (backlogTaskCount > 0 || otherSprintTaskCount > 0 || loadingSupplementalTasks || !hasLoadedSupplementalTasks)"
               type="button"
@@ -171,7 +194,6 @@
               <span v-if="loadingSupplementalTasks" class="text-emerald-300/70">(loading...)</span>
               <span v-else-if="backlogTaskCount" class="text-emerald-400/90">({{ backlogTaskCount }})</span>
             </button>
-
           </div>
         </div>
         <div v-if="sprintTasks.length" class="space-y-2">
@@ -180,6 +202,13 @@
             :key="t.id"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-700/40 transition-colors border-b border-gray-700/50 last:border-0"
           >
+            <input
+              type="checkbox"
+              :checked="selectedSprintTaskIds.includes(t.id)"
+              @change="toggleSprintTaskSelection(t.id)"
+              @click.stop
+              class="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500 shrink-0"
+            />
             <div
               class="flex flex-1 items-center justify-between min-w-0 cursor-pointer"
               @click="navigateToTask(t.id)"
@@ -557,6 +586,59 @@ const otherSprintTaskCount = computed(() =>
   allTasks.value.filter((t) => !!t.sprint_id && t.sprint_id !== sprintId.value).length
 )
 const tasksNotInThisSprintCount = computed(() => allTasks.value.filter((t) => t.sprint_id !== sprintId.value).length)
+const selectedSprintTaskIds = ref<string[]>([])
+const bulkMoveTargetSprintId = ref<'backlog' | string>('backlog')
+const isBulkMovingSprintTasks = ref(false)
+const sprintMoveTargets = computed(() => sprintsOrdered.value.filter((s) => s.id !== sprintId.value))
+
+function toggleSprintTaskSelection(taskId: string) {
+  const next = [...selectedSprintTaskIds.value]
+  const idx = next.indexOf(taskId)
+  if (idx >= 0) next.splice(idx, 1)
+  else next.push(taskId)
+  selectedSprintTaskIds.value = next
+}
+
+function clearSprintTaskSelection() {
+  selectedSprintTaskIds.value = []
+  bulkMoveTargetSprintId.value = 'backlog'
+}
+
+async function bulkMoveSelectedTasks() {
+  if (!sprint.value || selectedSprintTaskIds.value.length === 0) return
+  const target = bulkMoveTargetSprintId.value
+  isBulkMovingSprintTasks.value = true
+  try {
+    const targetSprint = target !== 'backlog' ? (sprints.value.find((s) => s.id === target) ?? null) : null
+    for (const taskId of selectedSprintTaskIds.value) {
+      const task = allTasks.value.find((t) => t.id === taskId)
+      const payload: Record<string, unknown> = { sprint_id: target === 'backlog' ? '' : target }
+      if (targetSprint) {
+        const dates = task ? taskDatesInSprintRange(task, targetSprint) : null
+        if (dates) {
+          payload.start_date = dates.start_date
+          payload.end_date = dates.end_date
+        }
+      }
+      await tasksApi.updateTask(taskId, payload as any)
+      if (task) {
+        task.sprint_id = target === 'backlog' ? null : target
+        if (targetSprint && payload.start_date && payload.end_date) {
+          task.start_date = payload.start_date as string
+          task.end_date = payload.end_date as string
+        }
+      }
+    }
+    selectedSprintTaskIds.value = []
+    bulkMoveTargetSprintId.value = 'backlog'
+    await loadAll()
+    showSuccess('ย้าย task ที่เลือกเรียบร้อยแล้ว', 'สำเร็จ')
+  } catch (e: any) {
+    backlogImportError.value = e?.message ?? 'ย้าย task ไม่สำเร็จ'
+  } finally {
+    isBulkMovingSprintTasks.value = false
+  }
+}
 
 const showBacklogImportModal = ref(false)
 const backlogImportScope = ref<'backlog' | 'anywhere'>('backlog')
