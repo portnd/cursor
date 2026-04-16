@@ -260,6 +260,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 		offset = 0
 	}
 
+	startedAt := time.Now()
 	q := r.db.Table("tasks").
 		Select(projectPageTaskColumns+`,
 			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
@@ -288,6 +289,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 		tasks[i].AssignedToEmail = rows[i].Email
 		tasks[i].AssignedToAvatarURL = rows[i].AvatarURL
 	}
+	fmt.Printf("[ProjectDetails] repo tasks query projectID=%s limit=%d rows=%d cursor=%t offset=%d elapsed=%s\n", projectID, limit, len(tasks), cursorCreatedAt != nil && cursorID != nil, offset, time.Since(startedAt))
 	return tasks, nil
 }
 

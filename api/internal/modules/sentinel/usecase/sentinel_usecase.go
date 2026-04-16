@@ -139,8 +139,11 @@ func (u *sentinelUsecase) GetProjectByIDOrCode(idOrCode string, ctx domain.Calle
 
 // GetProjectDetailsPage returns project + tasks + sprints + milestones + epics in one call (1 round-trip vs 5).
 func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, ctx domain.CallerContext) (*domain.ProjectDetailsResponse, error) {
+	startedAt := time.Now()
+	log.Printf("[ProjectDetails] start id=%s taskLimit=%d role=%s teamDisabled=%t", idOrCode, taskLimit, ctx.Role, ctx.TeamsFeatureDisabled)
 	p, err := u.GetProjectByIDOrCode(idOrCode, ctx)
 	if err != nil || p == nil {
+		log.Printf("[ProjectDetails] project lookup failed id=%s elapsed=%s err=%v", idOrCode, time.Since(startedAt), err)
 		return nil, err
 	}
 	if taskLimit <= 0 {
@@ -156,24 +159,35 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 	var res result
 	var errTasks, errSprints, errMilestones, errEpics error
 	var wg sync.WaitGroup
+	queriesStartedAt := time.Now()
+	log.Printf("[ProjectDetails] loading children projectID=%s tasksLimit=%d", p.ID, taskLimit)
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
+		stepStartedAt := time.Now()
 		res.tasks, errTasks = u.repo.GetTasksByProjectIDForProjectPage(p.ID, taskLimit)
+		log.Printf("[ProjectDetails] tasks loaded projectID=%s count=%d elapsed=%s err=%v", p.ID, len(res.tasks), time.Since(stepStartedAt), errTasks)
 	}()
 	go func() {
 		defer wg.Done()
+		stepStartedAt := time.Now()
 		res.sprints, errSprints = u.repo.GetSprintsByProjectID(p.ID)
+		log.Printf("[ProjectDetails] sprints loaded projectID=%s count=%d elapsed=%s err=%v", p.ID, len(res.sprints), time.Since(stepStartedAt), errSprints)
 	}()
 	go func() {
 		defer wg.Done()
+		stepStartedAt := time.Now()
 		res.milestones, errMilestones = u.repo.GetMilestonesByProjectID(p.ID)
+		log.Printf("[ProjectDetails] milestones loaded projectID=%s count=%d elapsed=%s err=%v", p.ID, len(res.milestones), time.Since(stepStartedAt), errMilestones)
 	}()
 	go func() {
 		defer wg.Done()
+		stepStartedAt := time.Now()
 		res.epics, errEpics = u.repo.GetEpicsByProjectID(p.ID)
+		log.Printf("[ProjectDetails] epics loaded projectID=%s count=%d elapsed=%s err=%v", p.ID, len(res.epics), time.Since(stepStartedAt), errEpics)
 	}()
 	wg.Wait()
+	log.Printf("[ProjectDetails] children finished projectID=%s totalElapsed=%s queryElapsed=%s", p.ID, time.Since(startedAt), time.Since(queriesStartedAt))
 	if errTasks != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", errTasks)
 	}
@@ -192,6 +206,7 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 		res.tasks = res.tasks[:taskLimit]
 		returned = taskLimit
 	}
+	log.Printf("[ProjectDetails] done projectID=%s taskCount=%d sprintCount=%d milestoneCount=%d epicCount=%d totalElapsed=%s", p.ID, returned, len(res.sprints), len(res.milestones), len(res.epics), time.Since(startedAt))
 	return &domain.ProjectDetailsResponse{
 		Project:    p,
 		Tasks:      res.tasks,

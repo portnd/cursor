@@ -4108,7 +4108,9 @@ async function loadAll() {
   try {
     // When timeline tab: fetch details and timeline in parallel (both support id/code)
     const isHeavyBoardTab = activeTab.value === 'backlog' || activeTab.value === 'board' || activeTab.value === 'timeline'
-    const detailsPromise = projectsApi.getProjectDetails(idOrCode, { tasksLimit: isHeavyBoardTab ? 1200 : 600 })
+    // Keep the initial details payload small so slow projects do not trip the client timeout.
+    // The page can fetch additional task pages lazily after the shell renders.
+    const detailsPromise = projectsApi.getProjectDetails(idOrCode, { tasksLimit: isHeavyBoardTab ? 300 : 200 })
     const timelinePromise =
       isTimelineTab
         ? (timelineMode.value === 'epic'

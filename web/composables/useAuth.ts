@@ -116,7 +116,7 @@ export const useAuth = () => {
    */
   const currentUser = computed(() => decodeToken())
 
-  const API_TIMEOUT_MS = 20000 // 20s so cold API / first request has time to respond
+  const API_TIMEOUT_MS = 30000 // 30s so colder project details requests have more time to respond
   /** Timeout for long-running requests (e.g. Google Slides import: download + 62 slide images). */
   const API_LONG_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
