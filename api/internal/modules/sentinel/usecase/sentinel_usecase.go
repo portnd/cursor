@@ -151,7 +151,7 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 	}
 	// Fetch all child data in parallel (4 queries → 1 DB round-trip per type; network already 1 round-trip).
 	type result struct {
-		tasks      []domain.Task
+		tasks      []domain.ProjectDetailsTask
 		sprints    []domain.Sprint
 		milestones []domain.Milestone
 		epics      []domain.Epic

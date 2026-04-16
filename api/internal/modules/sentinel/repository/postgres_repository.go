@@ -237,13 +237,13 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 // projectPageTaskColumns is tasks.* minus heavy TEXT/JSONB columns not needed for board/backlog/overview lists.
 const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.negotiation_status, tasks.proposed_minutes, tasks.negotiation_ai_recommendation, tasks.negotiation_ai_confidence, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.assigned_by_id, tasks.created_by, tasks.created_at, tasks.updated_at`
 
-func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]domain.Task, error) {
+func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]domain.ProjectDetailsTask, error) {
 	return r.GetTasksByProjectIDForProjectPageCursor(projectID, limit, nil, nil, 0)
 }
 
-func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]domain.Task, error) {
+func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]domain.ProjectDetailsTask, error) {
 	type taskRow struct {
-		domain.Task
+		Task        domain.ProjectDetailsTask
 		DisplayName string `gorm:"column:assigned_to_display_name"`
 		Email       string `gorm:"column:assigned_to_email"`
 		AvatarURL   string `gorm:"column:assigned_to_avatar_url"`
@@ -282,7 +282,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	if err != nil {
 		return nil, err
 	}
-	tasks := make([]domain.Task, len(rows))
+	tasks := make([]domain.ProjectDetailsTask, len(rows))
 	for i := range rows {
 		tasks[i] = rows[i].Task
 		tasks[i].AssignedToDisplayName = rows[i].DisplayName

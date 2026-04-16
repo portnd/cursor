@@ -344,13 +344,48 @@ type ProjectTasksPageResponse struct {
 }
 
 // ProjectDetailsResponse is the combined payload for GET /projects/:id/details (project page - 1 round-trip).
+// Note: Tasks can be large, so details responses expose a minimal task shape and a separate page endpoint for full task data.
 type ProjectDetailsResponse struct {
 	Project    *Project                `json:"project"`
-	Tasks      []Task                  `json:"tasks"`
+	Tasks      []ProjectDetailsTask    `json:"tasks"`
 	TasksMeta  ProjectDetailsTasksMeta `json:"tasks_meta"`
 	Sprints    []Sprint                `json:"sprints"`
 	Milestones []Milestone             `json:"milestones"`
 	Epics      []Epic                  `json:"epics"`
+}
+
+// ProjectDetailsTask is a lightweight task projection used by the project details payload.
+type ProjectDetailsTask struct {
+	ID                    uuid.UUID  `json:"id"`
+	Code                  string     `json:"code"`
+	Title                 string     `json:"title"`
+	EstimatedMinutes      int        `json:"estimated_minutes"`
+	ProjectID             *uuid.UUID `json:"project_id"`
+	EpicID                *uuid.UUID `json:"epic_id,omitempty"`
+	SprintID              *uuid.UUID `json:"sprint_id,omitempty"`
+	MilestoneID           *uuid.UUID `json:"milestone_id,omitempty"`
+	TaskType              string     `json:"task_type"`
+	Priority              string     `json:"priority"`
+	StoryPoints           int        `json:"story_points"`
+	ParentID              *uuid.UUID `json:"parent_id"`
+	SortOrder             int        `json:"sort_order"`
+	StartDate             *time.Time `json:"start_date"`
+	EndDate               *time.Time `json:"end_date"`
+	Progress              int        `json:"progress"`
+	NegotiationStatus     string     `json:"negotiation_status"`
+	ProposedMinutes       int        `json:"proposed_minutes"`
+	DueAt                 *time.Time `json:"due_at"`
+	StartedAt             *time.Time `json:"started_at"`
+	CompletedAt           *time.Time `json:"completed_at"`
+	Status                string     `json:"status"`
+	AssignedTo            *uint      `json:"assigned_to"`
+	AssignedByID          *uint      `json:"assigned_by_id"`
+	CreatedBy             *uint      `json:"created_by"`
+	AssignedToDisplayName string     `json:"assigned_to_display_name,omitempty"`
+	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
+	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 // Task represents a work assignment
@@ -553,8 +588,8 @@ type SentinelRepository interface {
 	GetTasksByProjectID(projectID uuid.UUID) ([]Task, error)
 	// GetTasksByProjectIDForProjectPage returns tasks without large columns (description, resource_urls, negotiation text, uat_payload)
 	// for GET /projects/:id/details and supports limit+1 pagination probe (returned tasks are at most limit+1 before caller trims).
-	GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]Task, error)
-	GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]Task, error)
+	GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]ProjectDetailsTask, error)
+	GetTasksByProjectIDForProjectPageCursor(projectID uuid.UUID, limit int, cursorCreatedAt *time.Time, cursorID *uuid.UUID, offset int) ([]ProjectDetailsTask, error)
 	UpdateProject(p *Project) error
 	DeleteProject(id uuid.UUID) error
 	DeleteProjectPlan(projectID uuid.UUID) error               // Remove all tasks, sprints, milestones, epics for the project
