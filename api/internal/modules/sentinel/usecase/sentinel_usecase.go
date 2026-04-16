@@ -152,9 +152,9 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 	// Fetch all child data in parallel (4 queries → 1 DB round-trip per type; network already 1 round-trip).
 	type result struct {
 		tasks      []domain.Task
-		sprints    []domain.Sprint
+		sprints    []domain.ProjectDetailsSprint
 		milestones []domain.Milestone
-		epics      []domain.Epic
+		epics      []domain.ProjectDetailsEpic
 	}
 	var res result
 	var errTasks, errSprints, errMilestones, errEpics error
@@ -171,7 +171,17 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 	go func() {
 		defer wg.Done()
 		stepStartedAt := time.Now()
-		res.sprints, errSprints = u.repo.GetSprintsByProjectID(p.ID)
+		sprints, err := u.repo.GetSprintsByProjectID(p.ID)
+		if err == nil {
+			res.sprints = make([]domain.ProjectDetailsSprint, len(sprints))
+			for i := range sprints {
+				s := sprints[i]
+				res.sprints[i] = domain.ProjectDetailsSprint{
+					ID: s.ID, ProjectID: s.ProjectID, Name: s.Name, Goal: s.Goal, StartDate: s.StartDate, EndDate: s.EndDate, Status: s.Status, SortOrder: s.SortOrder, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+				}
+			}
+		}
+		errSprints = err
 		log.Printf("[ProjectDetails] sprints loaded projectID=%s count=%d elapsed=%s err=%v", p.ID, len(res.sprints), time.Since(stepStartedAt), errSprints)
 	}()
 	go func() {
@@ -183,7 +193,17 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 	go func() {
 		defer wg.Done()
 		stepStartedAt := time.Now()
-		res.epics, errEpics = u.repo.GetEpicsByProjectID(p.ID)
+		epics, err := u.repo.GetEpicsByProjectID(p.ID)
+		if err == nil {
+			res.epics = make([]domain.ProjectDetailsEpic, len(epics))
+			for i := range epics {
+				e := epics[i]
+				res.epics[i] = domain.ProjectDetailsEpic{
+					ID: e.ID, ProjectID: e.ProjectID, Title: e.Title, Description: e.Description, Status: e.Status, Color: e.Color, SortOrder: e.SortOrder, StartDate: e.StartDate, EndDate: e.EndDate, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+				}
+			}
+		}
+		errEpics = err
 		log.Printf("[ProjectDetails] epics loaded projectID=%s count=%d elapsed=%s err=%v", p.ID, len(res.epics), time.Since(stepStartedAt), errEpics)
 	}()
 	wg.Wait()

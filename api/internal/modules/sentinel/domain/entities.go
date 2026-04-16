@@ -344,14 +344,43 @@ type ProjectTasksPageResponse struct {
 }
 
 // ProjectDetailsResponse is the combined payload for GET /projects/:id/details (project page - 1 round-trip).
-// Note: Tasks can be large, so details responses expose a minimal task shape and a separate page endpoint for full task data.
+// Note: Tasks can be large, so details responses expose a minimal task shape and separate lightweight sprint/epic shapes.
 type ProjectDetailsResponse struct {
 	Project    *Project                `json:"project"`
 	Tasks      []ProjectDetailsTask    `json:"tasks"`
 	TasksMeta  ProjectDetailsTasksMeta `json:"tasks_meta"`
-	Sprints    []Sprint                `json:"sprints"`
+	Sprints    []ProjectDetailsSprint  `json:"sprints"`
 	Milestones []Milestone             `json:"milestones"`
-	Epics      []Epic                  `json:"epics"`
+	Epics      []ProjectDetailsEpic    `json:"epics"`
+}
+
+// ProjectDetailsEpic is a lightweight epic projection for the project details payload.
+type ProjectDetailsEpic struct {
+	ID          uuid.UUID  `json:"id"`
+	ProjectID   uuid.UUID  `json:"project_id"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	Color       string     `json:"color"`
+	SortOrder   int        `json:"sort_order"`
+	StartDate   *time.Time `json:"start_date"`
+	EndDate     *time.Time `json:"end_date"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// ProjectDetailsSprint is a lightweight sprint projection for the project details payload.
+type ProjectDetailsSprint struct {
+	ID        uuid.UUID  `json:"id"`
+	ProjectID uuid.UUID  `json:"project_id"`
+	Name      string     `json:"name"`
+	Goal      string     `json:"goal"`
+	StartDate *time.Time `json:"start_date"`
+	EndDate   *time.Time `json:"end_date"`
+	Status    string     `json:"status"`
+	SortOrder int        `json:"sort_order"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // ProjectDetailsTask is a lightweight task projection used by the project details payload.
