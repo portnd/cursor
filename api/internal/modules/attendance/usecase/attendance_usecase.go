@@ -976,7 +976,7 @@ func (u *attendanceUsecase) GetLeaveTrend(role string, fromDate, toDate time.Tim
 }
 
 func (u *attendanceUsecase) BackfillLeave(role string, actorID uint, req *domain.LeaveBackfillRequest) (*domain.LeaveRequest, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	it := req.Item
@@ -1050,7 +1050,7 @@ func (u *attendanceUsecase) BackfillLeave(role string, actorID uint, req *domain
 }
 
 func (u *attendanceUsecase) BackfillLeaveBulk(role string, actorID uint, req *domain.LeaveBackfillBulkRequest) (*domain.LeaveBackfillBulkResponse, error) {
-	if role != authDomain.RoleCEO && role != authDomain.RoleManager {
+	if role != authDomain.RoleCEO && role != authDomain.RoleManager && role != authDomain.RoleSupport {
 		return nil, domain.ErrForbiddenAdmin
 	}
 	resp := &domain.LeaveBackfillBulkResponse{Total: len(req.Items), Results: make([]domain.LeaveBackfillBulkResultItem, 0, len(req.Items))}

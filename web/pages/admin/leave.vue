@@ -17,6 +17,7 @@
 
       <section v-if="activeTab === 'policies'" class="card">
         <h2 class="section">นโยบายโควตาวันลา</h2>
+        <p v-if="isAdminLeaveManager" class="text-xs text-gray-500 mb-2">role `SUPPORT` และ `CEO` จัดการได้เท่ากัน</p>
         <form class="grid gap-3 md:grid-cols-5 items-end" @submit.prevent="savePolicy">
           <div>
             <label class="label">ประเภทลา</label>
@@ -219,6 +220,7 @@
           <div>
             <h2 class="section mb-1">ข้อมูลการลา</h2>
             <p class="text-xs text-gray-500">แสดงรายการคำขอลาทั้งหมดของพนักงาน</p>
+            <p v-if="isAdminLeaveManager" class="text-xs text-gray-500 mt-1">role `SUPPORT` ใช้งานได้เหมือน `CEO` ทุกอย่างในหน้านี้</p>
           </div>
         </div>
 
@@ -593,10 +595,12 @@ const filteredLeaveRecords = computed<LeaveRequest[]>(() => {
   })
 })
 
-const canManageLeaveRecords = computed(() => {
+const isAdminLeaveManager = computed(() => {
   const role = String(currentUser.value?.role || '').toUpperCase()
   return role === 'CEO' || role === 'SUPPORT'
 })
+
+const canManageLeaveRecords = computed(() => isAdminLeaveManager.value)
 
 function toLocalDateString(d: Date): string {
   const y = d.getFullYear()
