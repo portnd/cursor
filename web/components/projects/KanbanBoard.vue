@@ -31,6 +31,23 @@
     <!-- Filter Bar (responsive: stack on narrow, wrap on wide) -->
     <!-- Sprint selector is hidden for DEV role — they are locked to their active sprint -->
     <div class="kanban-toolbar flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-4 sm:mb-5 p-3 rounded-xl">
+      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 w-full lg:w-auto">
+        <label class="text-xs text-gray-400 uppercase tracking-wide font-medium w-14 sm:w-auto shrink-0">Search</label>
+        <input
+          v-model.trim="searchQuery"
+          type="search"
+          class="input-select text-sm min-w-0 flex-1 sm:min-w-[240px] sm:flex-none max-w-full"
+          placeholder="Task name or assignee"
+        />
+        <button
+          v-if="searchQuery"
+          type="button"
+          class="text-xs text-gray-400 hover:text-white transition-colors"
+          @click="searchQuery = ''"
+        >
+          Clear
+        </button>
+      </div>
       <div v-if="!isDev" class="flex flex-wrap items-center gap-2 sm:gap-2">
         <label class="text-xs text-gray-400 uppercase tracking-wide font-medium w-14 sm:w-auto shrink-0">Sprint</label>
         <select v-model="filterSprint" class="input-select text-sm min-w-0 flex-1 sm:min-w-[160px] sm:flex-none max-w-full">
@@ -282,6 +299,7 @@ const filterSprint = ref('')
 const filterPriority = ref('')
 const filterType = ref('')
 const swimLane = ref<'none' | 'priority' | 'assignee'>('none')
+const searchQuery = ref('')
 const dragTask = ref<Task | null>(null)
 const dragOverCol = ref('')
 
@@ -375,6 +393,13 @@ const filteredTasks = computed(() =>
     }
     if (filterPriority.value && t.priority !== filterPriority.value) return false
     if (filterType.value && (t.task_type || 'TASK') !== filterType.value) return false
+    if (searchQuery.value) {
+      const q = searchQuery.value.toLowerCase()
+      const assignee = assigneeLabel(t).toLowerCase()
+      const title = (t.title || '').toLowerCase()
+      const code = taskDisplayCode(t).toLowerCase()
+      if (!title.includes(q) && !assignee.includes(q) && !code.includes(q)) return false
+    }
     return true
   })
 )
