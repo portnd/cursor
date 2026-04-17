@@ -599,7 +599,7 @@
                     v-if="canEditOrDelete && !showAssignDropdown"
                     type="button"
                     @click="openAssignDropdown"
-                    class="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded-md bg-blue-900/20 border border-blue-800/40 hover:border-blue-300 dark:border-blue-700/60 transition-colors"
+                    class="text-[11px] px-2 py-0.5 rounded-md border shadow-sm transition-all bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200 hover:border-blue-300 dark:bg-blue-900/20 dark:border-blue-700/60 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     Change
                   </button>
@@ -1472,7 +1472,7 @@ const STATUS_TRANSITIONS: StatusTransitionAction[] = [
     status: 'IN_PROGRESS',
     label: 'Start',
     icon: '▶',
-    className: 'bg-blue-900/30 border-blue-600/50 text-blue-300 hover:bg-blue-900/50 hover:border-blue-500/60',
+    className: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 dark:bg-blue-900/30 dark:border-blue-600/50 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:border-blue-500/60',
     roles: ['ENGINEER', 'CHIEF_ENGINEER', 'CHIEF', 'MANAGER', 'CEO', 'PRODUCT_OWNER', 'PM'],
     states: ['PENDING', 'ASSIGNED', 'BLOCKED'],
   },
@@ -1480,7 +1480,7 @@ const STATUS_TRANSITIONS: StatusTransitionAction[] = [
     status: 'READY_FOR_TEST',
     label: 'Ready to test',
     icon: '🧪',
-    className: 'bg-cyan-900/30 border-cyan-600/50 text-cyan-300 hover:bg-cyan-900/50 hover:border-cyan-500/60',
+    className: 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100 hover:border-cyan-300 dark:bg-cyan-900/30 dark:border-cyan-600/50 dark:text-cyan-300 dark:hover:bg-cyan-900/50 dark:hover:border-cyan-500/60',
     roles: ['ENGINEER', 'CHIEF_ENGINEER', 'CHIEF', 'MANAGER', 'CEO', 'PRODUCT_OWNER', 'PM'],
     states: ['IN_PROGRESS'],
   },
@@ -1488,7 +1488,7 @@ const STATUS_TRANSITIONS: StatusTransitionAction[] = [
     status: 'COMPLETED',
     label: 'Done',
     icon: '✅',
-    className: 'bg-emerald-900/30 border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500/60',
+    className: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-600/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50 dark:hover:border-emerald-500/60',
     roles: ['CEO', 'MANAGER'],
     states: ['READY_FOR_UAT'],
   },

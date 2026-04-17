@@ -11,7 +11,7 @@
           v-if="!showAddForm"
           type="button"
           @click="openAddForm"
-          class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 border border-blue-600/40 rounded-lg transition-colors"
+          class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border shadow-sm transition-all bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200 hover:border-blue-300 dark:bg-blue-600/20 dark:hover:bg-blue-600/40 dark:text-blue-400 dark:hover:text-blue-300 dark:border-blue-600/40"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -89,7 +89,7 @@
           type="button"
           @click.stop="openSplitModal(sub)"
           title="Duplicate & Split this sub-task"
-          class="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-amber-900/30 hover:bg-amber-900/50 text-amber-400 hover:text-amber-300 border border-amber-700/40 hover:border-amber-600/60 transition-all shrink-0"
+          class="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all shrink-0 bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border-amber-200 hover:border-amber-300 shadow-sm dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 dark:hover:text-amber-300 dark:border-amber-700/40 dark:hover:border-amber-600/60"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>

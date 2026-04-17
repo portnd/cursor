@@ -286,6 +286,8 @@ const props = defineProps<{
   activeSprint?: ActiveSprintInfo | null
   /** Set of task IDs that already have a deployment request; used to show warning on WAIT_FOR_DEPLOY cards */
   deployedTaskIds?: string[]
+  /** Project id for persisting board filter state across navigation */
+  projectId?: string
 }>()
 
 const isDev = computed(() => isEngineerLikeRole(props.userRole))
@@ -303,6 +305,51 @@ const searchQuery = ref('')
 const dragTask = ref<Task | null>(null)
 const dragOverCol = ref('')
 
+const BOARD_FILTER_STORAGE_PREFIX = 'sentinel-project-board-filters'
+
+function boardFilterStorageKey(projectId: string) {
+  return `${BOARD_FILTER_STORAGE_PREFIX}:${projectId}`
+}
+
+function loadPersistedBoardFilters() {
+  if (!props.projectId || typeof sessionStorage === 'undefined') return
+  try {
+    const raw = sessionStorage.getItem(boardFilterStorageKey(props.projectId))
+    if (!raw) return
+    const parsed = JSON.parse(raw) as {
+      filterSprint?: string
+      filterPriority?: string
+      filterType?: string
+      swimLane?: 'none' | 'priority' | 'assignee'
+      searchQuery?: string
+    }
+    filterSprint.value = parsed.filterSprint ?? ''
+    filterPriority.value = parsed.filterPriority ?? ''
+    filterType.value = parsed.filterType ?? ''
+    swimLane.value = parsed.swimLane ?? 'none'
+    searchQuery.value = parsed.searchQuery ?? ''
+  } catch {
+    // ignore malformed storage
+  }
+}
+
+function persistBoardFilters() {
+  if (!props.projectId || typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(boardFilterStorageKey(props.projectId), JSON.stringify({
+      filterSprint: filterSprint.value,
+      filterPriority: filterPriority.value,
+      filterType: filterType.value,
+      swimLane: swimLane.value,
+      searchQuery: searchQuery.value,
+    }))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+watch([filterSprint, filterPriority, filterType, swimLane, searchQuery], persistBoardFilters)
+
 function formatEndDate(endDate: string) {
   return new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
@@ -319,6 +366,8 @@ function getCountdown(endDate: string) {
 function sprintNameById(id: string) {
   return props.sprints.find((s) => s.id === id)?.name ?? ''
 }
+
+onMounted(loadPersistedBoardFilters)
 
 const priorityConfig: Record<string, string> = {
   CRITICAL: 'text-red-400 bg-red-500/10 border-red-500/30',

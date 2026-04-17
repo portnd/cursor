@@ -337,6 +337,7 @@
             :user-role="currentUser?.role"
             :active-sprint="activeSprint"
             :deployed-task-ids="deployedTaskIds"
+            :project-id="project.id"
             @task-click="(t) => navigateToTask(t.id)"
             @status-change="handleStatusChange"
           />
