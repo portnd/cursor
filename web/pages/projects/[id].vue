@@ -1450,7 +1450,11 @@
             <div class="animate-spin text-6xl mb-4">⚙️</div>
             <p class="text-sm text-gray-500">กำลังโหลด analytics...</p>
           </div>
-          <ProjectAnalytics v-else-if="analytics" :analytics="analytics" />
+          <ProjectAnalytics
+            v-else-if="analytics"
+            :analytics="analytics"
+            @show-tasks="openAnalyticsTasksModal"
+          />
           <div v-else class="text-center py-20 text-gray-500 text-sm">Failed to load analytics.</div>
         </div>
 
@@ -2329,6 +2333,40 @@
       </div>
     </div>
     <!-- ══════ End IOD Import Modal ══════ -->
+
+    <!-- Analytics Tasks Modal -->
+    <div v-if="showAnalyticsTasksModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" @click.self="closeAnalyticsTasksModal">
+      <div class="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">Tasks for {{ analyticsTasksModalLabel }}</h2>
+            <p class="text-xs text-gray-400">Click a task to open its detail page</p>
+          </div>
+          <button type="button" class="text-gray-400 hover:text-white" @click="closeAnalyticsTasksModal">✕</button>
+        </div>
+        <div class="max-h-[calc(85vh-73px)] overflow-y-auto p-4">
+          <div v-if="analyticsTasksModalTasks.length" class="space-y-2">
+            <button
+              v-for="task in analyticsTasksModalTasks"
+              :key="task.id"
+              type="button"
+              class="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-3 text-left transition-colors hover:border-purple-400/40 hover:bg-purple-500/10"
+              @click="navigateToTask(task.id)"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono text-gray-500">{{ taskDisplayCode(task) }}</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(task.status)">{{ task.status.replace('_', ' ') }}</span>
+                </div>
+                <p class="mt-1 truncate text-sm font-medium text-gray-200">{{ task.title }}</p>
+              </div>
+              <span class="shrink-0 text-xs text-gray-500">Open</span>
+            </button>
+          </div>
+          <div v-else class="py-10 text-center text-sm text-gray-500">No tasks found for this developer.</div>
+        </div>
+      </div>
+    </div>
 
     <!-- Create Task Modal -->
     <div v-if="showCreateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto" @click.self="closeCreateTaskModal">
@@ -3775,6 +3813,9 @@ const milestones = ref<Milestone[]>([])
 const epics = ref<Epic[]>([])
 const analytics = ref<AnalyticsType | null>(null)
 const projectScopedFeatureRoadmap = ref<FeatureRoadmapItem[] | null>(null)
+const showAnalyticsTasksModal = ref(false)
+const analyticsTasksModalLabel = ref('')
+const analyticsTasksModalTasks = ref<Task[]>([])
 const isLoading = ref(true)
 // Task IDs that already have a deployment request (used to show warning on WAIT_FOR_DEPLOY kanban cards)
 const deployedTaskIds = ref<string[]>([])
@@ -3910,6 +3951,21 @@ const overviewFilteredTasks = computed(() => {
 
 function toggleOverviewFilter(filter: OverviewMetricFilter) {
   selectedOverviewFilter.value = selectedOverviewFilter.value === filter ? null : filter
+}
+
+function openAnalyticsTasksModal(row: AnalyticsType['team_capacity'][number]) {
+  if (!row) return
+  analyticsTasksModalLabel.value = row.user_display_name?.trim() || row.user_email || `Dev #${row.user_id}`
+  analyticsTasksModalTasks.value = allTasks.value
+    .filter((task) => task.assigned_to === row.user_id)
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  showAnalyticsTasksModal.value = true
+}
+
+function closeAnalyticsTasksModal() {
+  showAnalyticsTasksModal.value = false
+  analyticsTasksModalLabel.value = ''
+  analyticsTasksModalTasks.value = []
 }
 
 function getSubTasks(parentId: string) {

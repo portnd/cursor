@@ -86,7 +86,15 @@
                   </div>
                 </div>
               </td>
-              <td class="text-right py-3 px-3 text-gray-300">{{ row.assigned_tasks }}</td>
+              <td class="text-right py-3 px-3 text-gray-300">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-end rounded-md px-1.5 py-1 text-purple-300 hover:text-white hover:bg-purple-500/10 transition-colors"
+                  @click="showTasksForDeveloper(row)"
+                >
+                  {{ row.assigned_tasks }}
+                </button>
+              </td>
               <td class="text-right py-3 px-3 text-gray-300">{{ row.estimated_hours.toFixed(1) }}h</td>
               <td class="text-right py-3 px-3 text-gray-300">{{ row.logged_hours.toFixed(1) }}h</td>
               <td class="text-right py-3 px-3">
@@ -115,11 +123,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch, nextTick } from 'vue'
+import { onMounted, watch, nextTick, computed } from 'vue'
 import type { ProjectAnalytics } from '~/core/modules/projects/infrastructure/projects-api'
 
 const props = defineProps<{
   analytics: ProjectAnalytics
+}>()
+
+const emit = defineEmits<{
+  (e: 'show-tasks', payload: ProjectAnalytics['team_capacity'][number]): void
 }>()
 
 const burndownCanvas = ref<HTMLCanvasElement | null>(null)
@@ -175,6 +187,10 @@ function capacityLabel(row: ProjectAnalytics['team_capacity'][number]) {
 function capacityInitial(row: ProjectAnalytics['team_capacity'][number]) {
   const src = capacityLabel(row)
   return src.charAt(0).toUpperCase() || '?'
+}
+
+function showTasksForDeveloper(row: ProjectAnalytics['team_capacity'][number]) {
+  emit('show-tasks', row)
 }
 
 async function renderCharts() {
