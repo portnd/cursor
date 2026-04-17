@@ -207,6 +207,22 @@
               </span>
             </div>
 
+            <div v-if="availableStatusTransitions.length > 0" class="flex flex-wrap items-center gap-2 mb-4">
+              <span class="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Quick status</span>
+              <button
+                v-for="action in availableStatusTransitions"
+                :key="action.status"
+                type="button"
+                :disabled="statusChangeLoading"
+                @click="changeTaskStatus(action.status)"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold border transition-all shadow-sm disabled:opacity-50"
+                :class="action.className"
+              >
+                <span>{{ action.icon }}</span>
+                {{ statusChangeLoading && pendingStatusChange === action.status ? 'Updating…' : action.label }}
+              </button>
+            </div>
+
             <!-- Title -->
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight tracking-tight mb-2">{{ task.title }}</h1>
 
@@ -1439,6 +1455,71 @@ const canClaimTask = computed(() => {
   return role === 'ENGINEER' || role === 'CHIEF_ENGINEER' || role === 'CHIEF'
 })
 
+const statusChangeLoading = ref(false)
+const pendingStatusChange = ref('')
+
+interface StatusTransitionAction {
+  status: string
+  label: string
+  icon: string
+  className: string
+  roles?: string[]
+  states?: string[]
+}
+
+const STATUS_TRANSITIONS: StatusTransitionAction[] = [
+  {
+    status: 'IN_PROGRESS',
+    label: 'Start',
+    icon: '▶',
+    className: 'bg-blue-900/30 border-blue-600/50 text-blue-300 hover:bg-blue-900/50 hover:border-blue-500/60',
+    roles: ['ENGINEER', 'CHIEF_ENGINEER', 'CHIEF', 'MANAGER', 'CEO', 'PRODUCT_OWNER', 'PM'],
+    states: ['PENDING', 'ASSIGNED', 'BLOCKED'],
+  },
+  {
+    status: 'READY_FOR_TEST',
+    label: 'Ready to test',
+    icon: '🧪',
+    className: 'bg-cyan-900/30 border-cyan-600/50 text-cyan-300 hover:bg-cyan-900/50 hover:border-cyan-500/60',
+    roles: ['ENGINEER', 'CHIEF_ENGINEER', 'CHIEF', 'MANAGER', 'CEO', 'PRODUCT_OWNER', 'PM'],
+    states: ['IN_PROGRESS'],
+  },
+  {
+    status: 'COMPLETED',
+    label: 'Done',
+    icon: '✅',
+    className: 'bg-emerald-900/30 border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500/60',
+    roles: ['CEO', 'MANAGER'],
+    states: ['READY_FOR_UAT'],
+  },
+]
+
+const availableStatusTransitions = computed(() => {
+  if (!task.value) return []
+  const role = currentRole.value
+  return STATUS_TRANSITIONS.filter((action) => {
+    const roleAllowed = !action.roles || action.roles.includes(role)
+    const stateAllowed = !action.states || action.states.includes(task.value!.status)
+    return roleAllowed && stateAllowed && action.status !== task.value!.status
+  })
+})
+
+async function changeTaskStatus(status: string) {
+  if (!task.value || statusChangeLoading.value) return
+  statusChangeLoading.value = true
+  pendingStatusChange.value = status
+  try {
+    await tasksApi.updateTask(task.value.id, { status })
+    showSuccess(`Task status updated to ${getStatusLabel(status)}`, 'Updated')
+    await fetchTask()
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to update task status')
+  } finally {
+    statusChangeLoading.value = false
+    pendingStatusChange.value = ''
+  }
+}
+
 const showCEOQuickFinishAction = computed(() => {
   if (!task.value) return false
   const role = currentRole.value
@@ -2098,7 +2179,6 @@ const getStatusBadgeClass = (status: string) => {
     'COMPLETED':       'bg-green-900/40 border-green-600/50 text-green-300',
     'IN_PROGRESS':     'bg-blue-900/40 border-blue-600/50 text-blue-300',
     'PENDING':         'bg-yellow-900/40 border-yellow-600/50 text-yellow-300',
-    'BLOCKED':         'bg-red-900/40 border-red-600/50 text-red-300',
     'REVIEW_PENDING':  'bg-purple-900/40 border-purple-600/50 text-purple-300',
     'READY_FOR_TEST':  'bg-cyan-900/40 border-cyan-600/50 text-cyan-300',
     'WAIT_FOR_DEPLOY': 'bg-orange-900/40 border-orange-600/50 text-orange-300',
@@ -2115,7 +2195,6 @@ const getStatusLabel = (status: string) => {
     'COMPLETED':       '✅ COMPLETED',
     'IN_PROGRESS':     '🔄 IN PROGRESS',
     'PENDING':         '⏳ PENDING',
-    'BLOCKED':         '🚫 BLOCKED',
     'REVIEW_PENDING':  '⏳ WAITING FOR APPROVAL',
     'READY_FOR_TEST':  '🧪 READY FOR TEST',
     'WAIT_FOR_DEPLOY': '🚀 WAIT FOR DEPLOY',
