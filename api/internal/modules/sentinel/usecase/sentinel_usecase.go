@@ -2222,13 +2222,6 @@ func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, de
 	if _, err := u.repo.GetTaskByID(taskID); err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
-	childCount, err := u.repo.CountChildTasks(taskID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify task hierarchy: %w", err)
-	}
-	if childCount > 0 {
-		return nil, &domain.ErrBadRequest{Msg: "time cannot be logged against a Parent Task; log time on its Sub-tasks instead"}
-	}
 
 	t := &domain.TimeLog{
 		ID:             uuid.New(),
@@ -2392,14 +2385,6 @@ func (u *sentinelUsecase) BulkLogTime(entries []domain.BulkLogEntry, userID uint
 				continue
 			}
 			logDate = d
-		}
-
-		// Guard: no logging on parent tasks
-		childCount, err := u.repo.CountChildTasks(taskID)
-		if err != nil || childCount > 0 {
-			res.Error = "cannot log time on a parent task; use sub-tasks"
-			results = append(results, res)
-			continue
 		}
 
 		tl := domain.TimeLog{
