@@ -2415,7 +2415,7 @@
             </div>
             <div>
               <label class="label">Story Points</label>
-              <input v-model.number="createTaskForm.story_points" type="number" min="0" class="input-field w-full" placeholder="0" />
+              <input v-model.number="createTaskForm.story_points" type="number" min="0" step="0.5" class="input-field w-full" placeholder="0" />
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">

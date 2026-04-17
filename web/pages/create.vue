@@ -119,7 +119,7 @@
             </div>
             <div>
               <label class="label">Story Points</label>
-              <input v-model.number="form.story_points" type="number" min="0" class="input-field w-full" placeholder="0" />
+              <input v-model.number="form.story_points" type="number" min="0" step="0.5" class="input-field w-full" placeholder="0" />
             </div>
           </div>
 

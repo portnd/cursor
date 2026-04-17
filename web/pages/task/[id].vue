@@ -803,7 +803,7 @@
             </div>
             <div>
               <label class="label">Story Points</label>
-              <input v-model.number="editForm.story_points" type="number" min="0" class="input-field w-full" :disabled="isUpdatingTask" />
+              <input v-model.number="editForm.story_points" type="number" min="0" step="0.5" class="input-field w-full" :disabled="isUpdatingTask" />
             </div>
           </div>
           <div v-if="editSprints.length > 0">
