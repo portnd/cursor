@@ -33,7 +33,7 @@ type createTaskReq struct {
 	StartDate        *string `json:"start_date"`
 	EndDate          *string `json:"end_date"`
 	Priority         string  `json:"priority"`
-	StoryPoints      int     `json:"story_points"`
+	StoryPoints      float64 `json:"story_points"`
 	SprintID         *string `json:"sprint_id"`
 	MilestoneID      *string `json:"milestone_id"`
 	EstimatedMinutes *int    `json:"estimated_minutes"` // Manual estimate; stored for Costing Engine (mandatory from frontend)
@@ -76,9 +76,9 @@ type updateTaskReq struct {
 	DueAt            *string `json:"due_at"`
 	StartDate        *string `json:"start_date"`
 	EndDate          *string `json:"end_date"`
-	Progress         *int    `json:"progress"`
-	Priority         string  `json:"priority"`
-	StoryPoints      *int    `json:"story_points"`
+	Progress         *int     `json:"progress"`
+	Priority         string   `json:"priority"`
+	StoryPoints      *float64 `json:"story_points"`
 	SprintID         *string `json:"sprint_id"`
 	MilestoneID      *string `json:"milestone_id"`
 	EstimatedMinutes *int    `json:"estimated_minutes"` // Manual estimate; feeds Costing Engine

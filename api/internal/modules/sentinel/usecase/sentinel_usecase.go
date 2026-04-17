@@ -485,7 +485,7 @@ func (u *sentinelUsecase) generateUniqueProjectCode(base string, currentProjectI
 
 var validPriorities = map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}
 
-func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*domain.Task, error) {
+func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints float64, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*domain.Task, error) {
 	defaultEstimatedMinutes := 0
 	if estimatedMinutes != nil && *estimatedMinutes >= 0 {
 		defaultEstimatedMinutes = *estimatedMinutes
@@ -1077,7 +1077,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 // UpdateTask updates a task with access control (no AI).
 // Creator, CEO, MANAGER, or Product Owner can update all fields.
 // Assigned user can update description only.
-func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
+func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *float64, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)

@@ -394,7 +394,7 @@ type ProjectDetailsTask struct {
 	MilestoneID           *uuid.UUID `json:"milestone_id,omitempty"`
 	TaskType              string     `json:"task_type"`
 	Priority              string     `json:"priority"`
-	StoryPoints           int        `json:"story_points"`
+	StoryPoints           float64    `json:"story_points"`
 	ParentID              *uuid.UUID `json:"parent_id"`
 	SortOrder             int        `json:"sort_order"`
 	StartDate             *time.Time `json:"start_date"`
@@ -433,8 +433,8 @@ type Task struct {
 	TaskType string `json:"task_type" gorm:"type:varchar(20);default:'TASK'"` // FEATURE, TASK, BUG
 
 	// Priority & Estimation
-	Priority    string `json:"priority" gorm:"default:'MEDIUM'"` // CRITICAL, HIGH, MEDIUM, LOW
-	StoryPoints int    `json:"story_points" gorm:"default:0"`
+	Priority    string  `json:"priority" gorm:"default:'MEDIUM'"` // CRITICAL, HIGH, MEDIUM, LOW
+	StoryPoints float64 `json:"story_points" gorm:"type:decimal(5,1);default:0"`
 
 	// WBS / Gantt: sub-tasks and planned dates
 	ParentID   *uuid.UUID `json:"parent_id" gorm:"type:uuid;index"`                               // For sub-tasks (Work Breakdown Structure)
@@ -764,7 +764,7 @@ type SentinelUsecase interface {
 	AssignProjectTeam(projectID uuid.UUID, teamID *uint, requesterRole string) (*Project, error) // CEO only
 	AssignProjectPmOwners(projectID uuid.UUID, pmUserIDs []uint, requesterRole string) (*Project, error) // CEO/MANAGER when teams feature off (param name kept for compatibility)
 
-	CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints int, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*Task, error)
+	CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints float64, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*Task, error)
 	AssignTask(taskID uuid.UUID, devID uint, assignerID uint, assignerRole string) error
 	SubmitWork(taskID uuid.UUID, devID uint, referenceURL, note string) (*Submission, error)
 	SubmitUAT(taskID uuid.UUID, devID uint, payload UATPayloadData) error // Engineer submits UAT payload for a FEATURE (READY_FOR_UAT → REVIEW_PENDING)
@@ -788,7 +788,7 @@ type SentinelUsecase interface {
 	RemoveDependency(id uuid.UUID) error
 
 	// Task Management with Access Control
-	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *int, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*Task, error)
+	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *float64, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*Task, error)
 	UpdateTaskResourceURLs(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, resourceURLs datatypes.JSON) (*Task, error)
 	EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*Task, error)                            // Kept for AI scheduling (ScheduleProjectWithAI)
 	GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*AIGeneratedPlan, error)       // AI generates epics, milestones, sprints, tasks
@@ -977,7 +977,7 @@ type ImportGoogleSlidesRequest struct {
 	ParentID        string `json:"parent_id"` // optional: when set, tasks are created as sub-tasks under this parent
 	APIKey          string `json:"api_key"`
 	Priority        string `json:"priority"`
-	StoryPoints     int    `json:"story_points"`
+	StoryPoints     float64 `json:"story_points"`
 	// SlideIndices: 1-based indices of slides to import. If empty or nil, import all.
 	// Deprecated in favour of Slides when triage data is provided.
 	SlideIndices []int `json:"slide_indices"`
@@ -1079,7 +1079,7 @@ type ImportCanvaRequest struct {
 	EpicID      string `json:"epic_id"`
 	ParentID    string `json:"parent_id"`
 	Priority    string `json:"priority"`
-	StoryPoints int    `json:"story_points"`
+	StoryPoints float64    `json:"story_points"`
 	// Pages: per-page triage (slide_index = 1-based page index, reuses TriagedSlide)
 	Pages []TriagedSlide `json:"pages" binding:"required"`
 }
@@ -1105,7 +1105,7 @@ type ImportPPTXRequest struct {
 	EpicID      string         `json:"epic_id"`
 	ParentID    string         `json:"parent_id"`
 	Priority    string         `json:"priority"`
-	StoryPoints int            `json:"story_points"`
+	StoryPoints float64         `json:"story_points"`
 	Pages       []TriagedSlide `json:"pages"`
 }
 
@@ -1163,7 +1163,7 @@ type AIPlanTask struct {
 	Title          string `json:"title"`
 	Description    string `json:"description"`
 	Priority       string `json:"priority"`
-	StoryPoints    int    `json:"story_points"`
+	StoryPoints    float64 `json:"story_points"`
 	EpicIndex      *int   `json:"epic_index"`      // 0-based index into epics list
 	SprintIndex    *int   `json:"sprint_index"`    // 0-based index into sprints list
 	MilestoneIndex *int   `json:"milestone_index"` // 0-based index into milestones list
@@ -1177,7 +1177,7 @@ type TaskEstimateInput struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Priority    string `json:"priority"`
-	StoryPoints int    `json:"story_points"`
+	StoryPoints float64 `json:"story_points"`
 }
 
 // TaskEstimateAndOrder is AI output per task: estimated minutes and suggested execution order (1-based)

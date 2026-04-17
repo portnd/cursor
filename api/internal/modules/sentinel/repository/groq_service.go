@@ -297,7 +297,7 @@ Create 8-20 tasks. Output ONLY valid JSON, no markdown. Use integers for all num
 		Tasks:      make([]domain.AIPlanTask, 0, len(flex.Tasks)),
 	}
 	for _, t := range flex.Tasks {
-		sp := int(t.StoryPoints)
+		sp := t.StoryPoints
 		if sp < 0 {
 			sp = 0
 		}

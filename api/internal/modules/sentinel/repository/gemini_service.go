@@ -1103,7 +1103,7 @@ Output ONLY valid JSON, no markdown or explanation. Use integers for all numeric
 		Tasks:      make([]domain.AIPlanTask, 0, len(flex.Tasks)),
 	}
 	for _, t := range flex.Tasks {
-		sp := int(t.StoryPoints)
+		sp := t.StoryPoints
 		if sp < 0 {
 			sp = 0
 		}
