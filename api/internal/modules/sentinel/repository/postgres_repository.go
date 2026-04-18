@@ -214,7 +214,7 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 	var rows []taskRow
 	err := r.db.Table("tasks").
 		Select(`tasks.*,
-			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name,
 			COALESCE(u.email, '') AS assigned_to_email,
 			COALESCE(u.avatar_url, '') AS assigned_to_avatar_url`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
@@ -261,7 +261,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	startedAt := time.Now()
 	q := r.db.Table("tasks").
 		Select(projectPageTaskColumns+`,
-			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name`).
+			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
 		Where("tasks.project_id = ?", projectID)
 
@@ -613,7 +613,7 @@ func (r *postgresRepository) GetTeamActiveTasks(ctx domain.CallerContext) ([]dom
 	var rows []row
 	q := r.db.Table("tasks").
 		Select(`tasks.*, projects.name AS project_name, projects.color AS project_color,
-			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name,
 			COALESCE(u.email, '')               AS assigned_to_email`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
@@ -1177,7 +1177,7 @@ func (r *postgresRepository) GetTasksReadyForTest(teamID uint) ([]domain.GlobalA
 		Select(`tasks.*,
 			projects.name AS project_name,
 			projects.color AS project_color,
-			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name,
 			COALESCE(u.email, '') AS assigned_to_email`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
@@ -1252,7 +1252,7 @@ func (r *postgresRepository) GetTasksReadyForCEOApproval(teamID uint) ([]domain.
 		Select(`tasks.*,
 			projects.name AS project_name,
 			projects.color AS project_color,
-			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
+			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name,
 			COALESCE(u.email, '') AS assigned_to_email`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").

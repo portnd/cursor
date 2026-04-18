@@ -400,8 +400,9 @@ function assigneeLabel(task: Task): string {
   return task.assigned_to != null ? `Dev #${task.assigned_to}` : ''
 }
 function assigneeInitial(task: Task): string {
-  const label = assigneeLabel(task)
-  return label ? label.charAt(0).toUpperCase() : '?'
+  if (task.assigned_to_display_name) return task.assigned_to_display_name.charAt(0).toUpperCase()
+  // No display name — show a generic placeholder instead of "D" from "Dev #N"
+  return '?'
 }
 
 const columns = [
