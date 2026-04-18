@@ -1,5 +1,5 @@
 import { useAuth } from '~/composables/useAuth'
-import type { Task } from '../../../modules/projects/infrastructure/projects-api'
+import type { Task, TaskSummary } from '../../../modules/projects/infrastructure/projects-api'
 
 export interface PPTXPreviewSlide { index: number; title: string; hidden?: boolean; suggested_task_title?: string }
 export interface PPTXPreviewResult { title: string; slides: PPTXPreviewSlide[] }
@@ -123,6 +123,16 @@ function useTasksApi() {
 
   async function getTask(idOrCode: string): Promise<Task> {
     const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${idOrCode}`)
+    return data.data
+  }
+
+  async function getTaskSummary(idOrCode: string): Promise<{ summary: TaskSummary; has_rich_content: boolean }> {
+    const data = await fetchWithAuth<{ data: { summary: TaskSummary; has_rich_content: boolean } }>(`/sentinel/tasks/${idOrCode}/summary`)
+    return data.data
+  }
+
+  async function getTaskDetail(idOrCode: string): Promise<{ task: Task; attachment_count: number; has_rich_content: boolean }> {
+    const data = await fetchWithAuth<{ data: { task: Task; attachment_count: number; has_rich_content: boolean } }>(`/sentinel/tasks/${idOrCode}/detail`)
     return data.data
   }
 
@@ -573,6 +583,8 @@ function useTasksApi() {
     getTasksByProject,
     getAllTasks,
     getTask,
+    getTaskSummary,
+    getTaskDetail,
     createTask,
     updateTask,
     updateTaskSlideResources,
@@ -615,4 +627,5 @@ function useTasksApi() {
   }
 }
 
+export type { TaskSummary }
 export { useTasksApi }

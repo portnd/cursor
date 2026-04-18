@@ -185,6 +185,8 @@ export function createResizableImageExtension() {
         const img = document.createElement('img')
         img.src = node.attrs.src ?? ''
         img.className = 'editor-image'
+        img.loading = 'lazy'
+        img.decoding = 'async'
         img.draggable = false
         img.setAttribute('data-drag-handle', 'true')
 

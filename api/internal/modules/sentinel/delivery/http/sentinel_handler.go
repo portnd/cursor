@@ -67,21 +67,32 @@ type negotiateTimeReq struct {
 }
 
 type updateTaskReq struct {
-	Title            string  `json:"title"`
-	Description      string  `json:"description"`
-	TaskType         string  `json:"task_type"` // FEATURE, TASK, BUG
-	ParentID         *string `json:"parent_id"`
-	EpicID           *string `json:"epic_id"`
-	SortOrder        *int    `json:"sort_order"`
-	DueAt            *string `json:"due_at"`
-	StartDate        *string `json:"start_date"`
-	EndDate          *string `json:"end_date"`
+	Title            string   `json:"title"`
+	Description      string   `json:"description"`
+	TaskType         string   `json:"task_type"` // FEATURE, TASK, BUG
+	ParentID         *string  `json:"parent_id"`
+	EpicID           *string  `json:"epic_id"`
+	SortOrder        *int     `json:"sort_order"`
+	DueAt            *string  `json:"due_at"`
+	StartDate        *string  `json:"start_date"`
+	EndDate          *string  `json:"end_date"`
 	Progress         *int     `json:"progress"`
 	Priority         string   `json:"priority"`
 	StoryPoints      *float64 `json:"story_points"`
-	SprintID         *string `json:"sprint_id"`
-	MilestoneID      *string `json:"milestone_id"`
-	EstimatedMinutes *int    `json:"estimated_minutes"` // Manual estimate; feeds Costing Engine
+	SprintID         *string  `json:"sprint_id"`
+	MilestoneID      *string  `json:"milestone_id"`
+	EstimatedMinutes *int     `json:"estimated_minutes"` // Manual estimate; feeds Costing Engine
+}
+
+type taskSummaryResponse struct {
+	Summary  *domain.TaskSummary `json:"summary"`
+	HasRichContent bool          `json:"has_rich_content"`
+}
+
+type taskDetailResponse struct {
+	Task          *domain.Task `json:"task"`
+	AttachmentCount int        `json:"attachment_count"`
+	HasRichContent bool        `json:"has_rich_content"`
 }
 
 type createEpicReq struct {

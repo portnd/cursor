@@ -4083,6 +4083,41 @@ const BACKLOG_EXPECT_RETURN_KEY = 'sentinel-backlog-expect-return'
 const PROJECT_DETAILS_CACHE_KEY = 'sentinel-project-details-cache-v1'
 const PROJECT_DETAILS_CACHE_TTL_MS = 2 * 60 * 1000
 
+const INITIAL_TASK_LIMIT_LIGHT = 80
+const INITIAL_TASK_LIMIT_STANDARD = 120
+const INITIAL_TASK_LIMIT_HEAVY = 180
+
+function detectSlowNetworkClient(): boolean {
+  if (typeof window === 'undefined') return false
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string }
+  }
+  const conn = nav.connection
+  if (!conn) return false
+  if (conn.saveData) return true
+  return conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g'
+}
+
+function getInitialProjectTasksLimit(tab: string): number {
+  const slowNetwork = detectSlowNetworkClient()
+  if (tab === 'timeline' || tab === 'board' || tab === 'backlog') {
+    return slowNetwork ? INITIAL_TASK_LIMIT_STANDARD : INITIAL_TASK_LIMIT_HEAVY
+  }
+  if (tab === 'overview') {
+    return slowNetwork ? INITIAL_TASK_LIMIT_LIGHT : INITIAL_TASK_LIMIT_STANDARD
+  }
+  return INITIAL_TASK_LIMIT_STANDARD
+}
+
+async function ensureHeavyTabTasksWarmup() {
+  if (detectSlowNetworkClient()) return
+  if (activeTab.value !== 'board' && activeTab.value !== 'backlog' && activeTab.value !== 'timeline') return
+  if (!projectDetailsTasksMeta.value?.has_more) return
+  if (allTasks.value.length >= 260) return
+  if (isLoadingMoreProjectTasks.value) return
+  await loadMoreProjectTasks()
+}
+
 function taskUrl(taskId: string) {
   const projectId = route.params.id as string
   const tab = activeTab.value
@@ -4233,8 +4268,8 @@ async function loadAll() {
   console.info('[ProjectDetails] page load start', { idOrCode, activeTab: activeTab.value, isServer: import.meta.server })
   try {
     const cached = readCachedProjectDetails(idOrCode)
-    const isHeavyBoardTab = activeTab.value === 'backlog' || activeTab.value === 'board' || activeTab.value === 'timeline'
-    const detailsPromise = projectsApi.getProjectDetails(idOrCode, { tasksLimit: isHeavyBoardTab ? 300 : 200 })
+    const initialTaskLimit = getInitialProjectTasksLimit(activeTab.value)
+    const detailsPromise = projectsApi.getProjectDetails(idOrCode, { tasksLimit: initialTaskLimit })
     const timelinePromise =
       isTimelineTab
         ? (timelineMode.value === 'epic'
@@ -4300,10 +4335,18 @@ async function loadAll() {
 
     isLoading.value = false
 
+    // For heavy tabs, start a background warm-up of next tasks page on good networks
+    void ensureHeavyTabTasksWarmup()
+
     // When returning from task detail to board/backlog, restore scroll position after the current frame.
+    // NOTE: `shouldRestore` is the gate — it is only true when BACKLOG_EXPECT_RETURN_KEY was set by
+    // `saveBacklogExpandedState` (i.e., user navigated TO a task detail from this project page).
+    // Without this guard, navigating fresh from /projects would scroll to a stale saved position.
     if (!cached && activeTab.value === 'backlog') {
+      // Always restore epic/group expansion state (it's a layout preference), but only apply
+      // the saved scroll coordinates when we are genuinely returning from a task detail page.
       const savedScroll = restoreBacklogExpandedState(details.project.id)
-      if (savedScroll) {
+      if (savedScroll && shouldRestore) {
         nextTick(() => {
           const apply = () => {
             const main = getMainScrollEl()

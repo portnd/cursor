@@ -466,8 +466,17 @@
             <div class="p-5">
               <RichTextEditor v-if="isEditingDescription" v-model="inlineDescriptionHtml" placeholder="Describe what needs to be done… (paste images with ⌘V)" />
               <div v-else>
-                <RichTextEditor v-if="task.description && task.description.trim()" :model-value="task.description" :readonly="true" />
-                <p v-else class="text-gray-500 text-sm italic py-4 text-center">No description yet. Click Edit to add one.</p>
+                <!-- Skeleton shimmer: only shown when we know there IS rich content to load -->
+                <div v-if="richDetailLoading && hasRichContent" class="space-y-3 py-2 animate-pulse">
+                  <div class="h-4 bg-gray-700/60 rounded-md w-full" />
+                  <div class="h-4 bg-gray-700/60 rounded-md w-5/6" />
+                  <div class="h-4 bg-gray-700/60 rounded-md w-4/6" />
+                  <div class="h-32 bg-gray-700/40 rounded-lg w-full mt-4" />
+                  <div class="h-4 bg-gray-700/60 rounded-md w-3/4" />
+                  <div class="h-4 bg-gray-700/60 rounded-md w-2/3" />
+                </div>
+                <RichTextEditor v-else-if="task.description && task.description.trim()" :model-value="task.description" :readonly="true" />
+                <p v-else-if="!richDetailLoading" class="text-gray-500 text-sm italic py-4 text-center">No description yet. Click Edit to add one.</p>
               </div>
             </div>
           </div>
@@ -1276,6 +1285,11 @@ onMounted(async () => {
 
 // State
 const task = ref<Task | null>(null)
+const taskSummary = ref<Task | null>(null)
+const taskDetailLoaded = ref(false)
+const richDetailLoading = ref(false)
+/** True when the summary response indicates there is a rich description / attachments to lazy-load */
+const hasRichContent = ref(false)
 const isLoading = ref(true)
 const error = ref('')
 
@@ -1658,16 +1672,19 @@ const fetchTask = async () => {
   try {
     isLoading.value = true
     error.value = ''
+    taskDetailLoaded.value = false
+    richDetailLoading.value = false
+    hasRichContent.value = false
 
-    const response = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${taskId}`)
-    task.value = response.data
+    const response = await tasksApi.getTaskSummary(taskId)
+    taskSummary.value = response.summary as unknown as Task
+    task.value = response.summary as unknown as Task
+    hasRichContent.value = response.has_rich_content
     estimatedHoursLocal.value = minutesToEffortHours(task.value.estimated_minutes ?? 0)
-    // Populate local subtasks from response (backend preloads SubTasks)
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
-
     void fetchTaskActivity()
-
-    // Clear Prev/Next ordering while we (re)load it in background.
+    // Always hydrate full detail: populates description, sub_tasks, parent_task, submissions
+    void fetchRichTaskDetail(taskId)
     sprintTaskIds.value = []
     backlogTaskIds.value = []
   } catch (err: any) {
@@ -1677,6 +1694,21 @@ const fetchTask = async () => {
     error.value = apiMsg || (status === 404 ? 'Task not found.' : err?.message || 'Failed to load task.')
   } finally {
     isLoading.value = false
+  }
+}
+
+const fetchRichTaskDetail = async (taskId: string) => {
+  if (!taskId) return
+  richDetailLoading.value = true
+  try {
+    const response = await tasksApi.getTaskDetail(taskId)
+    task.value = response.task
+    taskDetailLoaded.value = true
+    subtasks.value = (response.task.sub_tasks ?? []) as SubTask[]
+  } catch (err) {
+    console.error('Failed to fetch rich task detail:', err)
+  } finally {
+    richDetailLoading.value = false
   }
 }
 

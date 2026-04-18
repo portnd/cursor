@@ -416,6 +416,16 @@ watch(
   () => route.fullPath,
   () => {
     mobileNavOpen.value = false
+    // Reset the main scroll container to the top on every navigation.
+    // The <main> element is the real scroll surface (overflow-auto), not window,
+    // so Nuxt's default scrollBehavior does not reset it automatically.
+    // Pages that need to restore a specific position (e.g. returning from task detail
+    // to the backlog) do so asynchronously via nextTick + rAF, which wins over this
+    // synchronous reset.
+    if (import.meta.client) {
+      const main = document.querySelector<HTMLElement>('main.main-enterprise-surface')
+      if (main) main.scrollTop = 0
+    }
   }
 )
 

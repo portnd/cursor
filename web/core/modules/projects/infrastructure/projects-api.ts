@@ -147,13 +147,48 @@ export interface AIGeneratedPlan {
   }[]
 }
 
+/** TaskSummary is the lightweight shape returned by GET /sentinel/tasks/:id/summary.
+ *  It omits heavy fields (description, resource_urls, sub_tasks, submissions, negotiation text)
+ *  so the detail page can render its header/sidebar immediately while detail hydrates in background. */
+export interface TaskSummary {
+  id: string
+  code: string
+  title: string
+  task_type: 'FEATURE' | 'TASK' | 'BUG'
+  status: 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_TEST' | 'REVIEW_PENDING' | 'WAIT_FOR_DEPLOY' | 'READY_FOR_UAT' | 'REVIEW_PENDING' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  story_points: number
+  estimated_minutes: number
+  progress: number
+  project_id: string | null
+  parent_id: string | null
+  epic_id: string | null
+  sprint_id: string | null
+  milestone_id: string | null
+  sort_order: number
+  assigned_to: number | null
+  assigned_to_display_name?: string
+  assigned_to_email?: string
+  assigned_to_avatar_url?: string
+  negotiation_status: string
+  due_at: string | null
+  start_date: string | null
+  end_date: string | null
+  started_at: string | null
+  completed_at: string | null
+  is_komgrip: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Task {
   id: string
   code: string
   title: string
   description: string
+  resource_urls?: Record<string, unknown>
   task_type: 'FEATURE' | 'TASK' | 'BUG'
-  status: 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_TEST' | 'REVIEW_PENDING' | 'COMPLETED' | 'BLOCKED'
+  status: 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_TEST' | 'WAIT_FOR_DEPLOY' | 'READY_FOR_UAT' | 'REVIEW_PENDING' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
   story_points: number
   progress: number
@@ -178,6 +213,7 @@ export interface Task {
   end_date: string | null
   started_at: string | null
   completed_at: string | null
+  negotiation_status?: string
   estimated_minutes: number
   sub_tasks?: Task[]
   is_komgrip?: boolean

@@ -19,6 +19,8 @@
         :src="imageSrc"
         class="image-fullscreen-img"
         alt="Full screen"
+        loading="eager"
+        decoding="async"
         @click.stop
       />
       <div v-if="showActions" class="image-fullscreen-actions">

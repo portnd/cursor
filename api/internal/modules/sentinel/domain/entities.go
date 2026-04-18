@@ -335,12 +335,12 @@ type ProjectTaskPageCursor struct {
 
 // ProjectTasksPageResponse is paginated task response for project details page 2+ loading.
 type ProjectTasksPageResponse struct {
-	Tasks       []Task                 `json:"tasks"`
-	Limit       int                    `json:"limit"`
-	Returned    int                    `json:"returned"`
-	HasMore     bool                   `json:"has_more"`
+	Tasks       []TaskSummary          `json:"tasks"`
+	Limit       int                   `json:"limit"`
+	Returned    int                   `json:"returned"`
+	HasMore     bool                  `json:"has_more"`
 	NextCursor  *ProjectTaskPageCursor `json:"next_cursor,omitempty"`
-	NextOffset  *int                   `json:"next_offset,omitempty"`
+	NextOffset  *int                  `json:"next_offset,omitempty"`
 }
 
 // ProjectDetailsResponse is the combined payload for GET /projects/:id/details (project page - 1 round-trip).
@@ -407,6 +407,40 @@ type ProjectDetailsTask struct {
 	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
 	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
+}
+
+// TaskSummary is the lightweight payload used for project boards, task lists and the task detail
+// header/sidebar (pre-hydration shell). Heavy fields such as description, resource_urls, sub_tasks
+// and submissions are intentionally omitted — callers that need them must hit the /detail endpoint.
+type TaskSummary struct {
+	ID                    uuid.UUID  `json:"id"`
+	Code                  string     `json:"code"`
+	Title                 string     `json:"title"`
+	ProjectID             *uuid.UUID `json:"project_id"`
+	EpicID                *uuid.UUID `json:"epic_id,omitempty"`
+	SprintID              *uuid.UUID `json:"sprint_id,omitempty"`
+	MilestoneID           *uuid.UUID `json:"milestone_id,omitempty"`
+	TaskType              string     `json:"task_type"`
+	Priority              string     `json:"priority"`
+	StoryPoints           float64    `json:"story_points"`
+	EstimatedMinutes      int        `json:"estimated_minutes"`
+	ParentID              *uuid.UUID `json:"parent_id"`
+	SortOrder             int        `json:"sort_order"`
+	StartDate             *time.Time `json:"start_date"`
+	EndDate               *time.Time `json:"end_date"`
+	Progress              int        `json:"progress"`
+	DueAt                 *time.Time `json:"due_at"`
+	StartedAt             *time.Time `json:"started_at,omitempty"`
+	CompletedAt           *time.Time `json:"completed_at,omitempty"`
+	Status                string     `json:"status"`
+	NegotiationStatus     string     `json:"negotiation_status"`
+	AssignedTo            *uint      `json:"assigned_to"`
+	AssignedToDisplayName string     `json:"assigned_to_display_name,omitempty"`
+	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
+	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
+	IsKomgrip             bool       `json:"is_komgrip"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 // Task represents a work assignment

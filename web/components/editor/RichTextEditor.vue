@@ -383,10 +383,6 @@ const openAnnotator = (imgEl: HTMLImageElement) => {
 
 const onAnnotationSave = (annotatedSrc: string) => {
   if (annotatingImgEl && editor.value) {
-    // Replace the img src in the editor content
-    const html = editor.value.getHTML()
-    const escapedSrc = annotatingImgEl.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').substring(0, 100)
-    // Use DOM manipulation on the editor state instead
     const { state, view } = editor.value
     state.doc.descendants((node, pos) => {
       if (node.type.name === 'image' && node.attrs.src === annotatingImgEl!.src) {
@@ -418,6 +414,8 @@ const editor = useEditor({
       allowBase64: true,
       HTMLAttributes: {
         class: 'editor-image',
+        loading: 'lazy',
+        decoding: 'async',
       },
     }),
     Placeholder.configure({

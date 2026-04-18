@@ -281,40 +281,52 @@ func (h *SentinelHandler) SubmitUAT(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "UAT submitted — feature is now pending Product Owner/CEO review"})
 }
 
-// GetTaskByID handles GET /api/v1/sentinel/tasks/:id
-// :id can be UUID or task code (e.g. mims-hdmap-main-001)
-func (h *SentinelHandler) GetTaskByID(c *gin.Context) {
+// GetTaskSummary handles GET /api/v1/sentinel/tasks/:id/summary
+// Returns a lightweight shape for the task detail header and sidebar.
+func (h *SentinelHandler) GetTaskSummary(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Bad Request",
-			"message": "task id or code is required",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "task id or code is required"})
 		return
 	}
 	task, err := h.usecase.GetTaskByIDOrCode(idStr)
 	if err != nil {
-		errMsg := err.Error()
-		if errMsg == "task id or code is required" ||
-			strings.Contains(errMsg, "task not found") ||
-			strings.Contains(errMsg, "record not found") {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   "Not Found",
-				"message": "Task not found",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve task",
-			"message": errMsg,
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Task not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Task retrieved successfully",
-		"data":    task,
-	})
+	summary := domain.TaskSummary{
+		ID: task.ID, Code: task.Code, Title: task.Title, ProjectID: task.ProjectID, EpicID: task.EpicID, SprintID: task.SprintID,
+		MilestoneID: task.MilestoneID, TaskType: task.TaskType, Priority: task.Priority, StoryPoints: task.StoryPoints,
+		EstimatedMinutes: task.EstimatedMinutes, ParentID: task.ParentID, SortOrder: task.SortOrder,
+		StartDate: task.StartDate, EndDate: task.EndDate, Progress: task.Progress,
+		DueAt: task.DueAt, StartedAt: task.StartedAt, CompletedAt: task.CompletedAt,
+		Status: task.Status, NegotiationStatus: task.NegotiationStatus,
+		AssignedTo: task.AssignedTo, AssignedToDisplayName: task.AssignedToDisplayName,
+		AssignedToEmail: task.AssignedToEmail, AssignedToAvatarURL: task.AssignedToAvatarURL,
+		IsKomgrip: task.IsKomgrip, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt,
+	}
+	hasRichContent := task.Description != "" || len(task.ResourceURLs) > 2 || len(task.Submissions) > 0
+	c.Header("Cache-Control", "private, max-age=30, stale-while-revalidate=120")
+	c.JSON(http.StatusOK, gin.H{"message": "Task summary retrieved successfully", "data": gin.H{"summary": summary, "has_rich_content": hasRichContent}})
 }
+
+// GetTaskDetail handles GET /api/v1/sentinel/tasks/:id/detail
+// Returns the full task payload including rich description, attachments and images.
+func (h *SentinelHandler) GetTaskDetail(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "task id or code is required"})
+		return
+	}
+	task, err := h.usecase.GetTaskByIDOrCode(idStr)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Task not found"})
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=15, stale-while-revalidate=60")
+	c.JSON(http.StatusOK, gin.H{"message": "Task detail retrieved successfully", "data": gin.H{"task": task, "attachment_count": len(task.Submissions), "has_rich_content": task.Description != "" || len(task.ResourceURLs) > 2 || len(task.Submissions) > 0}})
+}
+
 
 // GetTaskActivity handles GET /api/v1/sentinel/tasks/:id/activity
 func (h *SentinelHandler) GetTaskActivity(c *gin.Context) {

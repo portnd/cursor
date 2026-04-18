@@ -324,8 +324,37 @@ func (u *sentinelUsecase) GetProjectTasksPage(idOrCode string, limit int, cursor
 		returned = limit
 	}
 
+	summaryTasks := make([]domain.TaskSummary, len(tasks))
+	for i := range tasks {
+		t := tasks[i]
+		summaryTasks[i] = domain.TaskSummary{
+			ID:                    t.ID,
+			Code:                  t.Code,
+			Title:                 t.Title,
+			ProjectID:             t.ProjectID,
+			EpicID:                t.EpicID,
+			SprintID:              t.SprintID,
+			MilestoneID:           t.MilestoneID,
+			TaskType:              t.TaskType,
+			Priority:              t.Priority,
+			StoryPoints:           t.StoryPoints,
+			ParentID:              t.ParentID,
+			SortOrder:             t.SortOrder,
+			StartDate:             t.StartDate,
+			EndDate:               t.EndDate,
+			Progress:              t.Progress,
+			DueAt:                 t.DueAt,
+			Status:                t.Status,
+			AssignedTo:            t.AssignedTo,
+			AssignedToDisplayName: t.AssignedToDisplayName,
+			AssignedToEmail:       t.AssignedToEmail,
+			AssignedToAvatarURL:   t.AssignedToAvatarURL,
+			CreatedAt:             t.CreatedAt,
+		}
+	}
+
 	resp := &domain.ProjectTasksPageResponse{
-		Tasks:    tasks,
+		Tasks:    summaryTasks,
 		Limit:    limit,
 		Returned: returned,
 		HasMore:  hasMore,

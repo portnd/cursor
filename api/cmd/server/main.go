@@ -205,11 +205,12 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "Accept-Encoding"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Encoding", "Cache-Control"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	router.Use(middleware.GzipResponse())
 
 	// Register module routes
 	healthHttp.RegisterRoutes(router, db, redisClient)

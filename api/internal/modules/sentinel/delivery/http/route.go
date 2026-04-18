@@ -42,7 +42,9 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.GET("/tasks/ready-for-test", handler.GetTasksReadyForTest)            // Continuous UAT queue (must be before /:id)
 		sentinelGroup.GET("/tasks", handler.GetAllTasks)                                    // Get all tasks (ADMIN / Product Owner overview)
 		sentinelGroup.GET("/tasks/:id/activity", handler.GetTaskActivity)                   // Immutable task lifecycle timeline
-		sentinelGroup.GET("/tasks/:id", handler.GetTaskByID)                                // Get single task with submission history
+		sentinelGroup.GET("/tasks/:id/summary", handler.GetTaskSummary)                     // Lightweight task summary for initial render
+		sentinelGroup.GET("/tasks/:id/detail", handler.GetTaskDetail)                       // Full task payload with rich content for on-demand loading
+		sentinelGroup.GET("/tasks/:id", handler.GetTaskDetail)                              // Full task payload (legacy alias → detail)
 		sentinelGroup.PATCH("/tasks/:id", handler.UpdateTask)                               // Update task (Creator or CEO only, triggers AI re-estimation)
 		sentinelGroup.PATCH("/tasks/:id/slide-resources", handler.UpdateTaskSlideResources) // Update task resource_urls (slide images/annotations)
 		sentinelGroup.POST("/tasks/:id/estimate", handler.EstimateTask)                     // AI estimate time (Creator / CEO / Product Owner)
