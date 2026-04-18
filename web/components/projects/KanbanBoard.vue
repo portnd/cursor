@@ -167,14 +167,8 @@
               <div class="flex items-center justify-between text-xs text-gray-500">
                 <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
                 <span v-if="assigneeLabel(task)" class="flex items-center gap-1" :title="assigneeLabel(task)">
-                  <span class="w-4 h-4 rounded-full overflow-hidden bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
-                    <img
-                      v-if="assigneeAvatar(task)"
-                      :src="assigneeAvatar(task)!"
-                      alt="Assignee avatar"
-                      class="w-full h-full object-cover"
-                    />
-                    <span v-else>{{ assigneeInitial(task) }}</span>
+                  <span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
+                    {{ assigneeInitial(task) }}
                   </span>
                 </span>
                 <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
@@ -225,14 +219,8 @@
                 <div class="flex items-center justify-between text-xs text-gray-500">
                   <span v-if="task.story_points" class="flex items-center gap-1"><span class="text-purple-400">◆</span> {{ task.story_points }} SP</span>
                   <span v-if="assigneeLabel(task)" class="flex items-center gap-1" :title="assigneeLabel(task)">
-                    <span class="w-4 h-4 rounded-full overflow-hidden bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
-                      <img
-                        v-if="assigneeAvatar(task)"
-                        :src="assigneeAvatar(task)!"
-                        alt="Assignee avatar"
-                        class="w-full h-full object-cover"
-                      />
-                      <span v-else>{{ assigneeInitial(task) }}</span>
+                    <span class="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
+                      {{ assigneeInitial(task) }}
                     </span>
                   </span>
                   <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
@@ -405,22 +393,15 @@ function daysUntilDue(task: Task): number | null {
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
-/** Show assignee name: display_name, or email local part (e.g. sirin.s@komgrip.com → sirin), or Dev #id */
+/** Show assignee name: display_name or Dev #id */
 function assigneeLabel(task: Task): string {
-  if (!task.assigned_to && !task.assigned_to_display_name && !task.assigned_to_email) return ''
+  if (!task.assigned_to && !task.assigned_to_display_name) return ''
   if (task.assigned_to_display_name) return task.assigned_to_display_name
-  if (task.assigned_to_email) {
-    const local = task.assigned_to_email.split('@')[0] || ''
-    return local.split('.')[0] || local || task.assigned_to_email
-  }
   return task.assigned_to != null ? `Dev #${task.assigned_to}` : ''
 }
 function assigneeInitial(task: Task): string {
   const label = assigneeLabel(task)
   return label ? label.charAt(0).toUpperCase() : '?'
-}
-function assigneeAvatar(task: Task): string {
-  return task.assigned_to_avatar_url || ''
 }
 
 const columns = [

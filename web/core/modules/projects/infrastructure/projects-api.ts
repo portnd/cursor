@@ -241,8 +241,6 @@ export interface ProjectDetailsTask {
   status: Task['status']
   assigned_to: number | null
   assigned_to_display_name?: string
-  assigned_to_email?: string
-  assigned_to_avatar_url?: string
   created_at: string
 }
 

@@ -249,8 +249,6 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 			Status:                t.Status,
 			AssignedTo:            t.AssignedTo,
 			AssignedToDisplayName: t.AssignedToDisplayName,
-			AssignedToEmail:       t.AssignedToEmail,
-			AssignedToAvatarURL:   t.AssignedToAvatarURL,
 			CreatedAt:             t.CreatedAt,
 		}
 	}

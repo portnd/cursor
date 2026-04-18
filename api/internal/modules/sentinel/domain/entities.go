@@ -404,8 +404,6 @@ type ProjectDetailsTask struct {
 	Status                string     `json:"status"`
 	AssignedTo            *uint      `json:"assigned_to"`
 	AssignedToDisplayName string     `json:"assigned_to_display_name,omitempty"`
-	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
-	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 }
 

@@ -245,8 +245,6 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	type taskRow struct {
 		domain.Task
 		DisplayName string `gorm:"column:assigned_to_display_name"`
-		Email       string `gorm:"column:assigned_to_email"`
-		AvatarURL   string `gorm:"column:assigned_to_avatar_url"`
 	}
 	const defaultLimit = 600
 	if limit <= 0 {
@@ -263,9 +261,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	startedAt := time.Now()
 	q := r.db.Table("tasks").
 		Select(projectPageTaskColumns+`,
-			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name,
-			COALESCE(u.email, '') AS assigned_to_email,
-			COALESCE(u.avatar_url, '') AS assigned_to_avatar_url`).
+			COALESCE(u.display_name, u.email, '') AS assigned_to_display_name`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
 		Where("tasks.project_id = ?", projectID)
 
@@ -286,8 +282,6 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	for i := range rows {
 		tasks[i] = rows[i].Task
 		tasks[i].AssignedToDisplayName = rows[i].DisplayName
-		tasks[i].AssignedToEmail = rows[i].Email
-		tasks[i].AssignedToAvatarURL = rows[i].AvatarURL
 	}
 	fmt.Printf("[ProjectDetails] repo tasks query projectID=%s limit=%d rows=%d cursor=%t offset=%d elapsed=%s\n", projectID, limit, len(tasks), cursorCreatedAt != nil && cursorID != nil, offset, time.Since(startedAt))
 	return tasks, nil
