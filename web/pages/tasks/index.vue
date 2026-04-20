@@ -294,6 +294,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/core/modules/auth/store/auth-store'
 import { formatMinutesAsHours } from '~/utils/effortHours'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 
 // Page Meta
 definePageMeta({
@@ -432,12 +433,15 @@ const rejectNegotiation = async (taskId: string) => {
 // Deadline Utilities
 const getDeadlineUrgency = (task: Task): 'normal' | 'urgent' | 'overdue' => {
   if (!task.due_at || task.status === 'COMPLETED') return 'normal'
-  
+
   const now = new Date()
   const deadline = new Date(task.due_at)
   const hoursLeft = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60)
-  
-  if (hoursLeft < 0) return 'overdue'
+
+  if (hoursLeft < 0) {
+    if (isTaskOverdueForMetrics(task)) return 'overdue'
+    return 'normal'
+  }
   if (hoursLeft < 24) return 'urgent'
   return 'normal'
 }

@@ -237,10 +237,14 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
           <div class="text-center p-2 bg-gray-800/60 rounded-lg">
             <div class="text-sm font-bold text-gray-200">{{ getTaskCount(project, 'total') }}</div>
             <div class="text-[10px] text-gray-500 uppercase">Tasks</div>
+          </div>
+          <div class="text-center p-2 bg-gray-800/60 rounded-lg">
+            <div class="text-sm font-bold text-amber-400">{{ getTaskCount(project, 'rework') }}</div>
+            <div class="text-[10px] text-gray-500 uppercase">Rework</div>
           </div>
           <div class="text-center p-2 bg-gray-800/60 rounded-lg">
             <div class="text-sm font-bold text-green-400">{{ getTaskCount(project, 'done') }}</div>
@@ -249,6 +253,27 @@
           <div class="text-center p-2 bg-gray-800/60 rounded-lg">
             <div class="text-sm font-bold text-red-400">{{ getTaskCount(project, 'overdue') }}</div>
             <div class="text-[10px] text-gray-500 uppercase">Overdue</div>
+          </div>
+        </div>
+
+        <!-- Kanban column counts (same bucketing as /projects/:id?tab=board) -->
+        <div
+          v-if="getTaskCount(project, 'total') > 0"
+          class="mb-4 rounded-xl border border-white/10 bg-slate-950/50 p-3"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Board</span>
+            <span class="text-[10px] text-gray-600">Matches Board tab / ตรงกับแท็บ Board</span>
+          </div>
+          <div class="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            <div
+              v-for="col in boardColumns"
+              :key="col.bucket"
+              class="flex flex-col items-center gap-1 rounded-lg border border-white/5 bg-slate-900/60 px-1 py-2 text-center min-w-0"
+            >
+              <span class="text-base font-bold tabular-nums leading-none" :class="col.countClass">{{ boardBucketCount(project, col.bucket) }}</span>
+              <span class="text-[9px] font-medium leading-tight text-gray-500 line-clamp-2">{{ col.short }}</span>
+            </div>
           </div>
         </div>
 
@@ -461,10 +486,11 @@
 
 <script setup lang="ts">
 import { useAuth } from '~/composables/useAuth'
-import type { Project } from '~/core/modules/projects/infrastructure/projects-api'
+import type { Project, Task } from '~/core/modules/projects/infrastructure/projects-api'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTeamsApi } from '~/core/modules/teams/infrastructure/teams-api'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -521,6 +547,53 @@ const filteredProjects = computed(() =>
   })
 )
 
+/** Kanban board column keys — must match web/components/projects/KanbanBoard.vue */
+type KanbanBucket = 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_TEST' | 'WAIT_FOR_DEPLOY' | 'READY_FOR_UAT' | 'COMPLETED'
+
+const KANBAN_COLUMN_STATUSES: KanbanBucket[] = ['PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'WAIT_FOR_DEPLOY', 'READY_FOR_UAT', 'COMPLETED']
+
+const boardColumns: { bucket: KanbanBucket; short: string; countClass: string }[] = [
+  { bucket: 'PENDING', short: 'To Do', countClass: 'text-gray-300' },
+  { bucket: 'IN_PROGRESS', short: 'In progress', countClass: 'text-blue-400' },
+  { bucket: 'READY_FOR_TEST', short: 'Ready test', countClass: 'text-cyan-400' },
+  { bucket: 'WAIT_FOR_DEPLOY', short: 'Wait deploy', countClass: 'text-orange-400' },
+  { bucket: 'READY_FOR_UAT', short: 'Ready UAT', countClass: 'text-amber-400' },
+]
+
+function bucketForListTask(t: Task): KanbanBucket {
+  if (t.status === 'WAIT_FOR_DEPLOY') return 'WAIT_FOR_DEPLOY'
+  if (t.status === 'READY_FOR_UAT') return 'READY_FOR_UAT'
+  if (t.status === 'REVIEW_PENDING') {
+    return (t.task_type || 'TASK') === 'FEATURE' ? 'READY_FOR_UAT' : 'READY_FOR_TEST'
+  }
+  if (t.status === 'READY_FOR_TEST') return 'READY_FOR_TEST'
+  if (KANBAN_COLUMN_STATUSES.includes(t.status as KanbanBucket)) return t.status as KanbanBucket
+  return 'PENDING'
+}
+
+function boardBucketCount(project: Project, bucket: KanbanBucket): number {
+  if (typeof project.task_board_pending === 'number') {
+    switch (bucket) {
+      case 'PENDING':
+        return project.task_board_pending ?? 0
+      case 'IN_PROGRESS':
+        return project.task_board_in_progress ?? 0
+      case 'READY_FOR_TEST':
+        return project.task_board_ready_for_test ?? 0
+      case 'WAIT_FOR_DEPLOY':
+        return project.task_board_wait_for_deploy ?? 0
+      case 'READY_FOR_UAT':
+        return project.task_board_ready_for_uat ?? 0
+      case 'COMPLETED':
+        return project.task_board_completed ?? 0
+      default:
+        return 0
+    }
+  }
+  const tasks = project.tasks || []
+  return tasks.filter((t) => bucketForListTask(t) === bucket).length
+}
+
 function statusClass(status: string) {
   if (status === 'ACTIVE') return 'bg-green-500/10 text-green-400 border-green-500/30'
   if (status === 'COMPLETED') return 'bg-blue-500/10 text-blue-400 border-blue-500/30'
@@ -528,19 +601,20 @@ function statusClass(status: string) {
   return 'bg-gray-700 text-gray-400 border-gray-600'
 }
 
-function getTaskCount(project: Project, type: 'total' | 'done' | 'overdue') {
+function getTaskCount(project: Project, type: 'total' | 'rework' | 'done' | 'overdue') {
   // Prefer counts from list API (populated by backend)
   if (project.task_total !== undefined) {
     if (type === 'total') return project.task_total
+    if (type === 'rework') return project.task_rework ?? 0
     if (type === 'done') return project.task_completed ?? 0
     if (type === 'overdue') return project.task_overdue ?? 0
   }
   const tasks = project.tasks || []
   if (type === 'total') return tasks.length
+  if (type === 'rework') return 0
   if (type === 'done') return tasks.filter((t) => t.status === 'COMPLETED').length
   if (type === 'overdue') {
-    const now = Date.now()
-    return tasks.filter((t) => t.status !== 'COMPLETED' && t.due_at && new Date(t.due_at).getTime() < now).length
+    return tasks.filter((t) => isTaskOverdueForMetrics(t)).length
   }
   return 0
 }

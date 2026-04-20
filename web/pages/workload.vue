@@ -330,6 +330,7 @@
 
 <script setup lang="ts">
 import { useTasksApi, type GlobalActiveTask, type TimeLog } from '~/core/modules/tasks/infrastructure/tasks-api'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 import { useProjectsApi, type Project } from '~/core/modules/projects/infrastructure/projects-api'
 import type { User } from '~/core/modules/auth/infrastructure/auth-api'
 
@@ -637,8 +638,11 @@ const memberRiskTimeline = computed(() => {
   for (const t of m.tasks) {
     if (!t.due_at || t.status === 'COMPLETED') continue
     const days = Math.ceil((new Date(t.due_at).getTime() - Date.now()) / 86_400_000)
-    if (days < 0) output.overdue += 1
-    else if (days === 0) output.today += 1
+    if (days < 0) {
+      if (isTaskOverdueForMetrics(t)) output.overdue += 1
+      continue
+    }
+    if (days === 0) output.today += 1
     else if (days <= 2) output.next2Days += 1
     else if (days <= 7) output.next7Days += 1
   }
@@ -650,7 +654,12 @@ const kpis = computed(() => {
   const members = sortedMembers.value
   const overloaded = members.filter((m) => m.load > 110).length
   const underutilized = members.filter((m) => m.load < 70).length
-  const riskTasks = filteredTasks.value.filter((t) => t.due_at && t.status !== 'COMPLETED' && (new Date(t.due_at).getTime() - Date.now()) / 86_400_000 <= 2).length
+  const riskTasks = filteredTasks.value.filter((t) => {
+    if (!t.due_at || t.status === 'COMPLETED') return false
+    const days = (new Date(t.due_at).getTime() - Date.now()) / 86_400_000
+    if (days < 0) return isTaskOverdueForMetrics(t)
+    return days <= 2
+  }).length
   const totalActual = members.reduce((sum, m) => sum + m.actual, 0)
   const totalPlanned = members.reduce((sum, m) => sum + m.planned, 0)
   const capacityPct = totalPlanned > 0 ? Math.round((totalActual / totalPlanned) * 100) : 0

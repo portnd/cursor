@@ -77,7 +77,7 @@
         <!-- TAB 1: Overview -->
         <div v-if="isTabMounted('overview')" v-show="activeTab === 'overview'" class="overview-enterprise space-y-6">
           <!-- Key Metrics -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 overview-metrics-grid">
+          <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 overview-metrics-grid">
             <button
               type="button"
               class="metric-card metric-card-enterprise text-left transition-all duration-200 cursor-pointer"
@@ -91,6 +91,18 @@
               <div v-if="activeSprint" class="mt-2 text-xs text-gray-500">
                 {{ activeSprint.end_date ? `Ends ${formatDate(activeSprint.end_date)}` : 'No end date' }}
               </div>
+            </button>
+            <button
+              type="button"
+              class="metric-card metric-card-enterprise text-left transition-all duration-200 cursor-pointer"
+              :class="selectedOverviewFilter === 'rework' ? 'ring-2 ring-amber-300/70 border-amber-300/70 bg-amber-500/15 shadow-[0_0_0_1px_rgba(245,158,11,0.28)]' : 'hover:border-amber-300/50 hover:bg-amber-500/10 hover:-translate-y-0.5'"
+              @click="toggleOverviewFilter('rework')"
+            >
+              <div class="text-2xl font-bold" :class="reworkCount > 0 ? 'text-amber-400' : 'text-gray-500'">
+                {{ reworkCount }}
+              </div>
+              <div class="metric-label">Rework</div>
+              <div class="mt-2 text-[11px] text-gray-500 leading-snug">In progress after [REJECTED] send-back</div>
             </button>
             <button
               type="button"
@@ -129,7 +141,7 @@
           <div v-if="selectedOverviewFilter" class="card overview-filter-panel">
             <div class="flex items-center justify-between gap-3 mb-4">
               <h3 class="section-title">
-                {{ selectedOverviewFilter === 'overdue' ? 'Overdue Tasks' : selectedOverviewFilter === 'in_progress' ? 'In Progress Tasks' : 'Completed Tasks' }}
+                {{ selectedOverviewFilter === 'overdue' ? 'Overdue Tasks' : selectedOverviewFilter === 'in_progress' ? 'In Progress Tasks' : selectedOverviewFilter === 'rework' ? 'Rework Tasks' : 'Completed Tasks' }}
               </h3>
               <button
                 type="button"
@@ -2997,6 +3009,7 @@ import type { Project, Sprint, Milestone, ProjectAnalytics as AnalyticsType, Tas
 import { exportTimelinePdf } from '~/utils/timelinePdfExport'
 import { effortHoursToMinutes } from '~/utils/effortHours'
 import { buildTaskDisplayCodeMap, sortBacklogTasks, taskCodeSuffix } from '~/utils/backlog-task-utils'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
 import { useProjectSprints } from '~/composables/useProjectSprints'
@@ -3993,9 +4006,11 @@ const totalTasks = computed(() => allTasks.value.length)
 const completedCount = computed(() => allTasks.value.filter((t) => t.status === 'COMPLETED').length)
 const inProgressCount = computed(() => allTasks.value.filter((t) => t.status === 'IN_PROGRESS').length)
 const completionPct = computed(() => totalTasks.value ? Math.round((completedCount.value / totalTasks.value) * 100) : 0)
-const overdueCount = computed(() => {
-  const now = Date.now()
-  return allTasks.value.filter((t) => t.status !== 'COMPLETED' && t.due_at && new Date(t.due_at).getTime() < now).length
+const overdueCount = computed(() => allTasks.value.filter((t) => isTaskOverdueForMetrics(t)).length)
+const reworkCount = computed(() => {
+  const n = project.value?.task_rework
+  if (typeof n === 'number') return n
+  return allTasks.value.filter((t) => t.status === 'IN_PROGRESS' && t.has_rework).length
 })
 const epicTasks = computed(() => allTasks.value.filter((t) => !t.parent_id))
 
@@ -4107,15 +4122,19 @@ const recentTasks = computed(() =>
     .slice(0, 10)
 )
 
-type OverviewMetricFilter = 'overdue' | 'in_progress' | 'done'
+type OverviewMetricFilter = 'overdue' | 'in_progress' | 'rework' | 'done'
 const selectedOverviewFilter = ref<OverviewMetricFilter | null>(null)
 
 const overviewFilteredTasks = computed(() => {
-  const now = Date.now()
   if (selectedOverviewFilter.value === 'overdue') {
     return [...allTasks.value]
-      .filter((t) => t.status !== 'COMPLETED' && !!t.due_at && new Date(t.due_at).getTime() < now)
+      .filter((t) => isTaskOverdueForMetrics(t))
       .sort((a, b) => new Date(a.due_at || 0).getTime() - new Date(b.due_at || 0).getTime())
+  }
+  if (selectedOverviewFilter.value === 'rework') {
+    return [...allTasks.value]
+      .filter((t) => t.status === 'IN_PROGRESS' && t.has_rework)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }
   if (selectedOverviewFilter.value === 'in_progress') {
     return [...allTasks.value]
@@ -4262,8 +4281,7 @@ function formatDate(d: string | null) {
 }
 
 function isTaskOverdue(task: Task) {
-  if (!task.due_at || task.status === 'COMPLETED') return false
-  return new Date(task.due_at).getTime() < Date.now()
+  return isTaskOverdueForMetrics(task)
 }
 
 function dueDateTextClass(task: Task) {

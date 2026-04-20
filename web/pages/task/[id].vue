@@ -1145,6 +1145,7 @@ import { minutesToEffortHours, effortHoursToMinutes, formatMinutesAsHours } from
 import { canSeeCeoAssigneeOption, isTaskAssigneeRole } from '~/utils/roles'
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
 import { sortBacklogTasks } from '~/utils/backlog-task-utils'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 
 definePageMeta({
   layout: 'default',
@@ -2269,12 +2270,15 @@ const formatDateTime = (dateString: string) => {
 // Deadline Helpers
 const getDeadlineUrgency = (task: Task) => {
   if (!task.due_at || task.status === 'COMPLETED') return 'none'
-  
+
   const now = new Date().getTime()
   const dueDate = new Date(task.due_at).getTime()
   const hoursUntilDue = (dueDate - now) / (1000 * 60 * 60)
-  
-  if (hoursUntilDue < 0) return 'overdue'
+
+  if (hoursUntilDue < 0) {
+    if (isTaskOverdueForMetrics(task)) return 'overdue'
+    return 'normal'
+  }
   if (hoursUntilDue < 24) return 'urgent'
   return 'normal'
 }

@@ -171,8 +171,8 @@
                     {{ assigneeInitial(task) }}
                   </span>
                 </span>
-                <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
-                  {{ daysUntilDue(task)! < 0 ? Math.abs(daysUntilDue(task)!) + 'd overdue' : daysUntilDue(task) + 'd left' }}
+                <span v-if="daysUntilDue(task) !== null" :class="dueRelativeClass(task)">
+                  {{ dueRelativeLabel(task) }}
                 </span>
               </div>
               <div v-if="task.progress > 0" class="mt-2">
@@ -223,8 +223,8 @@
                       {{ assigneeInitial(task) }}
                     </span>
                   </span>
-                  <span v-if="daysUntilDue(task) !== null" :class="daysUntilDue(task)! < 0 ? 'text-red-400' : daysUntilDue(task)! <= 2 ? 'text-yellow-400' : 'text-gray-500'">
-                    {{ daysUntilDue(task)! < 0 ? Math.abs(daysUntilDue(task)!) + 'd overdue' : daysUntilDue(task) + 'd left' }}
+                  <span v-if="daysUntilDue(task) !== null" :class="dueRelativeClass(task)">
+                    {{ dueRelativeLabel(task) }}
                   </span>
                 </div>
                 <div v-if="task.progress > 0" class="mt-2">
@@ -252,6 +252,7 @@
 
 <script setup lang="ts">
 import { isEngineerLikeRole } from '~/utils/roles'
+import { pastDueNeutralCaption } from '~/utils/task-overdue-metrics'
 import type { Task } from '~/core/modules/projects/infrastructure/projects-api'
 import type { Sprint } from '~/core/modules/projects/infrastructure/projects-api'
 
@@ -391,6 +392,27 @@ function daysUntilDue(task: Task): number | null {
   if (!task.due_at) return null
   const diff = new Date(task.due_at).getTime() - Date.now()
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+/** Past due in deploy/UAT pipeline is neutral (not "Xd overdue"). */
+function dueRelativeClass(task: Task): string {
+  const d = daysUntilDue(task)
+  if (d === null) return 'text-gray-500'
+  if (d < 0 && pastDueNeutralCaption(task)) return 'text-gray-500'
+  if (d < 0) return 'text-red-400'
+  if (d <= 2) return 'text-yellow-400'
+  return 'text-gray-500'
+}
+
+function dueRelativeLabel(task: Task): string {
+  const d = daysUntilDue(task)
+  if (d === null) return ''
+  if (d < 0) {
+    const cap = pastDueNeutralCaption(task)
+    if (cap) return cap
+    return `${Math.abs(d)}d overdue`
+  }
+  return `${d}d left`
 }
 
 /** Show assignee name: display_name or Dev #id */

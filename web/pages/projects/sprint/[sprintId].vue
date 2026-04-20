@@ -474,6 +474,7 @@ import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { Project, Sprint, Task } from '~/core/modules/projects/infrastructure/projects-api'
 import { effortHoursToMinutes } from '~/utils/effortHours'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -554,19 +555,15 @@ const sprintTasks = computed(() => allTasks.value.filter((t) => t.sprint_id === 
 const doneCount = computed(() => sprintTasks.value.filter((t) => t.status === 'COMPLETED').length)
 const totalSp = computed(() => sprintTasks.value.reduce((s, t) => s + (t.story_points || 0), 0))
 const inProgressCount = computed(() => sprintTasks.value.filter((t) => t.status === 'IN_PROGRESS').length)
-const overdueCount = computed(() => {
-  const now = Date.now()
-  return sprintTasks.value.filter((t) => t.status !== 'COMPLETED' && t.due_at && new Date(t.due_at).getTime() < now).length
-})
+const overdueCount = computed(() => sprintTasks.value.filter((t) => isTaskOverdueForMetrics(t)).length)
 
 type SprintMetricFilter = 'overdue' | 'in_progress'
 const selectedSprintFilter = ref<SprintMetricFilter | null>(null)
 
 const filteredMetricTasks = computed(() => {
-  const now = Date.now()
   if (selectedSprintFilter.value === 'overdue') {
     return [...sprintTasks.value]
-      .filter((t) => t.status !== 'COMPLETED' && !!t.due_at && new Date(t.due_at).getTime() < now)
+      .filter((t) => isTaskOverdueForMetrics(t))
       .sort((a, b) => new Date(a.due_at || 0).getTime() - new Date(b.due_at || 0).getTime())
   }
   if (selectedSprintFilter.value === 'in_progress') {

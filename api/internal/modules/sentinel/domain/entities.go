@@ -69,6 +69,15 @@ type Project struct {
 	TaskTotal     int `json:"task_total" gorm:"-"`
 	TaskCompleted int `json:"task_completed" gorm:"-"`
 	TaskOverdue   int `json:"task_overdue" gorm:"-"`
+	// Tasks in IN_PROGRESS with at least one [REJECTED] comment (send-back / rework), list API only
+	TaskRework int `json:"task_rework" gorm:"-"`
+	// Kanban-column counts (same bucketing as web Kanban board), list API only
+	TaskBoardPending       int `json:"task_board_pending" gorm:"-"`
+	TaskBoardInProgress    int `json:"task_board_in_progress" gorm:"-"`
+	TaskBoardReadyForTest  int `json:"task_board_ready_for_test" gorm:"-"`
+	TaskBoardWaitForDeploy int `json:"task_board_wait_for_deploy" gorm:"-"`
+	TaskBoardReadyForUAT   int `json:"task_board_ready_for_uat" gorm:"-"`
+	TaskBoardCompleted     int `json:"task_board_completed" gorm:"-"`
 	// When teams feature is off, CEO assigns Product Owners here (multiple allowed); populated by repo only (JSON field pm_owners kept for compatibility)
 	PmOwners []ProjectPmOwner `json:"pm_owners,omitempty" gorm:"-"`
 }
@@ -402,6 +411,7 @@ type ProjectDetailsTask struct {
 	Progress              int        `json:"progress"`
 	DueAt                 *time.Time `json:"due_at"`
 	Status                string     `json:"status"`
+	HasRework             bool       `json:"has_rework,omitempty"`
 	AssignedTo            *uint      `json:"assigned_to"`
 	AssignedToDisplayName string     `json:"assigned_to_display_name,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
@@ -437,6 +447,7 @@ type TaskSummary struct {
 	AssignedToEmail       string     `json:"assigned_to_email,omitempty"`
 	AssignedToAvatarURL   string     `json:"assigned_to_avatar_url,omitempty"`
 	IsKomgrip             bool       `json:"is_komgrip"`
+	HasRework             bool       `json:"has_rework,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
 }
@@ -520,6 +531,9 @@ type Task struct {
 
 	// Komgrip: task not tied to any project (personal/misc tasks)
 	IsKomgrip bool `json:"is_komgrip" gorm:"default:false;index"`
+
+	// Project list / details queries: at least one [REJECTED] task_comment (not a DB column)
+	HasRework bool `json:"has_rework,omitempty" gorm:"-"`
 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`

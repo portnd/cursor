@@ -20,6 +20,15 @@ export interface Project {
   task_total?: number
   task_completed?: number
   task_overdue?: number
+  /** IN_PROGRESS tasks with at least one [REJECTED] comment (send-back / rework) */
+  task_rework?: number
+  /** Kanban column counts (same bucketing as project board tab) */
+  task_board_pending?: number
+  task_board_in_progress?: number
+  task_board_ready_for_test?: number
+  task_board_wait_for_deploy?: number
+  task_board_ready_for_uat?: number
+  task_board_completed?: number
   /** When teams/squads are off — CEO-assigned Product Owner users for this project (API field: pm_owners) */
   pm_owners?: ProjectPmOwner[]
 }
@@ -177,6 +186,7 @@ export interface TaskSummary {
   started_at: string | null
   completed_at: string | null
   is_komgrip: boolean
+  has_rework?: boolean
   created_at: string
   updated_at: string
 }
@@ -217,6 +227,8 @@ export interface Task {
   estimated_minutes: number
   sub_tasks?: Task[]
   is_komgrip?: boolean
+  /** Project page query: has [REJECTED] comment (send-back) */
+  has_rework?: boolean
   created_at: string
   updated_at: string
 }
@@ -239,6 +251,7 @@ export interface ProjectDetailsTask {
   progress: number
   due_at: string | null
   status: Task['status']
+  has_rework?: boolean
   assigned_to: number | null
   assigned_to_display_name?: string
   created_at: string

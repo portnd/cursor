@@ -614,6 +614,7 @@
 import { usePerformanceStore } from '~/core/modules/performance/performance-store'
 import DailyCheckinModal from '~/core/modules/pulse/ui/DailyCheckinModal.vue'
 import DevBoardTaskMeta from '~/components/dashboard/DevBoardTaskMeta.vue'
+import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 
 interface Task {
   id: string
@@ -848,7 +849,10 @@ const fetchTasks = async () => {
 function getDeadlineUrgency(task: Task) {
   if (!task.due_at || task.status === 'COMPLETED' || task.status === 'DONE') return 'none'
   const hoursUntilDue = (new Date(task.due_at).getTime() - Date.now()) / 3600000
-  if (hoursUntilDue < 0) return 'overdue'
+  if (hoursUntilDue < 0) {
+    if (isTaskOverdueForMetrics(task)) return 'overdue'
+    return 'normal'
+  }
   if (hoursUntilDue < 24) return 'urgent'
   return 'normal'
 }

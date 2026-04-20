@@ -15,6 +15,20 @@ type postgresRepository struct {
 	db *gorm.DB
 }
 
+// taskKanbanBucketSQL matches web/components/projects/KanbanBoard.vue bucketForTask (board column keys).
+// Uses alias "t" for tasks — keep in sync with GetAllProjects aggregate query.
+const taskKanbanBucketSQL = `(
+	CASE
+		WHEN t.status = 'WAIT_FOR_DEPLOY' THEN 'WAIT_FOR_DEPLOY'
+		WHEN t.status = 'READY_FOR_UAT' THEN 'READY_FOR_UAT'
+		WHEN t.status = 'REVIEW_PENDING' AND COALESCE(NULLIF(TRIM(t.task_type), ''), 'TASK') = 'FEATURE' THEN 'READY_FOR_UAT'
+		WHEN t.status = 'REVIEW_PENDING' THEN 'READY_FOR_TEST'
+		WHEN t.status = 'READY_FOR_TEST' THEN 'READY_FOR_TEST'
+		WHEN t.status IN ('PENDING', 'IN_PROGRESS', 'READY_FOR_TEST', 'WAIT_FOR_DEPLOY', 'READY_FOR_UAT', 'COMPLETED') THEN t.status
+		ELSE 'PENDING'
+	END
+)`
+
 // NewPostgresRepository is the constructor
 func NewPostgresRepository(db *gorm.DB) domain.SentinelRepository {
 	return &postgresRepository{db: db}
@@ -93,6 +107,86 @@ func (r *postgresRepository) fillProjectPmOwners(projects []domain.Project) erro
 	return nil
 }
 
+type projectTaskCountRow struct {
+	ProjectID           uuid.UUID
+	Total               int
+	Completed           int
+	Overdue             int
+	Rework              int
+	BoardPending        int
+	BoardInProgress     int
+	BoardReadyForTest   int
+	BoardWaitForDeploy  int
+	BoardReadyForUAT    int
+	BoardCompleted      int
+}
+
+type projectTaskCounts struct {
+	Total, Completed, Overdue, Rework int
+	BoardPending, BoardInProgress, BoardReadyForTest, BoardWaitForDeploy, BoardReadyForUAT, BoardCompleted int
+}
+
+// fillProjectTaskCounts sets TaskTotal, TaskCompleted, TaskOverdue, TaskRework, and board column counts per project.
+func (r *postgresRepository) fillProjectTaskCounts(projects []domain.Project) error {
+	if len(projects) == 0 {
+		return nil
+	}
+	projectIDs := make([]uuid.UUID, len(projects))
+	for i := range projects {
+		projectIDs[i] = projects[i].ID
+	}
+	var countRows []projectTaskCountRow
+	err := r.db.Raw(fmt.Sprintf(`
+		SELECT t.project_id,
+			COUNT(*)::int AS total,
+			COUNT(*) FILTER (WHERE t.status = 'COMPLETED')::int AS completed,
+			COUNT(*) FILTER (WHERE t.due_at IS NOT NULL AND t.due_at < NOW()
+				AND t.status != 'COMPLETED'
+				AND t.status NOT IN ('WAIT_FOR_DEPLOY', 'READY_FOR_UAT')
+				AND NOT (t.status = 'REVIEW_PENDING' AND COALESCE(NULLIF(TRIM(t.task_type), ''), 'TASK') = 'FEATURE')
+			)::int AS overdue,
+			COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS' AND EXISTS (
+				SELECT 1 FROM task_comments tc
+				WHERE tc.task_id = t.id AND tc.content LIKE '[REJECTED]%%'
+			))::int AS rework,
+			COUNT(*) FILTER (WHERE %[1]s = 'PENDING')::int AS board_pending,
+			COUNT(*) FILTER (WHERE %[1]s = 'IN_PROGRESS')::int AS board_in_progress,
+			COUNT(*) FILTER (WHERE %[1]s = 'READY_FOR_TEST')::int AS board_ready_for_test,
+			COUNT(*) FILTER (WHERE %[1]s = 'WAIT_FOR_DEPLOY')::int AS board_wait_for_deploy,
+			COUNT(*) FILTER (WHERE %[1]s = 'READY_FOR_UAT')::int AS board_ready_for_uat,
+			COUNT(*) FILTER (WHERE %[1]s = 'COMPLETED')::int AS board_completed
+		FROM tasks t
+		WHERE t.project_id IN ?
+		GROUP BY t.project_id
+	`, taskKanbanBucketSQL), projectIDs).Scan(&countRows).Error
+	if err != nil {
+		return err
+	}
+	countByID := make(map[uuid.UUID]projectTaskCounts)
+	for _, row := range countRows {
+		countByID[row.ProjectID] = projectTaskCounts{
+			Total: row.Total, Completed: row.Completed, Overdue: row.Overdue, Rework: row.Rework,
+			BoardPending: row.BoardPending, BoardInProgress: row.BoardInProgress, BoardReadyForTest: row.BoardReadyForTest,
+			BoardWaitForDeploy: row.BoardWaitForDeploy, BoardReadyForUAT: row.BoardReadyForUAT, BoardCompleted: row.BoardCompleted,
+		}
+	}
+	for i := range projects {
+		if c, ok := countByID[projects[i].ID]; ok {
+			projects[i].TaskTotal = c.Total
+			projects[i].TaskCompleted = c.Completed
+			projects[i].TaskOverdue = c.Overdue
+			projects[i].TaskRework = c.Rework
+			projects[i].TaskBoardPending = c.BoardPending
+			projects[i].TaskBoardInProgress = c.BoardInProgress
+			projects[i].TaskBoardReadyForTest = c.BoardReadyForTest
+			projects[i].TaskBoardWaitForDeploy = c.BoardWaitForDeploy
+			projects[i].TaskBoardReadyForUAT = c.BoardReadyForUAT
+			projects[i].TaskBoardCompleted = c.BoardCompleted
+		}
+	}
+	return nil
+}
+
 func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.Project, error) {
 	var projects []domain.Project
 	err := projectAccessScope(r.db.Model(&domain.Project{}), ctx).
@@ -107,38 +201,8 @@ func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.
 	if len(projects) == 0 {
 		return projects, nil
 	}
-	projectIDs := make([]uuid.UUID, len(projects))
-	for i := range projects {
-		projectIDs[i] = projects[i].ID
-	}
-	var countRows []struct {
-		ProjectID uuid.UUID
-		Total     int
-		Completed int
-		Overdue   int
-	}
-	err = r.db.Raw(`
-		SELECT project_id,
-			COUNT(*)::int AS total,
-			COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed,
-			COUNT(*) FILTER (WHERE status != 'COMPLETED' AND due_at IS NOT NULL AND due_at < NOW())::int AS overdue
-		FROM tasks
-		WHERE project_id IN ?
-		GROUP BY project_id
-	`, projectIDs).Scan(&countRows).Error
-	if err != nil {
+	if err := r.fillProjectTaskCounts(projects); err != nil {
 		return projects, err
-	}
-	countByID := make(map[uuid.UUID]struct{ Total, Completed, Overdue int })
-	for _, row := range countRows {
-		countByID[row.ProjectID] = struct{ Total, Completed, Overdue int }{row.Total, row.Completed, row.Overdue}
-	}
-	for i := range projects {
-		if c, ok := countByID[projects[i].ID]; ok {
-			projects[i].TaskTotal = c.Total
-			projects[i].TaskCompleted = c.Completed
-			projects[i].TaskOverdue = c.Overdue
-		}
 	}
 	return projects, nil
 }
@@ -153,6 +217,9 @@ func (r *postgresRepository) GetProjectByID(id uuid.UUID, ctx domain.CallerConte
 	if err := r.fillProjectPmOwners(slice); err != nil {
 		return nil, err
 	}
+	if err := r.fillProjectTaskCounts(slice); err != nil {
+		return nil, err
+	}
 	project = slice[0]
 	return &project, nil
 }
@@ -165,6 +232,9 @@ func (r *postgresRepository) GetProjectByCode(code string, ctx domain.CallerCont
 	}
 	slice := []domain.Project{project}
 	if err := r.fillProjectPmOwners(slice); err != nil {
+		return nil, err
+	}
+	if err := r.fillProjectTaskCounts(slice); err != nil {
 		return nil, err
 	}
 	project = slice[0]
@@ -245,6 +315,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	type taskRow struct {
 		domain.Task
 		DisplayName string `gorm:"column:assigned_to_display_name"`
+		HasRework   bool   `gorm:"column:has_rework"`
 	}
 	const defaultLimit = 600
 	if limit <= 0 {
@@ -261,7 +332,11 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	startedAt := time.Now()
 	q := r.db.Table("tasks").
 		Select(projectPageTaskColumns+`,
-			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name`).
+			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name,
+			EXISTS (
+				SELECT 1 FROM task_comments tc
+				WHERE tc.task_id = tasks.id AND tc.content LIKE '[REJECTED]%%'
+			) AS has_rework`).
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
 		Where("tasks.project_id = ?", projectID)
 
@@ -282,6 +357,7 @@ func (r *postgresRepository) GetTasksByProjectIDForProjectPageCursor(projectID u
 	for i := range rows {
 		tasks[i] = rows[i].Task
 		tasks[i].AssignedToDisplayName = rows[i].DisplayName
+		tasks[i].HasRework = rows[i].HasRework
 	}
 	fmt.Printf("[ProjectDetails] repo tasks query projectID=%s limit=%d rows=%d cursor=%t offset=%d elapsed=%s\n", projectID, limit, len(tasks), cursorCreatedAt != nil && cursorID != nil, offset, time.Since(startedAt))
 	return tasks, nil
