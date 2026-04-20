@@ -562,7 +562,7 @@
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex flex-wrap items-center gap-2 sm:gap-3">
               <h3 class="text-base font-semibold text-gray-200">Product Backlog</h3>
-              <span class="text-xs text-gray-500">{{ allTasks.filter(t => !t.parent_id).length }} tasks</span>
+              <span class="text-xs text-gray-500">{{ backlogFilterSummary }}</span>
               <span v-if="projectDetailsTasksMeta?.has_more" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5">
                 Showing first {{ projectDetailsTasksMeta.returned }} tasks (server-limited)
               </span>
@@ -584,7 +584,7 @@
                   type="button"
                   @click="bulkDeleteSelectedBacklogTasks"
                   :disabled="isBulkDeletingBacklog"
-                  class="px-3 py-2 text-xs font-medium text-gray-900 dark:text-white bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:bg-red-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
+                  class="px-3 py-2 text-xs font-medium text-gray-900 dark:text-white bg-red-100 dark:bg-red-600 hover:bg-red-200 dark:hover:bg-red-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <span v-if="isBulkDeletingBacklog" class="w-3.5 h-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Delete selected
@@ -637,6 +637,67 @@
             </div>
           </div>
 
+          <!-- Backlog search & filters -->
+          <div class="backlog-enterprise-card rounded-xl border border-gray-700/40 bg-gray-900/30 px-3 py-3 sm:px-4 sm:py-3.5">
+            <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-4">
+              <div class="min-w-0 flex-1">
+                <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Search</label>
+                <input
+                  v-model="backlogSearchQuery"
+                  type="search"
+                  enterkeyhint="search"
+                  autocomplete="off"
+                  class="input-field w-full text-sm"
+                  placeholder="Title, code, description, assignee…"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-wrap lg:items-end lg:gap-2">
+                <div class="min-w-0">
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Status</label>
+                  <select v-model="backlogFilterStatus" class="input-field w-full text-xs py-2">
+                    <option value="">All</option>
+                    <option v-for="st in BACKLOG_STATUS_FILTER_OPTIONS" :key="st" :value="st">{{ st.replace(/_/g, ' ') }}</option>
+                  </select>
+                </div>
+                <div class="min-w-0">
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Priority</label>
+                  <select v-model="backlogFilterPriority" class="input-field w-full text-xs py-2">
+                    <option value="">All</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                  </select>
+                </div>
+                <div class="min-w-0">
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Sprint</label>
+                  <select v-model="backlogFilterSprintId" class="input-field w-full text-xs py-2">
+                    <option value="">All sprints</option>
+                    <option value="__none__">Backlog (no sprint)</option>
+                    <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  </select>
+                </div>
+                <div class="min-w-0">
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Type</label>
+                  <select v-model="backlogFilterTaskType" class="input-field w-full text-xs py-2">
+                    <option value="">All</option>
+                    <option value="FEATURE">Feature</option>
+                    <option value="TASK">Task</option>
+                    <option value="BUG">Bug</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                v-if="backlogFiltersActive"
+                type="button"
+                class="shrink-0 rounded-lg border border-gray-600 px-3 py-2 text-xs font-medium text-gray-300 hover:border-purple-500/50 hover:bg-gray-800 hover:text-white transition-colors"
+                @click="clearBacklogFilters"
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+
           <!-- Backlog Table (horizontal scroll on small screens) -->
           <p class="px-1 text-[11px] text-slate-500 sm:hidden">เลื่อนซ้าย/ขวาเพื่อดูทุกคอลัมน์</p>
           <div class="backlog-enterprise-table -mx-3 rounded-none overflow-x-auto overflow-y-hidden min-w-0 sm:mx-0 sm:rounded-xl">
@@ -683,6 +744,7 @@
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Priority</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Epic</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Sprint</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Assignee</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Due date</div>
                       <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">Status</div>
                     </div>
@@ -723,7 +785,7 @@
                           :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                           :title="task.task_type"
                         >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                        <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                        <span class="text-xs font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="navigateToTask(task.id)">{{ task.title }}</span>
                         <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                           <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
                           <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
@@ -733,7 +795,7 @@
                         <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
                       </div>
                       <div class="flex items-center min-w-0">
-                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(task.priority)">
+                        <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[5.25rem] pr-1" :class="priorityTextClass(task.priority)">
                           <option value="CRITICAL">🔴 CRITICAL</option>
                           <option value="HIGH">🟠 HIGH</option>
                           <option value="MEDIUM">🟡 MEDIUM</option>
@@ -750,6 +812,18 @@
                         <select :value="task.sprint_id || ''" @change="updateTaskField(task.id, 'sprint_id', ($event.target as HTMLSelectElement).value || null)" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full">
                           <option value="">Backlog</option>
                           <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
+                        </select>
+                      </div>
+                      <div class="flex items-center min-w-0">
+                        <select
+                          :value="task.assigned_to || ''"
+                          @change="updateTaskAssignee(task.id, ($event.target as HTMLSelectElement).value)"
+                          class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full"
+                          :disabled="backlogAssigneeLoading"
+                          title="Assign task"
+                        >
+                          <option value="">Unassigned</option>
+                          <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
                         </select>
                       </div>
                       <div class="flex items-center min-w-0">
@@ -793,7 +867,7 @@
                     </div>
                     <!-- Sub-tasks B (inherit Epic from parent); C = sub-tasks of B -->
                     <template v-if="expandedEpics[task.id]">
-                      <template v-for="sub in getSubTasks(task.id)" :key="sub.id">
+                      <template v-for="sub in getBacklogSubTasks(task.id)" :key="sub.id">
                         <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
                           <div class="flex items-center justify-center shrink-0">
                             <input
@@ -805,7 +879,7 @@
                             />
                           </div>
                           <div class="flex items-center pl-6">
-                            <button v-if="getSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
+                            <button v-if="getBacklogSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
                           </div>
                           <div class="flex items-center min-w-0 pl-6">
                             <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
@@ -817,13 +891,13 @@
                               :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                               :title="sub.task_type"
                             >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                            <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                            <span class="text-xs text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
                           </div>
                           <div class="flex items-center justify-center shrink-0">
                             <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
                           </div>
                           <div class="flex items-center min-w-0">
-                            <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(sub.priority)">
+                            <select :value="sub.priority" @change="updateTaskField(sub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[5.25rem] pr-1" :class="priorityTextClass(sub.priority)">
                               <option value="CRITICAL">🔴 CRITICAL</option>
                               <option value="HIGH">🟠 HIGH</option>
                               <option value="MEDIUM">🟡 MEDIUM</option>
@@ -834,7 +908,16 @@
                             <span class="text-xs text-gray-500 italic">Inherits</span>
                           </div>
                           <div class="flex items-center justify-center min-w-0 w-full">
-                            <span class="text-xs text-gray-500 italic">Inherits</span>
+                            <select
+                              :value="sub.assigned_to || ''"
+                              @change="updateTaskAssignee(sub.id, ($event.target as HTMLSelectElement).value)"
+                              class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full"
+                              :disabled="backlogAssigneeLoading"
+                              title="Assign task"
+                            >
+                              <option value="">Unassigned</option>
+                              <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+                            </select>
                           </div>
                           <div class="flex items-center min-w-0">
                             <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center gap-1 w-full min-w-0">
@@ -877,7 +960,7 @@
                         </div>
                         <!-- Level C: sub-tasks of B -->
                         <template v-if="expandedEpics[sub.id]">
-                          <div v-for="subsub in getSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                          <div v-for="subsub in getBacklogSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
                             <div class="flex items-center justify-center shrink-0">
                               <input
                                 type="checkbox"
@@ -898,13 +981,13 @@
                                 :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                 :title="subsub.task_type"
                               >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                              <span class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="navigateToTask(subsub.id)">{{ subsub.title }}</span>
+                              <span class="text-xs text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="navigateToTask(subsub.id)">{{ subsub.title }}</span>
                             </div>
                             <div class="flex items-center justify-center shrink-0">
                               <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
                             </div>
                             <div class="flex items-center min-w-0">
-                              <select :value="subsub.priority" @change="updateTaskField(subsub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(subsub.priority)">
+                              <select :value="subsub.priority" @change="updateTaskField(subsub.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[5.25rem] pr-1" :class="priorityTextClass(subsub.priority)">
                                 <option value="CRITICAL">🔴 CRITICAL</option>
                                 <option value="HIGH">🟠 HIGH</option>
                                 <option value="MEDIUM">🟡 MEDIUM</option>
@@ -912,7 +995,18 @@
                               </select>
                             </div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
-                            <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center justify-center min-w-0 w-full">
+                              <select
+                                :value="subsub.assigned_to || ''"
+                                @change="updateTaskAssignee(subsub.id, ($event.target as HTMLSelectElement).value)"
+                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full"
+                                :disabled="backlogAssigneeLoading"
+                                title="Assign task"
+                              >
+                                <option value="">Unassigned</option>
+                                <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+                              </select>
+                            </div>
                           <div class="flex items-center min-w-0">
                             <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center gap-1 w-full min-w-0">
                               <span
@@ -995,6 +1089,7 @@
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Priority</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Epic</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Sprint</div>
+                      <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Assignee</div>
                       <div class="flex items-center justify-center min-w-0 font-semibold text-gray-300">Due date</div>
                       <div class="flex items-center justify-center shrink-0 font-semibold text-gray-300">Status</div>
                     </div>
@@ -1045,7 +1140,7 @@
                           <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
                         </div>
                         <div class="flex items-center min-w-0">
-                          <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[6.5rem]" :class="priorityTextClass(task.priority)">
+                          <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[5.25rem] pr-1" :class="priorityTextClass(task.priority)">
                             <option value="CRITICAL">🔴 CRITICAL</option>
                             <option value="HIGH">🟠 HIGH</option>
                             <option value="MEDIUM">🟡 MEDIUM</option>
@@ -1062,6 +1157,18 @@
                           <select :value="task.sprint_id || ''" @change="updateTaskField(task.id, 'sprint_id', ($event.target as HTMLSelectElement).value || null)" class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full">
                             <option value="">Backlog</option>
                             <option v-for="s in sprints" :key="s.id" :value="s.id">{{ s.name }}</option>
+                          </select>
+                        </div>
+                        <div class="flex items-center min-w-0">
+                          <select
+                            :value="task.assigned_to || ''"
+                            @change="updateTaskAssignee(task.id, ($event.target as HTMLSelectElement).value)"
+                            class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full"
+                            :disabled="backlogAssigneeLoading"
+                            title="Assign task"
+                          >
+                            <option value="">Unassigned</option>
+                            <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
                           </select>
                         </div>
                         <div class="flex items-center min-w-0">
@@ -1104,7 +1211,7 @@
                         </div>
                       </div>
                       <template v-if="expandedEpics[task.id]">
-                        <template v-for="sub in getSubTasks(task.id)" :key="sub.id">
+                        <template v-for="sub in getBacklogSubTasks(task.id)" :key="sub.id">
                           <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
                             <div class="flex items-center justify-center shrink-0">
                               <input
@@ -1116,7 +1223,7 @@
                               />
                             </div>
                             <div class="flex items-center pl-6">
-                              <button v-if="getSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
+                              <button v-if="getBacklogSubTasks(sub.id).length" type="button" @click.stop="toggleEpic(sub.id)" class="text-gray-500 hover:text-gray-300 text-xs shrink-0" :aria-label="expandedEpics[sub.id] ? 'Collapse' : 'Expand'">{{ expandedEpics[sub.id] ? '▼' : '▶' }}</button>
                             </div>
                             <div class="flex items-center min-w-0 pl-6">
                               <span class="text-xs font-mono text-gray-500 truncate" :title="taskDisplayCode(sub)">{{ taskDisplayCode(sub) }}</span>
@@ -1143,6 +1250,18 @@
                             </div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                            <div class="flex items-center justify-center min-w-0 w-full">
+                              <select
+                                :value="sub.assigned_to || ''"
+                                @change="updateTaskAssignee(sub.id, ($event.target as HTMLSelectElement).value)"
+                                class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full"
+                                :disabled="backlogAssigneeLoading"
+                                title="Assign task"
+                              >
+                                <option value="">Unassigned</option>
+                                <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+                              </select>
+                            </div>
                           <div class="flex items-center min-w-0">
                             <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center gap-1 w-full min-w-0">
                               <span
@@ -1184,7 +1303,7 @@
                           </div>
                           <!-- Level C: sub-tasks of B (Unassigned) -->
                           <template v-if="expandedEpics[sub.id]">
-                            <div v-for="subsub in getSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                            <div v-for="subsub in getBacklogSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
                               <div class="flex items-center justify-center shrink-0">
                                 <input
                                   type="checkbox"
@@ -1220,6 +1339,18 @@
                               </div>
                               <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                               <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
+                              <div class="flex items-center justify-center min-w-0 w-full">
+                                <select
+                                  :value="subsub.assigned_to || ''"
+                                  @change="updateTaskAssignee(subsub.id, ($event.target as HTMLSelectElement).value)"
+                                  class="text-xs bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none max-w-full"
+                                  :disabled="backlogAssigneeLoading"
+                                  title="Assign task"
+                                >
+                                  <option value="">Unassigned</option>
+                                  <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+                                </select>
+                              </div>
                             <div class="flex items-center min-w-0">
                               <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center gap-1 w-full min-w-0">
                                 <span
@@ -1278,9 +1409,13 @@
               </div>
 
               <!-- Empty State -->
-              <div v-if="!allTasks.filter(t => !t.parent_id).length" class="py-16 text-center text-gray-500">
+              <div v-if="backlogTotalRootTasks === 0" class="py-16 text-center text-gray-500">
                 <p class="text-sm mb-3">No tasks in backlog yet.</p>
                 <button @click="openCreateTaskModal()" class="btn-primary px-5 py-2 text-sm">Add First Task</button>
+              </div>
+              <div v-else-if="backlogFiltersActive && backlogVisibleRootTasksCount === 0" class="py-16 text-center text-gray-500">
+                <p class="text-sm mb-2">No tasks match your search or filters.</p>
+                <button type="button" class="text-xs text-purple-400 hover:text-purple-300 underline" @click="clearBacklogFilters">Clear filters</button>
               </div>
             </div>
           </div>
@@ -2866,6 +3001,7 @@ import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
 import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deployment-api'
 import { useProjectSprints } from '~/composables/useProjectSprints'
 import { useProjectImports } from '~/composables/useProjectImports'
+import { isTaskAssigneeRole } from '~/utils/roles'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -2876,6 +3012,10 @@ const projectsApi = useProjectsApi()
 const { showError, showSuccess, confirm } = useNotification()
 const tasksApi = useTasksApi()
 const teamsStore = useTeamsStore()
+
+const backlogAssigneeUsers = ref<{ id: number; email: string; display_name: string; role: string }[]>([])
+const backlogAssigneeLoading = ref(false)
+const backlogAssigneeError = ref('')
 
 /** Capital / Costing / Backup — CEO only (not MANAGER / Product Owner / legacy DEV). */
 const CEO_ONLY_PROJECT_TAB_IDS = new Set(['capital', 'costing', 'backup'])
@@ -3875,6 +4015,47 @@ function clearBacklogSelection() {
   backlogSelectedTaskIds.value = new Set()
 }
 
+/** Backlog tab: search + filters (tree-aware: ancestor row shows if any descendant matches). */
+const backlogSearchQuery = ref('')
+const backlogFilterStatus = ref<Task['status'] | ''>('')
+const backlogFilterPriority = ref<Task['priority'] | ''>('')
+/** '' = all, '__none__' = no sprint, else sprint id */
+const backlogFilterSprintId = ref<string>('')
+const backlogFilterTaskType = ref<Task['task_type'] | ''>('')
+
+const BACKLOG_STATUS_FILTER_OPTIONS: Task['status'][] = [
+  'PENDING',
+  'IN_PROGRESS',
+  'READY_FOR_TEST',
+  'WAIT_FOR_DEPLOY',
+  'READY_FOR_UAT',
+  'REVIEW_PENDING',
+  'COMPLETED',
+  'CANCELLED',
+  'BLOCKED',
+]
+
+const backlogFiltersActive = computed(
+  () =>
+    !!(
+      backlogSearchQuery.value.trim() ||
+      backlogFilterStatus.value ||
+      backlogFilterPriority.value ||
+      backlogFilterSprintId.value ||
+      backlogFilterTaskType.value
+    ),
+)
+
+const backlogTotalRootTasks = computed(() => allTasks.value.filter((t) => !t.parent_id).length)
+
+function clearBacklogFilters() {
+  backlogSearchQuery.value = ''
+  backlogFilterStatus.value = ''
+  backlogFilterPriority.value = ''
+  backlogFilterSprintId.value = ''
+  backlogFilterTaskType.value = ''
+}
+
 const isBulkDeletingBacklog = ref(false)
 async function bulkDeleteSelectedBacklogTasks() {
   const ids = [...backlogSelectedTaskIds.value]
@@ -3970,6 +4151,44 @@ function closeAnalyticsTasksModal() {
 
 function getSubTasks(parentId: string) {
   return allTasks.value.filter((t) => t.parent_id === parentId)
+}
+
+function taskMatchesBacklogStructuredFilters(task: Task): boolean {
+  if (backlogFilterStatus.value && task.status !== backlogFilterStatus.value) return false
+  if (backlogFilterPriority.value && task.priority !== backlogFilterPriority.value) return false
+  if (backlogFilterTaskType.value && task.task_type !== backlogFilterTaskType.value) return false
+  if (backlogFilterSprintId.value === '__none__') {
+    if (task.sprint_id) return false
+  } else if (backlogFilterSprintId.value) {
+    if (task.sprint_id !== backlogFilterSprintId.value) return false
+  }
+  return true
+}
+
+function taskMatchesBacklogSearchQuery(task: Task): boolean {
+  const q = backlogSearchQuery.value.trim().toLowerCase()
+  if (!q) return true
+  return (
+    (task.title || '').toLowerCase().includes(q) ||
+    (task.code || '').toLowerCase().includes(q) ||
+    (task.description || '').toLowerCase().includes(q) ||
+    String(task.assigned_to_display_name || '').toLowerCase().includes(q) ||
+    String(task.assigned_to_email || '').toLowerCase().includes(q)
+  )
+}
+
+function taskMatchesBacklogSearchAndFilters(task: Task): boolean {
+  return taskMatchesBacklogStructuredFilters(task) && taskMatchesBacklogSearchQuery(task)
+}
+
+/** Row visible if it matches search+filters or any descendant does (walk raw tree). */
+function taskVisibleInBacklogTree(task: Task): boolean {
+  if (taskMatchesBacklogSearchAndFilters(task)) return true
+  return getSubTasks(task.id).some((c) => taskVisibleInBacklogTree(c))
+}
+
+function getBacklogSubTasks(parentId: string): Task[] {
+  return getSubTasks(parentId).filter((t) => taskVisibleInBacklogTree(t))
 }
 
 /** Push task and all descendants in display order (so A001, B001, C001… are assigned correctly). */
@@ -4191,6 +4410,60 @@ function navigateToSprint(sprintId: string) {
 
 function getProjectDetailsCacheKey(idOrCode: string) {
   return `${PROJECT_DETAILS_CACHE_KEY}:${String(idOrCode).toLowerCase()}`
+}
+
+const visibleBacklogAssigneeUsers = computed(() => {
+  const viewerCanSeeCeo = currentUser.value?.role?.toUpperCase() === 'CEO'
+  return backlogAssigneeUsers.value.filter((u) => viewerCanSeeCeo || u.role?.toUpperCase() !== 'CEO')
+})
+
+async function loadBacklogAssignees() {
+  if (backlogAssigneeUsers.value.length > 0 || backlogAssigneeLoading.value) return
+  backlogAssigneeLoading.value = true
+  backlogAssigneeError.value = ''
+  try {
+    await teamsStore.fetchTeamsFeatureEnabled()
+    if (teamsStore.teamsFeatureEnabled) {
+      await teamsStore.fetchTeams()
+      const teamId = project.value?.team_id ?? null
+      const team = teamId ? teamsStore.teamById(teamId) : null
+      backlogAssigneeUsers.value = team?.users?.filter((u) => isTaskAssigneeRole(u.role)) ?? []
+    } else {
+      const res = await useAuth().fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
+      backlogAssigneeUsers.value = (res.data ?? []).filter((u) => isTaskAssigneeRole(u.role))
+    }
+  } catch (e: any) {
+    backlogAssigneeError.value = e?.message || 'Failed to load assignees'
+  } finally {
+    backlogAssigneeLoading.value = false
+  }
+}
+
+function assigneeLabel(u: { display_name?: string; email: string; role: string }) {
+  return `${u.display_name || u.email} (${u.role})`
+}
+
+async function updateTaskAssignee(taskId: string, value: string | number) {
+  const nextDevId = value === '' ? 0 : Number(value)
+  const idx = allTasks.value.findIndex((t) => t.id === taskId)
+  const prevTask = idx !== -1 ? { ...allTasks.value[idx] } : null
+
+  if (idx !== -1) {
+    const selected = visibleBacklogAssigneeUsers.value.find((u) => u.id === nextDevId)
+    allTasks.value[idx] = {
+      ...allTasks.value[idx],
+      assigned_to: nextDevId > 0 ? nextDevId : null,
+      assigned_to_display_name: selected?.display_name,
+      assigned_to_email: selected?.email,
+    }
+  }
+
+  try {
+    await tasksApi.assignTask(taskId, nextDevId)
+  } catch {
+    if (idx !== -1 && prevTask) allTasks.value[idx] = prevTask as any
+    await loadAll()
+  }
 }
 
 function readCachedProjectDetails(idOrCode: string): {
@@ -5163,7 +5436,7 @@ function expandAllBacklog() {
   epics.value.forEach((ep) => { expandedEpicGroups.value[ep.id] = true })
   expandedEpicGroups.value['__unassigned__'] = true
   allTasks.value.forEach((t) => {
-    if (!t.parent_id && getSubTasks(t.id).length > 0) expandedEpics.value[t.id] = true
+    if (!t.parent_id && getBacklogSubTasks(t.id).length > 0) expandedEpics.value[t.id] = true
   })
 }
 
@@ -5190,26 +5463,40 @@ function applyDuplicatePlacement<T extends { id: string }>(tasks: T[]): T[] {
 
 function getTasksForEpic(epicId: string) {
   const sprintOrderIds = sprintsOrdered.value.map((s) => s.id)
-  const sorted = sortBacklogTasks(
-    allTasks.value.filter((t) => t.epic_id === epicId && !t.parent_id),
-    sprintOrderIds,
-  )
+  const roots = allTasks.value.filter((t) => t.epic_id === epicId && !t.parent_id)
+  const visibleRoots = roots.filter((t) => taskVisibleInBacklogTree(t))
+  const sorted = sortBacklogTasks(visibleRoots, sprintOrderIds)
   return applyDuplicatePlacement(sorted)
 }
 
 function getUnassignedTasks() {
   const sprintOrderIds = sprintsOrdered.value.map((s) => s.id)
-  const sorted = sortBacklogTasks(
-    allTasks.value.filter((t) => !t.epic_id && !t.parent_id),
-    sprintOrderIds,
-  )
+  const roots = allTasks.value.filter((t) => !t.epic_id && !t.parent_id)
+  const visibleRoots = roots.filter((t) => taskVisibleInBacklogTree(t))
+  const sorted = sortBacklogTasks(visibleRoots, sprintOrderIds)
   return applyDuplicatePlacement(sorted)
 }
+
+const backlogVisibleRootTasksCount = computed(() => {
+  let n = 0
+  for (const ep of epics.value) {
+    n += getTasksForEpic(ep.id).length
+  }
+  n += getUnassignedTasks().length
+  return n
+})
+
+const backlogFilterSummary = computed(() => {
+  const total = backlogTotalRootTasks.value
+  if (!backlogFiltersActive.value) return `${total} tasks`
+  const v = backlogVisibleRootTasksCount.value
+  return v === total ? `${total} tasks` : `${v} of ${total} tasks`
+})
 
 /** Row IDs in one backlog section (epic or unassigned), including all sub-tasks in the tree. */
 function pushBacklogSectionTaskIds(ids: string[], task: Task) {
   ids.push(task.id)
-  getSubTasks(task.id).forEach((child) => pushBacklogSectionTaskIds(ids, child))
+  getBacklogSubTasks(task.id).forEach((child) => pushBacklogSectionTaskIds(ids, child))
 }
 
 function backlogSectionRowIds(sectionKey: string): string[] {
@@ -5423,7 +5710,10 @@ watch(
   }
 )
 
-onMounted(loadAll)
+onMounted(async () => {
+  await loadBacklogAssignees()
+  await loadAll()
+})
 onBeforeUnmount(() => {
   stopBacklogAutoScroll()
   if (typeof window !== 'undefined') {
@@ -5450,6 +5740,42 @@ onMounted(() => {
     radial-gradient(1300px 640px at 85% -18%, rgba(139, 92, 246, 0.2), transparent 60%),
     radial-gradient(980px 520px at -8% 0%, rgba(59, 130, 246, 0.17), transparent 55%),
     linear-gradient(180deg, #070b17 0%, #0b1220 54%, #090f1a 100%);
+}
+
+/* Backlog compact mode: keep Status visible on narrower screens */
+.backlog-table-grid :deep(input[type='checkbox']) {
+  transform: scale(0.85);
+  transform-origin: center;
+}
+.backlog-table-grid :deep(.cursor-grab),
+.backlog-table-grid :deep(.cursor-pointer) {
+  font-size: 0.6875rem;
+}
+.backlog-table-grid :deep(select),
+.backlog-table-grid :deep(input[type='text']),
+.backlog-table-grid :deep(input[type='number']) {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+.backlog-table-grid :deep(.text-sm) {
+  font-size: 0.8rem;
+}
+.backlog-table-grid :deep(.text-xs) {
+  font-size: 0.6875rem;
+}
+.backlog-table-grid :deep(.line-clamp-2) {
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+}
+.backlog-table-grid :deep(.backlog-subgrid > div:nth-child(4) .text-sm),
+.backlog-table-grid :deep(.backlog-subgrid > div:nth-child(4) .text-[13px]),
+.backlog-table-grid :deep(.backlog-subgrid > div:nth-child(4) .text-xs) {
+  font-size: 0.75rem;
+}
+.backlog-table-grid :deep(.backlog-subgrid > div:nth-child(11) span) {
+  white-space: nowrap;
 }
 
 .sprints-enterprise-hero {
@@ -5510,31 +5836,31 @@ onMounted(() => {
 /* ตาราง backlog: ใช้ grid คอลัมน์ชัดเจน (ไม่ใช้ subgrid) ให้ทุก browser แสดงตรงกัน */
 .backlog-table-grid {
   display: grid;
-  grid-template-columns: 2rem 2.5rem 3.25rem minmax(14rem, 3.6fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) minmax(7.5rem, 1fr) 6.25rem;
-  column-gap: 0.75rem;
+  grid-template-columns: 1.2rem 1.4rem 2rem minmax(6.25rem, 1.35fr) 1.9rem minmax(4.25rem, 0.5fr) minmax(5rem, 0.65fr) minmax(13.5rem, 2.9fr) minmax(5.75rem, 0.8fr) minmax(5.75rem, 0.85fr) 3.85rem;
+  column-gap: 0.5rem;
   row-gap: 0;
   padding: 0;
   align-items: center;
 }
 @media (min-width: 640px) {
   .backlog-table-grid {
-    column-gap: 1rem;
-    grid-template-columns: 2rem 2.5rem 3.5rem minmax(16rem, 4fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) minmax(8.25rem, 1fr) 6.75rem;
+    column-gap: 0.75rem;
+    grid-template-columns: 1.2rem 1.4rem 2rem minmax(6.25rem, 1.35fr) 1.9rem minmax(4.25rem, 0.5fr) minmax(5.25rem, 0.7fr) minmax(14rem, 3fr) minmax(5.75rem, 0.8fr) minmax(5.75rem, 0.85fr) 3.85rem;
   }
 }
 /* แถวหัวตารางและแถวข้อมูลใช้ grid เดียวกับ parent (แต่ละแถวเป็น grid row ใน .backlog-table-grid) */
 .backlog-subgrid {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 2rem 2.5rem 3.25rem minmax(14rem, 3.6fr) 3rem minmax(6rem, 0.8fr) minmax(8rem, 1.2fr) minmax(6rem, 0.9fr) minmax(7.5rem, 1fr) 6.25rem;
+  grid-template-columns: 1.4rem 1.8rem 2.5rem minmax(9.5rem, 2.35fr) 2.25rem minmax(5rem, 0.7fr) minmax(6.25rem, 0.9fr) minmax(8rem, 1.1fr) minmax(6.5rem, 0.95fr) minmax(7rem, 1fr) 6rem;
   align-items: center;
-  column-gap: 0.75rem;
+  column-gap: 0.5rem;
   row-gap: 0;
 }
 @media (min-width: 640px) {
   .backlog-subgrid {
-    column-gap: 1rem;
-    grid-template-columns: 2rem 2.5rem 3.5rem minmax(16rem, 4fr) 3.5rem minmax(6.5rem, 0.8fr) minmax(10rem, 1.2fr) minmax(7rem, 0.9fr) minmax(8.25rem, 1fr) 6.75rem;
+    column-gap: 0.75rem;
+    grid-template-columns: 1.5rem 2rem 3rem minmax(12rem, 2.8fr) 2.75rem minmax(5.5rem, 0.8fr) minmax(8rem, 1fr) minmax(7rem, 0.9fr) minmax(7.25rem, 1fr) minmax(7.5rem, 1.05fr) 7rem;
   }
 }
 /* เซลล์ทุกคอลัมน์: padding สม่ำเสมอ ให้ข้อมูลชิดกับ header และไม่ชิดขอบ */
@@ -5596,10 +5922,12 @@ onMounted(() => {
 }
 /* แถว sub-row (B/C): คอลัมน์ Epic และ Sprint จัดข้อความ Inherits ตรงกลาง */
 .backlog-sub-row > div:nth-child(7),
-.backlog-sub-row > div:nth-child(8) {
+.backlog-sub-row > div:nth-child(8),
+.backlog-sub-row > div:nth-child(9),
+.backlog-sub-row > div:nth-child(10) {
   justify-content: center;
 }
-/* คอลัมน์ Due date (คอลัมน์ที่ 9): จัดให้อยู่กึ่งกลางแบบสม่ำเสมอ */
+/* คอลัมน์ Assignee (คอลัมน์ที่ 9): จัดให้อยู่กึ่งกลางแบบสม่ำเสมอ */
 .backlog-subgrid > div:nth-child(9) {
   justify-content: center;
   text-align: center;
@@ -5611,26 +5939,44 @@ onMounted(() => {
   margin-left: auto;
   margin-right: auto;
 }
+.backlog-subgrid > div:nth-child(9) > div > select,
 .backlog-subgrid > div:nth-child(9) > div > span {
   margin-left: auto;
   margin-right: auto;
 }
-/* คอลัมน์ Status (คอลัมน์ที่ 10): จัด badge ตรงกลางและคุมระยะ */
+/* คอลัมน์ Due date (คอลัมน์ที่ 10): จัดให้อยู่กึ่งกลางแบบสม่ำเสมอ */
 .backlog-subgrid > div:nth-child(10) {
+  justify-content: center;
+  text-align: center;
+  padding-right: 0.75rem;
+}
+.backlog-subgrid > div:nth-child(10) > div {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.backlog-subgrid > div:nth-child(10) > div > span {
+  margin-left: auto;
+  margin-right: auto;
+}
+/* คอลัมน์ Status (คอลัมน์ที่ 11): จัด badge ตรงกลางและคุมระยะ */
+.backlog-subgrid > div:nth-child(11) {
   justify-content: center;
   padding-left: 0.125rem;
   padding-right: 0.625rem;
 }
 /* หัวคอลัมน์ Task และ Epic อยู่ตรงกลาง (ต้องอยู่หลัง rule ทั่วไปเพื่อ override) */
 .backlog-table-header.backlog-subgrid > div:nth-child(4),
-.backlog-table-header.backlog-subgrid > div:nth-child(7) {
+.backlog-table-header.backlog-subgrid > div:nth-child(7),
+.backlog-table-header.backlog-subgrid > div:nth-child(9) {
   justify-content: center;
   text-align: center;
 }
 
 /* แถวข้อมูล: padding แนวตั้งพอดี อ่านง่าย */
 .backlog-row {
-  padding: 0.625rem 0;
+  padding: 0.375rem 0;
   border-bottom: 1px solid rgba(55, 65, 81, 0.55);
   min-width: 0;
   background: rgba(31, 41, 55, 0.55);
@@ -5640,8 +5986,8 @@ onMounted(() => {
 }
 /* Sub-task rows: ระยะห่างสมดุลกับแถวหลัก */
 .backlog-sub-row {
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
 }
 
 .card {

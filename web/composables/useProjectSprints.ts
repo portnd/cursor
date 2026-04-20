@@ -160,8 +160,7 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
   }
 
   function defaultSprintDisplayName(projectName: string, ordinal: number, start?: Date | null, end?: Date | null): string {
-    const pn = projectName.trim() || 'Project'
-    const base = `${pn} — Sprint ${ordinal}`
+    const base = `Sprint ${ordinal}`
     if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
       return `${base} (${formatSprintDateRangeForName(start, end)})`
     }
