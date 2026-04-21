@@ -34,6 +34,12 @@
                 class="text-xs text-purple-300 hover:text-purple-200"
                 @click="startEdit(comment)"
               >Edit</button>
+              <button
+                v-if="canDeleteComment(comment)"
+                class="text-xs text-red-300 hover:text-red-200"
+                :disabled="deletingCommentId === comment.id"
+                @click="confirmDelete(comment)"
+              >{{ deletingCommentId === comment.id ? 'Deleting...' : 'Delete' }}</button>
             </div>
           </div>
 
@@ -180,9 +186,50 @@
       <div class="mt-2 text-center text-xs text-gray-300">{{ previewImageName }}</div>
     </div>
   </div>
+
+  <!-- Delete Confirmation Modal -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div
+        v-if="deleteTargetComment"
+        class="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+        @click.self="cancelDelete"
+      >
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="cancelDelete" />
+        <div class="relative bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-gray-100">Delete comment?</h3>
+              <p class="text-sm text-gray-400 mt-0.5">This action cannot be undone.</p>
+            </div>
+          </div>
+          <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl px-4 py-3">
+            <p class="text-sm text-gray-300 line-clamp-3 leading-relaxed">{{ deleteTargetComment.content }}</p>
+          </div>
+          <div class="flex gap-3 justify-end">
+            <button
+              class="px-4 py-2 rounded-lg text-sm border border-gray-600 text-gray-300 hover:bg-gray-700/60 transition-colors"
+              @click="cancelDelete"
+            >Cancel</button>
+            <button
+              class="px-4 py-2 rounded-lg text-sm bg-red-600 hover:bg-red-500 text-white font-medium transition-colors disabled:opacity-50"
+              :disabled="deletingCommentId === deleteTargetComment.id"
+              @click="executeDelete"
+            >{{ deletingCommentId === deleteTargetComment.id ? 'Deleting…' : 'Delete' }}</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
+import { useAuth } from '~/composables/useAuth'
 import type { TaskComment } from '~/core/modules/tasks/infrastructure/tasks-api'
 
 const props = defineProps<{
@@ -196,6 +243,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'add-comment', payload: { content: string; attachments: File[] }): void
   (e: 'edit-comment', payload: { commentId: string; content: string }): void
+  (e: 'delete-comment', payload: { commentId: string }): void
 }>()
 
 const newComment = ref('')
@@ -205,7 +253,9 @@ const previewImageName = ref('')
 const editingCommentId = ref<string | null>(null)
 const editingContent = ref('')
 const editSubmitting = ref(false)
+const deletingCommentId = ref<string | null>(null)
 const showHistoryForId = ref<string | null>(null)
+const deleteTargetComment = ref<TaskComment | null>(null)
 
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
@@ -262,6 +312,15 @@ function canEditComment(comment: TaskComment) {
   return Number(props.currentUserId || 0) > 0 && Number(comment.user_id) === Number(props.currentUserId)
 }
 
+function canDeleteComment(comment: TaskComment) {
+  return Number(props.currentUserId || 0) > 0 && (Number(comment.user_id) === Number(props.currentUserId) || isCeo.value)
+}
+
+const isCeo = computed(() => {
+  const role = String((useAuth().currentUser.value as any)?.role || '').trim().toUpperCase()
+  return role === 'CEO'
+})
+
 function startEdit(comment: TaskComment) {
   editingCommentId.value = comment.id
   editingContent.value = comment.content || ''
@@ -288,6 +347,25 @@ function toggleHistory(commentId: string) {
   showHistoryForId.value = showHistoryForId.value === commentId ? null : commentId
 }
 
+function confirmDelete(comment: TaskComment) {
+  deleteTargetComment.value = comment
+}
+
+function cancelDelete() {
+  deleteTargetComment.value = null
+}
+
+function executeDelete() {
+  if (!deleteTargetComment.value) return
+  const comment = deleteTargetComment.value
+  deletingCommentId.value = comment.id
+  emit('delete-comment', { commentId: comment.id })
+  deleteTargetComment.value = null
+  setTimeout(() => {
+    deletingCommentId.value = null
+  }, 500)
+}
+
 function closeImagePreview() {
   previewImageUrl.value = ''
   previewImageName.value = ''
@@ -297,5 +375,23 @@ function closeImagePreview() {
 <style scoped>
 .btn-primary {
   @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-colors;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.modal-fade-enter-active > div:last-child,
+.modal-fade-leave-active > div:last-child {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-from > div:last-child,
+.modal-fade-leave-to > div:last-child {
+  opacity: 0;
+  transform: scale(0.95) translateY(8px);
 }
 </style>

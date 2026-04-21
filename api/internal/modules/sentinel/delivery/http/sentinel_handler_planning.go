@@ -435,6 +435,30 @@ func (h *SentinelHandler) EditComment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Comment updated", "data": updated})
 }
 
+func (h *SentinelHandler) DeleteComment(c *gin.Context) {
+	commentID, err := uuid.Parse(c.Param("commentId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": "invalid comment ID"})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	role := getUserRoleFromContext(c)
+	isCEO := strings.EqualFold(strings.TrimSpace(role), "CEO")
+	if err := h.usecase.DeleteComment(commentID, userID, isCEO); err != nil {
+		if domain.IsBadRequest(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete comment", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Comment deleted"})
+}
+
 // --- Time Log Handlers ---
 
 func (h *SentinelHandler) LogTime(c *gin.Context) {

@@ -730,6 +730,7 @@ type SentinelRepository interface {
 	GetCommentsByTaskID(taskID uuid.UUID) ([]TaskComment, error)
 	GetTaskCommentByID(commentID uuid.UUID) (*TaskComment, error)
 	UpdateTaskComment(c *TaskComment) error
+	DeleteTaskComment(commentID uuid.UUID) error
 
 	// Time Logs
 	CreateTimeLog(t *TimeLog) error
@@ -885,6 +886,7 @@ type SentinelUsecase interface {
 	AddComment(taskID uuid.UUID, userID uint, content string, attachments []TaskCommentAttachment) (*TaskComment, error)
 	GetComments(taskID uuid.UUID) ([]TaskComment, error)
 	EditComment(commentID uuid.UUID, editorUserID uint, content string) (*TaskComment, error)
+	DeleteComment(commentID uuid.UUID, requesterID uint, isCEO bool) error
 
 	// Time Logging
 	LogTime(taskID uuid.UUID, userID uint, minutes int, description, workType string, loggedDate *time.Time, isTimer bool) (*TimeLog, error)

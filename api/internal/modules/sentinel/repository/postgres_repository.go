@@ -1158,6 +1158,10 @@ func (r *postgresRepository) UpdateTaskComment(c *domain.TaskComment) error {
 	return r.db.Save(c).Error
 }
 
+func (r *postgresRepository) DeleteTaskComment(commentID uuid.UUID) error {
+	return r.db.Delete(&domain.TaskComment{}, "id = ?", commentID).Error
+}
+
 // --- Time Log Operations ---
 
 func (r *postgresRepository) CreateTimeLog(t *domain.TimeLog) error {

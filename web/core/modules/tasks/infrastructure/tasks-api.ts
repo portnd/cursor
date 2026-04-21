@@ -257,6 +257,10 @@ function useTasksApi() {
     return data.data
   }
 
+  async function deleteComment(commentId: string): Promise<void> {
+    await fetchWithAuth(`/sentinel/comments/${commentId}`, { method: 'DELETE' })
+  }
+
   async function getTimeLogs(taskId: string): Promise<TimeLog[]> {
     const data = await fetchWithAuth<{ data: TimeLog[] }>(`/sentinel/tasks/${taskId}/time-logs`)
     return data.data || []
@@ -594,6 +598,7 @@ function useTasksApi() {
     getComments,
     addComment,
     editComment,
+    deleteComment,
     getTimeLogs,
     logTime,
     editTimeLog,

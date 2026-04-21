@@ -512,6 +512,7 @@
                   :current-user-id="Number(effectiveUser?.id || authStore.userId || 0)"
                   @add-comment="handleAddComment"
                   @edit-comment="handleEditComment"
+                  @delete-comment="handleDeleteComment"
                 />
               </div>
             </div>
@@ -1289,6 +1290,8 @@ const task = ref<Task | null>(null)
 const taskSummary = ref<Task | null>(null)
 const taskDetailLoaded = ref(false)
 const richDetailLoading = ref(false)
+/** Sequence counter — incremented on every fetchRichTaskDetail call; stale responses are discarded. */
+let richDetailSeq = 0
 /** True when the summary response indicates there is a rich description / attachments to lazy-load */
 const hasRichContent = ref(false)
 const isLoading = ref(true)
@@ -1520,14 +1523,21 @@ const availableStatusTransitions = computed(() => {
 })
 
 async function changeTaskStatus(status: string) {
-  if (!task.value || statusChangeLoading.value) return
+  if (!task.value || statusChangeLoading.value || task.value.status === status) return
   statusChangeLoading.value = true
   pendingStatusChange.value = status
+
+  const previousStatus = task.value.status
+  const taskId = task.value.id
+  task.value = { ...task.value, status }
+
   try {
-    await tasksApi.updateTask(task.value.id, { status })
+    await tasksApi.bulkUpdateStatus([taskId], status)
     showSuccess(`Task status updated to ${getStatusLabel(status)}`, 'Updated')
-    await fetchTask()
+    void fetchRichTaskDetail(taskId)
+    void fetchTaskActivity()
   } catch (err: any) {
+    task.value = { ...task.value, status: previousStatus }
     showError(err?.data?.message ?? err?.message ?? 'Failed to update task status')
   } finally {
     statusChangeLoading.value = false
@@ -1700,16 +1710,19 @@ const fetchTask = async () => {
 
 const fetchRichTaskDetail = async (taskId: string) => {
   if (!taskId) return
+  richDetailSeq++
+  const mySeq = richDetailSeq
   richDetailLoading.value = true
   try {
     const response = await tasksApi.getTaskDetail(taskId)
+    if (mySeq !== richDetailSeq) return
     task.value = response.task
     taskDetailLoaded.value = true
     subtasks.value = (response.task.sub_tasks ?? []) as SubTask[]
   } catch (err) {
     console.error('Failed to fetch rich task detail:', err)
   } finally {
-    richDetailLoading.value = false
+    if (mySeq === richDetailSeq) richDetailLoading.value = false
   }
 }
 
@@ -2067,14 +2080,43 @@ async function confirmChangeAssignee() {
   if (devId === '' || !task.value) return
   assignLoading.value = true
   assignError.value = ''
+
+  // Snapshot for rollback
+  const prevAssignedTo = task.value.assigned_to
+  const prevDisplayName = task.value.assigned_to_display_name
+  const prevEmail = task.value.assigned_to_email
+  const prevAvatarUrl = task.value.assigned_to_avatar_url
+
+  // Optimistic update — apply immediately so the UI feels instant
+  if (Number(devId) === 0) {
+    task.value.assigned_to = null
+    task.value.assigned_to_display_name = undefined
+    task.value.assigned_to_email = undefined
+    task.value.assigned_to_avatar_url = undefined
+  } else {
+    const found = assigneeUsers.value.find((u) => u.id === Number(devId))
+    task.value.assigned_to = Number(devId)
+    task.value.assigned_to_display_name = found?.display_name || found?.email || undefined
+    task.value.assigned_to_email = found?.email || undefined
+    task.value.assigned_to_avatar_url = undefined
+  }
+
+  showAssignDropdown.value = false
+  assignSelectedId.value = ''
+
   try {
     const taskId = (route.params.id as string)?.trim?.() || task.value.id
     await tasksApi.assignTask(taskId, Number(devId))
-    showAssignDropdown.value = false
-    assignSelectedId.value = ''
     showSuccess(devId === '0' ? 'Assignee removed.' : 'Assignee updated.', 'Done')
-    await fetchTask()
+    // Re-fetch silently in background to sync avatar_url & other fields
+    fetchTask().catch(() => {})
   } catch (err: any) {
+    // Rollback optimistic update on failure
+    task.value.assigned_to = prevAssignedTo
+    task.value.assigned_to_display_name = prevDisplayName
+    task.value.assigned_to_email = prevEmail
+    task.value.assigned_to_avatar_url = prevAvatarUrl
+    showAssignDropdown.value = true
     assignError.value = err?.data?.message ?? err?.message ?? 'Failed to assign'
   } finally {
     assignLoading.value = false
@@ -2085,13 +2127,31 @@ async function claimTask() {
   if (!task.value || !effectiveUser.value || !canClaimTask.value) return
   assignLoading.value = true
   assignError.value = ''
+
+  const prevAssignedTo = task.value.assigned_to
+  const prevDisplayName = task.value.assigned_to_display_name
+  const prevEmail = task.value.assigned_to_email
+  const prevAvatarUrl = task.value.assigned_to_avatar_url
+
+  // Optimistic update
+  const me = effectiveUser.value
+  task.value.assigned_to = Number(me.id ?? me.user_id)
+  task.value.assigned_to_display_name = me.display_name || me.email || undefined
+  task.value.assigned_to_email = me.email || undefined
+  task.value.assigned_to_avatar_url = me.avatar_url || undefined
+
   try {
     const taskId = (route.params.id as string)?.trim?.() || task.value.id
-    const myId = Number(effectiveUser.value.id)
+    const myId = Number(me.id ?? me.user_id)
     await tasksApi.assignTask(taskId, myId)
     showSuccess('Task claimed successfully.', 'Done')
-    await fetchTask()
+    fetchTask().catch(() => {})
   } catch (err: any) {
+    // Rollback on failure
+    task.value.assigned_to = prevAssignedTo
+    task.value.assigned_to_display_name = prevDisplayName
+    task.value.assigned_to_email = prevEmail
+    task.value.assigned_to_avatar_url = prevAvatarUrl
     assignError.value = err?.data?.message ?? err?.message ?? 'Failed to claim task'
     showError(assignError.value)
   } finally {
@@ -2731,6 +2791,19 @@ async function handleEditComment(payload: { commentId: string; content: string }
     if (idx >= 0) comments.value[idx] = updated
   } catch (e: any) {
     console.error('Failed to edit comment:', e)
+  } finally {
+    commentsLoading.value = false
+  }
+}
+
+async function handleDeleteComment(payload: { commentId: string }) {
+  const tasksApi = useTasksApi()
+  commentsLoading.value = true
+  try {
+    await tasksApi.deleteComment(payload.commentId)
+    comments.value = comments.value.filter(c => c.id !== payload.commentId)
+  } catch (e: any) {
+    console.error('Failed to delete comment:', e)
   } finally {
     commentsLoading.value = false
   }

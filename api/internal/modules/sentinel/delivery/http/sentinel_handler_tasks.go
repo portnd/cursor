@@ -306,7 +306,7 @@ func (h *SentinelHandler) GetTaskSummary(c *gin.Context) {
 		IsKomgrip: task.IsKomgrip, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt,
 	}
 	hasRichContent := task.Description != "" || len(task.ResourceURLs) > 2 || len(task.Submissions) > 0
-	c.Header("Cache-Control", "private, max-age=30, stale-while-revalidate=120")
+	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, gin.H{"message": "Task summary retrieved successfully", "data": gin.H{"summary": summary, "has_rich_content": hasRichContent}})
 }
 
@@ -323,7 +323,7 @@ func (h *SentinelHandler) GetTaskDetail(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": "Task not found"})
 		return
 	}
-	c.Header("Cache-Control", "private, max-age=15, stale-while-revalidate=60")
+	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, gin.H{"message": "Task detail retrieved successfully", "data": gin.H{"task": task, "attachment_count": len(task.Submissions), "has_rich_content": task.Description != "" || len(task.ResourceURLs) > 2 || len(task.Submissions) > 0}})
 }
 

@@ -2212,6 +2212,20 @@ func (u *sentinelUsecase) EditComment(commentID uuid.UUID, editorUserID uint, co
 	return comment, nil
 }
 
+func (u *sentinelUsecase) DeleteComment(commentID uuid.UUID, requesterID uint, isCEO bool) error {
+	comment, err := u.repo.GetTaskCommentByID(commentID)
+	if err != nil {
+		return fmt.Errorf("failed to get comment: %w", err)
+	}
+	if comment == nil {
+		return &domain.ErrBadRequest{Msg: "comment not found"}
+	}
+	if !isCEO && comment.UserID != requesterID {
+		return &domain.ErrBadRequest{Msg: "you can only delete your own comments"}
+	}
+	return u.repo.DeleteTaskComment(commentID)
+}
+
 // --- Time Log Operations ---
 
 func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, description, workType string, loggedDate *time.Time, isTimer bool) (*domain.TimeLog, error) {

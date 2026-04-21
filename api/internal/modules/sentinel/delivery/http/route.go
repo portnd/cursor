@@ -72,6 +72,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		sentinelGroup.POST("/tasks/:id/comments", handler.AddComment)
 		sentinelGroup.GET("/tasks/:id/comments", handler.GetComments)
 		sentinelGroup.PATCH("/comments/:commentId", handler.EditComment)
+		sentinelGroup.DELETE("/comments/:commentId", handler.DeleteComment)
 
 		// Time Logging
 		sentinelGroup.POST("/tasks/:id/time-logs", handler.LogTime)
