@@ -15,7 +15,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-xs font-semibold uppercase tracking-widest text-amber-400 mb-0.5">Final approval queue</h2>
-        <p class="text-xs text-gray-500">Sub-tasks awaiting your final approval</p>
+        <p class="text-xs text-gray-500">Tasks awaiting your final approval</p>
       </div>
       <span class="text-xs font-bold px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-500">
         0 pending
@@ -28,7 +28,7 @@
         </svg>
       </div>
       <p class="text-sm font-semibold text-gray-400">All clear</p>
-      <p class="text-xs text-gray-600 mt-1">No sub-tasks awaiting final approval</p>
+      <p class="text-xs text-gray-600 mt-1">No tasks awaiting final approval</p>
     </div>
   </section>
 

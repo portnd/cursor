@@ -650,7 +650,7 @@
           </div>
 
           <!-- Backlog search & filters -->
-          <div class="backlog-enterprise-card rounded-xl border border-gray-700/40 bg-gray-900/30 px-3 py-3 sm:px-4 sm:py-3.5">
+          <div class="backlog-enterprise-card relative z-20 overflow-visible rounded-xl border border-gray-700/40 bg-gray-900/30 px-3 py-3 sm:px-4 sm:py-3.5">
             <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-4">
               <div class="min-w-0 flex-1">
                 <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Search</label>
@@ -666,10 +666,60 @@
               <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-wrap lg:items-end lg:gap-2">
                 <div class="min-w-0">
                   <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Status</label>
-                  <select v-model="backlogFilterStatus" class="input-field w-full text-xs py-2">
-                    <option value="">All</option>
-                    <option v-for="st in BACKLOG_STATUS_FILTER_OPTIONS" :key="st" :value="st">{{ st.replace(/_/g, ' ') }}</option>
-                  </select>
+                  <div class="relative" :class="backlogStatusFilterOpen ? 'z-50' : 'z-10'" @click.stop>
+                    <button
+                      type="button"
+                      class="backlog-status-filter-trigger input-field flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs"
+                      :class="backlogStatusFilterOpen ? 'border-purple-500/60 ring-1 ring-purple-500/30' : ''"
+                      @click="backlogStatusFilterOpen = !backlogStatusFilterOpen"
+                    >
+                      <span class="min-w-0 truncate">
+                        {{ backlogStatusFilterSummary }}
+                      </span>
+                      <svg
+                        class="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform"
+                        :class="backlogStatusFilterOpen ? 'rotate-180' : ''"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    <div
+                      v-if="backlogStatusFilterOpen"
+                      class="backlog-status-filter-panel absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-gray-700/70 bg-gray-950/95 shadow-2xl shadow-black/40 backdrop-blur"
+                    >
+                      <div class="flex items-center justify-between border-b border-gray-800 px-3 py-2">
+                        <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Pick statuses</span>
+                        <button
+                          v-if="backlogFilterStatuses.length"
+                          type="button"
+                          class="text-[11px] font-medium text-purple-300 hover:text-purple-200"
+                          @click="clearBacklogStatusFilter"
+                        >
+                          Clear
+                        </button>
+                      </div>
+
+                      <div class="max-h-64 space-y-1 overflow-y-auto px-2 py-2">
+                        <label
+                          v-for="st in BACKLOG_STATUS_FILTER_OPTIONS"
+                          :key="st"
+                          class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-gray-200 transition-colors hover:bg-gray-800/70"
+                        >
+                          <input
+                            :checked="backlogFilterStatuses.includes(st)"
+                            type="checkbox"
+                            class="rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500"
+                            @change="toggleBacklogStatusFilter(st)"
+                          />
+                          <span class="truncate">{{ formatBacklogStatusLabel(st) }}</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div class="min-w-0">
                   <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Priority</label>
@@ -712,7 +762,7 @@
 
           <!-- Backlog Table (horizontal scroll on small screens) -->
           <p class="px-1 text-[11px] text-slate-500 sm:hidden">เลื่อนซ้าย/ขวาเพื่อดูทุกคอลัมน์</p>
-          <div class="backlog-enterprise-table -mx-3 rounded-none overflow-x-auto overflow-y-hidden min-w-0 sm:mx-0 sm:rounded-xl">
+          <div class="backlog-enterprise-table relative z-0 -mx-3 rounded-none overflow-x-auto overflow-y-hidden min-w-0 sm:mx-0 sm:rounded-xl">
             <div class="min-w-[860px] sm:min-w-[1040px]">
               <!-- Epic Groups: header = Task, SP, Priority, Sprint, Status (no Epic) -->
               <template v-for="(ep, epIdx) in epics" :key="ep.id">
@@ -936,9 +986,9 @@
                               <span
                                 class="text-xs truncate font-medium"
                                 :class="dueDateTextClass(sub)"
-                                :title="sub.due_at ? new Date(sub.due_at).toLocaleString() : ''"
+                                :title="getEffectiveDueAt(sub) ? new Date(getEffectiveDueAt(sub)!).toLocaleString() : ''"
                               >
-                                {{ formatDate(sub.due_at) }}
+                                {{ formatDate(getEffectiveDueAt(sub)) }}
                               </span>
                               <button
                                 type="button"
@@ -1024,9 +1074,9 @@
                               <span
                                 class="text-xs truncate font-medium"
                                 :class="dueDateTextClass(subsub)"
-                                :title="subsub.due_at ? new Date(subsub.due_at).toLocaleString() : ''"
+                                :title="getEffectiveDueAt(subsub) ? new Date(getEffectiveDueAt(subsub)!).toLocaleString() : ''"
                               >
-                                {{ formatDate(subsub.due_at) }}
+                                {{ formatDate(getEffectiveDueAt(subsub)) }}
                               </span>
                               <button
                                 type="button"
@@ -1279,9 +1329,9 @@
                               <span
                                 class="text-xs truncate font-medium"
                                 :class="dueDateTextClass(sub)"
-                                :title="sub.due_at ? new Date(sub.due_at).toLocaleString() : ''"
+                                :title="getEffectiveDueAt(sub) ? new Date(getEffectiveDueAt(sub)!).toLocaleString() : ''"
                               >
-                                {{ formatDate(sub.due_at) }}
+                                {{ formatDate(getEffectiveDueAt(sub)) }}
                               </span>
                               <button
                                 type="button"
@@ -1368,9 +1418,9 @@
                                 <span
                                   class="text-xs truncate font-medium"
                                   :class="dueDateTextClass(subsub)"
-                                  :title="subsub.due_at ? new Date(subsub.due_at).toLocaleString() : ''"
+                                  :title="getEffectiveDueAt(subsub) ? new Date(getEffectiveDueAt(subsub)!).toLocaleString() : ''"
                                 >
-                                  {{ formatDate(subsub.due_at) }}
+                                    {{ formatDate(getEffectiveDueAt(subsub)) }}
                                 </span>
                                 <button
                                   type="button"
@@ -2586,7 +2636,7 @@
           </div>
           <!-- Sub-task hint -->
           <div v-if="createTaskForm.parent_id" class="p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl text-sm sm:text-base text-purple-300 leading-relaxed">
-            This is a sub-task. Dates are inherited from the parent task.
+            This is a sub-task. Start/end dates follow the parent task, and due date defaults to the parent unless you set a custom one.
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <div>
@@ -2617,6 +2667,10 @@
                 <option value="">No Epic</option>
                 <option v-for="ep in epics" :key="ep.id" :value="ep.id">{{ ep.title }}</option>
               </select>
+            </div>
+            <div v-else-if="createTaskForm.parent_id">
+              <label class="label">Due Date <span class="text-gray-500 font-normal">(optional)</span></label>
+              <UiDatePicker v-model="createTaskForm.due_date" placeholder="Use parent due date by default…" />
             </div>
             <div v-else-if="!createTaskForm.parent_id">
               <label class="label">Due Date</label>
@@ -4032,7 +4086,7 @@ function clearBacklogSelection() {
 
 /** Backlog tab: search + filters (tree-aware: ancestor row shows if any descendant matches). */
 const backlogSearchQuery = ref('')
-const backlogFilterStatus = ref<Task['status'] | ''>('')
+const backlogFilterStatuses = ref<Task['status'][]>([])
 const backlogFilterPriority = ref<Task['priority'] | ''>('')
 /** '' = all, '__none__' = no sprint, else sprint id */
 const backlogFilterSprintId = ref<string>('')
@@ -4050,11 +4104,36 @@ const BACKLOG_STATUS_FILTER_OPTIONS: Task['status'][] = [
   'BLOCKED',
 ]
 
+const backlogStatusFilterOpen = ref(false)
+
+function formatBacklogStatusLabel(status: Task['status']) {
+  return status.replace(/_/g, ' ')
+}
+
+const backlogStatusFilterSummary = computed(() => {
+  const selected = backlogFilterStatuses.value
+  if (selected.length === 0) return 'All statuses'
+  if (selected.length <= 2) return selected.map(formatBacklogStatusLabel).join(', ')
+  return `${selected.length} statuses selected`
+})
+
+function toggleBacklogStatusFilter(status: Task['status']) {
+  if (backlogFilterStatuses.value.includes(status)) {
+    backlogFilterStatuses.value = backlogFilterStatuses.value.filter((value) => value !== status)
+    return
+  }
+  backlogFilterStatuses.value = [...backlogFilterStatuses.value, status]
+}
+
+function clearBacklogStatusFilter() {
+  backlogFilterStatuses.value = []
+}
+
 const backlogFiltersActive = computed(
   () =>
     !!(
       backlogSearchQuery.value.trim() ||
-      backlogFilterStatus.value ||
+      backlogFilterStatuses.value.length ||
       backlogFilterPriority.value ||
       backlogFilterSprintId.value ||
       backlogFilterTaskType.value
@@ -4065,10 +4144,11 @@ const backlogTotalRootTasks = computed(() => allTasks.value.filter((t) => !t.par
 
 function clearBacklogFilters() {
   backlogSearchQuery.value = ''
-  backlogFilterStatus.value = ''
+  backlogFilterStatuses.value = []
   backlogFilterPriority.value = ''
   backlogFilterSprintId.value = ''
   backlogFilterTaskType.value = ''
+  backlogStatusFilterOpen.value = false
 }
 
 const isBulkDeletingBacklog = ref(false)
@@ -4173,7 +4253,7 @@ function getSubTasks(parentId: string) {
 }
 
 function taskMatchesBacklogStructuredFilters(task: Task): boolean {
-  if (backlogFilterStatus.value && task.status !== backlogFilterStatus.value) return false
+  if (backlogFilterStatuses.value.length > 0 && !backlogFilterStatuses.value.includes(task.status)) return false
   if (backlogFilterPriority.value && task.priority !== backlogFilterPriority.value) return false
   if (backlogFilterTaskType.value && task.task_type !== backlogFilterTaskType.value) return false
   if (backlogFilterSprintId.value === '__none__') {
@@ -4280,14 +4360,32 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function getEffectiveDueAt(task: Task): string | null {
+  if (task.due_at) return task.due_at
+
+  const visited = new Set<string>()
+  let parentId = task.parent_id
+
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = allTasks.value.find((candidate) => candidate.id === parentId)
+    if (!parent) return null
+    if (parent.due_at) return parent.due_at
+    parentId = parent.parent_id
+  }
+
+  return null
+}
+
 function isTaskOverdue(task: Task) {
   return isTaskOverdueForMetrics(task)
 }
 
 function dueDateTextClass(task: Task) {
-  if (!task.due_at) return 'text-gray-500'
-  if (isTaskOverdue(task)) return 'text-red-300'
-  return 'text-gray-300'
+  const effectiveDueAt = getEffectiveDueAt(task)
+  if (!effectiveDueAt) return 'text-gray-500'
+  if (isTaskOverdue({ ...task, due_at: effectiveDueAt })) return 'text-red-300'
+  return task.due_at ? 'text-gray-300' : 'text-slate-400'
 }
 
 /** Convert ISO date string (UTC) to "YYYY-MM-DDTHH:mm" in local time for datetime-local input */
@@ -4860,7 +4958,7 @@ const isSavingDueDate = ref(false)
 
 function openEditDueDate(task: Task) {
   dueDateEditingTaskId.value = task.id
-  dueDateEditingValue.value = isoToDateOnly(task.due_at)
+  dueDateEditingValue.value = isoToDateOnly(task.due_at || getEffectiveDueAt(task))
 }
 
 function cancelEditDueDate() {
@@ -5309,7 +5407,7 @@ async function submitCreateTask() {
     if (createTaskForm.value.epic_id) payload.epic_id = createTaskForm.value.epic_id
     if (createTaskForm.value.sprint_id) payload.sprint_id = createTaskForm.value.sprint_id
     if (createTaskForm.value.due_date) payload.due_date = dateOnlyToISO(createTaskForm.value.due_date)
-    // Sub-tasks inherit dates from parent — don't send dates when parent_id is set
+    // Sub-tasks may override due date, but start/end still follow the parent.
     if (!createTaskForm.value.parent_id) {
       if (createTaskForm.value.start_date) payload.start_date = dateOnlyToISO(createTaskForm.value.start_date)
       if (createTaskForm.value.end_date) payload.end_date = dateOnlyToISO(createTaskForm.value.end_date)
@@ -5733,6 +5831,9 @@ onMounted(async () => {
   await loadAll()
 })
 onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('click', onBacklogStatusFilterDocumentClick)
+  }
   stopBacklogAutoScroll()
   if (typeof window !== 'undefined') {
     window.removeEventListener('dragend', stopBacklogAutoScroll)
@@ -5745,11 +5846,22 @@ onBeforeUnmount(() => {
 })
 
 onMounted(() => {
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', onBacklogStatusFilterDocumentClick)
+  }
   if (typeof window !== 'undefined') {
     window.addEventListener('dragend', stopBacklogAutoScroll)
     window.addEventListener('drop', stopBacklogAutoScroll)
   }
 })
+
+function onBacklogStatusFilterDocumentClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+  if (target.closest('.backlog-status-filter-panel')) return
+  if (target.closest('.backlog-status-filter-trigger')) return
+  backlogStatusFilterOpen.value = false
+}
 </script>
 
 <style scoped>

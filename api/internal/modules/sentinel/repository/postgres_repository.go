@@ -1261,7 +1261,7 @@ func (r *postgresRepository) GetTasksReadyForTest(teamID uint) ([]domain.GlobalA
 			COALESCE(u.email, '') AS assigned_to_email`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
-		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_TEST", []string{"TASK", "BUG"}).
+		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_TEST", []string{"FEATURE", "TASK", "BUG"}).
 		Order("tasks.created_at DESC")
 	if teamID != 0 {
 		q = q.Where("projects.team_id = ?", teamID)
@@ -1325,7 +1325,7 @@ func (r *postgresRepository) AdvanceTaskToReadyForUAT(taskID uuid.UUID) error {
 	return nil
 }
 
-// GetTasksReadyForCEOApproval returns TASK/BUG items in READY_FOR_UAT status awaiting CEO final approval.
+// GetTasksReadyForCEOApproval returns FEATURE/TASK/BUG items in READY_FOR_UAT status awaiting CEO final approval.
 func (r *postgresRepository) GetTasksReadyForCEOApproval(teamID uint) ([]domain.GlobalActiveTask, error) {
 	var results []domain.GlobalActiveTask
 	q := r.db.Table("tasks").
@@ -1336,7 +1336,7 @@ func (r *postgresRepository) GetTasksReadyForCEOApproval(teamID uint) ([]domain.
 			COALESCE(u.email, '') AS assigned_to_email`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
-		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_UAT", []string{"TASK", "BUG"}).
+		Where("tasks.status = ? AND tasks.task_type IN ?", "READY_FOR_UAT", []string{"FEATURE", "TASK", "BUG"}).
 		Order("tasks.created_at DESC")
 	if teamID != 0 {
 		q = q.Where("projects.team_id = ?", teamID)

@@ -105,10 +105,10 @@
         v-for="col in columns"
         :key="col.status"
         class="kanban-col min-w-[200px] sm:min-w-[220px] w-[200px] sm:w-[220px] lg:w-auto shrink-0 lg:shrink snap-start"
-        @dragover.prevent="col.droppable ? onDragOver($event, col.status) : undefined"
+        @dragover.prevent="isColumnDroppable(col.status) ? onDragOver($event, col.status) : undefined"
         @dragleave="onDragLeave"
-        @drop="col.droppable ? onDrop($event, col.status) : undefined"
-        :class="{ 'drop-target': dragOverCol === col.status && col.droppable, 'col-locked': !col.droppable }"
+        @drop="isColumnDroppable(col.status) ? onDrop($event, col.status) : undefined"
+        :class="{ 'drop-target': dragOverCol === col.status && isColumnDroppable(col.status), 'col-locked': !isColumnDroppable(col.status) }"
       >
         <!-- Column Header -->
         <div class="flex items-center justify-between mb-3 px-1">
@@ -116,7 +116,7 @@
             <span class="text-lg">{{ col.icon }}</span>
             <span class="text-sm font-semibold" :class="col.headerClass">{{ col.label }}</span>
             <!-- Lock badge for non-droppable columns -->
-            <span v-if="!col.droppable" title="Cannot drag tasks here" class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700">🔒</span>
+            <span v-if="!isColumnDroppable(col.status)" title="Cannot drag tasks here" class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700">🔒</span>
           </div>
           <div class="flex items-center gap-2">
             <span
@@ -241,7 +241,7 @@
             v-if="!tasksByCol[col.status]?.length"
             class="flex flex-col items-center justify-center h-20 border-2 border-dashed border-gray-700 rounded-lg text-gray-600 text-xs"
           >
-            <template v-if="col.droppable">Drop tasks here</template>
+            <template v-if="isColumnDroppable(col.status)">Drop tasks here</template>
             <template v-else>—</template>
           </div>
         </div>
@@ -477,7 +477,7 @@ function bucketForTask(t: Task): string {
   if (t.status === 'WAIT_FOR_DEPLOY') return 'WAIT_FOR_DEPLOY'
   if (t.status === 'READY_FOR_UAT') return 'READY_FOR_UAT'
   if (t.status === 'REVIEW_PENDING') {
-    return t.task_type === 'FEATURE' ? 'READY_FOR_UAT' : 'READY_FOR_TEST'
+    return 'READY_FOR_TEST'
   }
   if (t.status === 'READY_FOR_TEST') return 'READY_FOR_TEST'
   if (COLUMN_STATUSES.includes(t.status as (typeof COLUMN_STATUSES)[number])) return t.status
@@ -487,12 +487,8 @@ function bucketForTask(t: Task): string {
 /** Drop target status for API.
  *  Returns null when the column is non-droppable (COMPLETED / READY_FOR_UAT).
  */
-function resolvedStatusForColumn(colStatus: string, task: Task): string | null {
-  const col = columns.find((c) => c.status === colStatus)
-  if (col && !col.droppable) return null
-  if (colStatus === 'READY_FOR_TEST') {
-    return task.task_type === 'FEATURE' ? 'REVIEW_PENDING' : 'READY_FOR_TEST'
-  }
+function resolvedStatusForColumn(colStatus: string): string | null {
+  if (!isColumnDroppable(colStatus)) return null
   return colStatus
 }
 
@@ -561,7 +557,7 @@ function onDrop(e: DragEvent, colStatus: string) {
   dragOverCol.value = ''
   const task = dragTask.value
   if (!task) return
-  const target = resolvedStatusForColumn(colStatus, task)
+  const target = resolvedStatusForColumn(colStatus)
   // null means column is protected (COMPLETED / READY_FOR_UAT) — silently cancel
   if (target === null || task.status === target) {
     dragTask.value = null
@@ -572,7 +568,11 @@ function onDrop(e: DragEvent, colStatus: string) {
 }
 
 function isColumnDroppable(colStatus: string): boolean {
-  return columns.find((c) => c.status === colStatus)?.droppable ?? true
+  const role = String(props.userRole || '').toUpperCase()
+  if (role === 'CEO' || role === 'MANAGER') return true
+  const baseDroppable = columns.find((c) => c.status === colStatus)?.droppable ?? true
+  if (baseDroppable) return true
+  return false
 }
 </script>
 

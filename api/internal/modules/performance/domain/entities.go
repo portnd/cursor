@@ -2,32 +2,32 @@ package domain
 
 // PersonalKPIs is the response for GET /performance/me (all roles)
 type PersonalKPIs struct {
-	UserID   uint    `json:"user_id"`
-	Email    string  `json:"email"`
-	Role     string  `json:"role"`
+	UserID      uint    `json:"user_id"`
+	Email       string  `json:"email"`
+	Role        string  `json:"role"`
 	HealthScore float64 `json:"health_score"`
 
 	// DEV-focused metrics (populated for DEV; zeros for others)
-	DeliveryRatePct   float64 `json:"delivery_rate_pct"`   // completed on time / tasks with due_date
-	CodeQualityIndex  float64 `json:"code_quality_index"`  // AVG(ai_score) from submissions
-	ReworkRatePct     float64 `json:"rework_rate_pct"`     // FAIL submissions / total
-	TimeAccuracyPct   float64 `json:"time_accuracy_pct"`   // 1 - |logged - estimated|/estimated
-	SprintVelocitySP  float64 `json:"sprint_velocity_sp"`   // avg story points last 3 sprints
-	VelocityTrend     string  `json:"velocity_trend"`      // "up" | "down" | "stable"
+	DeliveryRatePct  float64 `json:"delivery_rate_pct"`  // first job-done timestamp on time / tasks with due_date
+	CodeQualityIndex float64 `json:"code_quality_index"` // AVG(ai_score) from submissions
+	ReworkRatePct    float64 `json:"rework_rate_pct"`    // rejected-comment events / (job-done events + rejected-comment events)
+	TimeAccuracyPct  float64 `json:"time_accuracy_pct"`  // 1 - |logged - estimated|/estimated
+	SprintVelocitySP float64 `json:"sprint_velocity_sp"` // avg story points last 3 sprints
+	VelocityTrend    string  `json:"velocity_trend"`     // "up" | "down" | "stable"
 }
 
 // TeamMemberKPI is one row in the team leaderboard (for /performance/team)
 type TeamMemberKPI struct {
-	UserID            uint    `json:"user_id"`
-	Email             string  `json:"email"`
-	Role              string  `json:"role"`
-	HealthScore       float64 `json:"health_score"`
-	DeliveryRatePct   float64 `json:"delivery_rate_pct"`
-	CodeQualityIndex  float64 `json:"code_quality_index"`
-	ReworkRatePct     float64 `json:"rework_rate_pct"`
-	TimeAccuracyPct   float64 `json:"time_accuracy_pct"`
-	SprintVelocitySP  float64 `json:"sprint_velocity_sp"`
-	CompositeScore    float64 `json:"composite_score"` // 0-100 for ranking
+	UserID           uint    `json:"user_id"`
+	Email            string  `json:"email"`
+	Role             string  `json:"role"`
+	HealthScore      float64 `json:"health_score"`
+	DeliveryRatePct  float64 `json:"delivery_rate_pct"`
+	CodeQualityIndex float64 `json:"code_quality_index"`
+	ReworkRatePct    float64 `json:"rework_rate_pct"`
+	TimeAccuracyPct  float64 `json:"time_accuracy_pct"`
+	SprintVelocitySP float64 `json:"sprint_velocity_sp"`
+	CompositeScore   float64 `json:"composite_score"` // 0-100 for ranking
 }
 
 // TeamKPIsResponse is the response for GET /performance/team (CEO + Product Owner)
@@ -93,29 +93,29 @@ type DisciplineUserDayStat struct {
 	// Attendance fields
 	IsLate           bool   `json:"is_late"`
 	EarlyCheckout    bool   `json:"early_checkout"`
-	CheckInAt        string `json:"check_in_at,omitempty"`        // HH:MM ICT
-	CheckOutAt       string `json:"check_out_at,omitempty"`       // HH:MM ICT
+	CheckInAt        string `json:"check_in_at,omitempty"`       // HH:MM ICT
+	CheckOutAt       string `json:"check_out_at,omitempty"`      // HH:MM ICT
 	AttendanceStatus string `json:"attendance_status,omitempty"` // present|late|absent|wfh|on_leave|holiday
 	LeaveSession     string `json:"leave_session,omitempty"`     // AM|PM|FULL
 }
 
 // DisciplineUser aggregates one employee's discipline stats across the queried range.
 type DisciplineUser struct {
-	UserID                uint                    `json:"user_id"`
-	UserEmail             string                  `json:"user_email"`
-	UserDisplayName       string                  `json:"user_display_name,omitempty"`
-	UserAvatarURL         string                  `json:"user_avatar_url,omitempty"`
-	Role                  string                  `json:"role"`
-	MissedPulseCount      int                     `json:"missed_pulse_count"` // working days without a standup in range
-	TotalTasksClosed      int                     `json:"total_tasks_closed"`
-	TotalReworks          int                     `json:"total_reworks"`
-	TotalLoggedHours      float64                 `json:"total_logged_hours"`
-	TotalDeployments      int                     `json:"total_deployments"`      // total deployments completed (Chief Engineer)
-	TotalLateDays         int                     `json:"total_late_days"`        // times checked in late
-	TotalEarlyCheckoutDays int                    `json:"total_early_checkout_days"` // times left early
-	Days                  []DisciplineUserDayStat `json:"days"`
-	JobDoneItems          []DisciplineJobDoneItem `json:"job_done_items"`
-	ReworkItems           []DisciplineReworkItem  `json:"rework_items"`
+	UserID                 uint                    `json:"user_id"`
+	UserEmail              string                  `json:"user_email"`
+	UserDisplayName        string                  `json:"user_display_name,omitempty"`
+	UserAvatarURL          string                  `json:"user_avatar_url,omitempty"`
+	Role                   string                  `json:"role"`
+	MissedPulseCount       int                     `json:"missed_pulse_count"` // working days without a standup in range
+	TotalTasksClosed       int                     `json:"total_tasks_closed"`
+	TotalReworks           int                     `json:"total_reworks"`
+	TotalLoggedHours       float64                 `json:"total_logged_hours"`
+	TotalDeployments       int                     `json:"total_deployments"`         // total deployments completed (Chief Engineer)
+	TotalLateDays          int                     `json:"total_late_days"`           // times checked in late
+	TotalEarlyCheckoutDays int                     `json:"total_early_checkout_days"` // times left early
+	Days                   []DisciplineUserDayStat `json:"days"`
+	JobDoneItems           []DisciplineJobDoneItem `json:"job_done_items"`
+	ReworkItems            []DisciplineReworkItem  `json:"rework_items"`
 }
 
 // DisciplineAttendanceRecord holds attendance check-in/out data for one day.
@@ -182,17 +182,17 @@ type DisciplineReworkEntry struct {
 
 // DisciplineDayDetail is the drill-down payload for one user on one day.
 type DisciplineDayDetail struct {
-	UserID           uint                         `json:"user_id"`
-	UserEmail        string                       `json:"user_email"`
-	UserDisplayName  string                       `json:"user_display_name,omitempty"`
-	Date             string                       `json:"date"` // YYYY-MM-DD
-	HasDailyPulse    bool                         `json:"has_daily_pulse"`
-	TotalLoggedMin   int                          `json:"total_logged_minutes"`
-	Attendance       *DisciplineAttendanceRecord  `json:"attendance,omitempty"` // nil if no record
-	TimeLogs         []DisciplineTimeLogEntry     `json:"time_logs"`
-	CompletedTasks   []DisciplineCompletedTask    `json:"completed_tasks"`
-	Reworks          []DisciplineReworkEntry      `json:"reworks"`
-	DeployedRequests []DisciplineDeployedRequest  `json:"deployed_requests"` // deployments completed as reviewer on this day
+	UserID           uint                        `json:"user_id"`
+	UserEmail        string                      `json:"user_email"`
+	UserDisplayName  string                      `json:"user_display_name,omitempty"`
+	Date             string                      `json:"date"` // YYYY-MM-DD
+	HasDailyPulse    bool                        `json:"has_daily_pulse"`
+	TotalLoggedMin   int                         `json:"total_logged_minutes"`
+	Attendance       *DisciplineAttendanceRecord `json:"attendance,omitempty"` // nil if no record
+	TimeLogs         []DisciplineTimeLogEntry    `json:"time_logs"`
+	CompletedTasks   []DisciplineCompletedTask   `json:"completed_tasks"`
+	Reworks          []DisciplineReworkEntry     `json:"reworks"`
+	DeployedRequests []DisciplineDeployedRequest `json:"deployed_requests"` // deployments completed as reviewer on this day
 }
 
 // Usecase defines the performance business logic interface
@@ -212,6 +212,7 @@ type Repository interface {
 	// Raw aggregates for a single user (DEV metrics) — all tasks
 	GetUserTaskDeliveryStats(userID uint) (tasksWithDue int, completedOnTime int, err error)
 	GetUserSubmissionStats(userID uint) (avgScore float64, totalSubs int, failCount int, err error)
+	GetUserReworkStats(userID uint) (jobDoneCount int, reworkCount int, err error)
 	GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64, sampleCount int, err error)
 	GetUserSprintVelocity(userID uint, lastNSprints int) (avgStoryPoints float64, trend string, err error)
 
@@ -219,6 +220,7 @@ type Repository interface {
 	GetDevUserIDsAssignedByPM(pmID uint) ([]uint, error)
 	GetUserTaskDeliveryStatsForAssignedBy(devID, assignedByID uint) (tasksWithDue int, completedOnTime int, err error)
 	GetUserSubmissionStatsForAssignedBy(devID, assignedByID uint) (avgScore float64, totalSubs int, failCount int, err error)
+	GetUserReworkStatsForAssignedBy(devID, assignedByID uint) (jobDoneCount int, reworkCount int, err error)
 	GetUserTimeAccuracyForAssignedBy(devID, assignedByID uint) (avgAccuracyPct float64, sampleCount int, err error)
 	GetUserSprintVelocityForAssignedBy(devID, assignedByID uint, lastNSprints int) (avgStoryPoints float64, trend string, err error)
 

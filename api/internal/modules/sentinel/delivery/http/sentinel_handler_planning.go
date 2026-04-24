@@ -688,6 +688,10 @@ func (h *SentinelHandler) BulkUpdateTaskStatus(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "cannot drag task to COMPLETED — only CEO or Manager can perform final approval"})
 		return
 	}
+	if req.Status == "READY_FOR_UAT" && normalizedRole != authDomain.RoleCEO && normalizedRole != authDomain.RoleManager {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": "cannot drag task to READY_FOR_UAT — only CEO or Manager can advance deployed tasks"})
+		return
+	}
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
@@ -702,7 +706,7 @@ func (h *SentinelHandler) BulkUpdateTaskStatus(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
 			return
 		}
-		if contains(err.Error(), "READY_FOR_UAT") || contains(err.Error(), "no tasks provided") {
+		if contains(err.Error(), "READY_FOR_UAT") || contains(err.Error(), "COMPLETED") || contains(err.Error(), "no tasks provided") || contains(err.Error(), "WAIT_FOR_DEPLOY") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
 			return
 		}

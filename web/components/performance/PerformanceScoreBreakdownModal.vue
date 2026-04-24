@@ -77,8 +77,9 @@
               :class="sectionHighlightClass('delivery')"
               class="rounded-lg px-2 py-1 -mx-2"
             >
-              <strong class="text-white">Delivery</strong> — % of tasks that had a due date and were completed on or before that due date.
-              <span class="block text-xs text-gray-500 mt-1">ส่งงานตรงกำหนดเมื่อเทียบกับงานที่มี due date</span>
+              <strong class="text-white">Delivery</strong> — % of tasks that had a due date and reached
+              <code class="text-cyan-400">job done</code> on or before that due date.
+              <span class="block text-xs text-gray-500 mt-1">คิดจากเวลาที่งานถึงสถานะ job done ไม่ใช่รอ completed สุดท้าย</span>
             </p>
             <p
               v-if="focus === 'quality'"
@@ -94,9 +95,10 @@
               :class="sectionHighlightClass('rework')"
               class="rounded-lg px-2 py-1 -mx-2"
             >
-              <strong class="text-white">Rework</strong> — % of tasks with submissions that have a
-              <code class="text-cyan-400">[REJECTED]</code> comment (rework signal).
-              <span class="block text-xs text-gray-500 mt-1">งานที่มี submission แล้วถูก reject</span>
+              <strong class="text-white">Rework</strong> — uses the same rework event as the
+              <code class="text-cyan-400">discipline</code> page: every <code class="text-cyan-400">[REJECTED]</code> comment counts as 1 rework.
+              The rate is <code class="text-cyan-400">rework events ÷ (job done + rework events)</code> × 100.
+              <span class="block text-xs text-gray-500 mt-1">นับ rework แบบเดียวกับหน้า discipline คือทุกคอมเมนต์ [REJECTED] = 1 ครั้ง</span>
             </p>
             <p
               v-if="focus === 'composite'"

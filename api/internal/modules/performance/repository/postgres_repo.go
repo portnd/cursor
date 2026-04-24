@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -31,30 +32,54 @@ type postgresRepo struct {
 const disciplineStartDateKey = "discipline_start_date"
 const hiddenPulseUsersSettingKey = "pulse_hidden_user_ids"
 
+func engineerJobDoneEventClause(alias string) string {
+	return fmt.Sprintf(`(
+		(%[1]s.action = 'READY_FOR_TEST'
+			AND COALESCE(%[1]s.payload->>'from_status', '') = 'IN_PROGRESS'
+			AND COALESCE(%[1]s.payload->>'to_status', '') = 'READY_FOR_TEST')
+		OR
+		(%[1]s.action = 'STATUS_CHANGED'
+			AND COALESCE(%[1]s.payload->>'from_status', '') = 'IN_PROGRESS'
+			AND COALESCE(%[1]s.payload->>'to_status', '') = 'READY_FOR_TEST')
+	)`, alias)
+}
+
 // NewPostgresRepository returns a performance repository that queries existing tables
 func NewPostgresRepository(db *gorm.DB) perfDomain.Repository {
 	return &postgresRepo{db: db}
 }
 
 func (r *postgresRepo) GetUserTaskDeliveryStats(userID uint) (tasksWithDue int, completedOnTime int, err error) {
-	var withDue int64
-	err = r.db.Model(&sentinelDomain.Task{}).
-		Where("assigned_to = ? AND due_at IS NOT NULL", userID).
-		Count(&withDue).Error
-	if err != nil {
+	type agg struct {
+		TasksWithDue    int64 `gorm:"column:tasks_with_due"`
+		CompletedOnTime int64 `gorm:"column:completed_on_time"`
+	}
+	var a agg
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			JOIN tasks src ON src.id = tae.task_id
+			WHERE src.assigned_to = ?
+			  AND src.due_at IS NOT NULL
+			  AND %s
+			GROUP BY tae.task_id
+		)
+		SELECT
+			COUNT(t.id) AS tasks_with_due,
+			COUNT(t.id) FILTER (
+				WHERE fjd.job_done_at IS NOT NULL
+				  AND fjd.job_done_at <= t.due_at
+			) AS completed_on_time
+		FROM tasks t
+		LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
+		WHERE t.assigned_to = ?
+		  AND t.due_at IS NOT NULL
+	`, engineerJobDoneEventClause("tae"))
+	if err = r.db.Raw(query, userID, userID).Scan(&a).Error; err != nil {
 		return 0, 0, err
 	}
-	tasksWithDue = int(withDue)
-
-	var onTime int64
-	err = r.db.Model(&sentinelDomain.Task{}).
-		Where("assigned_to = ? AND due_at IS NOT NULL AND status = ? AND completed_at IS NOT NULL AND completed_at <= due_at", userID, "COMPLETED").
-		Count(&onTime).Error
-	if err != nil {
-		return tasksWithDue, 0, err
-	}
-	completedOnTime = int(onTime)
-	return tasksWithDue, completedOnTime, nil
+	return int(a.TasksWithDue), int(a.CompletedOnTime), nil
 }
 
 func (r *postgresRepo) GetUserSubmissionStats(userID uint) (avgScore float64, totalSubs int, failCount int, err error) {
@@ -112,6 +137,51 @@ func (r *postgresRepo) GetUserSubmissionStats(userID uint) (avgScore float64, to
 	return avgScore, int(total), int(fails), nil
 }
 
+func (r *postgresRepo) GetUserReworkStats(userID uint) (jobDoneCount int, reworkCount int, err error) {
+	var resetAt *time.Time
+	type resetRow struct{ ReworkResetAt *time.Time }
+	var rr resetRow
+	r.db.Raw("SELECT rework_reset_at FROM users WHERE id = ?", userID).Scan(&rr)
+	resetAt = rr.ReworkResetAt
+
+	var jobDone int64
+	jobDoneQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM task_activity_events tae
+		JOIN tasks t ON t.id = tae.task_id
+		WHERE t.assigned_to = ?
+		  AND t.task_type IN ('TASK', 'BUG')
+		  AND %s
+	`, engineerJobDoneEventClause("tae"))
+	args := []interface{}{userID}
+	if resetAt != nil {
+		jobDoneQuery += " AND tae.created_at > ?"
+		args = append(args, *resetAt)
+	}
+	if err = r.db.Raw(jobDoneQuery, args...).Scan(&jobDone).Error; err != nil {
+		return 0, 0, err
+	}
+
+	var reworks int64
+	reworkQuery := `
+		SELECT COUNT(*)
+		FROM task_comments tc
+		JOIN tasks t ON t.id = tc.task_id
+		WHERE t.assigned_to = ?
+		  AND tc.content LIKE '[REJECTED]%'
+	`
+	reworkArgs := []interface{}{userID}
+	if resetAt != nil {
+		reworkQuery += " AND tc.created_at > ?"
+		reworkArgs = append(reworkArgs, *resetAt)
+	}
+	if err = r.db.Raw(reworkQuery, reworkArgs...).Scan(&reworks).Error; err != nil {
+		return int(jobDone), 0, err
+	}
+
+	return int(jobDone), int(reworks), nil
+}
+
 func (r *postgresRepo) GetUserTimeAccuracy(userID uint) (avgAccuracyPct float64, sampleCount int, err error) {
 	// For each task assigned to user that has estimated_minutes > 0 and has time_logs, compute
 	// accuracy = 1 - |sum(logged_mins) - estimated| / estimated, capped 0..1. Then average.
@@ -157,16 +227,24 @@ func (r *postgresRepo) GetUserSprintVelocity(userID uint, lastNSprints int) (avg
 		SP          int
 	}
 	var rows []row
-	err = r.db.Raw(`
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			WHERE %s
+			GROUP BY tae.task_id
+		)
 		SELECT ROW_NUMBER() OVER (ORDER BY s.end_date DESC NULLS LAST) AS sprint_order,
-			COALESCE(SUM(CASE WHEN t.status = 'COMPLETED' THEN t.story_points ELSE 0 END), 0)::int AS sp
+			COALESCE(SUM(CASE WHEN fjd.job_done_at IS NOT NULL THEN t.story_points ELSE 0 END), 0)::int AS sp
 		FROM sprints s
 		LEFT JOIN tasks t ON t.sprint_id = s.id AND t.assigned_to = ?
+		LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
 		WHERE s.status = 'COMPLETED'
 		GROUP BY s.id, s.end_date
 		ORDER BY s.end_date DESC NULLS LAST
 		LIMIT ?
-	`, userID, lastNSprints).Scan(&rows).Error
+	`, engineerJobDoneEventClause("tae"))
+	err = r.db.Raw(query, userID, lastNSprints).Scan(&rows).Error
 	if err != nil {
 		return 0, "stable", err
 	}
@@ -205,23 +283,38 @@ func (r *postgresRepo) GetDevUserIDsAssignedByPM(pmID uint) ([]uint, error) {
 }
 
 func (r *postgresRepo) GetUserTaskDeliveryStatsForAssignedBy(devID, assignedByID uint) (tasksWithDue int, completedOnTime int, err error) {
-	var withDue int64
-	err = r.db.Model(&sentinelDomain.Task{}).
-		Where("assigned_to = ? AND assigned_by_id = ? AND due_at IS NOT NULL", devID, assignedByID).
-		Count(&withDue).Error
-	if err != nil {
+	type agg struct {
+		TasksWithDue    int64 `gorm:"column:tasks_with_due"`
+		CompletedOnTime int64 `gorm:"column:completed_on_time"`
+	}
+	var a agg
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			JOIN tasks src ON src.id = tae.task_id
+			WHERE src.assigned_to = ?
+			  AND src.assigned_by_id = ?
+			  AND src.due_at IS NOT NULL
+			  AND %s
+			GROUP BY tae.task_id
+		)
+		SELECT
+			COUNT(t.id) AS tasks_with_due,
+			COUNT(t.id) FILTER (
+				WHERE fjd.job_done_at IS NOT NULL
+				  AND fjd.job_done_at <= t.due_at
+			) AS completed_on_time
+		FROM tasks t
+		LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
+		WHERE t.assigned_to = ?
+		  AND t.assigned_by_id = ?
+		  AND t.due_at IS NOT NULL
+	`, engineerJobDoneEventClause("tae"))
+	if err = r.db.Raw(query, devID, assignedByID, devID, assignedByID).Scan(&a).Error; err != nil {
 		return 0, 0, err
 	}
-	tasksWithDue = int(withDue)
-	var onTime int64
-	err = r.db.Model(&sentinelDomain.Task{}).
-		Where("assigned_to = ? AND assigned_by_id = ? AND due_at IS NOT NULL AND status = ? AND completed_at IS NOT NULL AND completed_at <= due_at", devID, assignedByID, "COMPLETED").
-		Count(&onTime).Error
-	if err != nil {
-		return tasksWithDue, 0, err
-	}
-	completedOnTime = int(onTime)
-	return tasksWithDue, completedOnTime, nil
+	return int(a.TasksWithDue), int(a.CompletedOnTime), nil
 }
 
 func (r *postgresRepo) GetUserSubmissionStatsForAssignedBy(devID, assignedByID uint) (avgScore float64, totalSubs int, failCount int, err error) {
@@ -280,6 +373,53 @@ func (r *postgresRepo) GetUserSubmissionStatsForAssignedBy(devID, assignedByID u
 	return avgScore, int(total), int(fails), nil
 }
 
+func (r *postgresRepo) GetUserReworkStatsForAssignedBy(devID, assignedByID uint) (jobDoneCount int, reworkCount int, err error) {
+	var resetAt *time.Time
+	type resetRow struct{ ReworkResetAt *time.Time }
+	var rr resetRow
+	r.db.Raw("SELECT rework_reset_at FROM users WHERE id = ?", devID).Scan(&rr)
+	resetAt = rr.ReworkResetAt
+
+	var jobDone int64
+	jobDoneQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM task_activity_events tae
+		JOIN tasks t ON t.id = tae.task_id
+		WHERE t.assigned_to = ?
+		  AND t.assigned_by_id = ?
+		  AND t.task_type IN ('TASK', 'BUG')
+		  AND %s
+	`, engineerJobDoneEventClause("tae"))
+	jobDoneArgs := []interface{}{devID, assignedByID}
+	if resetAt != nil {
+		jobDoneQuery += " AND tae.created_at > ?"
+		jobDoneArgs = append(jobDoneArgs, *resetAt)
+	}
+	if err = r.db.Raw(jobDoneQuery, jobDoneArgs...).Scan(&jobDone).Error; err != nil {
+		return 0, 0, err
+	}
+
+	var reworks int64
+	reworkQuery := `
+		SELECT COUNT(*)
+		FROM task_comments tc
+		JOIN tasks t ON t.id = tc.task_id
+		WHERE t.assigned_to = ?
+		  AND t.assigned_by_id = ?
+		  AND tc.content LIKE '[REJECTED]%'
+	`
+	reworkArgs := []interface{}{devID, assignedByID}
+	if resetAt != nil {
+		reworkQuery += " AND tc.created_at > ?"
+		reworkArgs = append(reworkArgs, *resetAt)
+	}
+	if err = r.db.Raw(reworkQuery, reworkArgs...).Scan(&reworks).Error; err != nil {
+		return int(jobDone), 0, err
+	}
+
+	return int(jobDone), int(reworks), nil
+}
+
 func (r *postgresRepo) GetUserTimeAccuracyForAssignedBy(devID, assignedByID uint) (avgAccuracyPct float64, sampleCount int, err error) {
 	type row struct {
 		Accuracy float64
@@ -322,16 +462,24 @@ func (r *postgresRepo) GetUserSprintVelocityForAssignedBy(devID, assignedByID ui
 		SP          int
 	}
 	var rows []row
-	err = r.db.Raw(`
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			WHERE %s
+			GROUP BY tae.task_id
+		)
 		SELECT ROW_NUMBER() OVER (ORDER BY s.end_date DESC NULLS LAST) AS sprint_order,
-			COALESCE(SUM(CASE WHEN t.status = 'COMPLETED' THEN t.story_points ELSE 0 END), 0)::int AS sp
+			COALESCE(SUM(CASE WHEN fjd.job_done_at IS NOT NULL THEN t.story_points ELSE 0 END), 0)::int AS sp
 		FROM sprints s
 		LEFT JOIN tasks t ON t.sprint_id = s.id AND t.assigned_to = ? AND t.assigned_by_id = ?
+		LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
 		WHERE s.status = 'COMPLETED'
 		GROUP BY s.id, s.end_date
 		ORDER BY s.end_date DESC NULLS LAST
 		LIMIT ?
-	`, devID, assignedByID, lastNSprints).Scan(&rows).Error
+	`, engineerJobDoneEventClause("tae"))
+	err = r.db.Raw(query, devID, assignedByID, lastNSprints).Scan(&rows).Error
 	if err != nil {
 		return 0, "stable", err
 	}
@@ -374,26 +522,34 @@ func (r *postgresRepo) GetUserEmailAndRole(userID uint) (email string, role stri
 }
 
 func (r *postgresRepo) GetSprintSuccessRate() (ratePct float64, err error) {
-	// Sprints with >= 80% of planned story points completed
+	// Sprints with >= 80% of planned story points reaching "job done"
 	type agg struct {
-		Total    int64
-		Success  int64
+		Total   int64
+		Success int64
 	}
 	var a agg
-	err = r.db.Raw(`
-		WITH sprint_sp AS (
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			WHERE %s
+			GROUP BY tae.task_id
+		),
+		sprint_sp AS (
 			SELECT s.id,
 				COALESCE(SUM(t.story_points), 0) AS planned,
-				COALESCE(SUM(CASE WHEN t.status = 'COMPLETED' THEN t.story_points ELSE 0 END), 0) AS completed
+				COALESCE(SUM(CASE WHEN fjd.job_done_at IS NOT NULL THEN t.story_points ELSE 0 END), 0) AS completed
 			FROM sprints s
 			LEFT JOIN tasks t ON t.sprint_id = s.id
+			LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
 			WHERE s.status = 'COMPLETED'
 			GROUP BY s.id
 		)
 		SELECT COUNT(*) AS total,
 			SUM(CASE WHEN planned = 0 OR (completed::float / NULLIF(planned, 0)) >= 0.8 THEN 1 ELSE 0 END) AS success
 		FROM sprint_sp
-	`).Scan(&a).Error
+	`, engineerJobDoneEventClause("tae"))
+	err = r.db.Raw(query).Scan(&a).Error
 	if err != nil {
 		return 0, err
 	}
@@ -420,26 +576,41 @@ func (r *postgresRepo) GetMilestoneHitRate() (reached, missed int, err error) {
 }
 
 func (r *postgresRepo) GetProjectOnTrackRate() (onTrackPct float64, err error) {
-	// Active projects where >= 70% of tasks (with due_at) are on schedule (completed on time or not yet due)
+	// Active projects where >= 70% of tasks (with due_at) are on schedule based on first "job done" timestamp.
 	type agg struct {
 		Total   int64
 		OnTrack int64
 	}
 	var a agg
-	err = r.db.Raw(`
-		WITH project_stats AS (
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			WHERE %s
+			GROUP BY tae.task_id
+		),
+		project_stats AS (
 			SELECT p.id,
 				COUNT(t.id) FILTER (WHERE t.due_at IS NOT NULL) AS with_due,
-				COUNT(t.id) FILTER (WHERE t.due_at IS NOT NULL AND (t.status != 'COMPLETED' OR t.completed_at <= t.due_at)) AS on_schedule
+				COUNT(t.id) FILTER (
+					WHERE t.due_at IS NOT NULL
+					  AND (
+						(fjd.job_done_at IS NOT NULL AND fjd.job_done_at <= t.due_at)
+						OR
+						(fjd.job_done_at IS NULL AND t.due_at >= NOW())
+					  )
+				) AS on_schedule
 			FROM projects p
 			LEFT JOIN tasks t ON t.project_id = p.id AND t.parent_id IS NULL
+			LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
 			WHERE p.status = 'ACTIVE'
 			GROUP BY p.id
 		)
 		SELECT COUNT(*) AS total,
 			SUM(CASE WHEN with_due = 0 OR (on_schedule::float / NULLIF(with_due, 0)) >= 0.7 THEN 1 ELSE 0 END) AS on_track
 		FROM project_stats
-	`).Scan(&a).Error
+	`, engineerJobDoneEventClause("tae"))
+	err = r.db.Raw(query).Scan(&a).Error
 	if err != nil {
 		return 0, err
 	}
@@ -467,15 +638,23 @@ func (r *postgresRepo) GetTeamVelocityTrend() (growthPct float64, err error) {
 		CompletedSP int
 	}
 	var rows []row
-	err = r.db.Raw(`
-		SELECT COALESCE(SUM(CASE WHEN t.status = 'COMPLETED' THEN t.story_points ELSE 0 END), 0)::int AS completed_sp
+	query := fmt.Sprintf(`
+		WITH first_job_done AS (
+			SELECT tae.task_id, MIN(tae.created_at) AS job_done_at
+			FROM task_activity_events tae
+			WHERE %s
+			GROUP BY tae.task_id
+		)
+		SELECT COALESCE(SUM(CASE WHEN fjd.job_done_at IS NOT NULL THEN t.story_points ELSE 0 END), 0)::int AS completed_sp
 		FROM sprints s
 		LEFT JOIN tasks t ON t.sprint_id = s.id
+		LEFT JOIN first_job_done fjd ON fjd.task_id = t.id
 		WHERE s.status = 'COMPLETED'
 		GROUP BY s.id, s.end_date
 		ORDER BY s.end_date DESC NULLS LAST
 		LIMIT 4
-	`).Scan(&rows).Error
+	`, engineerJobDoneEventClause("tae"))
+	err = r.db.Raw(query).Scan(&rows).Error
 	if err != nil || len(rows) < 2 {
 		return 0, err
 	}
@@ -486,7 +665,7 @@ func (r *postgresRepo) GetTeamVelocityTrend() (growthPct float64, err error) {
 		}
 		return 0, nil
 	}
-	growthPct = (float64(recent)-float64(prev))/float64(prev) * 100
+	growthPct = (float64(recent) - float64(prev)) / float64(prev) * 100
 	return growthPct, nil
 }
 
@@ -1054,16 +1233,16 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 
 	// 4c. Rework line items ([REJECTED] comments → assignee’s discipline rework count)
 	type reworkDetailRow struct {
-		UserID             uint
-		TaskID             string
-		TaskCode           string
-		TaskTitle          string
-		TaskType           string
-		CreatedAt          time.Time
-		Content            string
-		AuthorID           sql.NullInt64
-		AuthorEmail        string
-		AuthorDisplayName  string
+		UserID            uint
+		TaskID            string
+		TaskCode          string
+		TaskTitle         string
+		TaskType          string
+		CreatedAt         time.Time
+		Content           string
+		AuthorID          sql.NullInt64
+		AuthorEmail       string
+		AuthorDisplayName string
 	}
 	var reworkDetailRows []reworkDetailRow
 	r.db.Raw(`
@@ -1095,15 +1274,15 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 			snippet = string(runes[:220]) + "…"
 		}
 		rw := perfDomain.DisciplineReworkItem{
-			TaskID:             row.TaskID,
-			TaskCode:           row.TaskCode,
-			TaskTitle:          row.TaskTitle,
-			TaskType:           row.TaskType,
-			EventDate:          ts.Format("2006-01-02"),
-			EventTime:          ts.Format("15:04"),
-			CommentSnippet:     snippet,
-			AuthorEmail:        row.AuthorEmail,
-			AuthorDisplayName:  row.AuthorDisplayName,
+			TaskID:            row.TaskID,
+			TaskCode:          row.TaskCode,
+			TaskTitle:         row.TaskTitle,
+			TaskType:          row.TaskType,
+			EventDate:         ts.Format("2006-01-02"),
+			EventTime:         ts.Format("15:04"),
+			CommentSnippet:    snippet,
+			AuthorEmail:       row.AuthorEmail,
+			AuthorDisplayName: row.AuthorDisplayName,
 		}
 		if row.AuthorID.Valid && row.AuthorID.Int64 > 0 {
 			rw.AuthorID = uint(row.AuthorID.Int64)
@@ -1262,13 +1441,13 @@ func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDo
 
 	// Time logs with task info
 	type tlRow struct {
-		TaskID          string
-		TaskCode        string
-		TaskTitle       string
-		Minutes         int
-		Description     string
-		WorkType        string
-		IsTimerSession  bool
+		TaskID         string
+		TaskCode       string
+		TaskTitle      string
+		Minutes        int
+		Description    string
+		WorkType       string
+		IsTimerSession bool
 	}
 	var tlRows []tlRow
 	r.db.Raw(`
@@ -1490,4 +1669,3 @@ func (r *postgresRepo) GetCompanyWideReworkAndTimeAccuracy() (avgReworkPct, avgT
 	}
 	return avgReworkPct, avgTimeAccuracyPct, nil
 }
- 

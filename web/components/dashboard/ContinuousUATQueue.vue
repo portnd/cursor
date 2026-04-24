@@ -15,7 +15,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-xs font-semibold uppercase tracking-widest text-cyan-400 mb-0.5">Continuous UAT Queue</h2>
-        <p class="text-xs text-gray-500">Sub-tasks awaiting your test approval</p>
+        <p class="text-xs text-gray-500">Tasks awaiting your test approval</p>
       </div>
       <span class="text-xs font-bold px-3 py-1 rounded-full bg-gray-700/60 border border-gray-600 text-gray-500">
         0 awaiting
@@ -28,7 +28,7 @@
         </svg>
       </div>
       <p class="text-sm font-semibold text-gray-400">All clear</p>
-      <p class="text-xs text-gray-600 mt-1">No sub-tasks pending test review</p>
+      <p class="text-xs text-gray-600 mt-1">No tasks pending test review</p>
     </div>
   </section>
 
@@ -37,7 +37,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-xs font-semibold uppercase tracking-widest text-cyan-400 mb-0.5">Continuous UAT Queue</h2>
-        <p class="text-xs text-gray-500">Sub-tasks awaiting your test approval</p>
+        <p class="text-xs text-gray-500">Tasks awaiting your test approval</p>
       </div>
       <span class="text-xs font-bold px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/25 text-cyan-400">
         {{ queue.length }} awaiting test
@@ -216,7 +216,7 @@
             </svg>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white">Reject Sub-Task</h3>
+            <h3 class="text-sm font-bold text-white">Reject Task</h3>
             <p class="text-xs text-gray-500 truncate max-w-[280px]">{{ rejectTarget?.title }}</p>
           </div>
         </div>

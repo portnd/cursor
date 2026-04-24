@@ -618,6 +618,7 @@
                   <select
                     v-model="assignSelectedId"
                     @change="confirmChangeAssignee"
+                    :disabled="assignLoading || (assigneeOptionsLoading && visibleAssigneeUsers.length === 0)"
                     class="mt-2 block w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                   >
                     <option value="">— Select —</option>
@@ -626,6 +627,7 @@
                   </select>
                   <div class="flex items-center gap-2 mt-1.5">
                     <button type="button" @click="showAssignDropdown = false" class="text-xs text-gray-500 hover:text-gray-600 dark:text-gray-300">Cancel</button>
+                    <p v-if="assigneeOptionsLoading" class="text-xs text-gray-500 dark:text-gray-400">Loading people…</p>
                     <p v-if="assignError" class="text-xs text-red-400">{{ assignError }}</p>
                   </div>
                 </template>
@@ -1277,6 +1279,91 @@ const currentUserInitial = computed(() => {
   return (u.display_name || u.email || '').charAt(0).toUpperCase()
 })
 
+const PROJECT_DETAILS_CACHE_KEY = 'sentinel-project-details-cache-v1'
+const PROJECT_DETAILS_CACHE_TTL_MS = 2 * 60 * 1000
+const PROJECT_RETURN_WARMUP_LIMIT_LIGHT = 80
+const PROJECT_RETURN_WARMUP_LIMIT_STANDARD = 120
+const PROJECT_RETURN_WARMUP_LIMIT_HEAVY = 180
+const ASSIGNEE_OPTIONS_CACHE_KEY = 'sentinel-task-assignee-options-v1'
+const ASSIGNEE_OPTIONS_CACHE_TTL_MS = 10 * 60 * 1000
+let projectReturnWarmupPromise: Promise<void> | null = null
+
+function getProjectDetailsCacheKey(idOrCode: string) {
+  return `${PROJECT_DETAILS_CACHE_KEY}:${String(idOrCode).toLowerCase()}`
+}
+
+function hasFreshProjectDetailsCache(idOrCode: string): boolean {
+  if (typeof sessionStorage === 'undefined') return false
+  try {
+    const raw = sessionStorage.getItem(getProjectDetailsCacheKey(idOrCode))
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as {
+      project?: unknown
+      tasks?: unknown[]
+      sprints?: unknown[]
+      milestones?: unknown[]
+      epics?: unknown[]
+      cachedAt?: number
+    }
+    if (!parsed?.project || !Array.isArray(parsed.tasks) || !Array.isArray(parsed.sprints) || !Array.isArray(parsed.milestones) || !Array.isArray(parsed.epics)) {
+      return false
+    }
+    return typeof parsed.cachedAt === 'number' && Date.now() - parsed.cachedAt <= PROJECT_DETAILS_CACHE_TTL_MS
+  } catch {
+    return false
+  }
+}
+
+function detectSlowNetworkClient(): boolean {
+  if (typeof window === 'undefined') return false
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string }
+  }
+  const conn = nav.connection
+  if (!conn) return false
+  if (conn.saveData) return true
+  return conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g'
+}
+
+function getProjectReturnWarmupLimit(tab: string): number {
+  const slowNetwork = detectSlowNetworkClient()
+  if (tab === 'timeline' || tab === 'board' || tab === 'backlog') {
+    return slowNetwork ? PROJECT_RETURN_WARMUP_LIMIT_STANDARD : PROJECT_RETURN_WARMUP_LIMIT_HEAVY
+  }
+  if (tab === 'overview') {
+    return slowNetwork ? PROJECT_RETURN_WARMUP_LIMIT_LIGHT : PROJECT_RETURN_WARMUP_LIMIT_STANDARD
+  }
+  return PROJECT_RETURN_WARMUP_LIMIT_STANDARD
+}
+
+function writeProjectDetailsCache(idOrCode: string, details: Awaited<ReturnType<typeof projectsApi.getProjectDetails>>) {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(getProjectDetailsCacheKey(idOrCode), JSON.stringify({ ...details, cachedAt: Date.now() }))
+  } catch {
+    // ignore cache quota failures
+  }
+}
+
+function warmProjectReturnCache() {
+  const fromProject = route.query.from_project as string | undefined
+  if (!fromProject || projectReturnWarmupPromise || hasFreshProjectDetailsCache(fromProject)) return
+
+  const fromTab = route.query.from_tab as string | undefined
+  const tasksLimit = getProjectReturnWarmupLimit(fromTab || 'overview')
+
+  projectReturnWarmupPromise = projectsApi.getProjectDetails(fromProject, { tasksLimit })
+    .then((details) => {
+      writeProjectDetailsCache(fromProject, details)
+    })
+    .catch(() => {
+      // ignore warm-up failures; normal back navigation will still fetch live data
+    })
+    .finally(() => {
+      projectReturnWarmupPromise = null
+    })
+}
+
 onMounted(async () => {
   try {
     const { authApi } = await import('~/core/modules/auth/infrastructure/auth-api')
@@ -1305,17 +1392,18 @@ const sprintNavMessage = ref('')
 
 // Assignee change state
 const showAssignDropdown = ref(false)
-const assigneeUsers = ref<{ id: number; email: string; display_name: string; role: string }[]>([])
+type AssignableUser = { id: number; email: string; display_name: string; role: string }
+const assigneeUsers = ref<AssignableUser[]>([])
 const assignSelectedId = ref<number | ''>('')
 const assignLoading = ref(false)
+const assigneeOptionsLoading = ref(false)
 const assignError = ref('')
+let assigneeUsersLoadPromise: Promise<AssignableUser[]> | null = null
 
 const visibleAssigneeUsers = computed(() => {
   const viewerCanSeeCeo = canSeeCeoAssigneeOption(currentRole.value)
   return assigneeUsers.value.filter((u) => viewerCanSeeCeo || u.role?.toUpperCase() !== 'CEO')
 })
-
-const canLoadCeoAssignee = computed(() => canSeeCeoAssigneeOption(currentRole.value))
 
 // Continuous UAT: approve / reject on this page
 const uatActionLoading = ref(false)
@@ -1559,13 +1647,13 @@ const showPMUATActions = computed(() => {
   if (role !== 'PRODUCT_OWNER' && role !== 'PM' && role !== 'MANAGER') return false
   if (task.value.status !== 'READY_FOR_TEST') return false
   const t = task.value.task_type
-  return t === 'TASK' || t === 'BUG'
+  return t === 'FEATURE' || t === 'TASK' || t === 'BUG'
 })
 
 /** WAIT_FOR_DEPLOY section: task is waiting for Chief Engineer to deploy */
 const showWaitForDeploySection = computed(() => {
   if (!task.value) return false
-  return task.value.status === 'WAIT_FOR_DEPLOY' && (task.value.task_type === 'TASK' || task.value.task_type === 'BUG')
+  return task.value.status === 'WAIT_FOR_DEPLOY' && ['FEATURE', 'TASK', 'BUG'].includes(task.value.task_type)
 })
 
 /** CEO/MANAGER step: task is READY_FOR_UAT (Chief Engineer deployed) and viewer is CEO or MANAGER */
@@ -1575,7 +1663,7 @@ const showCEOUATActions = computed(() => {
   if (role !== 'CEO' && role !== 'MANAGER') return false
   if (task.value.status !== 'READY_FOR_UAT') return false
   const t = task.value.task_type
-  return t === 'TASK' || t === 'BUG'
+  return t === 'FEATURE' || t === 'TASK' || t === 'BUG'
 })
 
 // Deployment request linked to this task (fetched when status is WAIT_FOR_DEPLOY or READY_FOR_UAT)
@@ -1670,6 +1758,106 @@ const creatorLabel = computed(() => {
   return displayName || email || `Dev #${task.value.created_by}`
 })
 
+function getAssigneeOptionsCacheKey() {
+  const role = String(authCurrentUser.value?.role || '').toUpperCase() || 'UNKNOWN'
+  const userId = authCurrentUser.value?.user_id ?? 0
+  return `${ASSIGNEE_OPTIONS_CACHE_KEY}:${role}:${userId}`
+}
+
+function normalizeAssignableUsers(users: AssignableUser[]): AssignableUser[] {
+  const seen = new Set<number>()
+  return users
+    .filter((u) => Number.isFinite(Number(u?.id)) && isTaskAssigneeRole(u.role))
+    .filter((u) => {
+      if (seen.has(u.id)) return false
+      seen.add(u.id)
+      return true
+    })
+    .sort((a, b) => {
+      const left = String(a.display_name || a.email || '').toLowerCase()
+      const right = String(b.display_name || b.email || '').toLowerCase()
+      return left.localeCompare(right)
+    })
+}
+
+function readCachedAssignableUsers(): { users: AssignableUser[]; isFresh: boolean } | null {
+  if (typeof sessionStorage === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(getAssigneeOptionsCacheKey())
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { users?: AssignableUser[]; cachedAt?: number }
+    if (!Array.isArray(parsed?.users) || typeof parsed.cachedAt !== 'number') return null
+    return {
+      users: normalizeAssignableUsers(parsed.users),
+      isFresh: Date.now() - parsed.cachedAt <= ASSIGNEE_OPTIONS_CACHE_TTL_MS,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeCachedAssignableUsers(users: AssignableUser[]) {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(getAssigneeOptionsCacheKey(), JSON.stringify({
+      users,
+      cachedAt: Date.now(),
+    }))
+  } catch {
+    // ignore cache quota failures
+  }
+}
+
+async function fetchAssignableUsersFromApi(): Promise<AssignableUser[]> {
+  const role = (authCurrentUser.value?.role || '').toUpperCase()
+  if (role === 'PRODUCT_OWNER' || role === 'PM') {
+    await teamsStore.fetchTeamsFeatureEnabled()
+    if (teamsStore.teamsFeatureEnabled) {
+      const userId = authCurrentUser.value?.user_id
+      const teams = teamsStore.teams.length > 0 ? teamsStore.teams : await getTeams()
+      const myTeam = teams.find((t) => t.users?.some((u) => u.id === userId))
+      return normalizeAssignableUsers((myTeam?.users ?? []) as AssignableUser[])
+    }
+  }
+
+  const res = await fetchWithAuth<{ data: AssignableUser[] }>('/auth/users')
+  return normalizeAssignableUsers(res.data ?? [])
+}
+
+async function ensureAssignableUsers(opts: { preferCache?: boolean; silent?: boolean } = {}): Promise<AssignableUser[]> {
+  const cached = opts.preferCache ? readCachedAssignableUsers() : null
+
+  if (cached?.users.length) {
+    assigneeUsers.value = cached.users
+    if (cached.isFresh) return cached.users
+  } else if (assigneeUsers.value.length > 0) {
+    return assigneeUsers.value
+  }
+
+  if (assigneeUsersLoadPromise) return assigneeUsersLoadPromise
+
+  assigneeOptionsLoading.value = true
+  assigneeUsersLoadPromise = fetchAssignableUsersFromApi()
+    .then((users) => {
+      assigneeUsers.value = users
+      writeCachedAssignableUsers(users)
+      return users
+    })
+    .catch((error) => {
+      if (!opts.silent && assigneeUsers.value.length === 0) {
+        assignError.value = 'Failed to load users'
+      }
+      if (assigneeUsers.value.length > 0) return assigneeUsers.value
+      throw error
+    })
+    .finally(() => {
+      assigneeOptionsLoading.value = false
+      assigneeUsersLoadPromise = null
+    })
+
+  return assigneeUsersLoadPromise
+}
+
 // Methods
 const fetchTask = async () => {
   const taskId = (route.params.id as string)?.trim?.() || ''
@@ -1691,6 +1879,10 @@ const fetchTask = async () => {
     taskSummary.value = response.summary as unknown as Task
     task.value = response.summary as unknown as Task
     hasRichContent.value = response.has_rich_content
+    warmProjectReturnCache()
+    if (canEditOrDelete.value) {
+      void ensureAssignableUsers({ preferCache: true, silent: true })
+    }
     estimatedHoursLocal.value = minutesToEffortHours(task.value.estimated_minutes ?? 0)
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
     void fetchTaskActivity()
@@ -2046,33 +2238,7 @@ async function openAssignDropdown() {
   showAssignDropdown.value = true
   assignError.value = ''
   assignSelectedId.value = ''
-  if (assigneeUsers.value.length === 0) {
-    try {
-      const role = (authCurrentUser.value?.role || '').toUpperCase()
-      if (role === 'PRODUCT_OWNER' || role === 'PM') {
-        await teamsStore.fetchTeamsFeatureEnabled()
-        if (teamsStore.teamsFeatureEnabled) {
-          const userId = authCurrentUser.value?.user_id
-          const teams = await getTeams()
-          const myTeam = teams.find(t => t.users?.some(u => u.id === userId))
-          assigneeUsers.value = myTeam?.users?.filter(u => isTaskAssigneeRole(u.role)) ?? []
-        } else {
-          const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
-          const users = res.data ?? []
-          assigneeUsers.value = users.filter((u) => isTaskAssigneeRole(u.role))
-        }
-      } else {
-        const res = await fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
-        const users = res.data ?? []
-        assigneeUsers.value = users.filter((u) => isTaskAssigneeRole(u.role))
-      }
-      if (!canLoadCeoAssignee.value) {
-        assigneeUsers.value = assigneeUsers.value.filter((u) => u.role?.toUpperCase() !== 'CEO')
-      }
-    } catch {
-      assignError.value = 'Failed to load users'
-    }
-  }
+  void ensureAssignableUsers({ preferCache: true, silent: false })
 }
 
 async function confirmChangeAssignee() {
@@ -2237,7 +2403,7 @@ async function submitUATReject() {
   try {
     await tasksApi.rejectSubTask(task.value.id, uatRejectReason.value)
     closeUATRejectModal()
-    showSuccess('Sub-task rejected and returned to in progress.', 'Done')
+    showSuccess('Task rejected and returned to in progress.', 'Done')
     await fetchTask()
   } catch (err: any) {
     showError(err?.data?.message ?? err?.message ?? 'Failed to reject')

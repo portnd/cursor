@@ -540,7 +540,8 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 		return nil, errors.New("story_points cannot be negative")
 	}
 
-	// Sub-tasks (have a parent_id) inherit from parent: dates, and project/epic/sprint when not provided.
+	// Sub-tasks (have a parent_id) inherit timeline fields from parent.
+	// dueDate stays overridable, but defaults to the parent due date when omitted.
 	// Max nesting depth is 2 levels (A → B → C). Level C tasks cannot have children.
 	if parentID != nil {
 		parent, err := u.repo.GetTaskByID(*parentID)
@@ -551,6 +552,9 @@ func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uin
 			}
 			startDate = parent.StartDate
 			endDate = parent.EndDate
+			if dueDate == nil {
+				dueDate = parent.DueAt
+			}
 			if projectID == nil && parent.ProjectID != nil {
 				projectID = parent.ProjectID
 			}
@@ -1615,7 +1619,7 @@ func (u *sentinelUsecase) RejectTask(taskID uuid.UUID, rejectorID uint, rejector
 	return nil
 }
 
-// MarkReadyForTest moves a TASK or BUG from IN_PROGRESS to READY_FOR_TEST (Dev action).
+// MarkReadyForTest moves a FEATURE, TASK, or BUG from IN_PROGRESS to READY_FOR_TEST (Dev action).
 func (u *sentinelUsecase) MarkReadyForTest(taskID uuid.UUID, devID uint) error {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
@@ -1624,8 +1628,8 @@ func (u *sentinelUsecase) MarkReadyForTest(taskID uuid.UUID, devID uint) error {
 	if task == nil {
 		return errors.New("task not found")
 	}
-	if task.TaskType != "TASK" && task.TaskType != "BUG" {
-		return &domain.ErrBadRequest{Msg: "only TASK or BUG type tasks can be moved to READY_FOR_TEST"}
+	if task.TaskType != "TASK" && task.TaskType != "BUG" && task.TaskType != "FEATURE" {
+		return &domain.ErrBadRequest{Msg: "only FEATURE, TASK, or BUG type tasks can be moved to READY_FOR_TEST"}
 	}
 	if task.Status != "IN_PROGRESS" {
 		return &domain.ErrBadRequest{Msg: fmt.Sprintf("task must be IN_PROGRESS to mark ready for test (current: %s)", task.Status)}
@@ -2468,14 +2472,10 @@ func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status strin
 
 	validStatuses := map[string]bool{
 		"PENDING": true, "IN_PROGRESS": true, "READY_FOR_TEST": true,
-		"REVIEW_PENDING": true, "WAIT_FOR_DEPLOY": true, "BLOCKED": true, "COMPLETED": true,
+		"REVIEW_PENDING": true, "WAIT_FOR_DEPLOY": true, "READY_FOR_UAT": true, "BLOCKED": true, "COMPLETED": true,
 		// COMPLETED permission is enforced at handler level (CEO or Manager)
-		// READY_FOR_UAT is intentionally excluded — set automatically on deployment
 	}
 	if !validStatuses[status] {
-		if status == "READY_FOR_UAT" {
-			return fmt.Errorf("READY_FOR_UAT is set automatically when the Chief Engineer marks the deployment as deployed")
-		}
 		return fmt.Errorf("invalid status: %s", status)
 	}
 
@@ -2491,7 +2491,6 @@ func (u *sentinelUsecase) BulkUpdateTaskStatus(taskIDs []uuid.UUID, status strin
 		}
 		prevByID[id] = bulkPrev{Status: t.Status, TaskType: t.TaskType}
 	}
-
 	if err := u.repo.BulkUpdateTaskStatus(taskIDs, status); err != nil {
 		return err
 	}

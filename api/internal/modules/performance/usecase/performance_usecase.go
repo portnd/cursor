@@ -39,13 +39,17 @@ func (u *performanceUsecase) GetPersonalKPIs(userID uint, role string) (*perfDom
 	if tasksWithDue > 0 {
 		out.DeliveryRatePct = float64(completedOnTime) / float64(tasksWithDue) * 100
 	}
-	avgScore, totalSubs, failCount, err := u.repo.GetUserSubmissionStats(userID)
+	avgScore, _, _, err := u.repo.GetUserSubmissionStats(userID)
 	if err != nil {
 		return nil, err
 	}
 	out.CodeQualityIndex = avgScore
-	if totalSubs > 0 {
-		out.ReworkRatePct = float64(failCount) / float64(totalSubs) * 100
+	jobDoneCount, reworkCount, err := u.repo.GetUserReworkStats(userID)
+	if err != nil {
+		return nil, err
+	}
+	if totalOutcomes := jobDoneCount + reworkCount; totalOutcomes > 0 {
+		out.ReworkRatePct = float64(reworkCount) / float64(totalOutcomes) * 100
 	}
 	accPct, _, err := u.repo.GetUserTimeAccuracy(userID)
 	if err != nil {
@@ -105,10 +109,11 @@ func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole s
 			if tasksWithDue > 0 {
 				m.DeliveryRatePct = float64(completedOnTime) / float64(tasksWithDue) * 100
 			}
-			avgScore, totalSubs, failCount, _ := u.repo.GetUserSubmissionStatsForAssignedBy(devID, requestingUserID)
+			avgScore, _, _, _ := u.repo.GetUserSubmissionStatsForAssignedBy(devID, requestingUserID)
 			m.CodeQualityIndex = avgScore
-			if totalSubs > 0 {
-				m.ReworkRatePct = float64(failCount) / float64(totalSubs) * 100
+			jobDoneCount, reworkCount, _ := u.repo.GetUserReworkStatsForAssignedBy(devID, requestingUserID)
+			if totalOutcomes := jobDoneCount + reworkCount; totalOutcomes > 0 {
+				m.ReworkRatePct = float64(reworkCount) / float64(totalOutcomes) * 100
 			}
 			accPct, _, _ := u.repo.GetUserTimeAccuracyForAssignedBy(devID, requestingUserID)
 			m.TimeAccuracyPct = accPct
@@ -146,10 +151,11 @@ func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole s
 			if tasksWithDue > 0 {
 				m.DeliveryRatePct = float64(completedOnTime) / float64(tasksWithDue) * 100
 			}
-			avgScore, totalSubs, failCount, _ := u.repo.GetUserSubmissionStats(usr.ID)
+			avgScore, _, _, _ := u.repo.GetUserSubmissionStats(usr.ID)
 			m.CodeQualityIndex = avgScore
-			if totalSubs > 0 {
-				m.ReworkRatePct = float64(failCount) / float64(totalSubs) * 100
+			jobDoneCount, reworkCount, _ := u.repo.GetUserReworkStats(usr.ID)
+			if totalOutcomes := jobDoneCount + reworkCount; totalOutcomes > 0 {
+				m.ReworkRatePct = float64(reworkCount) / float64(totalOutcomes) * 100
 			}
 			accPct, _, _ := u.repo.GetUserTimeAccuracy(usr.ID)
 			m.TimeAccuracyPct = accPct
@@ -171,10 +177,11 @@ func (u *performanceUsecase) GetTeamKPIs(requestingUserID uint, requestingRole s
 				if tasksWithDue > 0 {
 					deliveryPct = float64(completedOnTime) / float64(tasksWithDue) * 100
 				}
-				avgScore, totalSubs, failCount, _ := u.repo.GetUserSubmissionStatsForAssignedBy(devID, usr.ID)
+				avgScore, _, _, _ := u.repo.GetUserSubmissionStatsForAssignedBy(devID, usr.ID)
 				var reworkPct float64
-				if totalSubs > 0 {
-					reworkPct = float64(failCount) / float64(totalSubs) * 100
+				jobDoneCount, reworkCount, _ := u.repo.GetUserReworkStatsForAssignedBy(devID, usr.ID)
+				if totalOutcomes := jobDoneCount + reworkCount; totalOutcomes > 0 {
+					reworkPct = float64(reworkCount) / float64(totalOutcomes) * 100
 				}
 				accPct, _, _ := u.repo.GetUserTimeAccuracyForAssignedBy(devID, usr.ID)
 				avgSP, _, _ := u.repo.GetUserSprintVelocityForAssignedBy(devID, usr.ID, 3)
