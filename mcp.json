@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "browser": {
+      "command": "/bin/bash",
+      "args": [
+        "/Users/komgrip/Documents/sentinel-core/.cursor/run-npx.sh"
+      ]
+    }
+  }
+}

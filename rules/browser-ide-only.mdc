@@ -1,0 +1,27 @@
+---
+description: Agents must use only the IDE browser tab; never open external browsers (e.g. Chrome).
+alwaysApply: true
+---
+
+# Browser: IDE Tab Only
+
+## CRITICAL RULE
+
+**ห้ามเปิด browser ภายนอก (เช่น Chrome, Safari, Firefox) เด็ดขาด**
+
+- **ห้าม**: ใช้ `open -a "Google Chrome"`, `open -a "Safari"`, หรือคำสั่งใดที่เปิดแอป browser นอก IDE
+- **ห้าม**: ส่ง URL ให้ user เปิดใน browser ภายนอก โดยหวังให้ agent ควบคุมหรือทดสอบจากนั้น
+- **ต้องใช้**: เฉพาะ **browser tab ใน IDE** เท่านั้น (เช่น Cursor IDE Browser / MCP browser) สำหรับการ navigate, click, fill form, snapshot, หรือทดสอบ UI
+
+## When to Use the IDE Browser
+
+- เปิดหน้าเว็บ (เช่น `http://localhost:3000`) เพื่อทดสอบหรือตรวจสอบ
+- Login, กรอก form, คลิกปุ่ม
+- ถ่าย snapshot หรือ screenshot ผ่าน MCP tools ของ browser ใน IDE
+- ตรวจสอบว่า element หรือข้อความแสดงถูกต้อง
+
+## If IDE Browser Fails
+
+- อย่า fallback ไปเปิด Chrome/Safari
+- แจ้ง user ว่าให้เปิด URL ใน **browser tab ของ IDE** เอง หรือแก้ที่ทำให้ MCP browser ใช้ได้
+- ใช้ curl / API calls สำหรับการ verify ฝั่ง backend แทนได้ถ้าไม่จำเป็นต้องดู UI
