@@ -159,6 +159,22 @@
           {{ project.description || 'No description provided.' }}
         </p>
 
+        <div class="mb-4 rounded-xl border border-white/10 bg-slate-950/50 p-3 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-[11px] font-semibold text-slate-200">รายชื่อผู้รับผิดชอบโครงการ</div>
+              <p class="text-[10px] text-slate-500">แสดงบทบาทหลักของโปรเจกต์</p>
+            </div>
+          </div>
+          <div class="space-y-1.5">
+            <div v-for="row in projectRoleRowsForCard(project)" :key="row.key" class="flex items-baseline gap-2">
+              <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500 w-28">{{ row.label }}</span>
+              <span v-if="row.value" class="text-xs text-slate-100 truncate">{{ row.value }}</span>
+              <span v-else class="text-xs text-slate-600">ยังไม่ได้ระบุ</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Team Badge + CEO Assign Dropdown (hidden when teams feature disabled) -->
         <div v-if="teamsStore.teamsFeatureEnabled" class="mb-4">
           <!-- Current Team Badge (all roles) -->
@@ -186,8 +202,18 @@
         </div>
 
         <!-- CEO/MANAGER: assign Product Owner users when squads are disabled (multi-select) -->
+        <div class="mb-4">
+          <button
+            v-if="isCEO"
+            type="button"
+            class="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-500/20 transition-colors"
+            @click.stop="showPmOwnersPanel = !showPmOwnersPanel"
+          >
+            {{ showPmOwnersPanel ? 'ซ่อนรายชื่อ Product Owner' : 'แสดงรายชื่อ Product Owner' }}
+          </button>
+        </div>
         <div
-          v-if="!teamsStore.teamsFeatureEnabled && isCEO"
+          v-if="showPmOwnersPanel && isCEO"
           class="mb-4 space-y-2"
           @click.stop
         >
@@ -533,6 +559,7 @@ const deleteError = ref('')
 
 const pmUserOptions = ref<{ id: number; email: string; display_name?: string }[]>([])
 const pmOwnersAssignError = ref('')
+const showPmOwnersPanel = ref(false)
 
 const totalProjects = computed(() => projects.value.length)
 const totalActive = computed(() => projects.value.filter((p) => p.status === 'ACTIVE').length)
@@ -559,6 +586,14 @@ const boardColumns: { bucket: KanbanBucket; short: string; countClass: string }[
   { bucket: 'WAIT_FOR_DEPLOY', short: 'Wait deploy', countClass: 'text-orange-400' },
   { bucket: 'READY_FOR_UAT', short: 'Ready UAT', countClass: 'text-amber-400' },
 ]
+
+function projectRoleRowsForCard(project: Project) {
+  return [
+    { key: 'project_manager_name', label: 'ผู้จัดการโครงการ', value: (project as any).project_manager_name?.trim?.() || '' },
+    { key: 'project_lead_name', label: 'หัวหน้าโครงการ', value: (project as any).project_lead_name?.trim?.() || '' },
+    { key: 'project_owner_name', label: 'เจ้าของโครงการ', value: (project as any).project_owner_name?.trim?.() || '' },
+  ]
+}
 
 function bucketForListTask(t: Task): KanbanBucket {
   if (t.status === 'WAIT_FOR_DEPLOY') return 'WAIT_FOR_DEPLOY'
@@ -656,6 +691,33 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+const PROJECT_ROLE_STORAGE_PREFIX = 'sentinel-project-role-names-v1'
+
+function readProjectRoleNames(idOrCode: string): { project_manager_name: string; project_lead_name: string; project_owner_name: string } | null {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(`${PROJECT_ROLE_STORAGE_PREFIX}:${String(idOrCode).toLowerCase()}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function enrichProjectRoleNames(list: Project[]): Project[] {
+  return list.map((p) => {
+    const stored = readProjectRoleNames(p.id) || readProjectRoleNames(p.code) || null
+    if (!stored) return p
+    return {
+      ...p,
+      project_manager_name: stored.project_manager_name || p.project_manager_name || '',
+      project_lead_name: stored.project_lead_name || p.project_lead_name || '',
+      project_owner_name: stored.project_owner_name || p.project_owner_name || '',
+    }
+  })
+}
+
 async function loadProjects(opts?: { quiet?: boolean }) {
   const quiet = !!opts?.quiet
   if (!quiet) {
@@ -664,7 +726,7 @@ async function loadProjects(opts?: { quiet?: boolean }) {
   }
   try {
     const data = await fetchWithAuth<{ data: Project[] }>('/sentinel/projects')
-    projects.value = data.data || []
+    projects.value = enrichProjectRoleNames(data.data || [])
   } catch (e: any) {
     if (!quiet) {
       error.value = e.message || 'Failed to load projects'

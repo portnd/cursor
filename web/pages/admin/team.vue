@@ -106,11 +106,12 @@
                     getRoleColor(normalizeUserRole(member.role)).avatar
                   ]"
                 >
-                  {{ member.email.charAt(0).toUpperCase() }}
+                  {{ getMemberAvatarInitial(member) }}
                 </div>
                 <div class="min-w-0">
-                  <p class="font-medium text-white truncate">{{ member.email }}</p>
-                  <p class="text-xs text-gray-400">ID: {{ member.id }}</p>
+                  <p class="font-medium text-white truncate">{{ getMemberDisplayName(member) }}</p>
+                  <p class="text-xs text-gray-400 truncate">{{ member.email }}</p>
+                  <p class="text-xs text-gray-500">ID: {{ member.id }}</p>
                 </div>
               </div>
 
@@ -153,6 +154,16 @@
                     <option value="CHIEF_ENGINEER" class="bg-gray-900">⚙️ CHIEF ENGINEER</option>
                     <option value="SUPPORT" class="bg-gray-900">🎧 SUPPORT</option>
                   </select>
+                  <button
+                    v-if="member.id !== currentUser?.user_id && !deletingUserId && !resettingPasswordUserId"
+                    type="button"
+                    @click="openEditModal(member)"
+                    class="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-900/30 rounded transition-colors"
+                    :title="`Edit ${member.email}`"
+                    aria-label="Edit user"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  </button>
                   <button
                     v-if="member.id !== currentUser?.user_id && !deletingUserId && !resettingPasswordUserId"
                     type="button"
@@ -225,6 +236,28 @@
               </button>
             </div>
             <form @submit.prevent="submitCreateUser" class="p-6 space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="create-first-name" class="block text-sm font-medium text-gray-300 mb-1">First name</label>
+                  <input
+                    id="create-first-name"
+                    v-model="createForm.firstName"
+                    type="text"
+                    placeholder="John"
+                    class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label for="create-last-name" class="block text-sm font-medium text-gray-300 mb-1">Last name</label>
+                  <input
+                    id="create-last-name"
+                    v-model="createForm.lastName"
+                    type="text"
+                    placeholder="Doe"
+                    class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
               <div>
                 <label for="create-email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
                 <input
@@ -262,6 +295,16 @@
                 <p v-if="createForm.password && createForm.confirmPassword && createForm.password !== createForm.confirmPassword" class="mt-1 text-sm text-red-400">Passwords do not match</p>
               </div>
               <div>
+                <label for="create-display-name" class="block text-sm font-medium text-gray-300 mb-1">Display name</label>
+                <input
+                  id="create-display-name"
+                  v-model="createForm.displayName"
+                  type="text"
+                  placeholder="Optional"
+                  class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+              <div>
                 <label for="create-role" class="block text-sm font-medium text-gray-300 mb-1">Role</label>
                 <select
                   id="create-role"
@@ -293,6 +336,100 @@
                   class="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:hover:from-purple-500 hover:to-pink-200 dark:hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
                 >
                   {{ createSubmitting ? 'Creating…' : 'Create user' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Edit User Modal -->
+      <Teleport to="body">
+        <div
+          v-if="memberToEdit"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-user-title"
+          @keydown.escape="memberToEdit = null"
+          @click.self="memberToEdit = null"
+        >
+          <div
+            class="w-full max-w-md bg-gray-800 border border-gray-700 rounded-xl shadow-2xl"
+            @click.stop
+          >
+            <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+              <h2 id="edit-user-title" class="text-lg font-bold text-white">Edit user</h2>
+              <button
+                type="button"
+                @click="memberToEdit = null"
+                class="p-2 text-gray-400 hover:text-gray-900 dark:text-white rounded-lg hover:bg-gray-700 transition-colors"
+                aria-label="Close"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form @submit.prevent="submitEditUser" class="p-6 space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="edit-first-name" class="block text-sm font-medium text-gray-300 mb-1">First name</label>
+                  <input
+                    id="edit-first-name"
+                    v-model="editForm.firstName"
+                    type="text"
+                    placeholder="John"
+                    class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label for="edit-last-name" class="block text-sm font-medium text-gray-300 mb-1">Last name</label>
+                  <input
+                    id="edit-last-name"
+                    v-model="editForm.lastName"
+                    type="text"
+                    placeholder="Doe"
+                    class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div>
+                <label for="edit-display-name" class="block text-sm font-medium text-gray-300 mb-1">Display name</label>
+                <input
+                  id="edit-display-name"
+                  v-model="editForm.displayName"
+                  type="text"
+                  placeholder="Optional"
+                  class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label for="edit-email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                <input
+                  id="edit-email"
+                  v-model="editForm.email"
+                  type="email"
+                  required
+                  placeholder="user@company.com"
+                  class="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div v-if="editError" class="p-3 bg-red-900/30 border border-red-500/50 rounded-lg text-sm text-red-300">
+                {{ editError }}
+              </div>
+              <div class="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  @click="memberToEdit = null"
+                  class="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  :disabled="editSubmitting"
+                  class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                >
+                  {{ editSubmitting ? 'Saving…' : 'Save changes' }}
                 </button>
               </div>
             </form>
@@ -608,6 +745,9 @@ definePageMeta({
 interface TeamMember {
   id: number
   email: string
+  first_name?: string
+  last_name?: string
+  display_name?: string
   role: string
   health_score: number
   created_at: string
@@ -656,6 +796,9 @@ const resettingPasswordUserId = ref<number | null>(null)
 // Create user modal
 const showCreateModal = ref(false)
 const createForm = ref({
+  firstName: '',
+  lastName: '',
+  displayName: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -663,6 +806,17 @@ const createForm = ref({
 })
 const createError = ref('')
 const createSubmitting = ref(false)
+
+// Edit user modal
+const memberToEdit = ref<TeamMember | null>(null)
+const editForm = ref({
+  firstName: '',
+  lastName: '',
+  displayName: '',
+  email: ''
+})
+const editError = ref('')
+const editSubmitting = ref(false)
 
 // Import panel
 const showImportPanel = ref(false)
@@ -871,20 +1025,78 @@ const submitCreateUser = async () => {
     await fetchWithAuth<{ data: TeamMember }>('/auth/users', {
       method: 'POST',
       body: {
+        first_name: createForm.value.firstName.trim(),
+        last_name: createForm.value.lastName.trim(),
+        display_name: createForm.value.displayName.trim(),
         email: createForm.value.email.trim(),
         password: createForm.value.password,
         role: createForm.value.role
       }
     })
-    successMessage.value = `User ${createForm.value.email} created`
+    successMessage.value = `User ${getMemberDisplayName({
+      id: 0,
+      email: createForm.value.email,
+      first_name: createForm.value.firstName,
+      last_name: createForm.value.lastName,
+      display_name: createForm.value.displayName,
+      role: createForm.value.role,
+      health_score: 100,
+      created_at: '',
+      updated_at: ''
+    })} created`
     setTimeout(() => { successMessage.value = '' }, 4000)
     showCreateModal.value = false
-    createForm.value = { email: '', password: '', confirmPassword: '', role: 'ENGINEER' }
+    createForm.value = { firstName: '', lastName: '', displayName: '', email: '', password: '', confirmPassword: '', role: 'ENGINEER' }
     await fetchTeamMembers()
   } catch (err: any) {
     createError.value = err?.data?.message || err?.message || 'Failed to create user'
   } finally {
     createSubmitting.value = false
+  }
+}
+
+// Edit user (CEO)
+const openEditModal = (member: TeamMember) => {
+  memberToEdit.value = member
+  editForm.value = {
+    firstName: member.first_name || '',
+    lastName: member.last_name || '',
+    displayName: member.display_name || '',
+    email: member.email
+  }
+  editError.value = ''
+}
+
+const submitEditUser = async () => {
+  const member = memberToEdit.value
+  if (!member) return
+  editError.value = ''
+  editSubmitting.value = true
+  try {
+    const payload: Record<string, string> = {}
+    const fn = editForm.value.firstName.trim()
+    const ln = editForm.value.lastName.trim()
+    const dn = editForm.value.displayName.trim()
+    const em = editForm.value.email.trim()
+    if (fn !== (member.first_name || '')) payload.first_name = fn
+    if (ln !== (member.last_name || '')) payload.last_name = ln
+    if (dn !== (member.display_name || '')) payload.display_name = dn
+    if (em !== member.email) payload.email = em
+
+    if (Object.keys(payload).length > 0) {
+      await fetchWithAuth(`/auth/users/${member.id}`, {
+        method: 'PATCH',
+        body: payload
+      })
+    }
+    successMessage.value = `Updated ${em}`
+    setTimeout(() => { successMessage.value = '' }, 4000)
+    memberToEdit.value = null
+    await fetchTeamMembers()
+  } catch (err: any) {
+    editError.value = err?.data?.message || err?.message || 'Failed to update user'
+  } finally {
+    editSubmitting.value = false
   }
 }
 
@@ -1034,6 +1246,18 @@ const getRoleColor = (role: string) => {
     avatar: 'bg-gray-600 text-white',
     text: 'text-gray-400'
   }
+}
+
+const getMemberDisplayName = (member: TeamMember) => {
+  const parts = [member.first_name, member.last_name].map((part) => (part || '').trim()).filter(Boolean)
+  if (parts.length > 0) return parts.join(' ')
+  if (member.display_name?.trim()) return member.display_name.trim()
+  return member.email
+}
+
+const getMemberAvatarInitial = (member: TeamMember) => {
+  const name = getMemberDisplayName(member)
+  return name.charAt(0).toUpperCase()
 }
 
 const formatDate = (dateString: string) => {

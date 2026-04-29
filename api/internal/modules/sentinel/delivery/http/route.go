@@ -168,7 +168,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 	{
 		adminGroup.GET("/config", handler.GetSystemConfig)    // Get current AI config
 		adminGroup.PUT("/config", handler.UpdateSystemConfig) // Update AI config (CEO only)
-		adminGroup.GET("/models", handler.GetAvailableModels) // Get available Gemini models
-		adminGroup.GET("/ai-usage", handler.GetAIUsage)       // Approximate Gemini quota usage
+		adminGroup.GET("/models", handler.GetAvailableModels) // Get available GLM models
+		adminGroup.GET("/ai-usage", handler.GetAIUsage)       // Approximate AI quota usage
 	}
 }

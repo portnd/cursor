@@ -68,10 +68,16 @@ func (r *postgresRepository) GetAllUsers() ([]domain.User, error) {
 }
 
 // UpdateProfile updates display name and/or tech stack for the given user
-func (r *postgresRepository) UpdateProfile(userID uint, displayName *string, techStack []string) error {
+func (r *postgresRepository) UpdateProfile(userID uint, displayName, firstName, lastName *string, techStack []string) error {
 	updates := make(map[string]interface{})
 	if displayName != nil {
 		updates["display_name"] = *displayName
+	}
+	if firstName != nil {
+		updates["first_name"] = *firstName
+	}
+	if lastName != nil {
+		updates["last_name"] = *lastName
 	}
 	if techStack != nil {
 		updates["tech_stack"] = pq.Array(techStack)
@@ -118,15 +124,43 @@ func (r *postgresRepository) UpdateThemePreference(userID uint, theme string) er
 func (r *postgresRepository) UpdateUserRole(userID uint, newRole string) error {
 	// Update only the role field
 	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("role", newRole)
-	
+
 	if result.Error != nil {
 		return fmt.Errorf("failed to update user role: %w", result.Error)
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("user not found")
 	}
 
+	return nil
+}
+
+// UpdateUserAdmin updates profile fields (first_name, last_name, display_name, email) for a user by admin
+func (r *postgresRepository) UpdateUserAdmin(userID uint, firstName, lastName, displayName, email *string) error {
+	updates := make(map[string]interface{})
+	if firstName != nil {
+		updates["first_name"] = *firstName
+	}
+	if lastName != nil {
+		updates["last_name"] = *lastName
+	}
+	if displayName != nil {
+		updates["display_name"] = *displayName
+	}
+	if email != nil {
+		updates["email"] = *email
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update user: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
 	return nil
 }
 

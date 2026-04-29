@@ -29,7 +29,7 @@ interface TasksApiLike {
   importGoogleSheets: (payload: any) => Promise<any>
 }
 
-interface BacklogImportAssignee { id: number; email: string; display_name: string; role: string }
+interface BacklogImportAssignee { id: number; email: string; display_name: string; first_name?: string; last_name?: string; role: string }
 interface BacklogTriagedSlide { title: string; assignee_id: number | null; estimated_minutes: number; priority: string }
 interface SheetsTriagedRow {
   title: string
@@ -116,7 +116,7 @@ export function useProjectImports(params: {
           const myTeam = teams.find((t: any) => t.users?.some((u: any) => u.id === userId))
           backlogImportAssignees.value = (myTeam?.users ?? [])
             .filter((u: any) => isTaskAssigneeRole(u.role))
-            .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role }))
+            .map((u: any) => ({ id: u.id, email: u.email, display_name: u.display_name, first_name: u.first_name, last_name: u.last_name, role: u.role }))
         } else {
           const res = await fw<{ data: BacklogImportAssignee[] }>('/auth/users')
           backlogImportAssignees.value = (res.data ?? []).filter((u: BacklogImportAssignee) => isTaskAssigneeRole(u.role))

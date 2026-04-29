@@ -701,6 +701,23 @@ func (r *postgresRepo) GetCompanyWideDeliveryAndQuality() (avgDeliveryPct, avgCo
 	return avgDeliveryPct, avgCodeQuality, nil
 }
 
+// buildDisplayName returns the best human-readable name for a user.
+// Priority: "FirstName LastName" → DisplayName → email prefix.
+func buildDisplayName(firstName, lastName, displayName, email string) string {
+	fn := strings.TrimSpace(firstName)
+	ln := strings.TrimSpace(lastName)
+	if fn != "" || ln != "" {
+		return strings.TrimSpace(fn + " " + ln)
+	}
+	if dn := strings.TrimSpace(displayName); dn != "" {
+		return dn
+	}
+	if idx := strings.Index(email, "@"); idx > 0 {
+		return email[:idx]
+	}
+	return email
+}
+
 // GetDisciplineStats returns per-user per-day activity for the given date range.
 // from/to are inclusive, format YYYY-MM-DD.
 func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.DisciplineResponse, error) {
@@ -735,7 +752,7 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 	}
 
 	var users []authDomain.User
-	if err := r.db.Select("id", "email", "display_name", "role", "avatar_url").
+	if err := r.db.Select("id", "email", "first_name", "last_name", "display_name", "role", "avatar_url").
 		Where("role NOT IN ?", []string{"CEO", "SUPPORT"}).
 		Find(&users).Error; err != nil {
 		return nil, err
@@ -1313,7 +1330,7 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 		du := perfDomain.DisciplineUser{
 			UserID:          u.ID,
 			UserEmail:       u.Email,
-			UserDisplayName: u.DisplayName,
+			UserDisplayName: buildDisplayName(u.FirstName, u.LastName, u.DisplayName, u.Email),
 			UserAvatarURL:   u.AvatarURL,
 			Role:            u.Role,
 		}
@@ -1390,14 +1407,14 @@ func (r *postgresRepo) GetDisciplineStats(from, to string) (*perfDomain.Discipli
 func (r *postgresRepo) GetDisciplineDayDetail(userID uint, date string) (*perfDomain.DisciplineDayDetail, error) {
 	// Resolve user info
 	var u authDomain.User
-	if err := r.db.Select("id", "email", "display_name").First(&u, "id = ?", userID).Error; err != nil {
+	if err := r.db.Select("id", "email", "first_name", "last_name", "display_name").First(&u, "id = ?", userID).Error; err != nil {
 		return nil, err
 	}
 
 	detail := &perfDomain.DisciplineDayDetail{
 		UserID:          u.ID,
 		UserEmail:       u.Email,
-		UserDisplayName: u.DisplayName,
+		UserDisplayName: buildDisplayName(u.FirstName, u.LastName, u.DisplayName, u.Email),
 		Date:            date,
 	}
 

@@ -35,6 +35,7 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.Usecase, teamFinance
 			authGroup.DELETE("/users/:id", authMiddleware, handler.DeleteUser)
 			authGroup.PATCH("/users/:id/password", authMiddleware, handler.ResetPassword)
 			authGroup.PATCH("/users/:id/role", authMiddleware, handler.ChangeRole)
+			authGroup.PATCH("/users/:id", authMiddleware, handler.UpdateUser)
 			// Team / Squad management (CEO only)
 			authGroup.GET("/teams", authMiddleware, handler.GetTeams)
 			authGroup.POST("/teams", authMiddleware, handler.CreateTeam)

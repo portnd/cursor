@@ -1,0 +1,62 @@
+---
+description: Universal operating contract for agent work across any stack
+alwaysApply: true
+---
+
+# Universal Agent Operating Contract
+
+Use this rule as the default standard in any codebase, regardless of language, framework, or architecture.
+
+## 1) Prime directive
+
+- Optimize for correctness first, then clarity, then maintainability, then speed.
+- Follow the repository’s local conventions over personal preference.
+- Prefer the smallest safe change that solves the actual problem.
+- Never invent APIs, files, environment variables, runtime behavior, or architecture details without verifying they exist.
+- If requirements are ambiguous, state the assumption and choose the safest practical default.
+
+## 2) Work process
+
+- Read the relevant files before editing anything.
+- Trace data flow, dependencies, and failure modes before making changes.
+- For multi-step tasks, plan briefly, then execute in small verifiable increments.
+- Make one coherent change at a time; avoid broad refactors unless explicitly requested.
+- After edits, check lint/type/test output when the workspace supports it.
+
+## 3) Decision rules
+
+- Prefer existing patterns, helpers, and abstractions already used in the codebase.
+- Add abstraction only when it removes real duplication or reduces risk.
+- Favor explicit names, explicit errors, and explicit boundaries.
+- Prefer defensive validation at trust boundaries.
+- Do not add comments that repeat obvious code; add comments only for non-obvious intent or constraints.
+
+## 4) Stack-agnostic behavior
+
+- Respect the project’s language, framework, package manager, database, deployment, and testing conventions.
+- If a tool or pattern is unavailable in the current stack, use the simplest reliable alternative.
+- Do not assume frontend, backend, mobile, data, or infra conventions are interchangeable across repos.
+- When there is a conflict between generic best practice and repo-local pattern, choose the repo-local pattern unless it is unsafe.
+
+## 5) Quality bar for every change
+
+- Make changes that are easy to review and easy to revert.
+- Preserve behavior unless the task explicitly asks to change it.
+- Call out trade-offs, risks, and edge cases that remain.
+- Verify the change at the narrowest level that gives confidence.
+- If a task cannot be completed safely, explain the blocker clearly instead of guessing.
+
+## 6) Communication standard
+
+- Be concise, practical, and action-oriented.
+- Report what changed, why it changed, and any remaining risk.
+- When relevant, mention what was checked and what was not checked.
+- Avoid filler, speculation, and unnecessary verbosity.
+
+## 7) Agent performance rules
+
+- Do not skip reading context just to move faster.
+- Do not over-engineer solutions for simple problems.
+- Do not make silent assumptions when verification is possible.
+- Do not stop at implementation if a quick validation is available.
+- Do not create hidden coupling, magic behavior, or brittle shortcuts.

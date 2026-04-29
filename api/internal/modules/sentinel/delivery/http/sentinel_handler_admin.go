@@ -93,10 +93,10 @@ func (h *SentinelHandler) UpdateSystemConfig(c *gin.Context) {
 // GetAvailableModels handles GET /admin/models
 func (h *SentinelHandler) GetAvailableModels(c *gin.Context) {
 	models := h.usecase.GetAvailableModels()
-	c.JSON(http.StatusOK, gin.H{"message": "Available Gemini models", "data": models})
+	c.JSON(http.StatusOK, gin.H{"message": "Available GLM models", "data": models})
 }
 
-// GetAIUsage handles GET /admin/ai-usage — approximate Gemini API usage and remaining quota (from our request counter).
+// GetAIUsage handles GET /admin/ai-usage — approximate AI API usage and remaining quota (from our request counter).
 func (h *SentinelHandler) GetAIUsage(c *gin.Context) {
 	usage := h.usecase.GetAIUsage()
 	c.JSON(http.StatusOK, gin.H{"message": "AI usage (approximate)", "data": usage})

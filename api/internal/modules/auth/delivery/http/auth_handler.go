@@ -415,6 +415,81 @@ func (h *AuthHandler) ChangeRole(c *gin.Context) {
 	})
 }
 
+// UpdateUser handles PATCH /auth/users/:id (CEO only)
+// Request Body: { "first_name": "...", "last_name": "...", "display_name": "...", "email": "..." }
+func (h *AuthHandler) UpdateUser(c *gin.Context) {
+	requestingUserID := getUserIDFromContext(c)
+	if requestingUserID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Unauthorized",
+			"message": "Authentication required",
+		})
+		return
+	}
+
+	targetUserID := c.Param("id")
+	if targetUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Bad Request",
+			"message": "User ID is required",
+		})
+		return
+	}
+
+	var targetID uint
+	if _, err := fmt.Sscanf(targetUserID, "%d", &targetID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Bad Request",
+			"message": "Invalid user ID format",
+		})
+		return
+	}
+
+	var req domain.UpdateUserAdminRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	user, err := h.usecase.UpdateUserAdmin(requestingUserID, targetID, &req)
+	if err != nil {
+		if strings.Contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "Forbidden",
+				"message": err.Error(),
+			})
+			return
+		}
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "Not Found",
+				"message": err.Error(),
+			})
+			return
+		}
+		if err.Error() == "email already registered" {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "Conflict",
+				"message": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to update user",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User updated successfully",
+		"data":    user,
+	})
+}
+
 // DeleteUser handles DELETE /auth/users/:id (CEO only). Cannot delete yourself.
 func (h *AuthHandler) DeleteUser(c *gin.Context) {
 	requestingUserID := getUserIDFromContext(c)
@@ -538,7 +613,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 }
 
 // CreateUser handles POST /auth/users (CEO only)
-// Request Body: { "email": "user@example.com", "password": "password123", "role": "ENGINEER" }
+// Request Body: { "email": "user@example.com", "password": "password123", "role": "ENGINEER", "first_name": "...", "last_name": "..." }
 func (h *AuthHandler) CreateUser(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	if userID == 0 {

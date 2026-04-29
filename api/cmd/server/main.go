@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -129,6 +130,24 @@ func main() {
 	case cfg.UseNoopAI:
 		aiService = sentinelRepo.NewNoopAIService()
 		log.Println("✅ AI service: noop (USE_NOOP_AI=true — no external API calls)")
+	case cfg.GlmAPIKey != "":
+		var errAI error
+		aiService, errAI = sentinelRepo.NewGLMService(cfg.GlmAPIKey, cfg.GlmBaseURL, sentinelRepository, aiUsageTracker)
+		if errAI != nil {
+			log.Printf("⚠️  GLM AI init failed, falling back: %v", errAI)
+			// Fallback to Groq or Gemini
+			if cfg.GroqAPIKey != "" {
+				aiService, _ = sentinelRepo.NewGroqService(cfg.GroqAPIKey, sentinelRepository, aiUsageTracker)
+				log.Println("✅ Fallback to Groq AI service")
+			} else if cfg.GeminiAPIKey != "" {
+				aiService, _ = sentinelRepo.NewGeminiService(cfg.GeminiAPIKey, sentinelRepository, aiUsageTracker)
+				log.Println("✅ Fallback to Gemini AI service")
+			} else {
+				aiService = sentinelRepo.NewNoopAIService()
+			}
+		} else {
+			log.Printf("✅ GLM AI service enabled (model: %s, base: %s)", cfg.GlmModel, cfg.GlmBaseURL)
+		}
 	case cfg.GroqAPIKey != "":
 		var errAI error
 		aiService, errAI = sentinelRepo.NewGroqService(cfg.GroqAPIKey, sentinelRepository, aiUsageTracker)
@@ -149,7 +168,7 @@ func main() {
 		}
 	default:
 		aiService = sentinelRepo.NewNoopAIService()
-		log.Println("⚠️  GROQ_API_KEY / GEMINI_API_KEY not set; AI estimate/code review disabled")
+		log.Println("⚠️  GLM_API_KEY / GROQ_API_KEY / GEMINI_API_KEY not set; AI estimate/code review disabled")
 	}
 	sentinelUsecaseInstance := sentinelUsecase.NewSentinelUsecase(sentinelRepository, aiService, authRepository, aiUsageTracker, cfg.AILimitRPM, cfg.AILimitRPD)
 
@@ -202,8 +221,18 @@ func main() {
 	// Large PPTX uploads (Canva exports): default 32 MiB multipart buffer is low; spill threshold for multipart parsing.
 	router.MaxMultipartMemory = 128 << 20 // 128 MiB
 
+	// CORS configuration: allow any localhost/127.0.0.1 origin (any port) in development
+	// This enables browser previews and local development with dynamic ports
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
+		AllowOriginFunc: func(origin string) bool {
+			// In production, you may want to restrict this further
+			if cfg.AppEnv == "production" {
+				// Production: only allow specific origins
+				return origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000"
+			}
+			// Development: allow any localhost/127.0.0.1 origin with any port
+			return strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:")
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "Accept-Encoding"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Encoding", "Cache-Control"},

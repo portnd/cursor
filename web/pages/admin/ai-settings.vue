@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="mb-6 border-b border-gray-700 pb-4">
       <h1 class="text-2xl font-bold text-white">AI CONFIGURATION</h1>
-      <p class="text-sm text-gray-400 mt-1">System-wide AI behavior settings</p>
+      <p class="text-sm text-gray-400 mt-1">GLM Model &amp; behavior settings</p>
     </div>
 
     <!-- Loading State -->
@@ -29,6 +29,9 @@
               <span class="px-2 py-0.5 bg-green-700 text-green-100 text-xs font-bold rounded">
                 LIVE
               </span>
+              <span class="px-2 py-0.5 text-xs font-medium rounded" :class="getModelBadge(formData.active_model).class">
+                {{ getModelBadge(formData.active_model).label }}
+              </span>
             </div>
           </div>
           <div class="text-right">
@@ -38,29 +41,42 @@
         </div>
       </div>
 
+      <!-- Model Cards (visual selector) -->
+      <div class="mb-6">
+        <h2 class="text-sm font-bold text-gray-400 uppercase mb-3">Select GLM Model</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div
+            v-for="m in modelCards"
+            :key="m.id"
+            @click="formData.active_model = m.id"
+            class="cursor-pointer border rounded-lg p-4 transition-all"
+            :class="formData.active_model === m.id
+              ? 'border-blue-500 bg-blue-900/20 ring-1 ring-blue-500'
+              : 'border-gray-700 bg-gray-800 hover:border-gray-500'"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm font-bold text-white">{{ m.name }}</span>
+              <span v-if="formData.active_model === m.id" class="text-blue-400 text-lg">✓</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-2">{{ m.description }}</p>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="tag in m.tags"
+                :key="tag"
+                class="px-1.5 py-0.5 text-[10px] font-medium rounded"
+                :class="getTagClass(tag)"
+              >
+                {{ tag }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Configuration Form -->
       <div class="space-y-6">
-        
-        <!-- 1. Model Selector -->
-        <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <h2 class="text-sm font-bold text-gray-400 uppercase mb-3">AI Model Selection</h2>
 
-          <label class="block text-sm text-gray-400 mb-2">Active Model</label>
-          <select
-            v-model="formData.active_model"
-            class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 outline-none"
-          >
-            <option v-for="model in availableModels" :key="model" :value="model">
-              {{ model }}
-              <span v-if="model === config.active_model"> (Current)</span>
-            </option>
-          </select>
-          <p class="text-xs text-gray-500 mt-2">
-            {{ modelsLoadNote }}
-          </p>
-        </div>
-
-        <!-- 2. Temperature Control -->
+        <!-- Temperature Control -->
         <div class="bg-gray-800 border border-gray-700 rounded p-4">
           <h2 class="text-sm font-bold text-gray-400 uppercase mb-3">Temperature</h2>
 
@@ -68,7 +84,7 @@
             <span class="text-sm text-gray-400">Value</span>
             <span class="text-xl font-bold text-white">{{ formData.temperature.toFixed(2) }}</span>
           </div>
-          
+
           <input
             v-model.number="formData.temperature"
             type="range"
@@ -77,7 +93,7 @@
             step="0.05"
             class="w-full h-2 bg-gray-700 rounded appearance-none cursor-pointer"
           />
-          
+
           <div class="flex justify-between text-xs text-gray-500 mt-2">
             <span>0.0 (Strict)</span>
             <span>0.5 (Balanced)</span>
@@ -89,7 +105,7 @@
           </div>
         </div>
 
-        <!-- 3. Cursor Assistance Factor -->
+        <!-- Cursor Assistance Factor -->
         <div class="bg-gray-800 border border-gray-700 rounded p-4">
           <h2 class="text-sm font-bold text-gray-400 uppercase mb-3">Cursor AI Assistance Level</h2>
 
@@ -97,7 +113,7 @@
             <span class="text-sm text-gray-400">Level</span>
             <span class="text-xl font-bold text-white">{{ formData.cursor_assistance }}%</span>
           </div>
-          
+
           <input
             v-model.number="formData.cursor_assistance"
             type="range"
@@ -106,7 +122,7 @@
             step="5"
             class="w-full h-2 bg-gray-700 rounded appearance-none cursor-pointer"
           />
-          
+
           <div class="flex justify-between text-xs text-gray-500 mt-2">
             <span>0% (Manual)</span>
             <span>50% (Hybrid)</span>
@@ -123,22 +139,6 @@
           </div>
         </div>
 
-        <!-- 4. Quota (real values only at Google) -->
-        <div class="bg-gray-800 border border-gray-700 rounded p-4">
-          <h2 class="text-sm font-bold text-gray-400 uppercase mb-3">โควต้า Gemini</h2>
-          <p class="text-sm text-gray-400 mb-3">
-            โควต้าจริง (RPM / RPD / TPM) Google ไม่เปิด API ให้ดึงได้ — ดูได้ที่ Google AI Studio เท่านั้น
-          </p>
-          <a
-            href="https://aistudio.google.com/rate-limit"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 font-medium"
-          >
-            ดูโควต้าจริงที่ Google AI Studio →
-          </a>
-        </div>
-
       </div>
 
       <!-- Action Buttons -->
@@ -146,7 +146,7 @@
         <button
           @click="saveConfiguration"
           :disabled="isSaving"
-          class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-100 dark:from-purple-600 to-pink-100 dark:to-pink-600 hover:from-purple-200 dark:from-purple-700 hover:to-pink-200 dark:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
+          class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded transition-colors flex items-center justify-center gap-2"
         >
           <span v-if="isSaving" class="animate-spin">⚙️</span>
           <span v-else>💾</span>
@@ -162,9 +162,9 @@
       </div>
 
       <!-- Info Footer -->
-      <div class="mt-6 p-4 bg-purple-900/10 border border-purple-500/30 rounded">
-        <p class="text-sm text-purple-300">
-          Changes take effect immediately for all AI operations.
+      <div class="mt-6 p-4 bg-blue-900/10 border border-blue-500/30 rounded">
+        <p class="text-sm text-blue-300">
+          Changes take effect immediately for all AI operations. GLM models are served via ZhipuAI (OpenAI-compatible API).
         </p>
       </div>
     </div>
@@ -172,7 +172,7 @@
     <!-- Success Toast -->
     <div
       v-if="showSuccessToast"
-      class="fixed bottom-8 right-8 bg-gray-800 border-2 border-purple-500 text-white px-6 py-4 rounded-lg flex items-center gap-3 z-50 shadow-xl"
+      class="fixed bottom-8 right-8 bg-gray-800 border-2 border-blue-500 text-white px-6 py-4 rounded-lg flex items-center gap-3 z-50 shadow-xl"
     >
       <span>✅</span>
       <div>
@@ -196,24 +196,69 @@ interface SystemConfig {
   updated_at: string
 }
 
+interface ModelCard {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+}
+
 const { fetchWithAuth } = useAuth()
 const { showError, confirm } = useNotification()
 
+const modelCards: ModelCard[] = [
+  {
+    id: 'glm-5.1',
+    name: 'GLM-5.1',
+    description: 'Flagship — top-tier coding & agentic tasks. Best for project plan generation and complex code review.',
+    tags: ['Recommended', '744B MoE', '200K ctx']
+  },
+  {
+    id: 'glm-5',
+    name: 'GLM-5',
+    description: 'Complex systems engineering & long-horizon agentic tasks. Strong reasoning capabilities.',
+    tags: ['Agentic', '744B MoE', '200K ctx']
+  },
+  {
+    id: 'glm-4.7',
+    name: 'GLM-4.7',
+    description: 'Daily coding & agentic workflows. Good balance of quality and speed.',
+    tags: ['Balanced', '200K ctx']
+  },
+  {
+    id: 'glm-4.7-flash',
+    name: 'GLM-4.7-Flash',
+    description: 'High-efficiency, low-cost model. Best for task estimation, quick reviews, and volume work.',
+    tags: ['Fast', 'Low Cost', 'Default']
+  },
+  {
+    id: 'glm-5v-turbo',
+    name: 'GLM-5V-Turbo',
+    description: 'Multimodal — processes screenshots & UI mockups. For vision + code tasks.',
+    tags: ['Vision', 'Multimodal']
+  },
+  {
+    id: 'glm-4.6',
+    name: 'GLM-4.6',
+    description: 'Previous generation. Solid for general tasks with advanced reasoning.',
+    tags: ['Stable', '128K ctx']
+  }
+]
+
 // State
 const config = ref<SystemConfig>({
-  active_model: 'gemini-2.5-flash-lite',
+  active_model: 'glm-4.7-flash',
   temperature: 0.4,
   cursor_assistance: 80,
   updated_at: new Date().toISOString()
 })
 
 const formData = ref({
-  active_model: 'gemini-2.5-flash-lite',
+  active_model: 'glm-4.7-flash',
   temperature: 0.4,
   cursor_assistance: 80
 })
 
-const availableModels = ref<string[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 const error = ref('')
@@ -235,32 +280,6 @@ const fetchConfig = async () => {
   }
 }
 
-const modelsFromAPI = ref(false)
-const modelsLoadNote = computed(() =>
-  modelsFromAPI.value
-    ? `Loaded ${availableModels.value.length} models from Gemini API.`
-    : 'Using default list (Gemini API unavailable or no key).'
-)
-
-// Fetch available models (backend calls Gemini List Models API)
-const fetchModels = async () => {
-  try {
-    const response = await fetchWithAuth<{ data: string[] }>('/admin/models')
-    availableModels.value = response.data || []
-    modelsFromAPI.value = availableModels.value.length > 0
-  } catch (err: any) {
-    console.error('Failed to fetch models:', err)
-    availableModels.value = [
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
-      'gemini-2.0-flash-exp',
-      'gemini-2.5-flash-lite',
-      'gemini-exp-1206'
-    ]
-    modelsFromAPI.value = false
-  }
-}
-
 // Save configuration
 const saveConfiguration = async () => {
   try {
@@ -269,11 +288,10 @@ const saveConfiguration = async () => {
       method: 'PUT',
       body: formData.value
     })
-    
+
     config.value = response.data
     showSuccessToast.value = true
-    
-    // Hide toast after 3 seconds
+
     setTimeout(() => {
       showSuccessToast.value = false
     }, 3000)
@@ -289,27 +307,46 @@ const saveConfiguration = async () => {
 const resetToDefaults = async () => {
   const ok = await confirm({
     title: 'Reset to defaults',
-    message: 'Reset to default configuration? Model: gemini-2.5-flash-lite, Temperature: 0.4, Cursor Assistance: 80%',
+    message: 'Reset to default configuration? Model: glm-4.7-flash, Temperature: 0.4, Cursor Assistance: 80%',
     confirmLabel: 'Reset',
     cancelLabel: 'Cancel',
     variant: 'primary'
   })
   if (ok) {
     formData.value = {
-      active_model: 'gemini-2.5-flash-lite',
+      active_model: 'glm-4.7-flash',
       temperature: 0.4,
       cursor_assistance: 80
     }
   }
 }
 
+// Model badge helper
+const getModelBadge = (modelId: string): { label: string; class: string } => {
+  if (modelId.startsWith('glm-5.1')) return { label: 'Flagship', class: 'bg-yellow-700 text-yellow-100' }
+  if (modelId.startsWith('glm-5')) return { label: 'Agentic', class: 'bg-purple-700 text-purple-100' }
+  if (modelId.includes('flash')) return { label: 'Fast', class: 'bg-green-700 text-green-100' }
+  if (modelId.includes('5v')) return { label: 'Vision', class: 'bg-orange-700 text-orange-100' }
+  return { label: 'Standard', class: 'bg-gray-700 text-gray-300' }
+}
+
+// Tag color helper
+const getTagClass = (tag: string): string => {
+  if (tag === 'Recommended') return 'bg-yellow-900/50 text-yellow-300'
+  if (tag === 'Default') return 'bg-blue-900/50 text-blue-300'
+  if (tag === 'Fast' || tag === 'Low Cost') return 'bg-green-900/50 text-green-300'
+  if (tag === 'Agentic') return 'bg-purple-900/50 text-purple-300'
+  if (tag === 'Vision' || tag === 'Multimodal') return 'bg-orange-900/50 text-orange-300'
+  return 'bg-gray-700 text-gray-400'
+}
+
 // Temperature helpers
 const getTemperatureDescription = (temp: number): string => {
-  if (temp <= 0.2) return '🎯 Maximum Precision - Highly consistent estimates'
-  if (temp <= 0.4) return '⚖️ Balanced - Stable with slight variation'
-  if (temp <= 0.6) return '🎨 Creative - More diverse responses'
-  if (temp <= 0.8) return '🌈 Highly Creative - Varied outputs'
-  return '🚀 Experimental - Maximum creativity'
+  if (temp <= 0.2) return '🎯 Maximum Precision — Highly consistent estimates'
+  if (temp <= 0.4) return '⚖️ Balanced — Stable with slight variation'
+  if (temp <= 0.6) return '🎨 Creative — More diverse responses'
+  if (temp <= 0.8) return '🌈 Highly Creative — Varied outputs'
+  return '🚀 Experimental — Maximum creativity'
 }
 
 // Cursor Assistance Helpers
@@ -321,15 +358,9 @@ const getCursorTitle = (level: number): string => {
 }
 
 const getCursorDescription = (level: number): string => {
-  if (level <= 20) {
-    return 'Minimal AI assistance. Developers code mostly manually. Expect traditional development speeds.'
-  }
-  if (level <= 50) {
-    return 'Moderate AI usage for suggestions and debugging. Balanced approach with moderate time savings.'
-  }
-  if (level <= 80) {
-    return 'Heavy AI reliance for boilerplate, refactoring, and debugging. Significant productivity boost.'
-  }
+  if (level <= 20) return 'Minimal AI assistance. Developers code mostly manually. Expect traditional development speeds.'
+  if (level <= 50) return 'Moderate AI usage for suggestions and debugging. Balanced approach with moderate time savings.'
+  if (level <= 80) return 'Heavy AI reliance for boilerplate, refactoring, and debugging. Significant productivity boost.'
   return 'AI-first workflow with near-complete AI assistance. Maximum velocity with aggressive estimates.'
 }
 
@@ -347,7 +378,6 @@ const formatDateTime = (dateString: string) => {
 
 // Load data on mount
 onMounted(async () => {
-  await Promise.all([fetchConfig(), fetchModels()])
+  await fetchConfig()
 })
 </script>
-

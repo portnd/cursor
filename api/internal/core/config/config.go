@@ -30,6 +30,9 @@ type Config struct {
 	CanvaAccessToken string // CANVA_ACCESS_TOKEN — Canva Connect OAuth access token (design:meta:read + design:content:read)
 	GeminiAPIKey     string // GEMINI_API_KEY for AI estimate/code review
 	GroqAPIKey       string // GROQ_API_KEY — when set, use Groq instead of Gemini
+	GlmAPIKey        string // GLM_API_KEY — ZhipuAI / GLM API key (OpenAI-compatible endpoint)
+	GlmBaseURL       string // GLM_BASE_URL — e.g. https://api.apiyi.com/v1 or https://api.z.ai/api/coding/paas/v4
+	GlmModel         string // GLM_MODEL — default model, e.g. glm-4.7-flash or glm-5.1
 	UseNoopAI        bool   // USE_NOOP_AI=true to bypass external AI and use noop_ai_service only
 
 	// Optional: AI quota limits for usage display (defaults in code: 15 RPM, 250 RPD if unset)
@@ -61,6 +64,9 @@ func Load() (*Config, error) {
 		CanvaAccessToken: getEnv("CANVA_ACCESS_TOKEN", ""),
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
 		GroqAPIKey:       getEnv("GROQ_API_KEY", ""),
+		GlmAPIKey:        getEnv("GLM_API_KEY", ""),
+		GlmBaseURL:       getEnv("GLM_BASE_URL", "https://api.apiyi.com/v1"),
+		GlmModel:         getEnv("GLM_MODEL", "glm-4.7-flash"),
 		UseNoopAI:        getEnv("USE_NOOP_AI", "") == "true" || getEnv("USE_NOOP_AI", "") == "1",
 
 		AILimitRPM: getEnvInt("AI_LIMIT_RPM", 0), // 0 = use default in usage tracker

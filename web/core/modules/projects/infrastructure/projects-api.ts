@@ -10,6 +10,10 @@ export interface Project {
   // Squad Model
   team_id?: number | null
   team_name?: string
+  /** Optional display-only responsibility roles for project header UX */
+  project_manager_name?: string
+  project_lead_name?: string
+  project_owner_name?: string
   // Internal VC — Project Capital
   capital_balance: number
   bonus_percentage: number

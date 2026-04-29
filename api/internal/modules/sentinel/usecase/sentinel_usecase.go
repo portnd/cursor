@@ -1876,17 +1876,16 @@ func (u *sentinelUsecase) UpdateSystemConfig(activeModel string, temperature flo
 }
 
 var fallbackModels = []string{
-	"gemini-1.5-flash",
-	"gemini-1.5-pro",
-	"gemini-2.0-flash-exp",
-	"gemini-2.5-flash-lite",
-	"gemini-exp-1206",
-	"gemini-flash-lite-latest",
-	"gemini-pro-latest",
-	"gemini-flash-latest",
+	"glm-5.1",
+	"glm-5",
+	"glm-4.7",
+	"glm-4.7-flash",
+	"glm-5v-turbo",
+	"glm-4.6",
+	"glm-4-32b",
 }
 
-// GetAvailableModels returns list of Gemini models from List Models API, or fallback if API key missing/fails.
+// GetAvailableModels returns list of GLM models from the active AI provider, or fallback if unavailable.
 func (u *sentinelUsecase) GetAvailableModels() []string {
 	list, err := u.aiService.ListModels()
 	if err != nil || len(list) == 0 {
@@ -1896,7 +1895,7 @@ func (u *sentinelUsecase) GetAvailableModels() []string {
 	return list
 }
 
-// GetAIUsage returns approximate Gemini API usage (requests last minute, today) and remaining quota. Uses in-memory tracker; limits from config or default.
+// GetAIUsage returns approximate AI API usage (requests last minute, today) and remaining quota. Uses in-memory tracker; limits from config or default.
 func (u *sentinelUsecase) GetAIUsage() domain.AIUsage {
 	if u.usageTracker == nil {
 		return domain.AIUsage{}

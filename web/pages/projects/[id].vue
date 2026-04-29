@@ -74,6 +74,32 @@
 
       <!-- Tab Content -->
       <div class="relative mx-auto w-full max-w-[1600px] p-3 sm:p-6 lg:p-8">
+        <div class="rounded-2xl border border-white/10 bg-slate-950/60 p-4 shadow-lg mb-6">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-200">รายชื่อผู้รับผิดชอบโครงการ</h2>
+              <p class="text-[11px] text-slate-500">แสดงไว้บนสุดเพื่อให้เห็นบทบาทหลักทันที</p>
+            </div>
+            <button
+              v-if="isProjectCeo"
+              type="button"
+              class="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-500/20"
+              @click="showProjectRoleEditor = true"
+            >
+              เลือก / เพิ่มชื่อ
+            </button>
+          </div>
+          <div class="grid gap-2 sm:grid-cols-3">
+            <div v-for="row in projectRoleRows" :key="row.key" class="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{{ row.label }}</div>
+              <div class="mt-1 min-h-[1.5rem] text-sm text-slate-100 break-words">
+                <span v-if="row.value">{{ row.value }}</span>
+                <span v-else class="text-slate-500">ยังไม่ได้ระบุ</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- TAB 1: Overview -->
         <div v-if="isTabMounted('overview')" v-show="activeTab === 'overview'" class="overview-enterprise space-y-6">
           <!-- Key Metrics -->
@@ -1784,7 +1810,7 @@
                         :disabled="!backlogImportSelectedIndices.includes(s.index)"
                       >
                         <option :value="null">— Unassigned —</option>
-                        <option v-for="u in backlogImportAssignees" :key="u.id" :value="u.id">{{ u.display_name || u.email }}</option>
+                        <option v-for="u in backlogImportAssignees" :key="u.id" :value="u.id">{{ userFullName(u) }}</option>
                       </select>
                     </td>
                     <td class="py-2 px-2">
@@ -1986,7 +2012,7 @@
                         :disabled="!pptxImportSelectedIndices.includes(s.index)"
                       >
                         <option :value="null">— Unassigned —</option>
-                        <option v-for="u in backlogImportAssignees" :key="u.id" :value="u.id">{{ u.display_name || u.email }}</option>
+                        <option v-for="u in backlogImportAssignees" :key="u.id" :value="u.id">{{ userFullName(u) }}</option>
                       </select>
                     </td>
                     <td class="py-2 px-2">
@@ -2762,6 +2788,77 @@
       </div>
     </div>
 
+    <!-- Project Role Editor Modal -->
+    <div v-if="showProjectRoleEditor" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeProjectRoleEditor">
+      <div class="w-full rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl max-w-[min(96vw,1400px)]">
+        <div class="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">เลือกหรือเพิ่มชื่อ</h2>
+            <p class="text-xs text-slate-400">กำหนดผู้จัดการโครงการ, หัวหน้าโครงการ และผู้รับผิดชอบโครงการ</p>
+          </div>
+          <button type="button" class="text-gray-400 hover:text-white" @click="closeProjectRoleEditor">✕</button>
+        </div>
+        <div class="grid gap-5 px-6 py-5 lg:grid-cols-[220px_1fr]">
+          <div class="space-y-2">
+            <button
+              v-for="row in projectRoleRows"
+              :key="row.key"
+              type="button"
+              class="w-full rounded-xl border px-3 py-3 text-left transition-colors"
+              :class="projectRoleEditorType === row.key ? 'border-violet-400 bg-violet-500/15 text-white' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'"
+              @click="projectRoleEditorType = row.key; projectRoleDraft = row.value"
+            >
+              <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ row.label }}</div>
+              <div class="mt-1 truncate text-sm">{{ row.value || 'ยังไม่ได้ระบุ' }}</div>
+            </button>
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Role</label>
+              <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100">
+                {{ projectRoleLabels[projectRoleEditorType] }}
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">ค้นหา/พิมพ์ชื่อ</label>
+              <input v-model="projectRoleSearch" type="search" class="input-field w-full" placeholder="ค้นหาชื่อ, email, role..." />
+            </div>
+            <div class="grid gap-2 rounded-xl border border-white/10 bg-slate-950/40 p-3 max-h-64 overflow-y-auto">
+              <button
+                v-for="u in filteredProjectRoleUsers"
+                :key="u.id"
+                type="button"
+                class="flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-white/10"
+                @click="projectRoleDraft = userFullName(u)"
+              >
+                <span class="min-w-0">
+                  <span class="block truncate text-slate-100">{{ userFullName(u) }}</span>
+                  <span class="block truncate text-xs text-slate-500">{{ u.email }} · {{ u.role }}</span>
+                </span>
+                <span class="ml-3 text-xs text-violet-300">เลือก</span>
+              </button>
+              <div v-if="!filteredProjectRoleUsers.length" class="py-4 text-center text-sm text-slate-500">
+                ไม่พบชื่อในรายการ — พิมพ์ชื่อใหม่ได้เลย
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">ชื่อที่บันทึก</label>
+              <input v-model="projectRoleDraft" type="text" class="input-field w-full" placeholder="พิมพ์ชื่อใหม่ หรือเลือกจากรายการด้านบน" />
+            </div>
+            <div class="flex flex-wrap justify-between gap-3">
+              <button type="button" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10" @click="projectRoleDraft = ''">
+                ล้างค่า
+              </button>
+              <div class="flex gap-2">
+                <button type="button" class="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800" @click="closeProjectRoleEditor">ยกเลิก</button>
+                <button type="button" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500" @click="saveProjectRoleEditor">บันทึก</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Edit Project Modal -->
     <div v-if="showEditProjectModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeEditProjectModal">
       <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
@@ -3080,9 +3177,84 @@ const { showError, showSuccess, confirm } = useNotification()
 const tasksApi = useTasksApi()
 const teamsStore = useTeamsStore()
 
-const backlogAssigneeUsers = ref<{ id: number; email: string; display_name: string; role: string }[]>([])
+const backlogAssigneeUsers = ref<{ id: number; email: string; display_name: string; first_name?: string; last_name?: string; role: string }[]>([])
 const backlogAssigneeLoading = ref(false)
 const backlogAssigneeError = ref('')
+
+const PROJECT_ROLE_STORAGE_PREFIX = 'sentinel-project-role-names-v1'
+const projectRoleSearch = ref('')
+const showProjectRoleEditor = ref(false)
+const projectRoleEditorType = ref<'project_manager_name' | 'project_lead_name' | 'project_owner_name'>('project_manager_name')
+const projectRoleDraft = ref('')
+
+const projectRoleLabels: Record<typeof projectRoleEditorType.value, string> = {
+  project_manager_name: 'ผู้จัดการโครงการ',
+  project_lead_name: 'หัวหน้าโครงการ',
+  project_owner_name: 'เจ้าของโครงการ',
+}
+
+function getProjectRoleStorageKey(projectIdOrCode: string) {
+  return `${PROJECT_ROLE_STORAGE_PREFIX}:${String(projectIdOrCode).toLowerCase()}`
+}
+
+function readProjectRoleStore(projectIdOrCode: string): Record<string, string> | null {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(getProjectRoleStorageKey(projectIdOrCode))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Record<string, string>
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeProjectRoleStore(projectIdOrCode: string, payload: Record<string, string>) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(getProjectRoleStorageKey(projectIdOrCode), JSON.stringify(payload))
+  } catch {
+    // ignore quota errors
+  }
+}
+
+function syncProjectRoleNamesFromStore() {
+  if (!project.value) return
+  const stored = readProjectRoleStore(project.value.id) || readProjectRoleStore(project.value.code) || null
+  if (!stored) return
+  project.value = {
+    ...project.value,
+    project_manager_name: stored.project_manager_name || project.value.project_manager_name,
+    project_lead_name: stored.project_lead_name || project.value.project_lead_name,
+    project_owner_name: stored.project_owner_name || project.value.project_owner_name,
+  }
+}
+
+const projectRoleRows = computed(() => [
+  {
+    key: 'project_manager_name' as const,
+    label: 'ผู้จัดการโครงการ',
+    value: project.value?.project_manager_name?.trim() || '',
+  },
+  {
+    key: 'project_lead_name' as const,
+    label: 'หัวหน้าโครงการ',
+    value: project.value?.project_lead_name?.trim() || '',
+  },
+  {
+    key: 'project_owner_name' as const,
+    label: 'เจ้าของโครงการ',
+    value: project.value?.project_owner_name?.trim() || '',
+  },
+])
+
+const filteredProjectRoleUsers = computed(() => {
+  const q = projectRoleSearch.value.trim().toLowerCase()
+  if (!q) return visibleBacklogAssigneeUsers.value
+  return visibleBacklogAssigneeUsers.value.filter((u) => {
+    return [u.display_name, u.email, u.role, u.first_name, u.last_name].filter(Boolean).join(' ').toLowerCase().includes(q)
+  })
+})
 
 /** Capital / Costing / Backup — CEO only (not MANAGER / Product Owner / legacy DEV). */
 const CEO_ONLY_PROJECT_TAB_IDS = new Set(['capital', 'costing', 'backup'])
@@ -4545,7 +4717,7 @@ async function loadBacklogAssignees() {
       const team = teamId ? teamsStore.teamById(teamId) : null
       backlogAssigneeUsers.value = team?.users?.filter((u) => isTaskAssigneeRole(u.role)) ?? []
     } else {
-      const res = await useAuth().fetchWithAuth<{ data: { id: number; email: string; display_name: string; role: string }[] }>('/auth/users')
+      const res = await useAuth().fetchWithAuth<{ data: { id: number; email: string; display_name: string; first_name?: string; last_name?: string; role: string }[] }>('/auth/users')
       backlogAssigneeUsers.value = (res.data ?? []).filter((u) => isTaskAssigneeRole(u.role))
     }
   } catch (e: any) {
@@ -4555,8 +4727,15 @@ async function loadBacklogAssignees() {
   }
 }
 
-function assigneeLabel(u: { display_name?: string; email: string; role: string }) {
-  return `${u.display_name || u.email} (${u.role})`
+function userFullName(u: { first_name?: string; last_name?: string; display_name?: string; email: string }) {
+  const parts = [u.first_name, u.last_name].map((p) => (p || '').trim()).filter(Boolean)
+  if (parts.length > 0) return parts.join(' ')
+  if (u.display_name?.trim()) return u.display_name.trim()
+  return u.email
+}
+
+function assigneeLabel(u: { first_name?: string; last_name?: string; display_name?: string; email: string; role: string }) {
+  return `${userFullName(u)} (${u.role})`
 }
 
 async function updateTaskAssignee(taskId: string, value: string | number) {
@@ -4569,7 +4748,7 @@ async function updateTaskAssignee(taskId: string, value: string | number) {
     allTasks.value[idx] = {
       ...allTasks.value[idx],
       assigned_to: nextDevId > 0 ? nextDevId : null,
-      assigned_to_display_name: selected?.display_name,
+      assigned_to_display_name: selected ? userFullName(selected) : undefined,
       assigned_to_email: selected?.email,
     }
   }
@@ -4685,6 +4864,7 @@ async function loadAll() {
     allTasks.value = details.tasks
     projectDetailsTasksMeta.value = details.tasks_meta ?? null
     writeCachedProjectDetails(idOrCode, details)
+    syncProjectRoleNamesFromStore()
     if (details.tasks.length > 0) {
       const last = details.tasks[details.tasks.length - 1]
       projectTasksNextCursor.value = { created_at: last.created_at, id: last.id }
@@ -5094,6 +5274,31 @@ function openEditProjectModal() {
   }
   editProjectError.value = ''
   showEditProjectModal.value = true
+}
+
+function openProjectRoleEditor(roleKey: 'project_manager_name' | 'project_lead_name' | 'project_owner_name') {
+  projectRoleEditorType.value = roleKey
+  projectRoleDraft.value = project.value?.[roleKey]?.trim() || ''
+  projectRoleSearch.value = ''
+  showProjectRoleEditor.value = true
+}
+
+function closeProjectRoleEditor() {
+  showProjectRoleEditor.value = false
+  projectRoleSearch.value = ''
+}
+
+async function saveProjectRoleEditor() {
+  if (!project.value) return
+  const roleKey = projectRoleEditorType.value
+  const trimmed = projectRoleDraft.value.trim()
+  project.value = { ...project.value, [roleKey]: trimmed }
+  writeProjectRoleStore(project.value.id || route.params.id as string, {
+    project_manager_name: project.value.project_manager_name || '',
+    project_lead_name: project.value.project_lead_name || '',
+    project_owner_name: project.value.project_owner_name || '',
+  })
+  closeProjectRoleEditor()
 }
 
 function closeEditProjectModal() {

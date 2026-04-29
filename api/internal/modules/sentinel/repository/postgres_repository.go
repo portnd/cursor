@@ -1037,7 +1037,7 @@ func (r *postgresRepository) GetSystemConfig() (*domain.SystemConfig, error) {
 		// Create default config if not exists
 		config = domain.SystemConfig{
 			ID:               1,
-			ActiveModel:      "gemini-2.5-flash-lite",
+			ActiveModel:      "glm-4.7-flash",
 			Temperature:      0.4,
 			CursorAssistance: 80,
 		}

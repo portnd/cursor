@@ -100,6 +100,12 @@ services:
       REDIS_PASS: ${REDIS_PASSWORD:-CHANGE_THIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:-CHANGE_THIS_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://yourdomain.com}
+      # AI Provider Priority: GLM > Groq > Gemini > Noop
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GLM_API_KEY: ${GLM_API_KEY:-}
+      GLM_BASE_URL: ${GLM_BASE_URL:-https://api.apiyi.com/v1}
+      GLM_MODEL: ${GLM_MODEL:-glm-4.7-flash}
       # PDF export (cost report, quotation, timeline) — chromedp uses Chromium
       CHROME_PATH: /usr/bin/chromium
     ports:

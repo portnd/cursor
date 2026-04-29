@@ -601,7 +601,7 @@ func (Appeal) TableName() string { return "appeals" }
 // SystemConfig represents dynamic AI configuration (singleton pattern)
 type SystemConfig struct {
 	ID               uint      `json:"-" gorm:"primaryKey"`
-	ActiveModel      string    `json:"active_model" gorm:"default:'gemini-2.5-flash-lite'"`
+	ActiveModel      string    `json:"active_model" gorm:"default:'glm-4.7-flash'"`
 	Temperature      float32   `json:"temperature" gorm:"default:0.4"`      // 0.0 (Stable) to 1.0 (Creative)
 	CursorAssistance int       `json:"cursor_assistance" gorm:"default:80"` // 0 to 100% (AI assistance level)
 	UpdatedAt        time.Time `json:"updated_at" gorm:"autoUpdateTime"`

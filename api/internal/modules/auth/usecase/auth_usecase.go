@@ -165,7 +165,21 @@ func (u *authUsecase) UpdateProfile(userID uint, req *domain.UpdateProfileReques
 		trimmed := strings.TrimSpace(*req.DisplayName)
 		displayName = &trimmed
 	}
-	if err := u.repo.UpdateProfile(userID, displayName, req.TechStack); err != nil {
+	var firstName *string
+	if req.FirstName != nil {
+		trimmed := strings.TrimSpace(*req.FirstName)
+		firstName = &trimmed
+	}
+	var lastName *string
+	if req.LastName != nil {
+		trimmed := strings.TrimSpace(*req.LastName)
+		lastName = &trimmed
+	}
+	if displayName == nil && firstName != nil && lastName != nil {
+		joined := strings.TrimSpace(strings.TrimSpace(*firstName) + " " + strings.TrimSpace(*lastName))
+		displayName = &joined
+	}
+	if err := u.repo.UpdateProfile(userID, displayName, firstName, lastName, req.TechStack); err != nil {
 		return nil, err
 	}
 	return u.repo.FindByID(userID)
@@ -299,9 +313,12 @@ func (u *authUsecase) CreateUserAsAdmin(requestingUserID uint, req *domain.Creat
 	}
 
 	user := &domain.User{
-		Email:    strings.TrimSpace(req.Email),
-		Password: string(hashedPassword),
-		Role:     req.Role,
+		Email:       strings.TrimSpace(req.Email),
+		Password:    string(hashedPassword),
+		Role:        req.Role,
+		FirstName:   strings.TrimSpace(req.FirstName),
+		LastName:    strings.TrimSpace(req.LastName),
+		DisplayName: strings.TrimSpace(req.DisplayName),
 	}
 	if err := u.repo.CreateUser(user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -386,9 +403,12 @@ func (u *authUsecase) ImportUsers(requestingUserID uint, req *domain.ImportUsers
 		}
 
 		user := &domain.User{
-			Email:    email,
-			Password: string(hashedPassword),
-			Role:     role,
+			Email:       email,
+			Password:    string(hashedPassword),
+			Role:        role,
+			FirstName:   strings.TrimSpace(item.FirstName),
+			LastName:    strings.TrimSpace(item.LastName),
+			DisplayName: strings.TrimSpace(item.DisplayName),
 		}
 		if err := u.repo.CreateUser(user); err != nil {
 			errCount++
@@ -419,6 +439,57 @@ func (u *authUsecase) ImportUsers(requestingUserID uint, req *domain.ImportUsers
 		Errors:  errCount,
 		Results: results,
 	}, nil
+}
+
+// UpdateUserAdmin allows CEO to edit a user's profile fields (first_name, last_name, display_name, email)
+func (u *authUsecase) UpdateUserAdmin(requestingUserID uint, targetUserID uint, req *domain.UpdateUserAdminRequest) (*domain.User, error) {
+	requestingUser, err := u.repo.FindByID(requestingUserID)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: user not found")
+	}
+	if requestingUser.Role != domain.RoleCEO {
+		return nil, fmt.Errorf("unauthorized: only CEO can edit users")
+	}
+	targetUser, err := u.repo.FindByID(targetUserID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	// If email is changing, check for duplicates
+	if req.Email != nil {
+		trimmed := strings.TrimSpace(*req.Email)
+		if trimmed != targetUser.Email {
+			existing, _ := u.repo.FindByEmail(trimmed)
+			if existing != nil {
+				return nil, fmt.Errorf("email already registered")
+			}
+		}
+	}
+
+	// Trim string fields
+	var firstName, lastName, displayName, email *string
+	if req.FirstName != nil {
+		v := strings.TrimSpace(*req.FirstName)
+		firstName = &v
+	}
+	if req.LastName != nil {
+		v := strings.TrimSpace(*req.LastName)
+		lastName = &v
+	}
+	if req.DisplayName != nil {
+		v := strings.TrimSpace(*req.DisplayName)
+		displayName = &v
+	}
+	if req.Email != nil {
+		v := strings.TrimSpace(*req.Email)
+		email = &v
+	}
+
+	if err := u.repo.UpdateUserAdmin(targetUserID, firstName, lastName, displayName, email); err != nil {
+		return nil, err
+	}
+
+	return u.repo.FindByID(targetUserID)
 }
 
 // DeleteUser removes a user (CEO only). Cannot delete yourself.
