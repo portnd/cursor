@@ -374,8 +374,9 @@ async function openInjectModal() {
     loading.value = true
     try {
       await store.fetchProjectCapital(props.projectId)
-      if (capital.value?.team_monthly_cost) {
-        localTeamMonthlyCost.value = capital.value.team_monthly_cost
+      const cap = capital.value as ProjectCapitalResponse | null
+      if (cap?.team_monthly_cost) {
+        localTeamMonthlyCost.value = cap.team_monthly_cost
       }
     } finally {
       loading.value = false

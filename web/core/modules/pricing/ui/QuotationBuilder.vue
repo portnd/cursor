@@ -998,6 +998,7 @@
 </template>
 
 <script setup lang="ts">
+import { jsPDF } from 'jspdf'
 import { useCostingStore } from '../store/costing-store'
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'

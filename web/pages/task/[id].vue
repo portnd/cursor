@@ -429,6 +429,17 @@
         <!-- ── LEFT: Description ── -->
         <div class="lg:col-span-2 space-y-6">
 
+          <!-- Sub-tasks -->
+          <SubtaskList
+            :parent-task-id="task.id"
+            :project-id="task.project_id"
+            :parent-task="task"
+            :subtasks="subtasks"
+            :can-edit="canManageSubtasks"
+            :is-max-depth="!!(task.parent_task?.parent_id)"
+            @refresh="fetchTask"
+          />
+
           <!-- Description Card -->
           <div class="enterprise-card rounded-2xl overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/60">
@@ -480,17 +491,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Sub-tasks -->
-          <SubtaskList
-            :parent-task-id="task.id"
-            :project-id="task.project_id"
-            :parent-task="task"
-            :subtasks="subtasks"
-            :can-edit="canManageSubtasks"
-            :is-max-depth="!!(task.parent_task?.parent_id)"
-            @refresh="fetchTask"
-          />
 
           <!-- Discussion & Time Tracking -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1228,6 +1228,16 @@ interface Task {
   proposed_minutes: number
   negotiation_reason: string
   
+  // Progress (0-100)
+  progress?: number
+  
+  // UAT payload (for FEATURE tasks)
+  uat_payload?: {
+    staging_url?: string
+    test_credentials?: string
+    release_notes?: string
+  } | null
+  
   due_at: string | null
   start_date: string | null
   end_date: string | null
@@ -1241,7 +1251,7 @@ interface Task {
   assigned_to_display_name?: string
   assigned_to_email?: string
   assigned_to_avatar_url?: string
-  created_by: number
+  created_by: number | null
   created_by_role?: string
   created_by_email?: string
   created_by_display_name?: string
@@ -1526,7 +1536,7 @@ const effectiveUser = computed(() => {
   const payload = authCurrentUser.value
   if (!payload) return null
   const id = payload.user_id ?? (payload as any).userId
-  return id != null || payload.role ? { id: Number(id) || 0, role: payload.role || '', email: payload.email || '' } : null
+  return id != null || payload.role ? { id: Number(id) || 0, user_id: Number(id) || 0, role: payload.role || '', email: payload.email || '', display_name: payload.display_name, avatar_url: payload.avatar_url } : null
 })
 
 const canEditOrDelete = computed(() => {
@@ -1653,7 +1663,7 @@ const showPMUATActions = computed(() => {
 /** WAIT_FOR_DEPLOY section: task is waiting for Chief Engineer to deploy */
 const showWaitForDeploySection = computed(() => {
   if (!task.value) return false
-  return task.value.status === 'WAIT_FOR_DEPLOY' && ['FEATURE', 'TASK', 'BUG'].includes(task.value.task_type)
+  return task.value.status === 'WAIT_FOR_DEPLOY' && ['FEATURE', 'TASK', 'BUG'].includes(task.value.task_type || '')
 })
 
 /** CEO/MANAGER step: task is READY_FOR_UAT (Chief Engineer deployed) and viewer is CEO or MANAGER */
@@ -1908,7 +1918,7 @@ const fetchRichTaskDetail = async (taskId: string) => {
   try {
     const response = await tasksApi.getTaskDetail(taskId)
     if (mySeq !== richDetailSeq) return
-    task.value = response.task
+    task.value = response.task as Task
     taskDetailLoaded.value = true
     subtasks.value = (response.task.sub_tasks ?? []) as SubTask[]
   } catch (err) {
@@ -2273,7 +2283,7 @@ async function confirmChangeAssignee() {
   try {
     const taskId = (route.params.id as string)?.trim?.() || task.value.id
     await tasksApi.assignTask(taskId, Number(devId))
-    showSuccess(devId === '0' ? 'Assignee removed.' : 'Assignee updated.', 'Done')
+    showSuccess(devId === 0 ? 'Assignee removed.' : 'Assignee updated.', 'Done')
     // Re-fetch silently in background to sync avatar_url & other fields
     fetchTask().catch(() => {})
   } catch (err: any) {
@@ -2608,18 +2618,16 @@ const closeEditModal = () => {
   editError.value = ''
 }
 
-const closeDateTimePicker = (event: Event) => {
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  // Native datetime picker behaves differently across browsers; do both immediate and delayed blur.
-  target.blur()
-  window.requestAnimationFrame(() => target.blur())
-  window.setTimeout(() => {
-    target.blur()
-    ;(document.activeElement as HTMLElement | null)?.blur?.()
+const closeDateTimePicker = (_value: string) => {
+  // Blur any focused input to close datetime picker
+  const active = document.activeElement as HTMLElement | null
+  if (active) {
+    active.blur()
+  }
+  window.requestAnimationFrame(() => {
     const fallback = document.querySelector('.edit-task-modal') as HTMLElement | null
     fallback?.focus?.()
-  }, 10)
+  })
 }
 
 const submitEdit = async () => {

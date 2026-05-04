@@ -1191,7 +1191,7 @@ const submitImport = async () => {
       timeoutMs: 60000
     })
     importResult.value = res.data
-    if (res.data.created > 0) {
+    if (res.data?.created && res.data.created > 0) {
       await fetchTeamMembers()
       successMessage.value = `Imported ${res.data.created} user(s)`
       setTimeout(() => { successMessage.value = '' }, 4000)

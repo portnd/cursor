@@ -516,6 +516,40 @@ func (u *sentinelUsecase) generateUniqueProjectCode(base string, currentProjectI
 
 var validPriorities = map[string]bool{"CRITICAL": true, "HIGH": true, "MEDIUM": true, "LOW": true}
 
+// wouldCreateCycle checks if setting parentID on taskID would create a circular reference.
+// This happens when: 1) parentID == taskID (self-reference), or 2) parentID is a descendant of taskID.
+func (u *sentinelUsecase) wouldCreateCycle(taskID, parentID uuid.UUID) bool {
+	// Self-reference check
+	if parentID == taskID {
+		return true
+	}
+
+	// Traverse up the parent chain from parentID to check if we reach taskID
+	visited := make(map[uuid.UUID]bool)
+	currentID := parentID
+
+	for currentID != uuid.Nil {
+		if visited[currentID] {
+			// Cycle detected in existing data (shouldn't happen, but safety check)
+			return true
+		}
+		visited[currentID] = true
+
+		if currentID == taskID {
+			return true // parentID is a descendant of taskID
+		}
+
+		// Get the parent of currentID
+		task, err := u.repo.GetTaskByID(currentID)
+		if err != nil || task == nil || task.ParentID == nil {
+			break
+		}
+		currentID = *task.ParentID
+	}
+
+	return false
+}
+
 func (u *sentinelUsecase) CreateTask(title, desc, taskType string, creatorID uint, dueDate *time.Time, projectID, parentID *uuid.UUID, startDate, endDate *time.Time, priority string, storyPoints float64, sprintID, milestoneID *uuid.UUID, epicID *uuid.UUID, estimatedMinutes *int) (*domain.Task, error) {
 	defaultEstimatedMinutes := 0
 	if estimatedMinutes != nil && *estimatedMinutes >= 0 {
@@ -1162,6 +1196,10 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 		}
 	}
 	if parentID != nil {
+		// Validate: prevent self-reference and cycles
+		if u.wouldCreateCycle(taskID, *parentID) {
+			return nil, &domain.ErrBadRequest{Msg: "cannot set parent_id: would create a circular reference"}
+		}
 		task.ParentID = parentID
 	}
 	if dueAt != nil {

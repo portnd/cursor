@@ -282,14 +282,19 @@ const handleLogin = async () => {
       if (result.token) authStore.token = result.token
       else if (tokenCookie.value) authStore.token = tokenCookie.value
       if (result.user) {
-        authStore.user = result.user
+        const u = result.user as any
+        authStore.user = {
+          ...u,
+          created_at: u.created_at || new Date().toISOString(),
+          updated_at: u.updated_at || new Date().toISOString(),
+        }
         authStore.isAuthenticated = true
         if (import.meta.client) {
-          localStorage.setItem('user', JSON.stringify(result.user))
+          localStorage.setItem('user', JSON.stringify(u))
         }
         // Apply user's saved theme preference immediately after login
-        if (result.user.theme_preference) {
-          initTheme(result.user.theme_preference as 'dark' | 'light')
+        if (u.theme_preference) {
+          initTheme(u.theme_preference as 'dark' | 'light')
         }
       }
       await router.push('/dashboard')

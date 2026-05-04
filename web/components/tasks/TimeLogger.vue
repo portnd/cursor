@@ -398,7 +398,7 @@ async function confirmDelete(log: TimeLog) {
 
 // ── Helpers ──────────────────────────────────────────────────
 function isOwn(log: TimeLog) {
-  return currentUser.value?.id === log.user_id
+  return currentUser.value?.user_id === log.user_id
 }
 
 function workTypeEmoji(wt: string) {

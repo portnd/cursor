@@ -38,7 +38,7 @@
               class="px-2 py-0.5 text-xs font-semibold rounded-full border shrink-0"
               :class="statusClass(project.status)"
             >
-              {{ project.status.replace('_', ' ') }}
+              {{ formatStatus(project.status) }}
             </span>
             <code class="text-xs text-gray-500 font-mono hidden md:inline shrink-0">{{ project.code }}</code>
           </div>
@@ -74,27 +74,27 @@
 
       <!-- Tab Content -->
       <div class="relative mx-auto w-full max-w-[1600px] p-3 sm:p-6 lg:p-8">
-        <div class="rounded-2xl border border-white/10 bg-slate-950/60 p-4 shadow-lg mb-6">
+        <div class="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-950/60 p-4 shadow-lg mb-6">
           <div class="flex items-center justify-between gap-3 mb-3">
             <div>
-              <h2 class="text-sm font-semibold text-slate-200">รายชื่อผู้รับผิดชอบโครงการ</h2>
-              <p class="text-[11px] text-slate-500">แสดงไว้บนสุดเพื่อให้เห็นบทบาทหลักทันที</p>
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-slate-200">รายชื่อผู้รับผิดชอบโครงการ</h2>
+              <p class="text-[11px] text-gray-500 dark:text-slate-500">แสดงไว้บนสุดเพื่อให้เห็นบทบาทหลักทันที</p>
             </div>
             <button
               v-if="isProjectCeo"
               type="button"
-              class="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-500/20"
+              class="rounded-lg border border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-500/20"
               @click="showProjectRoleEditor = true"
             >
               เลือก / เพิ่มชื่อ
             </button>
           </div>
           <div class="grid gap-2 sm:grid-cols-3">
-            <div v-for="row in projectRoleRows" :key="row.key" class="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{{ row.label }}</div>
-              <div class="mt-1 min-h-[1.5rem] text-sm text-slate-100 break-words">
+            <div v-for="row in projectRoleRows" :key="row.key" class="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 p-3">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{{ row.label }}</div>
+              <div class="mt-1 min-h-[1.5rem] text-sm text-gray-900 dark:text-slate-100 break-words">
                 <span v-if="row.value">{{ row.value }}</span>
-                <span v-else class="text-slate-500">ยังไม่ได้ระบุ</span>
+                <span v-else class="text-gray-400 dark:text-slate-500">ยังไม่ได้ระบุ</span>
               </div>
             </div>
           </div>
@@ -190,7 +190,7 @@
                   <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                  <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ formatStatus(t.status) }}</span>
                   <span v-if="t.due_at" class="text-[10px] text-gray-500">Due {{ formatDate(t.due_at) }}</span>
                 </div>
               </div>
@@ -358,7 +358,7 @@
                   <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
                 </div>
                 <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-                  <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ formatStatus(t.status) }}</span>
                 </div>
               </div>
             </div>
@@ -564,11 +564,11 @@
         <!-- TAB 4: Backlog (WBS + Sprint Planning) -->
         <div v-if="isTabMounted('backlog')" v-show="activeTab === 'backlog'" class="backlog-enterprise space-y-4 sm:space-y-5">
           <!-- Epics Management Section -->
-          <div class="backlog-enterprise-card rounded-xl p-3 sm:p-4">
+          <div class="backlog-enterprise-card rounded-xl border border-gray-200 dark:border-gray-700/40 bg-white dark:bg-gray-900/30 p-3 sm:p-4">
             <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-center gap-2">
-                <span class="text-sm font-semibold text-gray-200">Epics</span>
-                <span class="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">{{ epics.length }}</span>
+                <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Epics</span>
+                <span class="text-xs text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{{ epics.length }}</span>
               </div>
               <button @click="openCreateEpicModal()" class="btn-primary-sm">+ Epic</button>
             </div>
@@ -577,36 +577,36 @@
                 v-for="(ep, epIdx) in epics"
                 :key="ep.id"
                 draggable="true"
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-600/50 bg-gray-700/40 group cursor-grab active:cursor-grabbing"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600/50 bg-gray-100 dark:bg-gray-700/40 group cursor-grab active:cursor-grabbing"
                 :class="{ 'opacity-60': backlogDrag?.type === 'epic' && backlogDrag?.id === ep.id }"
                 @dragstart="onEpicDragStart($event, ep.id)"
                 @dragover="onEpicDragOver"
                 @drop="onEpicDrop($event, epIdx)"
               >
-                <span class="text-gray-500 cursor-grab shrink-0 select-none" title="ลากเพื่อเรียงลำดับ">⋮⋮</span>
+                <span class="text-gray-400 dark:text-gray-500 cursor-grab shrink-0 select-none" title="ลากเพื่อเรียงลำดับ">⋮⋮</span>
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: ep.color }"></span>
-                <span class="text-xs text-gray-200">{{ ep.title }}</span>
-                <span v-if="ep.status !== 'PLANNING'" class="text-xs px-1 rounded" :class="ep.status === 'DONE' ? 'text-green-400' : 'text-blue-400'">{{ ep.status }}</span>
+                <span class="text-xs text-gray-700 dark:text-gray-200">{{ ep.title }}</span>
+                <span v-if="ep.status !== 'PLANNING'" class="text-xs px-1 rounded" :class="ep.status === 'DONE' ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'">{{ ep.status }}</span>
                 <div class="hidden group-hover:flex items-center gap-1 ml-1">
-                  <button type="button" @click.stop="openEditEpicModal(ep)" class="text-gray-500 hover:text-purple-400 text-xs">✎</button>
-                  <button type="button" @click.stop="deleteEpic(ep)" class="text-gray-500 hover:text-red-400 text-xs">✕</button>
+                  <button type="button" @click.stop="openEditEpicModal(ep)" class="text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 text-xs">✎</button>
+                  <button type="button" @click.stop="deleteEpic(ep)" class="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 text-xs">✕</button>
                 </div>
               </div>
             </div>
-            <div v-else class="text-xs text-gray-500 italic">No epics yet. Create one to start organizing your backlog.</div>
+            <div v-else class="text-xs text-gray-500 dark:text-gray-500 italic">No epics yet. Create one to start organizing your backlog.</div>
           </div>
 
           <!-- Backlog Table Header + Add Task + Import Slides -->
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-              <h3 class="text-base font-semibold text-gray-200">Product Backlog</h3>
-              <span class="text-xs text-gray-500">{{ backlogFilterSummary }}</span>
-              <span v-if="projectDetailsTasksMeta?.has_more" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-gray-200">Product Backlog</h3>
+              <span class="text-xs text-gray-500 dark:text-gray-500">{{ backlogFilterSummary }}</span>
+              <span v-if="projectDetailsTasksMeta?.has_more" class="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded px-2 py-0.5">
                 Showing first {{ projectDetailsTasksMeta.returned }} tasks (server-limited)
               </span>
               <span
                 v-if="projectDetailsTasksMeta?.has_more && isLoadingMoreProjectTasks"
-                class="text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded px-2 py-0.5"
+                class="text-[11px] text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/30 rounded px-2 py-0.5"
               >
                 Auto loading more tasks…
               </span>
@@ -614,8 +614,8 @@
             <div class="flex items-center gap-2">
               <!-- Selection toolbar when items selected -->
               <template v-if="backlogSelectedCount > 0">
-                <span class="text-xs text-gray-400">{{ backlogSelectedCount }} selected</span>
-                <button type="button" @click="clearBacklogSelection" class="px-3 py-2 text-xs font-medium text-gray-400 hover:text-gray-900 dark:text-white rounded-lg border border-gray-600 hover:bg-gray-700/60 transition-colors">
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ backlogSelectedCount }} selected</span>
+                <button type="button" @click="clearBacklogSelection" class="px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
                   Clear
                 </button>
                 <button
@@ -676,10 +676,10 @@
           </div>
 
           <!-- Backlog search & filters -->
-          <div class="backlog-enterprise-card relative z-20 overflow-visible rounded-xl border border-gray-700/40 bg-gray-900/30 px-3 py-3 sm:px-4 sm:py-3.5">
+          <div class="backlog-enterprise-card relative z-20 overflow-visible rounded-xl border border-gray-200 dark:border-gray-700/40 bg-white dark:bg-gray-900/30 px-3 py-3 sm:px-4 sm:py-3.5">
             <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-4">
               <div class="min-w-0 flex-1">
-                <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Search</label>
+                <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">Search</label>
                 <input
                   v-model="backlogSearchQuery"
                   type="search"
@@ -691,7 +691,7 @@
               </div>
               <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-wrap lg:items-end lg:gap-2">
                 <div class="min-w-0">
-                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Status</label>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">Status</label>
                   <div class="relative" :class="backlogStatusFilterOpen ? 'z-50' : 'z-10'" @click.stop>
                     <button
                       type="button"
@@ -703,7 +703,7 @@
                         {{ backlogStatusFilterSummary }}
                       </span>
                       <svg
-                        class="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform"
+                        class="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-slate-400 transition-transform"
                         :class="backlogStatusFilterOpen ? 'rotate-180' : ''"
                         fill="none"
                         stroke="currentColor"
@@ -715,14 +715,14 @@
 
                     <div
                       v-if="backlogStatusFilterOpen"
-                      class="backlog-status-filter-panel absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-gray-700/70 bg-gray-950/95 shadow-2xl shadow-black/40 backdrop-blur"
+                      class="backlog-status-filter-panel absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-gray-300 dark:border-slate-600/70 bg-white dark:bg-slate-800 shadow-2xl shadow-black/10 dark:shadow-black/40"
                     >
-                      <div class="flex items-center justify-between border-b border-gray-800 px-3 py-2">
-                        <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Pick statuses</span>
+                      <div class="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 px-3 py-2">
+                        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Pick statuses</span>
                         <button
                           v-if="backlogFilterStatuses.length"
                           type="button"
-                          class="text-[11px] font-medium text-purple-300 hover:text-purple-200"
+                          class="text-[11px] font-medium text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200"
                           @click="clearBacklogStatusFilter"
                         >
                           Clear
@@ -733,12 +733,12 @@
                         <label
                           v-for="st in BACKLOG_STATUS_FILTER_OPTIONS"
                           :key="st"
-                          class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-gray-200 transition-colors hover:bg-gray-800/70"
+                          class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-gray-900 dark:text-slate-100 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700"
                         >
                           <input
                             :checked="backlogFilterStatuses.includes(st)"
                             type="checkbox"
-                            class="rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500"
+                            class="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-purple-500 focus:ring-purple-500"
                             @change="toggleBacklogStatusFilter(st)"
                           />
                           <span class="truncate">{{ formatBacklogStatusLabel(st) }}</span>
@@ -748,7 +748,7 @@
                   </div>
                 </div>
                 <div class="min-w-0">
-                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Priority</label>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">Priority</label>
                   <select v-model="backlogFilterPriority" class="input-field w-full text-xs py-2">
                     <option value="">All</option>
                     <option value="CRITICAL">Critical</option>
@@ -758,7 +758,7 @@
                   </select>
                 </div>
                 <div class="min-w-0">
-                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Sprint</label>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">Sprint</label>
                   <select v-model="backlogFilterSprintId" class="input-field w-full text-xs py-2">
                     <option value="">All sprints</option>
                     <option value="__none__">Backlog (no sprint)</option>
@@ -766,7 +766,7 @@
                   </select>
                 </div>
                 <div class="min-w-0">
-                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Type</label>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">Type</label>
                   <select v-model="backlogFilterTaskType" class="input-field w-full text-xs py-2">
                     <option value="">All</option>
                     <option value="FEATURE">Feature</option>
@@ -778,7 +778,7 @@
               <button
                 v-if="backlogFiltersActive"
                 type="button"
-                class="shrink-0 rounded-lg border border-gray-600 px-3 py-2 text-xs font-medium text-gray-300 hover:border-purple-500/50 hover:bg-gray-800 hover:text-white transition-colors"
+                class="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-purple-400 dark:hover:border-purple-500/50 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors"
                 @click="clearBacklogFilters"
               >
                 Clear filters
@@ -787,7 +787,7 @@
           </div>
 
           <!-- Backlog Table (horizontal scroll on small screens) -->
-          <p class="px-1 text-[11px] text-slate-500 sm:hidden">เลื่อนซ้าย/ขวาเพื่อดูทุกคอลัมน์</p>
+          <p class="px-1 text-[11px] text-gray-500 dark:text-slate-500 sm:hidden">เลื่อนซ้าย/ขวาเพื่อดูทุกคอลัมน์</p>
           <div class="backlog-enterprise-table relative z-0 -mx-3 rounded-none overflow-x-auto overflow-y-hidden min-w-0 sm:mx-0 sm:rounded-xl">
             <div class="min-w-[860px] sm:min-w-[1040px]">
               <!-- Epic Groups: header = Task, SP, Priority, Sprint, Status (no Epic) -->
@@ -950,7 +950,7 @@
                         </div>
                       </div>
                       <div class="flex items-center shrink-0">
-                        <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ') }}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ formatStatus(task.status) }}</span>
                       </div>
                     </div>
                     <!-- Sub-tasks B (inherit Epic from parent); C = sub-tasks of B -->
@@ -991,6 +991,9 @@
                               <option value="MEDIUM">🟡 MEDIUM</option>
                               <option value="LOW">🟢 LOW</option>
                             </select>
+                          </div>
+                          <div class="flex items-center justify-center min-w-0 w-full">
+                            <span class="text-xs text-gray-500 italic">Inherits</span>
                           </div>
                           <div class="flex items-center justify-center min-w-0 w-full">
                             <span class="text-xs text-gray-500 italic">Inherits</span>
@@ -1043,7 +1046,7 @@
                             </div>
                           </div>
                           <div class="flex items-center shrink-0">
-                            <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ') }}</span>
+                            <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ formatStatus(sub.status) }}</span>
                           </div>
                         </div>
                         <!-- Level C: sub-tasks of B -->
@@ -1082,6 +1085,7 @@
                                 <option value="LOW">🟢 LOW</option>
                               </select>
                             </div>
+                            <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                             <div class="flex items-center justify-center min-w-0 w-full"><span class="text-xs text-gray-500 italic">Inherits</span></div>
                             <div class="flex items-center justify-center min-w-0 w-full">
                               <select
@@ -1131,7 +1135,7 @@
                             </div>
                           </div>
                             <div class="flex items-center shrink-0">
-                              <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ subsub.status.replace('_',' ') }}</span>
+                              <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ formatStatus(subsub.status) }}</span>
                             </div>
                           </div>
                         </template>
@@ -1295,7 +1299,7 @@
                           </div>
                         </div>
                         <div class="flex items-center shrink-0">
-                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ task.status.replace('_',' ') }}</span>
+                          <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ formatStatus(task.status) }}</span>
                         </div>
                       </div>
                       <template v-if="expandedEpics[task.id]">
@@ -1386,7 +1390,7 @@
                             </div>
                           </div>
                             <div class="flex items-center shrink-0">
-                              <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ sub.status.replace('_',' ') }}</span>
+                              <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ formatStatus(sub.status) }}</span>
                             </div>
                           </div>
                           <!-- Level C: sub-tasks of B (Unassigned) -->
@@ -1475,7 +1479,7 @@
                               </div>
                             </div>
                               <div class="flex items-center shrink-0">
-                                <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ subsub.status.replace('_',' ') }}</span>
+                                <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ formatStatus(subsub.status) }}</span>
                               </div>
                             </div>
                           </template>
@@ -2579,7 +2583,7 @@
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
                   <span class="text-xs font-mono text-gray-500">{{ taskDisplayCode(task) }}</span>
-                  <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(task.status)">{{ task.status.replace('_', ' ') }}</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded" :class="taskStatusBadge(task.status)">{{ formatStatus(task.status) }}</span>
                 </div>
                 <p class="mt-1 truncate text-sm font-medium text-gray-200">{{ task.title }}</p>
               </div>
@@ -2859,6 +2863,65 @@
       </div>
     </div>
 
+    <!-- Duplicate Task Modal -->
+    <div v-if="showDuplicateTaskModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeDuplicateTaskModal">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-lg font-bold text-white">Duplicate Task</h2>
+          <button @click="closeDuplicateTaskModal" class="text-gray-500 hover:text-white text-xl leading-none">✕</button>
+        </div>
+        
+        <div v-if="isDuplicateLoadingDetails" class="flex items-center justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+          <span class="ml-3 text-gray-400">Loading task details...</span>
+        </div>
+        
+        <div v-else-if="duplicateTaskSourceDetails" class="space-y-4">
+          <!-- Task Preview -->
+          <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+            <div class="text-sm text-gray-400 mb-1">Task to duplicate:</div>
+            <div class="text-white font-medium">{{ duplicateTaskSourceDetails.title }}</div>
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-xs px-2 py-0.5 rounded" :class="{
+                'bg-purple-500/20 text-purple-300': duplicateTaskSourceDetails.task_type === 'FEATURE',
+                'bg-blue-500/20 text-blue-300': duplicateTaskSourceDetails.task_type === 'TASK',
+                'bg-red-500/20 text-red-300': duplicateTaskSourceDetails.task_type === 'BUG'
+              }">{{ duplicateTaskSourceDetails.task_type }}</span>
+              <span class="text-xs text-gray-500">{{ duplicateTaskSourceDetails.code }}</span>
+            </div>
+          </div>
+          
+          <!-- Subtask Option -->
+          <div v-if="duplicateTaskSourceDetails.sub_tasks && duplicateTaskSourceDetails.sub_tasks.length > 0" class="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" v-model="duplicateIncludeSubtasks" class="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-900 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-800" />
+              <div>
+                <div class="text-sm font-medium text-purple-300">Include subtasks ({{ duplicateTaskSourceDetails.sub_tasks.length }})</div>
+                <div class="text-xs text-gray-400 mt-1">Duplicate all {{ duplicateTaskSourceDetails.sub_tasks.length }} subtask(s) under the new task</div>
+              </div>
+            </label>
+          </div>
+          
+          <div v-else class="text-sm text-gray-500 italic">This task has no subtasks.</div>
+          
+          <!-- Actions -->
+          <div class="flex gap-3 pt-2">
+            <button @click="closeDuplicateTaskModal" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button @click="confirmDuplicateTask" :disabled="isDuplicatingTask" class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+              <div v-if="isDuplicatingTask" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <span>{{ isDuplicatingTask ? 'Duplicating...' : 'Duplicate' }}</span>
+            </button>
+          </div>
+        </div>
+        
+        <div v-else class="text-center py-8 text-gray-400">
+          Failed to load task details
+        </div>
+      </div>
+    </div>
+
     <!-- Edit Project Modal -->
     <div v-if="showEditProjectModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeEditProjectModal">
       <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
@@ -3005,19 +3068,67 @@
 
     <!-- Add tasks to Sprint Modal -->
     <div v-if="showAddTasksToSprintModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeAddTasksToSprintModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[80vh] flex flex-col">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-4xl w-full shadow-2xl max-h-[85vh] flex flex-col">
         <h2 class="text-lg font-bold text-white mb-1">เพิ่มงานเข้า Sprint</h2>
         <p class="text-sm text-gray-400 mb-4">เลือกงานที่ต้องการเพิ่มเข้า sprint <strong class="text-white">"{{ sprintForAddTasks?.name }}"</strong></p>
-        <div class="flex-1 overflow-y-auto border border-gray-700 rounded-lg p-3 mb-4 min-h-[200px]">
+        <div class="flex-1 overflow-auto border border-gray-700 rounded-lg mb-4 min-h-[300px]">
           <div v-if="tasksNotInSprint.length === 0" class="text-center py-8 text-gray-500 text-sm">ไม่มีงานที่ยังไม่อยู่ใน sprint นี้</div>
-          <label v-for="t in tasksNotInSprint" :key="t.id" class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-700/50 cursor-pointer">
-            <input type="checkbox" :value="t.id" v-model="selectedTaskIdsForSprint" class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500" />
-            <span class="text-xs font-mono text-gray-500 shrink-0">{{ t.code }}</span>
-            <span class="text-sm text-gray-200 truncate flex-1 min-w-0">{{ t.title }}</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0" :class="t.sprint_id ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-600 text-gray-400'">
-              {{ t.sprint_id ? (sprints.find(s => s.id === t.sprint_id)?.name ?? 'Sprint อื่น') : 'Backlog' }}
-            </span>
-          </label>
+          <table v-else class="w-full text-sm table-fixed">
+            <thead class="sticky top-0 bg-gray-800 border-b border-gray-700 z-10">
+              <tr class="text-left text-xs text-gray-400 uppercase tracking-wide">
+                <th class="w-10 px-3 py-2"></th>
+                <th class="px-3 py-2 w-96">Task</th>
+                <th class="px-3 py-2 w-16">SP</th>
+                <th class="px-3 py-2 w-20">Priority</th>
+                <th class="px-3 py-2 w-28">Epic</th>
+                <th class="px-3 py-2 w-24">Sprint</th>
+                <th class="px-3 py-2 w-28">Assignee</th>
+                <th class="px-3 py-2 w-28">Due Date</th>
+                <th class="px-3 py-2 w-28">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in tasksNotInSprint" :key="t.id" class="hover:bg-gray-700/30 cursor-pointer border-b border-gray-700/50 last:border-b-0" @click="toggleTaskSelection(t.id)">
+                <td class="w-10 px-3 py-2" @click.stop>
+                  <input type="checkbox" :value="t.id" v-model="selectedTaskIdsForSprint" class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500" />
+                </td>
+                <td class="px-3 py-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskDisplayCode(t) }}</span>
+                    <span class="text-sm text-gray-200 truncate">{{ t.title }}</span>
+                  </div>
+                </td>
+                <td class="px-3 py-2 text-center text-gray-400">{{ t.story_points || '—' }}</td>
+                <td class="px-3 py-2">
+                  <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
+                </td>
+                <td class="px-3 py-2">
+                  <span v-if="t.epic_id" class="text-xs text-gray-300 truncate block max-w-[120px]" :title="epics.find(e => e.id === t.epic_id)?.title">
+                    {{ epics.find(e => e.id === t.epic_id)?.title || '—' }}
+                  </span>
+                  <span v-else class="text-xs text-gray-600">—</span>
+                </td>
+                <td class="px-3 py-2">
+                  <span class="text-[10px] px-1.5 py-0.5 rounded" :class="t.sprint_id ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-600 text-gray-400'">
+                    {{ t.sprint_id ? (sprints.find(s => s.id === t.sprint_id)?.name ?? 'Sprint อื่น') : 'Backlog' }}
+                  </span>
+                </td>
+                <td class="px-3 py-2">
+                  <span v-if="t.assigned_to_display_name" class="text-xs text-gray-300 truncate block max-w-[120px]" :title="t.assigned_to_email">
+                    {{ t.assigned_to_display_name }}
+                  </span>
+                  <span v-else class="text-xs text-gray-600">Unassigned</span>
+                </td>
+                <td class="px-3 py-2">
+                  <span v-if="t.due_at" class="text-xs text-gray-400">{{ formatDate(t.due_at) }}</span>
+                  <span v-else class="text-xs text-gray-600">—</span>
+                </td>
+                <td class="px-3 py-2">
+                  <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(t.status)">{{ formatStatus(t.status) }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div v-if="addTasksToSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ addTasksToSprintError }}</div>
         <div class="flex gap-3">
@@ -3954,11 +4065,11 @@ function updateTaskInTimelineData(taskId: string, start_date: string, end_date: 
 async function syncEpicDatesFromTasks(epicId: string) {
   const tasksInEpic = allTasks.value.filter((t) => t.epic_id === epicId && !t.parent_id)
   if (tasksInEpic.length === 0) return
-  let minStart: Date | null = null
-  let maxEnd: Date | null = null
+  let minStart: Date | undefined
+  let maxEnd: Date | undefined
   for (const t of tasksInEpic) {
-    const s = t.start_date ? new Date(t.start_date) : (t.due_at ? new Date(t.due_at) : null)
-    const e = t.end_date ? new Date(t.end_date) : (t.due_at ? new Date(t.due_at) : null)
+    const s = t.start_date ? new Date(t.start_date) : (t.due_at ? new Date(t.due_at) : undefined)
+    const e = t.end_date ? new Date(t.end_date) : (t.due_at ? new Date(t.due_at) : undefined)
     if (s) minStart = minStart == null ? s : (s < minStart ? s : minStart)
     if (e) maxEnd = maxEnd == null ? e : (e > maxEnd ? e : maxEnd)
   }
@@ -4282,6 +4393,12 @@ function formatBacklogStatusLabel(status: Task['status']) {
   return status.replace(/_/g, ' ')
 }
 
+/** Format status for display, handling null/undefined gracefully */
+function formatStatus(status: string | undefined | null): string {
+  if (!status) return '—'
+  return status.replace(/_/g, ' ')
+}
+
 const backlogStatusFilterSummary = computed(() => {
   const selected = backlogFilterStatuses.value
   if (selected.length === 0) return 'All statuses'
@@ -4453,9 +4570,12 @@ function taskMatchesBacklogSearchAndFilters(task: Task): boolean {
 }
 
 /** Row visible if it matches search+filters or any descendant does (walk raw tree). */
-function taskVisibleInBacklogTree(task: Task): boolean {
+function taskVisibleInBacklogTree(task: Task, visited: Set<string> = new Set()): boolean {
+  // Cycle detection: prevent infinite recursion from circular parent_id
+  if (visited.has(task.id)) return false
+  visited.add(task.id)
   if (taskMatchesBacklogSearchAndFilters(task)) return true
-  return getSubTasks(task.id).some((c) => taskVisibleInBacklogTree(c))
+  return getSubTasks(task.id).some((c) => taskVisibleInBacklogTree(c, visited))
 }
 
 function getBacklogSubTasks(parentId: string): Task[] {
@@ -4463,9 +4583,12 @@ function getBacklogSubTasks(parentId: string): Task[] {
 }
 
 /** Push task and all descendants in display order (so A001, B001, C001… are assigned correctly). */
-function pushTaskAndDescendants(list: Task[], task: Task) {
+function pushTaskAndDescendants(list: Task[], task: Task, visited: Set<string> = new Set()) {
+  // Cycle detection: skip if already visited (prevents infinite recursion from circular parent_id)
+  if (visited.has(task.id)) return
+  visited.add(task.id)
   list.push(task)
-  getSubTasks(task.id).forEach((child) => pushTaskAndDescendants(list, child))
+  getSubTasks(task.id).forEach((child) => pushTaskAndDescendants(list, child, visited))
 }
 
 /** Backlog display order: epics (with tasks + all subs including C) then unassigned. Used for A001/B001/C001. */
@@ -4853,7 +4976,7 @@ async function loadAll() {
       milestones.value = cached.milestones
       epics.value = cached.epics
       detailsPromise.then((details) => {
-        writeCachedProjectDetails(idOrCode, details)
+        writeCachedProjectDetails(idOrCode, details as any)
       }).catch(() => {})
       isLoading.value = false
     }
@@ -4861,9 +4984,9 @@ async function loadAll() {
     const details = await detailsPromise
     console.info('[ProjectDetails] page details resolved', { elapsedMs: Math.round(performance.now() - startedAt), tasks: details.tasks.length, sprints: details.sprints.length, milestones: details.milestones.length, epics: details.epics.length, taskMeta: details.tasks_meta, isServer: import.meta.server })
     project.value = details.project
-    allTasks.value = details.tasks
+    allTasks.value = details.tasks as Task[]
     projectDetailsTasksMeta.value = details.tasks_meta ?? null
-    writeCachedProjectDetails(idOrCode, details)
+    writeCachedProjectDetails(idOrCode, details as any)
     syncProjectRoleNamesFromStore()
     if (details.tasks.length > 0) {
       const last = details.tasks[details.tasks.length - 1]
@@ -5217,46 +5340,141 @@ const isDuplicatingTask = ref(false)
 /** After duplicate: keep new task visually right below original until page refresh. */
 const duplicatePlacement = ref<{ newId: string; afterId: string } | null>(null)
 
+// Duplicate Task Modal
+const showDuplicateTaskModal = ref(false)
+const duplicateTaskSource = ref<Task | null>(null)
+const duplicateTaskSourceDetails = ref<Task | null>(null)
+const duplicateIncludeSubtasks = ref(true)
+const isDuplicateLoadingDetails = ref(false)
+
 async function loadTaskDetailsForAction(taskId: string): Promise<Task> {
   return tasksApi.getTask(taskId)
 }
 
-async function duplicateTask(task: Task) {
-  if (!project.value) return
+async function openDuplicateTaskModal(task: Task) {
+  duplicateTaskSource.value = task
+  duplicateTaskSourceDetails.value = null
+  duplicateIncludeSubtasks.value = true
+  isDuplicateLoadingDetails.value = true
+  showDuplicateTaskModal.value = true
+  
+  try {
+    const details = await loadTaskDetailsForAction(task.id)
+    duplicateTaskSourceDetails.value = details
+  } catch (e: any) {
+    console.error('Failed to load task details for duplicate:', e)
+    showDuplicateTaskModal.value = false
+  } finally {
+    isDuplicateLoadingDetails.value = false
+  }
+}
+
+function closeDuplicateTaskModal() {
+  showDuplicateTaskModal.value = false
+  duplicateTaskSource.value = null
+  duplicateTaskSourceDetails.value = null
+  duplicateIncludeSubtasks.value = true
+  isDuplicateLoadingDetails.value = false
+}
+
+async function confirmDuplicateTask() {
+  if (!project.value || !duplicateTaskSourceDetails.value) return
+  
+  const source = duplicateTaskSourceDetails.value
   isDuplicatingTask.value = true
   duplicatePlacement.value = null
+  
   try {
-    const source = await loadTaskDetailsForAction(task.id)
+    // Create parent task with all fields
     const payload: any = {
       title: (source.title || '').trim() ? `${(source.title || '').trim()} (copy)` : 'Task (copy)',
       description: source.description || '',
+      task_type: source.task_type || 'TASK',
       priority: source.priority || 'MEDIUM',
       story_points: source.story_points ?? 0,
       project_id: project.value.id,
+      estimated_minutes: source.estimated_minutes ?? 0,
     }
+    
+    // Copy optional fields
     if (source.epic_id) payload.epic_id = source.epic_id
     if (source.sprint_id != null) payload.sprint_id = source.sprint_id
+    if (source.milestone_id) payload.milestone_id = source.milestone_id
+    if (source.start_date) payload.start_date = source.start_date
+    if (source.end_date) payload.end_date = source.end_date
+    if (source.due_at) payload.due_date = source.due_at
+    if (source.resource_urls) payload.resource_urls = source.resource_urls
+    
     let newTask = await tasksApi.createTask(payload)
     const nextOrder = (source.sort_order ?? 0) + 1
+    
     try {
       const updated = await tasksApi.updateTask(newTask.id, { sort_order: nextOrder })
       newTask = updated
     } catch {
       // ignore if backend doesn't support sort_order on update
     }
-    const idx = allTasks.value.findIndex((t) => t.id === task.id)
+    
+    // Duplicate subtasks if requested and they exist
+    const subtasks = source.sub_tasks || []
+    const hasSubtasks = subtasks.length > 0
+    const shouldDuplicateSubtasks = duplicateIncludeSubtasks.value && hasSubtasks
+    
+    if (shouldDuplicateSubtasks) {
+      try {
+        // Create all subtasks in parallel
+        const subtaskPromises = subtasks.map(async (subtask) => {
+          const subPayload: any = {
+            title: subtask.title,
+            description: '',
+            task_type: subtask.task_type || 'TASK',
+            priority: subtask.priority || 'MEDIUM',
+            story_points: subtask.story_points ?? 0,
+            project_id: project.value!.id,
+            parent_id: newTask.id,
+            estimated_minutes: subtask.estimated_minutes ?? 0,
+          }
+          
+          // Inherit parent's epic and sprint
+          if (source.epic_id) subPayload.epic_id = source.epic_id
+          if (source.sprint_id != null) subPayload.sprint_id = source.sprint_id
+          
+          return tasksApi.createTask(subPayload)
+        })
+        
+        await Promise.all(subtaskPromises)
+      } catch (e: any) {
+        console.error('Failed to duplicate some subtasks:', e)
+        // Continue - parent task was created successfully
+      }
+    }
+    
+    const idx = allTasks.value.findIndex((t) => t.id === duplicateTaskSource.value!.id)
     if (idx !== -1) {
       allTasks.value.splice(idx + 1, 0, newTask)
     } else {
       allTasks.value.unshift(newTask)
     }
+    
     // Keep duplicated task below original in backlog until refresh
-    duplicatePlacement.value = { newId: newTask.id, afterId: task.id }
+    duplicatePlacement.value = { newId: newTask.id, afterId: duplicateTaskSource.value!.id }
+    
+    // Refresh to load the duplicated subtasks
+    if (shouldDuplicateSubtasks) {
+      await loadAll()
+    }
+    
+    closeDuplicateTaskModal()
   } catch (e: any) {
     console.error('Duplicate task failed:', e)
   } finally {
     isDuplicatingTask.value = false
   }
+}
+
+// Legacy function for backward compatibility
+async function duplicateTask(task: Task) {
+  await openDuplicateTaskModal(task)
 }
 
 // Edit project modal
@@ -5357,6 +5575,7 @@ const {
   tasksNotInSprint,
   openAddTasksToSprintModal,
   closeAddTasksToSprintModal,
+  toggleTaskSelection,
   confirmAddTasksToSprint,
   showDeleteSprintModal,
   sprintToDelete,
@@ -5367,6 +5586,7 @@ const {
   confirmDeleteSprint,
   showCompleteSprintModal,
   sprintToComplete,
+  completeSprintCarryOver,
   completeSprintError,
   isCompletingSprint,
   openCompleteSprintModal,
@@ -5815,9 +6035,12 @@ const backlogFilterSummary = computed(() => {
 })
 
 /** Row IDs in one backlog section (epic or unassigned), including all sub-tasks in the tree. */
-function pushBacklogSectionTaskIds(ids: string[], task: Task) {
+function pushBacklogSectionTaskIds(ids: string[], task: Task, visited: Set<string> = new Set()) {
+  // Cycle detection: skip if already visited (prevents infinite recursion from circular parent_id)
+  if (visited.has(task.id)) return
+  visited.add(task.id)
   ids.push(task.id)
-  getBacklogSubTasks(task.id).forEach((child) => pushBacklogSectionTaskIds(ids, child))
+  getBacklogSubTasks(task.id).forEach((child) => pushBacklogSectionTaskIds(ids, child, visited))
 }
 
 function backlogSectionRowIds(sectionKey: string): string[] {
@@ -6341,7 +6564,21 @@ function onBacklogStatusFilterDocumentClick(event: MouseEvent) {
   @apply block text-xs text-slate-300 mb-1.5 font-semibold tracking-wide;
 }
 .input-field {
-  @apply bg-slate-800/90 border border-slate-600/70 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
+  @apply bg-white dark:bg-slate-800/90 border border-gray-300 dark:border-slate-600/70 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
+}
+.input-field option {
+  @apply bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100;
+}
+select.input-field {
+  @apply appearance-none cursor-pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+:root.dark select.input-field {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
 }
 /* Add Task modal — larger, easier to read (does not affect rest of page) */
 .create-task-modal-enterprise {

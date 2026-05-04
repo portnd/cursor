@@ -110,7 +110,7 @@
       />
       <button
         type="button"
-        :disabled="store.actionLoading || !store.canCheckIn || offsiteReason.length < 5 || pendingOffsiteRequest"
+        :disabled="store.actionLoading || !store.canCheckIn || offsiteReason.length < 5 || !!pendingOffsiteRequest"
         class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         @click="onRequestOffsite"
       >
@@ -135,7 +135,7 @@
       />
       <button
         type="button"
-        :disabled="store.actionLoading || !store.canCheckOut || offsiteCheckoutReason.length < 5 || pendingOffsiteCheckoutRequest"
+        :disabled="store.actionLoading || !store.canCheckOut || offsiteCheckoutReason.length < 5 || !!pendingOffsiteCheckoutRequest"
         class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         @click="onRequestOffsiteCheckout"
       >

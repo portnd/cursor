@@ -288,7 +288,7 @@ const tabs = [
     badgeActive: 'bg-purple-500/20 text-purple-300',
     badgeInactive: 'bg-gray-700 text-gray-500',
   },
-]
+] as const
 
 const userRole = computed(() => (currentUser.value as any)?.role?.toUpperCase() ?? '')
 const canCreate = computed(() =>

@@ -374,7 +374,7 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
     const sprintId = sprintForAddTasks.value?.id
     if (!sprintId) return []
     return allTasks.value
-      .filter((t) => t.sprint_id !== sprintId)
+      .filter((t) => t.sprint_id !== sprintId && t.status !== 'COMPLETED' && !t.parent_id)
       .sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', undefined, { numeric: true }))
   })
 
@@ -390,6 +390,15 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
     sprintForAddTasks.value = null
     selectedTaskIdsForSprint.value = []
     addTasksToSprintError.value = ''
+  }
+
+  function toggleTaskSelection(taskId: string) {
+    const idx = selectedTaskIdsForSprint.value.indexOf(taskId)
+    if (idx === -1) {
+      selectedTaskIdsForSprint.value.push(taskId)
+    } else {
+      selectedTaskIdsForSprint.value.splice(idx, 1)
+    }
   }
 
   async function confirmAddTasksToSprint() {
@@ -590,6 +599,7 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
     tasksNotInSprint,
     openAddTasksToSprintModal,
     closeAddTasksToSprintModal,
+    toggleTaskSelection,
     confirmAddTasksToSprint,
     showDeleteSprintModal,
     sprintToDelete,
@@ -600,6 +610,7 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
     confirmDeleteSprint,
     showCompleteSprintModal,
     sprintToComplete,
+    completeSprintCarryOver,
     completeSprintError,
     isCompletingSprint,
     openCompleteSprintModal,

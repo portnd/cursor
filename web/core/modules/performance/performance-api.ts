@@ -123,6 +123,8 @@ export interface DisciplineTimeLogEntry {
   minutes: number
   hours: number
   description: string
+  work_type?: string
+  is_timer?: boolean
 }
 
 export interface DisciplineCompletedTask {

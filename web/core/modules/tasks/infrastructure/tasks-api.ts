@@ -122,8 +122,9 @@ function useTasksApi() {
   }
 
   async function getTask(idOrCode: string): Promise<Task> {
-    const data = await fetchWithAuth<{ data: Task }>(`/sentinel/tasks/${idOrCode}`)
-    return data.data
+    // GET /tasks/:id returns detail structure: { data: { task: Task, attachment_count, has_rich_content } }
+    const data = await fetchWithAuth<{ data: { task: Task; attachment_count: number; has_rich_content: boolean } }>(`/sentinel/tasks/${idOrCode}`)
+    return data.data.task
   }
 
   async function getTaskSummary(idOrCode: string): Promise<{ summary: TaskSummary; has_rich_content: boolean }> {

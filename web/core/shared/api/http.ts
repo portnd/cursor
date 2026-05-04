@@ -1,4 +1,4 @@
-import type { UseFetchOptions } from '#app'
+import type { UseFetchOptions } from 'nuxt/app'
 
 export interface ApiResponse<T = any> {
   data: T
@@ -18,7 +18,7 @@ export const useHttp = () => {
     const defaultOptions: UseFetchOptions<T> = {
       baseURL,
       ...options,
-      onRequest({ options }) {
+      onRequest({ options }: { options: Record<string, any> }) {
         const token = useCookie('token').value
         if (token) {
           options.headers = {
@@ -27,7 +27,7 @@ export const useHttp = () => {
           }
         }
       },
-      onResponseError({ response }) {
+      onResponseError({ response }: { response: { status: number } }) {
         if (response.status === 401) {
           useCookie('token').value = null
           navigateTo('/login')
@@ -35,7 +35,7 @@ export const useHttp = () => {
       }
     }
 
-    const { data, error, pending, refresh } = await useFetch<T>(endpoint, defaultOptions)
+    const { data, error, pending, refresh } = await useFetch<T>(endpoint, defaultOptions as any)
 
     return {
       data: data.value as T,

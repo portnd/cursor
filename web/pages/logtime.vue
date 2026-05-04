@@ -288,7 +288,7 @@
                   placeholder="ค้นหา task เพื่อเปลี่ยน..."
                   class="w-full bg-gray-700/60 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
                   @focus="editTaskDropdown = true"
-                  @blur="setTimeout(() => editTaskDropdown = false, 150)"
+                  @blur="hideEditTaskDropdown()"
                 />
                 <div v-if="editTaskDropdown && (editTaskSearch || timerTasks.length)" class="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-xl max-h-44 overflow-y-auto">
                   <template v-if="filteredEditTasks.length">
@@ -520,6 +520,10 @@ function selectEditTask(task: GlobalActiveTask) {
   editTaskTitle.value = task.title
   editTaskSearch.value = ''
   editTaskDropdown.value = false
+}
+
+function hideEditTaskDropdown() {
+  setTimeout(() => { editTaskDropdown.value = false }, 150)
 }
 
 function clearEditTask() {

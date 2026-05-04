@@ -23,7 +23,7 @@
       <!-- Text Style -->
       <div class="toolbar-group">
         <button
-          v-for="heading in [1, 2, 3]"
+          v-for="heading in ([1, 2, 3] as const)"
           :key="heading"
           @click="setHeading(heading)"
           :class="{ 'is-active': editor?.isActive('heading', { level: heading }) }"
@@ -404,7 +404,6 @@ const editor = useEditor({
   editable: !props.readonly,
   extensions: [
     StarterKit.configure({
-      history: { depth: 100 },
       // Disable extensions we add manually to avoid duplicates
       link: false,
       underline: false,
@@ -443,7 +442,7 @@ watch(() => props.modelValue, (newVal) => {
   const current = editor.value.getHTML()
   const normalized = liftImportedImagesOutOfParagraphs(newVal || '')
   if (current !== normalized) {
-    editor.value.commands.setContent(normalized, false)
+    editor.value.commands.setContent(normalized, { emitUpdate: false })
   }
 })
 

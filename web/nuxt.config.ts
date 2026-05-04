@@ -47,7 +47,6 @@ export default defineNuxtConfig({
 
   vite: {
     server: {
-      host: '0.0.0.0',
       hmr: {
         protocol: 'ws',
         host: 'localhost',
@@ -113,8 +112,7 @@ export default defineNuxtConfig({
             html.light { background-color: #F5F4FB; }
             #nuxt-loading, .loader { background-color: inherit !important; }
             #nuxt-loading svg, #nuxt-loading img, .loader svg, .loader img { display: none !important; }
-          `,
-          tag: 'style'
+          `
         }
       ]
     }

@@ -408,13 +408,15 @@ func (r *postgresRepository) GetTaskByID(id uuid.UUID) (*domain.Task, error) {
 		return db.Select("id, task_id, dev_id, reference_url, note, created_at").
 			Order("created_at desc").Limit(20)
 	}).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order")
+		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order, estimated_minutes, progress")
 	}).Preload("ParentTask", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, title, status, task_type, project_id, parent_id")
 	}).First(&task, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
+	// Enrich subtasks with assignee display name and email
+	r.enrichSubtasksWithAssigneeInfo(&task)
 	return &task, nil
 }
 
@@ -424,14 +426,69 @@ func (r *postgresRepository) GetTaskByCode(code string) (*domain.Task, error) {
 		return db.Select("id, task_id, dev_id, reference_url, note, created_at").
 			Order("created_at desc").Limit(20)
 	}).Preload("SubTasks", func(db *gorm.DB) *gorm.DB {
-		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order")
+		return db.Select("id, title, status, priority, task_type, story_points, parent_id, project_id, assigned_to, sort_order, estimated_minutes, progress")
 	}).Preload("ParentTask", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, title, status, task_type, project_id, parent_id")
 	}).First(&task, "code = ?", code).Error
 	if err != nil {
 		return nil, err
 	}
+	// Enrich subtasks with assignee display name and email
+	r.enrichSubtasksWithAssigneeInfo(&task)
 	return &task, nil
+}
+
+// enrichSubtasksWithAssigneeInfo loads display_name and email for subtask assignees
+func (r *postgresRepository) enrichSubtasksWithAssigneeInfo(task *domain.Task) {
+	if task == nil || len(task.SubTasks) == 0 {
+		return
+	}
+
+	// Collect all assigned_to IDs from subtasks
+	assigneeIDs := make([]uint, 0)
+	for _, sub := range task.SubTasks {
+		if sub.AssignedTo != nil {
+			assigneeIDs = append(assigneeIDs, *sub.AssignedTo)
+		}
+	}
+	if len(assigneeIDs) == 0 {
+		return
+	}
+
+	// Query users table for display_name and email
+	type userInfo struct {
+		ID          uint   `gorm:"column:id"`
+		DisplayName string `gorm:"column:display_name"`
+		Email       string `gorm:"column:email"`
+	}
+	var users []userInfo
+	r.db.Table("users").
+		Select("id, display_name, email").
+		Where("id IN ?", assigneeIDs).
+		Find(&users)
+
+	// Build map for quick lookup
+	userMap := make(map[uint]userInfo)
+	for _, u := range users {
+		userMap[u.ID] = u
+	}
+
+	// Enrich subtasks
+	for i := range task.SubTasks {
+		if task.SubTasks[i].AssignedTo != nil {
+			if u, ok := userMap[*task.SubTasks[i].AssignedTo]; ok {
+				// Use display_name if available, otherwise use email prefix
+				if u.DisplayName != "" {
+					task.SubTasks[i].AssignedToDisplayName = u.DisplayName
+				} else if u.Email != "" {
+					// Extract email prefix (part before @)
+					parts := strings.Split(u.Email, "@")
+					task.SubTasks[i].AssignedToDisplayName = parts[0]
+				}
+				task.SubTasks[i].AssignedToEmail = u.Email
+			}
+		}
+	}
 }
 
 func (r *postgresRepository) CountTasksForCode(projectID *uuid.UUID) (int, error) {

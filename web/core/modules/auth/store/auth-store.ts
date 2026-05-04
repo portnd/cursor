@@ -20,6 +20,9 @@ interface User {
   role: string // CEO, MANAGER, PRODUCT_OWNER, ENGINEER, CHIEF_ENGINEER, SUPPORT
   created_at: string
   updated_at: string
+  display_name?: string
+  avatar_url?: string
+  user_id?: number // Alias for id (from JWT payload)
 }
 
 interface AuthState {

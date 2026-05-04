@@ -25,7 +25,7 @@ const HANDLES: { position: HandlePosition; cursor: string }[] = [
 function createHandle(
   position: HandlePosition,
   cursor: string,
-  editor: { isEditable: boolean },
+  editor: { isEditable: boolean; view?: { dispatch: (tr: any) => void; state: { tr: any } } },
   img: HTMLImageElement,
   wrapper: HTMLDivElement,
   node: { attrs: Record<string, unknown> },

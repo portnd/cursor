@@ -21,6 +21,8 @@ interface CurrentUser {
   role: string
   team_id?: number
   is_remote?: boolean
+  display_name?: string
+  avatar_url?: string
   iat: number
   exp: number
 }

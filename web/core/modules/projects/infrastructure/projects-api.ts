@@ -228,6 +228,13 @@ export interface Task {
   started_at: string | null
   completed_at: string | null
   negotiation_status?: string
+  negotiation_reason?: string
+  proposed_minutes?: number
+  uat_payload?: {
+    staging_url?: string
+    test_credentials?: string
+    release_notes?: string
+  } | null
   estimated_minutes: number
   sub_tasks?: Task[]
   is_komgrip?: boolean
@@ -241,6 +248,7 @@ export interface ProjectDetailsTask {
   id: string
   code: string
   title: string
+  description?: string
   project_id: string | null
   epic_id: string | null
   sprint_id: string | null
@@ -258,6 +266,9 @@ export interface ProjectDetailsTask {
   has_rework?: boolean
   assigned_to: number | null
   assigned_to_display_name?: string
+  created_by: number | null
+  started_at: string | null
+  completed_at: string | null
   created_at: string
 }
 
