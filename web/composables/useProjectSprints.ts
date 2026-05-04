@@ -472,11 +472,11 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
   const sprintToComplete = ref<Sprint | null>(null)
   const completeSprintError = ref('')
   const isCompletingSprint = ref(false)
-  const completeSprintCarryOver = ref<'next_sprint' | 'backlog'>('next_sprint')
+  const completeSprintCarryOver = ref<'backlog'>('backlog')
 
   function openCompleteSprintModal(sprint: Sprint) {
     sprintToComplete.value = sprint
-    completeSprintCarryOver.value = 'next_sprint'
+    completeSprintCarryOver.value = 'backlog'
     completeSprintError.value = ''
     showCompleteSprintModal.value = true
   }
@@ -499,14 +499,21 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
       if (idx !== -1) sprints.value[idx] = updated
 
       if (unfinishedTasks.length > 0) {
-        const targetSprintId = completeSprintCarryOver.value === 'next_sprint'
-          ? (sprintsOrdered.value.find((s) => s.id !== sprint.id && (s.sort_order ?? 0) > (sprint.sort_order ?? 0))?.id ?? null)
-          : null
+        const targetSprintId = '' // Use empty string for backlog, not null (backend expects '' to clear sprint_id)
 
         for (const task of unfinishedTasks) {
           try {
-            await tasksApi.updateTask(task.id, { sprint_id: targetSprintId })
-            task.sprint_id = targetSprintId
+            // Keep the original previous_sprint_id (first sprint where task failed)
+            // Only set it if not already set
+            const previousSprintId = task.previous_sprint_id || task.sprint_id
+            await tasksApi.updateTask(task.id, { 
+              sprint_id: targetSprintId,
+              previous_sprint_id: previousSprintId, // Track first sprint where task failed
+            })
+            task.sprint_id = targetSprintId || null
+            if (!task.previous_sprint_id) {
+              task.previous_sprint_id = previousSprintId
+            }
           } catch (err: any) {
             const msg = err?.data?.message ?? err?.data?.error ?? err?.message ?? 'Failed to move unfinished task'
             throw new Error(typeof msg === 'string' ? msg : 'Failed to move unfinished task')
@@ -542,6 +549,15 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
 
   async function confirmReopenSprint() {
     if (!sprintToReopen.value) return
+
+    // Frontend pre-check: verify all tasks have story points
+    const missingSP = getSprintTasksMissingSP(sprintToReopen.value.id)
+    if (missingSP.length > 0) {
+      const taskList = formatMissingSPTasks(missingSP)
+      reopenSprintError.value = `ไม่สามารถเปิด Sprint กลับได้ — มีงาน ${missingSP.length} รายการที่ยังไม่ได้ใส่ Story Points:\n${taskList}\n\nกรุณาใส่ Story Points ให้ครบทุกงานก่อนเปิด Sprint กลับ`
+      return
+    }
+
     isReopeningSprint.value = true
     reopenSprintError.value = ''
     try {
@@ -550,6 +566,14 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
       if (idx !== -1) sprints.value[idx] = updated
       closeReopenSprintModal()
     } catch (e: any) {
+      // Handle structured error from backend with missing_tasks list
+      if (e?.data?.missing_tasks && Array.isArray(e.data.missing_tasks)) {
+        const tasks = e.data.missing_tasks as { id: string; code: string; title: string }[]
+        const taskList = tasks.slice(0, 5).map((t) => `• ${t.code} ${t.title}`).join('\n')
+        const more = tasks.length > 5 ? `\n... และอีก ${tasks.length - 5} งาน` : ''
+        reopenSprintError.value = `ไม่สามารถเปิด Sprint กลับได้ — มีงาน ${tasks.length} รายการที่ยังไม่ได้ใส่ Story Points:\n${taskList}${more}\n\nกรุณาใส่ Story Points ให้ครบทุกงานก่อนเปิด Sprint กลับ`
+        return
+      }
       const err = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'เปิด sprint กลับไม่สำเร็จ'
       reopenSprintError.value = typeof err === 'string' ? err : 'เปิด sprint กลับไม่สำเร็จ'
     } finally {
@@ -557,13 +581,47 @@ export function useProjectSprints(options: UseProjectSprintsOptions) {
     }
   }
 
+  function getSprintTasksMissingSP(sprintId: string): Task[] {
+    return allTasks.value.filter((t) => !t.parent_id && t.sprint_id === sprintId && (!t.story_points || t.story_points === 0))
+  }
+
+  function formatMissingSPTasks(tasks: Task[]): string {
+    if (tasks.length === 0) return ''
+    const lines = tasks.slice(0, 5).map((t) => `• ${t.code || ''} ${t.title}`.trim())
+    const more = tasks.length > 5 ? `\n... และอีก ${tasks.length - 5} งาน` : ''
+    return lines.join('\n') + more
+  }
+
   async function handleStartSprint(id: string) {
     if (activeSprint.value) return
+
+    // Frontend pre-check: verify all tasks have story points
+    const missingSP = getSprintTasksMissingSP(id)
+    if (missingSP.length > 0) {
+      const taskList = formatMissingSPTasks(missingSP)
+      showError(
+        `ไม่สามารถเริ่ม Sprint ได้ — มีงาน ${missingSP.length} รายการที่ยังไม่ได้ใส่ Story Points:\n${taskList}\n\nกรุณาใส่ Story Points ให้ครบทุกงานก่อนเริ่ม Sprint`,
+        'ไม่สามารถเริ่ม Sprint ได้',
+      )
+      return
+    }
+
     try {
       const updated = await projectsApi.startSprint(id)
       const idx = sprints.value.findIndex((s) => s.id === id)
       if (idx !== -1) sprints.value[idx] = updated
     } catch (e: any) {
+      // Handle structured error from backend with missing_tasks list
+      if (e?.data?.missing_tasks && Array.isArray(e.data.missing_tasks)) {
+        const tasks = e.data.missing_tasks as { id: string; code: string; title: string }[]
+        const taskList = tasks.slice(0, 5).map((t) => `• ${t.code} ${t.title}`).join('\n')
+        const more = tasks.length > 5 ? `\n... และอีก ${tasks.length - 5} งาน` : ''
+        showError(
+          `ไม่สามารถเริ่ม Sprint ได้ — มีงาน ${tasks.length} รายการที่ยังไม่ได้ใส่ Story Points:\n${taskList}${more}\n\nกรุณาใส่ Story Points ให้ครบทุกงานก่อนเริ่ม Sprint`,
+          'ไม่สามารถเริ่ม Sprint ได้',
+        )
+        return
+      }
       const msg = e?.data?.message ?? e?.data?.error ?? e?.message ?? 'Failed to start sprint'
       showError(typeof msg === 'string' ? msg : 'Failed to start sprint', 'Start sprint failed')
     }

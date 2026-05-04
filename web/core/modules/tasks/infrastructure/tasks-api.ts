@@ -166,6 +166,7 @@ function useTasksApi() {
     priority: string
     story_points: number
     sprint_id: string | null
+    previous_sprint_id: string | null
     milestone_id: string
     parent_id: string
     epic_id: string
@@ -584,6 +585,25 @@ function useTasksApi() {
     await fetchWithAuth(`/sentinel/komgrip/tasks/${id}`, { method: 'DELETE' })
   }
 
+  async function estimateStoryPoints(taskId: string): Promise<{
+    story_points: number
+    confidence: number
+    factors: { work_amount: number; complexity: number; risk: number }
+    estimated_minutes: number
+    effort_source?: 'ai' | 'fallback'
+    reasoning: string
+  }> {
+    const data = await fetchWithAuth<{ data: {
+      story_points: number
+      confidence: number
+      factors: { work_amount: number; complexity: number; risk: number }
+      estimated_minutes: number
+      effort_source?: 'ai' | 'fallback'
+      reasoning: string
+    } }>(`/sentinel/tasks/${taskId}/estimate-sp`, { method: 'POST', timeoutMs: 3 * 60 * 1000 })
+    return data.data
+  }
+
   return {
     getTasksByProject,
     getAllTasks,
@@ -630,6 +650,7 @@ function useTasksApi() {
     createKomgripTask,
     updateKomgripTaskStatus,
     deleteKomgripTask,
+    estimateStoryPoints,
   }
 }
 

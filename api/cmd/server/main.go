@@ -264,7 +264,7 @@ func main() {
 	// Sentinel routes (protected by auth middleware)
 	sentinelGroup := apiGroup.Group("")
 	sentinelGroup.Use(authMiddleware)
-	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey, cfg.CanvaAccessToken, authRepository, attendanceRepository, sentinelRepository, discordService)
+	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey, cfg.CanvaAccessToken, authRepository, attendanceRepository, sentinelRepository, discordService, pulseRepository)
 
 	// Performance routes (protected by auth middleware)
 	perfGroup := apiGroup.Group("")
@@ -307,6 +307,10 @@ func main() {
 	// Initialize and start Discord leave notification scheduler (08:30 AM)
 	discordLeaveScheduler := sentinelRepo.NewDiscordLeaveScheduler(discordService, attendanceRepository)
 	discordLeaveScheduler.Start()
+
+	// Initialize and start Discord standup notification scheduler (09:30 AM, workdays only)
+	discordStandupScheduler := pulseRepo.NewDiscordStandupScheduler(discordService, pulseRepository, authRepository, attendanceRepository)
+	discordStandupScheduler.Start()
 
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)

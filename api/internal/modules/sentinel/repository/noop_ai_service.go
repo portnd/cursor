@@ -44,3 +44,11 @@ func (n *noopAIService) EstimateAndScheduleTasks(_ []domain.TaskEstimateInput) (
 func (n *noopAIService) GenerateWorkPlan(_, _ string) (*domain.AIGeneratedPlan, error) {
 	return nil, errors.New(errMsgNoAPIKey)
 }
+
+func (n *noopAIService) EstimateStoryPoints(_ domain.StoryPointTaskContext, _ []domain.StoryPointExample) (float64, int, domain.StoryPointFactors, string, error) {
+	return 0, 0, domain.StoryPointFactors{}, "", errors.New(errMsgNoAPIKey)
+}
+
+func (n *noopAIService) EstimateEffortFromContext(_ domain.StoryPointTaskContext, _ float64, _ domain.StoryPointFactors) (int, string, error) {
+	return 0, "", errors.New(errMsgNoAPIKey)
+}

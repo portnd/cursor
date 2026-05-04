@@ -305,7 +305,7 @@ func (r *postgresRepository) GetTasksByProjectID(projectID uuid.UUID) ([]domain.
 }
 
 // projectPageTaskColumns is tasks.* minus heavy TEXT/JSONB columns not needed for board/backlog/overview lists.
-const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.created_at, tasks.updated_at`
+const projectPageTaskColumns = `tasks.id, tasks.code, tasks.title, tasks.estimated_minutes, tasks.project_id, tasks.epic_id, tasks.sprint_id, tasks.previous_sprint_id, tasks.milestone_id, tasks.task_type, tasks.priority, tasks.story_points, tasks.parent_id, tasks.sort_order, tasks.start_date, tasks.end_date, tasks.progress, tasks.due_at, tasks.started_at, tasks.completed_at, tasks.status, tasks.assigned_to, tasks.created_at, tasks.updated_at`
 
 func (r *postgresRepository) GetTasksByProjectIDForProjectPage(projectID uuid.UUID, limit int) ([]domain.Task, error) {
 	return r.GetTasksByProjectIDForProjectPageCursor(projectID, limit, nil, nil, 0)
@@ -1146,6 +1146,12 @@ func (r *postgresRepository) GetActiveSprintByProjectID(projectID uuid.UUID) (*d
 		return nil, nil
 	}
 	return &sprint, err
+}
+
+func (r *postgresRepository) GetTasksBySprintID(sprintID uuid.UUID) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.db.Where("sprint_id = ? AND parent_id IS NULL", sprintID).Find(&tasks).Error
+	return tasks, err
 }
 
 func (r *postgresRepository) UpdateSprint(sprint *domain.Sprint) error {

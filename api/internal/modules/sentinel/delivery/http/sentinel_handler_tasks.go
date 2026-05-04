@@ -295,7 +295,7 @@ func (h *SentinelHandler) GetTaskSummary(c *gin.Context) {
 		return
 	}
 	summary := domain.TaskSummary{
-		ID: task.ID, Code: task.Code, Title: task.Title, ProjectID: task.ProjectID, EpicID: task.EpicID, SprintID: task.SprintID,
+		ID: task.ID, Code: task.Code, Title: task.Title, ProjectID: task.ProjectID, EpicID: task.EpicID, SprintID: task.SprintID, PreviousSprintID: task.PreviousSprintID,
 		MilestoneID: task.MilestoneID, TaskType: task.TaskType, Priority: task.Priority, StoryPoints: task.StoryPoints,
 		EstimatedMinutes: task.EstimatedMinutes, ParentID: task.ParentID, SortOrder: task.SortOrder,
 		StartDate: task.StartDate, EndDate: task.EndDate, Progress: task.Progress,

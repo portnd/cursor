@@ -91,6 +91,16 @@ func (h *SentinelHandler) StartSprint(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Conflict", "message": err.Error()})
 			return
 		}
+		if domain.IsSprintStoryPointsMissing(err) {
+			var spErr *domain.ErrSprintStoryPointsMissing
+			errors.As(err, &spErr)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":         "Story points missing",
+				"message":       spErr.Error(),
+				"missing_tasks": spErr.MissingTasks,
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start sprint", "message": err.Error()})
 		return
 	}
@@ -125,6 +135,16 @@ func (h *SentinelHandler) ReopenSprint(c *gin.Context) {
 	if err != nil {
 		if contains(err.Error(), "only COMPLETED") || contains(err.Error(), "already has an active sprint") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bad Request", "message": err.Error()})
+			return
+		}
+		if domain.IsSprintStoryPointsMissing(err) {
+			var spErr *domain.ErrSprintStoryPointsMissing
+			errors.As(err, &spErr)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":         "Story points missing",
+				"message":       spErr.Error(),
+				"missing_tasks": spErr.MissingTasks,
+			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reopen sprint", "message": err.Error()})

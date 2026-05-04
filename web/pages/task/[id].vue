@@ -205,6 +205,14 @@
                 <span v-else>🟢</span>
                 {{ task.priority }}
               </span>
+              <span
+                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-bold border bg-purple-500/20 border-purple-400/50 text-purple-300"
+                :class="canEditOrDelete ? 'cursor-pointer hover:bg-purple-500/30 hover:border-purple-400/70 transition-colors' : ''"
+                @click="canEditOrDelete && scrollToStoryPoints()"
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                {{ task.story_points ?? 0 }} SP
+              </span>
             </div>
 
             <div v-if="availableStatusTransitions.length > 0" class="flex flex-wrap items-center gap-2 mb-4">
@@ -230,10 +238,6 @@
             <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
               <span>Created {{ formatDate(task.created_at) }}</span>
               <span v-if="creatorLabel">by <span class="text-gray-500 dark:text-gray-400">{{ creatorLabel }}</span></span>
-              <span v-if="task.story_points" class="flex items-center gap-1">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                {{ task.story_points }} SP
-              </span>
             </div>
           </div>
 
@@ -662,6 +666,125 @@
                 </div>
               </div>
 
+              <!-- Story Points (Fibonacci quick-select + custom input) -->
+              <div id="story-points-section" class="px-5 py-3.5">
+                <p class="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">Story Points</p>
+                <div v-if="!canEditOrDelete" class="text-sm font-semibold text-gray-900 dark:text-white">
+                  <span v-if="task.story_points" class="inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                    {{ task.story_points }} SP
+                  </span>
+                  <span v-else class="text-gray-500">—</span>
+                </div>
+                <div v-else class="space-y-2">
+                  <div class="flex flex-wrap gap-1.5">
+                    <button
+                      v-for="sp in [0, 0.5, 1, 2, 3, 5, 8, 13, 21]"
+                      :key="sp"
+                      type="button"
+                      class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
+                      :class="Number(storyPointsLocal) === sp
+                        ? 'bg-purple-500/25 border-purple-400/60 text-purple-300 shadow-sm shadow-purple-500/20'
+                        : 'bg-gray-900/50 border-gray-600 text-gray-400 hover:border-purple-400/40 hover:text-purple-300'"
+                      :disabled="isSavingStoryPoints"
+                      @click="quickSetStoryPoints(sp)"
+                    >
+                      {{ sp === 0.5 ? '½' : sp }}
+                    </button>
+                    <!-- AI Suggest Button -->
+                    <button
+                      type="button"
+                      class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border-violet-400/40 text-violet-300 hover:from-violet-500/30 hover:to-fuchsia-500/30 hover:border-violet-400/60 flex items-center gap-1"
+                      :disabled="isAiSpLoading || isSavingStoryPoints"
+                      @click="fetchAiSpSuggestion"
+                    >
+                      <svg v-if="!isAiSpLoading" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" /></svg>
+                      <svg v-else class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      {{ isAiSpLoading ? '…' : '✨ AI' }}
+                    </button>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <input
+                      v-model.number="storyPointsLocal"
+                      type="number" min="0" step="0.5"
+                      class="w-20 px-2.5 py-1.5 bg-gray-900 border border-gray-600 rounded-xl text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="0"
+                      @blur="saveStoryPoints"
+                      @keydown.enter="saveStoryPoints"
+                    />
+                    <span class="text-xs text-gray-500">SP</span>
+                    <button
+                      v-if="storyPointsDirty"
+                      type="button"
+                      class="text-xs px-2.5 py-1 bg-blue-100 dark:bg-blue-600 hover:bg-blue-200 dark:bg-blue-700 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 transition-colors"
+                      :disabled="isSavingStoryPoints"
+                      @click="saveStoryPoints"
+                    >
+                      {{ isSavingStoryPoints ? '…' : 'Save' }}
+                    </button>
+                  </div>
+                  <!-- AI Suggestion Chip + Popover -->
+                  <div v-if="aiSpSuggestion" class="relative">
+                    <div
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all"
+                      :class="showAiSpPopover ? 'bg-violet-500/15 border-violet-400/60' : 'bg-violet-500/10 border-violet-400/30 hover:bg-violet-500/15 hover:border-violet-400/50'"
+                      @click="showAiSpPopover = !showAiSpPopover"
+                    >
+                      <span class="text-xs text-violet-300 font-semibold">✨ AI suggests:</span>
+                      <span class="text-sm font-bold text-violet-200">{{ aiSpSuggestion.story_points }} SP</span>
+                      <span v-if="aiSpSuggestion.estimated_minutes > 0" class="text-sm font-bold text-emerald-300">~{{ aiSpSuggestion.estimated_minutes >= 60 ? (aiSpSuggestion.estimated_minutes / 60).toFixed(1).replace(/\.0$/, '') + 'h' : aiSpSuggestion.estimated_minutes + 'min' }}<span v-if="aiSpSuggestion.effort_source === 'fallback'" class="text-[9px] text-amber-400/70 ml-0.5">⚠</span></span>
+                      <span class="text-[10px] text-violet-400/70">{{ aiSpSuggestion.confidence }}% conf</span>
+                      <button
+                        type="button"
+                        class="ml-auto text-xs px-2 py-0.5 bg-violet-500/30 hover:bg-violet-500/50 text-violet-200 rounded-md transition-colors"
+                        :disabled="isSavingStoryPoints"
+                        @click.stop="acceptAiSpSuggestion"
+                      >Accept</button>
+                      <button
+                        type="button"
+                        class="text-xs px-1.5 py-0.5 text-violet-400/60 hover:text-violet-300 transition-colors"
+                        @click.stop="dismissAiSpSuggestion"
+                      >✕</button>
+                    </div>
+                    <!-- Popover: Factor breakdown + Reasoning -->
+                    <div
+                      v-if="showAiSpPopover"
+                      class="absolute z-50 left-0 right-0 mt-1 p-3 bg-gray-800 border border-violet-400/30 rounded-xl shadow-xl shadow-violet-500/10 space-y-2"
+                    >
+                      <p class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold mb-1">3-Factor Breakdown</p>
+                      <div class="space-y-1.5">
+                        <div class="flex items-center gap-2">
+                          <span class="text-[10px] text-gray-400 w-16">Work</span>
+                          <div class="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-500 rounded-full" :style="{ width: aiSpSuggestion.factors.work_amount * 10 + '%' }"></div>
+                          </div>
+                          <span class="text-[10px] text-gray-300 w-4 text-right">{{ aiSpSuggestion.factors.work_amount }}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <span class="text-[10px] text-gray-400 w-16">Complexity</span>
+                          <div class="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-amber-500 rounded-full" :style="{ width: aiSpSuggestion.factors.complexity * 10 + '%' }"></div>
+                          </div>
+                          <span class="text-[10px] text-gray-300 w-4 text-right">{{ aiSpSuggestion.factors.complexity }}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <span class="text-[10px] text-gray-400 w-16">Risk</span>
+                          <div class="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-red-500 rounded-full" :style="{ width: aiSpSuggestion.factors.risk * 10 + '%' }"></div>
+                          </div>
+                          <span class="text-[10px] text-gray-300 w-4 text-right">{{ aiSpSuggestion.factors.risk }}</span>
+                        </div>
+                      </div>
+                      <div v-if="aiSpSuggestion.estimated_minutes > 0" class="flex items-center justify-between pt-1 border-t border-gray-700">
+                        <span class="text-[10px] text-gray-400">Estimated Effort</span>
+                        <span class="text-xs font-semibold text-emerald-300">{{ aiSpSuggestion.estimated_minutes >= 60 ? (aiSpSuggestion.estimated_minutes / 60).toFixed(1).replace(/\.0$/, '') + ' hours' : aiSpSuggestion.estimated_minutes + ' min' }} <span class="text-gray-500 font-normal">({{ aiSpSuggestion.estimated_minutes }} min)</span></span>
+                      </div>
+                      <p v-if="aiSpSuggestion.reasoning" class="text-xs text-gray-300 pt-1 border-t border-gray-700">{{ aiSpSuggestion.reasoning }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Dates group -->
               <div v-if="task.start_date || task.end_date || task.completed_at" class="px-5 py-3.5 space-y-3">
                 <div v-if="task.start_date">
@@ -820,10 +943,18 @@
           </div>
           <div v-if="editSprints.length > 0">
             <label class="label">Sprint</label>
-            <select v-model="editForm.sprint_id" class="input-field w-full" :disabled="isUpdatingTask">
+            <select 
+              v-model="editForm.sprint_id" 
+              class="input-field w-full" 
+              :disabled="isUpdatingTask || !canChangeSprint"
+              :title="!canChangeSprint ? 'Only CEO can move tasks from active sprint' : ''"
+            >
               <option value="">Backlog</option>
               <option v-for="s in editSprints" :key="s.id" :value="s.id">{{ s.name }}</option>
             </select>
+            <p v-if="!canChangeSprint && taskSprintIsActive" class="text-xs text-amber-400 mt-1">
+              ⚠️ Task is in active sprint - only CEO can move it
+            </p>
           </div>
           <div>
             <label class="label">Due Date</label>
@@ -1449,9 +1580,20 @@ const editForm = ref({
   end_date: '',
   estimated_hours: 0
 })
-const editSprints = ref<{ id: string; name: string }[]>([])
+const editSprints = ref<{ id: string; name: string; status?: string }[]>([])
 const isUpdatingTask = ref(false)
 const editError = ref('')
+
+const isProjectCeo = computed(() => (authCurrentUser.value?.role || '').toUpperCase() === 'CEO')
+const taskSprintIsActive = computed(() => {
+  if (!task.value?.sprint_id) return false
+  const sprint = editSprints.value.find((s) => s.id === task.value?.sprint_id)
+  return sprint?.status === 'ACTIVE'
+})
+const canChangeSprint = computed(() => {
+  if (!taskSprintIsActive.value) return true
+  return isProjectCeo.value
+})
 
 // Delete Task State
 const showDeleteModal = ref(false)
@@ -1480,6 +1622,19 @@ const estimatedMinutesDirty = computed(() =>
   task.value != null &&
   effortHoursToMinutes(Number(estimatedHoursLocal.value)) !== (task.value.estimated_minutes ?? 0)
 )
+
+// Story Points (inline Fibonacci quick-select)
+const storyPointsLocal = ref(0)
+const isSavingStoryPoints = ref(false)
+const storyPointsDirty = computed(() =>
+  task.value != null &&
+  Number(storyPointsLocal.value) !== (task.value.story_points ?? 0)
+)
+
+// AI Story Point Suggestion
+const aiSpSuggestion = ref<{ story_points: number; confidence: number; factors: { work_amount: number; complexity: number; risk: number }; estimated_minutes: number; effort_source?: 'ai' | 'fallback'; reasoning: string } | null>(null)
+const isAiSpLoading = ref(false)
+const showAiSpPopover = ref(false)
 
 // Sub-tasks (child tasks for parent-child hierarchy)
 const subtasks = ref<SubTask[]>([])
@@ -1894,6 +2049,7 @@ const fetchTask = async () => {
       void ensureAssignableUsers({ preferCache: true, silent: true })
     }
     estimatedHoursLocal.value = minutesToEffortHours(task.value.estimated_minutes ?? 0)
+    storyPointsLocal.value = task.value.story_points ?? 0
     subtasks.value = (task.value.sub_tasks ?? []) as SubTask[]
     void fetchTaskActivity()
     // Always hydrate full detail: populates description, sub_tasks, parent_task, submissions
@@ -1920,6 +2076,7 @@ const fetchRichTaskDetail = async (taskId: string) => {
     if (mySeq !== richDetailSeq) return
     task.value = response.task as Task
     taskDetailLoaded.value = true
+    storyPointsLocal.value = response.task.story_points ?? 0
     subtasks.value = (response.task.sub_tasks ?? []) as SubTask[]
   } catch (err) {
     console.error('Failed to fetch rich task detail:', err)
@@ -2443,6 +2600,110 @@ const saveEstimatedMinutes = async () => {
   }
 }
 
+const saveStoryPoints = async () => {
+  if (!task.value) return
+  const sp = Number(storyPointsLocal.value)
+  if (sp < 0 || Number.isNaN(sp)) return
+  const taskId = (route.params.id as string)?.trim?.() || task.value.id
+  if (!taskId) return
+  try {
+    isSavingStoryPoints.value = true
+    const updated = await tasksApi.updateTask(taskId, { story_points: sp })
+    task.value = { ...task.value, ...updated }
+    storyPointsLocal.value = updated.story_points ?? 0
+    showSuccess('Story points updated.', 'Done')
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to update story points')
+  } finally {
+    isSavingStoryPoints.value = false
+  }
+}
+
+const quickSetStoryPoints = async (sp: number) => {
+  storyPointsLocal.value = sp
+  await saveStoryPoints()
+}
+
+const fetchAiSpSuggestion = async () => {
+  if (!task.value) return
+  const taskId = (route.params.id as string)?.trim?.() || task.value.id
+  if (!taskId) return
+  aiSpSuggestion.value = null
+  showAiSpPopover.value = false
+  isAiSpLoading.value = true
+  try {
+    const result = await tasksApi.estimateStoryPoints(taskId)
+    console.log('✨ AI SP result:', JSON.stringify(result))
+    aiSpSuggestion.value = result
+    showAiSpPopover.value = true
+    // Show notification with both values
+    const effortStr = result.estimated_minutes > 0
+      ? ` | ~${result.estimated_minutes >= 60 ? (result.estimated_minutes / 60).toFixed(1).replace(/\.0$/, '') + 'h' : result.estimated_minutes + 'min'} effort`
+      : ''
+    if (result.effort_source === 'fallback') {
+      showSuccess(`AI: ${result.story_points} SP${effortStr} (${result.confidence}% conf)`, 'AI Suggestion (effort estimated from SP table)')
+    } else {
+      showSuccess(`AI: ${result.story_points} SP${effortStr} (${result.confidence}% conf)`, 'AI Suggestion Ready')
+    }
+  } catch (err: any) {
+    const msg = err?.data?.message ?? err?.message ?? ''
+    if (msg.includes('429') || msg.includes('overloaded') || msg.includes('rate')) {
+      showError('AI ไม่ว่างตอนนี้ กรุณาลองใหม่อีกครั้งใน 1-2 นาที', 'AI ไม่ว่าง')
+    } else if (msg.includes('API_KEY') || msg.includes('not set')) {
+      showError('ยังไม่ได้ตั้งค่า API Key สำหรับ AI กรุณาติดต่อผู้ดูแลระบบ', 'AI ไม่พร้อมใช้งาน')
+    } else {
+      showError(msg || 'AI story point estimation failed')
+    }
+  } finally {
+    isAiSpLoading.value = false
+  }
+}
+
+const acceptAiSpSuggestion = async () => {
+  if (!aiSpSuggestion.value) return
+  storyPointsLocal.value = aiSpSuggestion.value.story_points
+  showAiSpPopover.value = false
+  // Save both story points and estimated minutes in one call
+  const taskId = (route.params.id as string)?.trim?.() || task.value?.id
+  if (!taskId) return
+  try {
+    isSavingStoryPoints.value = true
+    const payload: any = { story_points: aiSpSuggestion.value.story_points }
+    if (aiSpSuggestion.value.estimated_minutes > 0) {
+      payload.estimated_minutes = aiSpSuggestion.value.estimated_minutes
+    }
+    const updated = await tasksApi.updateTask(taskId, payload)
+    task.value = { ...task.value, ...updated }
+    storyPointsLocal.value = updated.story_points ?? 0
+    estimatedHoursLocal.value = minutesToEffortHours(updated.estimated_minutes ?? 0)
+    showSuccess(`Updated: ${aiSpSuggestion.value.story_points} SP${aiSpSuggestion.value.estimated_minutes > 0 ? `, ~${aiSpSuggestion.value.estimated_minutes >= 60 ? (aiSpSuggestion.value.estimated_minutes / 60).toFixed(1).replace(/\.0$/, '') + 'h' : aiSpSuggestion.value.estimated_minutes + 'min'} effort` : ''}`, 'AI Suggestion Applied')
+  } catch (err: any) {
+    showError(err?.data?.message ?? err?.message ?? 'Failed to apply AI suggestion')
+  } finally {
+    isSavingStoryPoints.value = false
+  }
+}
+
+const dismissAiSpSuggestion = () => {
+  showAiSpPopover.value = false
+  aiSpSuggestion.value = null
+}
+
+const scrollToStoryPoints = () => {
+  const el = document.getElementById('story-points-section')
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Brief highlight flash
+    el.classList.add('ring-2', 'ring-purple-500/50')
+    setTimeout(() => el.classList.remove('ring-2', 'ring-purple-500/50'), 1500)
+    // Focus the custom input after scroll
+    setTimeout(() => {
+      const input = el.querySelector('input[type="number"]') as HTMLInputElement | null
+      input?.focus()
+    }, 400)
+  }
+}
+
 const getStatusBadgeClass = (status: string) => {
   const classes: Record<string, string> = {
     'COMPLETED':       'bg-green-900/40 border-green-600/50 text-green-300',
@@ -2591,7 +2852,7 @@ const openEditModal = async () => {
   if (task.value.project_id) {
     try {
       const list = await projectsApi.getSprints(task.value.project_id)
-      editSprints.value = list.map((s) => ({ id: s.id, name: s.name }))
+      editSprints.value = list.map((s) => ({ id: s.id, name: s.name, status: s.status }))
     } catch {
       // ignore
     }
@@ -2740,10 +3001,16 @@ const confirmDelete = async () => {
   } catch (err: any) {
     console.error('Failed to delete task:', err)
     const raw = err.data?.message || err.message || ''
-    const isSubTasksBlock = raw.includes('fk_tasks_sub_tasks') || raw.includes('23503') || raw.includes('sub-tasks')
+    const isSubTasksBlock = raw.includes('fk_tasks_sub_tasks') || raw.includes('23503') || raw.includes('sub-tasks') || raw.includes('task_has_sub_tasks')
+    const isActiveSprintBlock = raw.includes('task_in_active_sprint') || raw.includes('active sprint')
+    const isPreviousSprintBlock = raw.includes('task_has_previous_sprint') || raw.includes('previous sprint')
     const message = isSubTasksBlock
       ? 'มี sub task ไม่สามารถลบได้ หากต้องการลบ ต้องลบ sub task ก่อน'
-      : (raw || 'Failed to delete task')
+      : isActiveSprintBlock
+        ? 'Task อยู่ใน sprint ที่ active อยู่ ไม่สามารถลบได้'
+        : isPreviousSprintBlock
+          ? 'Task ถูกย้ายมาจาก sprint ก่อนหน้า (from sprint) ไม่สามารถลบได้'
+          : (raw || 'Failed to delete task')
     showError(message)
     deleteError.value = message
   } finally {

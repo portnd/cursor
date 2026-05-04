@@ -234,6 +234,48 @@ func (d *DiscordService) SendLeaveNotification(leaves []domain.LeaveEntryForDisc
 	return d.sendWebhook(payload)
 }
 
+// SendMissingStandupNotification sends a notification listing users who haven't submitted daily standup
+func (d *DiscordService) SendMissingStandupNotification(users []domain.UserWithoutStandupForDiscord, date string) error {
+	if d.webhookURL == "" {
+		return nil
+	}
+
+	if len(users) == 0 {
+		return nil
+	}
+
+	var userLines []string
+	for _, u := range users {
+		name := u.DisplayName
+		if name == "" {
+			name = "ไม่ทราบชื่อ"
+		}
+		userLines = append(userLines, fmt.Sprintf("• %s", name))
+	}
+
+	description := strings.Join(userLines, "\n")
+	if len(description) > 4000 {
+		description = description[:3997] + "..."
+	}
+
+	payload := DiscordWebhookPayload{
+		Content: fmt.Sprintf("⚠️ **ประกาศรายชื่อที่ยังไม่ได้ทำ Daily Standup ประจำวันที่ %s**", date),
+		Embeds: []DiscordEmbed{
+			{
+				Title:       "📋 รายชื่อผู้ที่ยังไม่ได้ทำ Daily Standup",
+				Description: description,
+				Color:       0xE74C3C, // Red
+				Footer: &DiscordEmbedFooter{
+					Text: fmt.Sprintf("วันที่: %s", date),
+				},
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	return d.sendWebhook(payload)
+}
+
 // sendWebhook sends the payload to Discord
 func (d *DiscordService) sendWebhook(payload DiscordWebhookPayload) error {
 	if d.webhookURL == "" {

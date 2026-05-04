@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	attendanceDomain "github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
+	pulseDomain "github.com/portnd/the-sentinel-core/internal/modules/pulse/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 )
 
@@ -19,6 +20,7 @@ type DiscordTestHandler struct {
 	attendanceRepo  attendanceDomain.AttendanceRepository
 	sentinelRepo    domain.SentinelRepository
 	discordSvc      domain.DiscordNotifier
+	pulseRepo       pulseDomain.PulseRepository
 }
 
 // NewDiscordTestHandler creates a new Discord test handler
@@ -28,6 +30,7 @@ func NewDiscordTestHandler(
 	attendanceRepo attendanceDomain.AttendanceRepository,
 	sentinelRepo domain.SentinelRepository,
 	discordSvc domain.DiscordNotifier,
+	pulseRepo pulseDomain.PulseRepository,
 ) *DiscordTestHandler {
 	return &DiscordTestHandler{
 		usecase:        usecase,
@@ -35,6 +38,7 @@ func NewDiscordTestHandler(
 		attendanceRepo: attendanceRepo,
 		sentinelRepo:   sentinelRepo,
 		discordSvc:     discordSvc,
+		pulseRepo:      pulseRepo,
 	}
 }
 
@@ -223,6 +227,121 @@ func (h *DiscordTestHandler) TestLeaveNotification(c *gin.Context) {
 		"date":          todayStr,
 		"leaves_count":  len(leaves),
 		"leaves":        entries,
+	})
+}
+
+// TestMissingStandupNotification handles POST /admin/discord/test-missing-standup
+// Sends a test notification for users who haven't submitted daily standup today (CEO only)
+func (h *DiscordTestHandler) TestMissingStandupNotification(c *gin.Context) {
+	userRole := getUserRoleFromContext(c)
+	if userRole != authDomain.RoleCEO {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "Forbidden",
+			"message": "Only CEO can test Discord notifications",
+		})
+		return
+	}
+
+	if h.discordSvc == nil || !h.discordSvc.IsEnabled() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Discord not configured",
+			"message": "DISCORD_WEBHOOK_URL is not set",
+		})
+		return
+	}
+
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	if loc == nil {
+		loc = time.FixedZone("Bangkok", 7*60*60)
+	}
+	now := time.Now().In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	todayStr := now.Format("2006-01-02")
+
+	// Get today's standups
+	standups, err := h.pulseRepo.GetStandupsByDate(today)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get standups",
+			"message": err.Error(),
+		})
+		return
+	}
+	standupUIDs := make(map[uint]bool, len(standups))
+	for _, su := range standups {
+		standupUIDs[su.UserID] = true
+	}
+
+	// Get approved leaves
+	leaves, err := h.pulseRepo.GetApprovedLeavesByDate(today)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get leaves",
+			"message": err.Error(),
+		})
+		return
+	}
+	leaveUIDs := make(map[uint]bool, len(leaves))
+	for _, l := range leaves {
+		leaveUIDs[l.UserID] = true
+	}
+
+	// Get all users
+	users, err := h.authRepo.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get users",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	var missing []domain.UserWithoutStandupForDiscord
+	for _, user := range users {
+		role := strings.ToUpper(strings.TrimSpace(user.Role))
+		if role == authDomain.RoleCEO || role == authDomain.RoleSupport {
+			continue
+		}
+		if standupUIDs[user.ID] {
+			continue
+		}
+		if leaveUIDs[user.ID] {
+			continue
+		}
+		displayName := strings.TrimSpace(user.FirstName + " " + user.LastName)
+		if displayName == "" {
+			displayName = user.DisplayName
+		}
+		if displayName == "" {
+			displayName = strings.Split(user.Email, "@")[0]
+		}
+		missing = append(missing, domain.UserWithoutStandupForDiscord{
+			DisplayName: displayName,
+		})
+	}
+
+	if len(missing) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"message":       "All users submitted standup today",
+			"date":          todayStr,
+			"users_checked": len(users),
+		})
+		return
+	}
+
+	if err := h.discordSvc.SendMissingStandupNotification(missing, todayStr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to send Discord notification",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":                "Discord notification sent successfully",
+		"date":                   todayStr,
+		"users_without_standup":  len(missing),
+		"users":                  missing,
 	})
 }
 

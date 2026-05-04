@@ -81,13 +81,20 @@ type glmChatResponse struct {
 }
 
 // chatCompletion sends a single user message and returns the assistant content.
+// Retries up to 3 times on 429 (rate limit) with exponential backoff.
 func (s *glmService) chatCompletion(model string, userPrompt string, temperature float64) (string, error) {
+	return s.chatCompletionMessages(model, []glmMessage{{Role: "user", Content: userPrompt}}, temperature)
+}
+
+// chatCompletionMessages sends a multi-turn conversation and returns the assistant content.
+// Retries up to 3 times on 429 (rate limit) with exponential backoff.
+func (s *glmService) chatCompletionMessages(model string, messages []glmMessage, temperature float64) (string, error) {
 	if model == "" || strings.HasPrefix(model, "gemini-") {
 		model = defaultGLMModel
 	}
 	reqBody := glmChatRequest{
 		Model:       model,
-		Messages:    []glmMessage{{Role: "user", Content: userPrompt}},
+		Messages:    messages,
 		Temperature: temperature,
 		MaxTokens:   8192,
 	}
@@ -97,35 +104,45 @@ func (s *glmService) chatCompletion(model string, userPrompt string, temperature
 	}
 
 	endpoint := fmt.Sprintf("%s/chat/completions", s.baseURL)
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return "", fmt.Errorf("glm create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	maxRetries := 3
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return "", fmt.Errorf("glm create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+s.apiKey)
 
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("glm API: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("glm read response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("glm API: %w", err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return "", fmt.Errorf("glm read response: %w", err)
+		}
+		if resp.StatusCode == http.StatusOK {
+			s.recordRequest()
+			var chatResp glmChatResponse
+			if err := json.Unmarshal(body, &chatResp); err != nil {
+				return "", fmt.Errorf("glm parse response: %w", err)
+			}
+			if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.Content == "" {
+				return "", fmt.Errorf("glm returned empty content")
+			}
+			return chatResp.Choices[0].Message.Content, nil
+		}
+		// Retry on 429 with exponential backoff
+		if resp.StatusCode == 429 && attempt < maxRetries {
+			backoff := time.Duration(2<<attempt) * time.Second // 2s, 4s, 8s
+			fmt.Printf("⚠️  GLM 429 rate limited, retrying in %v (attempt %d/%d)\n", backoff, attempt+1, maxRetries)
+			time.Sleep(backoff)
+			continue
+		}
 		return "", fmt.Errorf("glm API %d: %s", resp.StatusCode, string(body))
 	}
-	s.recordRequest()
-
-	var chatResp glmChatResponse
-	if err := json.Unmarshal(body, &chatResp); err != nil {
-		return "", fmt.Errorf("glm parse response: %w", err)
-	}
-	if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.Content == "" {
-		return "", fmt.Errorf("glm returned empty content")
-	}
-	return chatResp.Choices[0].Message.Content, nil
+	return "", fmt.Errorf("glm API: max retries exceeded (429)")
 }
 
 // ListModels returns the list of available GLM models (April 2026 lineup).
@@ -459,6 +476,162 @@ Output JSON ONLY:
 		}
 	}
 	return result.Recommendation, result.Confidence, result.Reasoning, nil
+}
+
+func (s *glmService) EstimateStoryPoints(ctx domain.StoryPointTaskContext, fewShotExamples []domain.StoryPointExample) (float64, int, domain.StoryPointFactors, string, error) {
+	config := s.getConfig()
+
+	// Build multi-turn conversation to avoid "Prompt exceeds max length"
+	// Turn 1 (system): Instructions
+	// Turn 2 (user): Few-shot examples for calibration
+	// Turn 3 (assistant): Acknowledgment
+	// Turn 4 (user): The actual task to estimate
+
+	messages := []glmMessage{
+		{
+			Role: "system",
+			Content: fmt.Sprintf(`You are a Senior Agile Coach estimating Story Points.
+Scale: Fibonacci (0, 0.5, 1, 2, 3, 5, 8, 13, 21).
+3-Factor Model: Work(1-10), Complexity(1-10), Risk(1-10).
+Stack: Go/Nuxt3/PostgreSQL. AI Assistance: %d%% - %s.
+Story Points = relative effort (work + complexity + risk), NOT hours.
+Key context signals:
+- TaskType: FEATURE (client-facing, usually larger), TASK (dev work, medium), BUG (fixes, usually smaller but risk varies)
+- Priority: CRITICAL/HIGH = more urgency & scrutiny → may increase risk factor
+- SubTaskCount: more subtasks = more work & coordination
+- HasParent: sub-tasks are usually smaller scope than parent
+- EstimatedMin: existing time estimate (if >0) helps calibrate scale
+Output JSON ONLY: {"story_points":<float>,"confidence":<int 0-100>,"factors":{"work_amount":<int>,"complexity":<int>,"risk":<int>},"reasoning":"<ภาษาไทย สั้นๆ>"}`, config.CursorAssistance, cursorContextFromAssistance(config.CursorAssistance)),
+		},
+	}
+
+	// Turn 2: Few-shot examples (up to 10 — no truncation needed, separate message)
+	if len(fewShotExamples) > 0 {
+		exJSON, _ := json.Marshal(fewShotExamples)
+		messages = append(messages, glmMessage{
+			Role:    "user",
+			Content: fmt.Sprintf("REFERENCE TASKS from the same project (calibrate your scale):\n%s", string(exJSON)),
+		})
+		messages = append(messages, glmMessage{
+			Role:    "assistant",
+			Content: "Understood. I'll use these reference tasks to calibrate my estimation scale. Please provide the task to estimate.",
+		})
+	}
+
+	// Turn 4: The actual task — full context, description cleaned of base64/HTML
+	taskMsg := fmt.Sprintf(`Task Title: %s
+Task Type: %s
+Priority: %s
+Sub-tasks: %d
+Is Sub-task: %v
+Existing Time Estimate: %d minutes
+Project: %s
+Description: %s`, ctx.Title, ctx.TaskType, ctx.Priority, ctx.SubTaskCount, ctx.HasParent, ctx.EstimatedMin, ctx.ProjectName, stripDescriptionForAI(ctx.Description, 8000))
+	messages = append(messages, glmMessage{
+		Role:    "user",
+		Content: taskMsg,
+	})
+
+	content, err := s.chatCompletionMessages(config.ActiveModel, messages, float64(config.Temperature))
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", err
+	}
+	content = cleanJSON(content)
+
+	var result struct {
+		StoryPoints float64                 `json:"story_points"`
+		Confidence  int                     `json:"confidence"`
+		Factors     domain.StoryPointFactors `json:"factors"`
+		Reasoning   string                  `json:"reasoning"`
+	}
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("glm returned invalid JSON: %w (response: %s)", err, content)
+	}
+
+	if result.StoryPoints <= 0 {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("glm returned invalid story points: %.1f", result.StoryPoints)
+	}
+	result.Factors.WorkAmount = clampInt(result.Factors.WorkAmount, 1, 10)
+	result.Factors.Complexity = clampInt(result.Factors.Complexity, 1, 10)
+	result.Factors.Risk = clampInt(result.Factors.Risk, 1, 10)
+
+	fmt.Printf("✅ GLM SP Estimate: %.1f SP (confidence: %d%%, factors: W=%d C=%d R=%d)\n",
+		result.StoryPoints, result.Confidence, result.Factors.WorkAmount, result.Factors.Complexity, result.Factors.Risk)
+
+	return result.StoryPoints, result.Confidence, result.Factors, result.Reasoning, nil
+}
+
+// EstimateEffortFromContext estimates implementation time (minutes) using SP + factors as calibration context.
+// This is a SEPARATE focused AI call from EstimateStoryPoints for maximum accuracy.
+func (s *glmService) EstimateEffortFromContext(ctx domain.StoryPointTaskContext, storyPoints float64, factors domain.StoryPointFactors) (int, string, error) {
+	config := s.getConfig()
+	cursorContext := cursorContextFromAssistance(config.CursorAssistance)
+
+	messages := []glmMessage{
+		{
+			Role: "system",
+			Content: fmt.Sprintf(`You are a Senior Software Architect estimating implementation time.
+Stack: Go (Fiber/Gin), Nuxt 3, PostgreSQL, Hexagonal Architecture.
+AI Assistance Level: %d%% - %s
+
+CRITICAL — AI Assistance Adjustment:
+- 80%%+ AI assistance: developer is ~2-3x faster. Multiply base time by 0.4-0.5
+- 50%% AI assistance: moderate speedup. Multiply base time by 0.7-0.8
+- 20%% or less: nearly manual coding. Use base time as-is (1.0x)
+
+Story Points to Hours Reference (BASE time BEFORE AI adjustment, senior developer):
+- 1 SP ≈ 4h | 2 SP ≈ 8h | 3 SP ≈ 12h (1.5 days)
+- 5 SP ≈ 20h (2.5 days) | 8 SP ≈ 32h (4 days) | 13 SP ≈ 52h (6.5 days)
+- 21 SP ≈ 84h (10.5 days)
+
+Rules:
+- Start from SP-to-hours reference, then adjust based on factors and AI assistance level.
+- Include: coding, testing, code review, documentation. NOT meetings or waiting.
+- If task has sub-tasks, this estimate covers the PARENT task coordination + integration.
+Output JSON ONLY: {"minutes":<int>,"reasoning":"<คำอธิบายสั้นๆ เป็นภาษาไทย>"}`, config.CursorAssistance, cursorContext),
+		},
+		{
+			Role: "user",
+			Content: fmt.Sprintf(`Estimate implementation time for this task.
+
+Task Title: %s
+Task Type: %s
+Priority: %s
+Sub-tasks: %d
+Is Sub-task: %v
+Project: %s
+
+AI already estimated:
+- Story Points: %.1f (Fibonacci scale)
+- Work Amount: %d/10
+- Complexity: %d/10
+- Risk: %d/10
+
+Description (summary): %s`, ctx.Title, ctx.TaskType, ctx.Priority, ctx.SubTaskCount, ctx.HasParent, ctx.ProjectName,
+				storyPoints, factors.WorkAmount, factors.Complexity, factors.Risk,
+				stripDescriptionForAI(ctx.Description, 2000)),
+		},
+	}
+
+	content, err := s.chatCompletionMessages(config.ActiveModel, messages, float64(config.Temperature))
+	if err != nil {
+		return 0, "", err
+	}
+	content = cleanJSON(content)
+
+	var result struct {
+		Minutes  int    `json:"minutes"`
+		Reasoning string `json:"reasoning"`
+	}
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return 0, "", fmt.Errorf("glm effort returned invalid JSON: %w (response: %s)", err, content)
+	}
+	if result.Minutes <= 0 {
+		return 0, "", fmt.Errorf("glm effort returned invalid estimation: %d minutes", result.Minutes)
+	}
+
+	fmt.Printf("⏱️ GLM Effort Estimate: %d min for %.1f SP task\n", result.Minutes, storyPoints)
+	return result.Minutes, result.Reasoning, nil
 }
 
 // cursorContextFromAssistance returns a human-readable context string for the AI prompt.

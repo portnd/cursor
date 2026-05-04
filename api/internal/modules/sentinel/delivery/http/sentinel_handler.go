@@ -67,21 +67,22 @@ type negotiateTimeReq struct {
 }
 
 type updateTaskReq struct {
-	Title            string   `json:"title"`
-	Description      string   `json:"description"`
-	TaskType         string   `json:"task_type"` // FEATURE, TASK, BUG
-	ParentID         *string  `json:"parent_id"`
-	EpicID           *string  `json:"epic_id"`
-	SortOrder        *int     `json:"sort_order"`
-	DueAt            *string  `json:"due_at"`
-	StartDate        *string  `json:"start_date"`
-	EndDate          *string  `json:"end_date"`
-	Progress         *int     `json:"progress"`
-	Priority         string   `json:"priority"`
-	StoryPoints      *float64 `json:"story_points"`
-	SprintID         *string  `json:"sprint_id"`
-	MilestoneID      *string  `json:"milestone_id"`
-	EstimatedMinutes *int     `json:"estimated_minutes"` // Manual estimate; feeds Costing Engine
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	TaskType          string   `json:"task_type"` // FEATURE, TASK, BUG
+	ParentID          *string  `json:"parent_id"`
+	EpicID            *string  `json:"epic_id"`
+	SortOrder         *int     `json:"sort_order"`
+	DueAt             *string  `json:"due_at"`
+	StartDate         *string  `json:"start_date"`
+	EndDate           *string  `json:"end_date"`
+	Progress          *int     `json:"progress"`
+	Priority          string   `json:"priority"`
+	StoryPoints       *float64 `json:"story_points"`
+	SprintID          *string  `json:"sprint_id"`
+	PreviousSprintID  *string  `json:"previous_sprint_id"` // Sprint the task was in before being moved to backlog
+	MilestoneID       *string  `json:"milestone_id"`
+	EstimatedMinutes  *int     `json:"estimated_minutes"` // Manual estimate; feeds Costing Engine
 }
 
 type taskSummaryResponse struct {

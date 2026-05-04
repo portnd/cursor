@@ -949,7 +949,10 @@
                           </button>
                         </div>
                       </div>
-                      <div class="flex items-center shrink-0">
+                      <div class="flex items-center gap-1 shrink-0">
+                        <span v-if="task.previous_sprint_id && task.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                          From {{ getIncompleteTaskSprintName(task) }}
+                        </span>
                         <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ formatStatus(task.status) }}</span>
                       </div>
                     </div>
@@ -1045,7 +1048,10 @@
                               </button>
                             </div>
                           </div>
-                          <div class="flex items-center shrink-0">
+                          <div class="flex items-center gap-1 shrink-0">
+                            <span v-if="sub.previous_sprint_id && sub.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                              From {{ getIncompleteTaskSprintName(sub) }}
+                            </span>
                             <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ formatStatus(sub.status) }}</span>
                           </div>
                         </div>
@@ -1134,7 +1140,10 @@
                               </button>
                             </div>
                           </div>
-                            <div class="flex items-center shrink-0">
+                            <div class="flex items-center gap-1 shrink-0">
+                              <span v-if="subsub.previous_sprint_id && subsub.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                From {{ getIncompleteTaskSprintName(subsub) }}
+                              </span>
                               <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ formatStatus(subsub.status) }}</span>
                             </div>
                           </div>
@@ -1298,7 +1307,10 @@
                             </button>
                           </div>
                         </div>
-                        <div class="flex items-center shrink-0">
+                        <div class="flex items-center gap-1 shrink-0">
+                          <span v-if="task.previous_sprint_id && task.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            From {{ getIncompleteTaskSprintName(task) }}
+                          </span>
                           <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ formatStatus(task.status) }}</span>
                         </div>
                       </div>
@@ -1389,7 +1401,10 @@
                               </button>
                             </div>
                           </div>
-                            <div class="flex items-center shrink-0">
+                            <div class="flex items-center gap-1 shrink-0">
+                              <span v-if="sub.previous_sprint_id && sub.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                From {{ getIncompleteTaskSprintName(sub) }}
+                              </span>
                               <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ formatStatus(sub.status) }}</span>
                             </div>
                           </div>
@@ -1478,7 +1493,10 @@
                                 </button>
                               </div>
                             </div>
-                              <div class="flex items-center shrink-0">
+                              <div class="flex items-center gap-1 shrink-0">
+                                <span v-if="subsub.previous_sprint_id && subsub.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                  From {{ getIncompleteTaskSprintName(subsub) }}
+                                </span>
                                 <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(subsub.status)">{{ formatStatus(subsub.status) }}</span>
                               </div>
                             </div>
@@ -1565,7 +1583,14 @@
                 <button type="button" @click="openCompleteSprintModal(activeSprint)" class="px-4 py-2 rounded-xl bg-amber-100 dark:bg-amber-600/80 hover:bg-amber-100 dark:bg-amber-600 text-amber-100 text-sm font-medium transition-colors">
                   Complete Sprint
                 </button>
-                <button type="button" @click="openEditSprintModal(activeSprint)" class="p-2 rounded-lg text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700/50 transition-colors" title="Edit sprint">
+                <button
+                  type="button"
+                  :disabled="!isProjectCeo"
+                  @click="isProjectCeo && openEditSprintModal(activeSprint)"
+                  class="p-2 rounded-lg transition-colors"
+                  :class="isProjectCeo ? 'text-gray-400 hover:text-gray-900 dark:text-white hover:bg-gray-700/50' : 'text-gray-600 cursor-not-allowed opacity-50'"
+                  :title="isProjectCeo ? 'Edit sprint' : 'Only CEO can edit active sprint'"
+                >
                   ✎
                 </button>
               </div>
@@ -1649,17 +1674,38 @@
                     </button>
                   </template>
                   <template v-if="s.status === 'COMPLETED'">
-                    <button type="button" @click="openReopenSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-400 hover:bg-amber-100 dark:bg-amber-500/20 transition-colors" title="Reopen sprint">
+                    <button
+                      type="button"
+                      :disabled="!isProjectCeo"
+                      @click="isProjectCeo && openReopenSprintModal(s)"
+                      class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      :class="isProjectCeo ? 'text-amber-400 hover:bg-amber-100 dark:bg-amber-500/20' : 'text-gray-600 cursor-not-allowed opacity-50'"
+                      :title="isProjectCeo ? 'Reopen sprint' : 'Only CEO can reopen completed sprint'"
+                    >
                       Reopen
                     </button>
                   </template>
                   <button type="button" @click="openAddTasksToSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-100 dark:bg-emerald-500/20 transition-colors" title="Add tasks to sprint">
                     + Tasks
                   </button>
-                  <button type="button" @click="openEditSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:bg-gray-600/50 transition-colors" title="Edit sprint">
+                  <button
+                    type="button"
+                    :disabled="(s.status === 'ACTIVE' || s.status === 'COMPLETED') && !isProjectCeo"
+                    @click="((s.status === 'PLANNING') || isProjectCeo) && openEditSprintModal(s)"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    :class="((s.status === 'ACTIVE' || s.status === 'COMPLETED') && !isProjectCeo) ? 'text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 hover:bg-gray-600/50'"
+                    :title="(s.status === 'ACTIVE' || s.status === 'COMPLETED') && !isProjectCeo ? 'Only CEO can edit active/completed sprint' : 'Edit sprint'"
+                  >
                     Edit
                   </button>
-                  <button type="button" @click="openDeleteSprintModal(s)" class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-100 dark:bg-red-500/20 transition-colors" title="Delete sprint">
+                  <button
+                    type="button"
+                    :disabled="(s.status === 'ACTIVE' || s.status === 'COMPLETED') && !isProjectCeo"
+                    @click="((s.status === 'PLANNING') || isProjectCeo) && openDeleteSprintModal(s)"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    :class="((s.status === 'ACTIVE' || s.status === 'COMPLETED') && !isProjectCeo) ? 'text-gray-600 cursor-not-allowed opacity-50' : 'text-red-400 hover:bg-red-100 dark:bg-red-500/20'"
+                    :title="(s.status === 'ACTIVE' || s.status === 'COMPLETED') && !isProjectCeo ? 'Only CEO can delete active/completed sprint' : 'Delete sprint'"
+                  >
                     Delete
                   </button>
                 </div>
@@ -1668,6 +1714,71 @@
             <p class="px-4 sm:px-5 py-3 text-[10px] text-gray-500 border-t border-gray-700/80 bg-gray-900/40">
               One project can have only one active sprint. Complete or reopen the current sprint before starting another.
             </p>
+          </div>
+
+          <!-- Backlog Items (Tasks without sprint) -->
+          <div class="sprints-enterprise-panel rounded-2xl overflow-hidden">
+            <div class="px-4 sm:px-5 py-4 border-b border-gray-700">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h3 class="text-base font-semibold text-gray-200">Backlog Items</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">Tasks not yet assigned to any sprint — ready for planning.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-xs text-gray-400">{{ backlogTasksForSprints.length }} tasks · {{ backlogTotalStoryPoints }} SP</span>
+                  <NuxtLink :to="`/projects/${project.id}?tab=backlog`" class="text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                    Open Backlog tab →
+                  </NuxtLink>
+                </div>
+              </div>
+            </div>
+            <div v-if="backlogTasksForSprints.length === 0" class="py-12 text-center">
+              <div class="text-4xl mb-2 opacity-60">📋</div>
+              <p class="text-gray-400 font-medium">No backlog items</p>
+              <p class="text-sm text-gray-500 mt-1 max-w-sm mx-auto">All tasks are assigned to sprints, or create new tasks from the Backlog tab.</p>
+            </div>
+            <ul v-else class="divide-y divide-gray-700/80 max-h-[28rem] overflow-y-auto">
+              <li
+                v-for="task in backlogTasksForSprints.slice(0, 20)"
+                :key="task.id"
+                class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 sm:px-5 py-3 hover:bg-white/5 transition-colors cursor-pointer"
+                @click="navigateToTask(task.id)"
+              >
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskDisplayCode(task) }}</span>
+                    <span class="text-sm text-gray-200 truncate">{{ task.title }}</span>
+                    <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(task.priority)">{{ task.priority }}</span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <span v-if="task.epic_id" class="text-purple-400">{{ getEpicTitle(task.epic_id) }}</span>
+                    <span v-if="task.story_points" class="text-purple-400">{{ task.story_points }} SP</span>
+                    <span v-else class="text-red-400/80 font-medium" title="ยังไม่ได้ใส่ Story Points — ต้องใส่ก่อนเริ่ม Sprint">⚠️ 0 SP</span>
+                    <span v-if="task.estimated_minutes" class="text-gray-400">{{ formatEstimatedHours(task.estimated_minutes) }}</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span v-if="task.previous_sprint_id && task.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30" :title="`From ${getIncompleteTaskSprintName(task)}`">
+                    From {{ getIncompleteTaskSprintName(task) }}
+                  </span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(task.status)">{{ task.status.replace('_', ' ') }}</span>
+                  <button
+                    v-if="activeSprint"
+                    type="button"
+                    @click.stop="addTaskToActiveSprint(task.id)"
+                    class="px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                    title="Add to active sprint"
+                  >
+                    + Add to Sprint
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <div v-if="backlogTasksForSprints.length > 20" class="px-4 sm:px-5 py-3 text-center border-t border-gray-700/80 bg-gray-900/40">
+              <NuxtLink :to="`/projects/${project.id}?tab=backlog`" class="text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                View all {{ backlogTasksForSprints.length }} backlog items →
+              </NuxtLink>
+            </div>
           </div>
         </div>
 
@@ -3068,7 +3179,7 @@
 
     <!-- Add tasks to Sprint Modal -->
     <div v-if="showAddTasksToSprintModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeAddTasksToSprintModal">
-      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-4xl w-full shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-7xl w-full shadow-2xl max-h-[85vh] flex flex-col">
         <h2 class="text-lg font-bold text-white mb-1">เพิ่มงานเข้า Sprint</h2>
         <p class="text-sm text-gray-400 mb-4">เลือกงานที่ต้องการเพิ่มเข้า sprint <strong class="text-white">"{{ sprintForAddTasks?.name }}"</strong></p>
         <div class="flex-1 overflow-auto border border-gray-700 rounded-lg mb-4 min-h-[300px]">
@@ -3168,15 +3279,8 @@
           คุณต้องการปิด sprint <strong class="text-white">"{{ sprintToComplete?.name }}"</strong> ใช่หรือไม่?
         </p>
         <p class="text-xs text-gray-500 mb-4">
-          เลือกได้ว่าจัดการงานที่ยังไม่เสร็จให้ไป sprint ถัดไป หรือย้อนกลับไป backlog
+          งานที่ยังไม่เสร็จทั้งหมดจะถูกย้ายกลับไปที่ <strong class="text-gray-400">Backlog</strong>
         </p>
-        <div class="mb-4">
-          <label class="label">งานที่ยังไม่เสร็จจะไปที่</label>
-          <select v-model="completeSprintCarryOver" class="input-field w-full">
-            <option value="next_sprint">Sprint ถัดไป</option>
-            <option value="backlog">Backlog</option>
-          </select>
-        </div>
         <div v-if="completeSprintError" class="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-lg text-red-400 text-sm">{{ completeSprintError }}</div>
         <div class="flex gap-3">
           <button @click="confirmCompleteSprint" :disabled="isCompletingSprint" class="flex-1 px-4 py-2.5 bg-yellow-100 dark:bg-yellow-600 hover:bg-yellow-200 dark:bg-yellow-700 disabled:opacity-50 text-gray-900 dark:text-white font-medium rounded-xl transition-colors">
@@ -4446,7 +4550,7 @@ async function bulkDeleteSelectedBacklogTasks() {
   if (ids.length === 0) return
   const ok = await confirm({
     title: 'ลบ tasks ที่เลือก',
-    message: `ต้องการลบ ${ids.length} รายการใช่หรือไม่? (ถ้ามี sub-task ต้องลบ sub-task ก่อน)`,
+    message: `ต้องการลบ ${ids.length} รายการใช่หรือไม่? (ถ้ามี sub-task ต้องลบ sub-task ก่อน, task ใน sprint ที่ active หรือมี from sprint ไม่สามารถลบได้)`,
     confirmLabel: 'ลบ',
     cancelLabel: 'ยกเลิก',
     variant: 'danger',
@@ -4613,7 +4717,7 @@ function taskDisplayCode(task: { id: string; code?: string }) {
 
 function sprintTaskCount(type: 'total' | 'done' | 'sp') {
   if (!activeSprint.value) return 0
-  const tasks = allTasks.value.filter((t) => t.sprint_id === activeSprint.value!.id)
+  const tasks = allTasks.value.filter((t) => !t.parent_id && t.sprint_id === activeSprint.value!.id)
   if (type === 'total') return tasks.length
   if (type === 'done') return tasks.filter((t) => t.status === 'COMPLETED').length
   if (type === 'sp') return tasks.reduce((s, t) => s + (t.story_points || 0), 0)
@@ -4636,11 +4740,86 @@ function taskStatusBadge(status: string) {
   return 'bg-gray-700 text-gray-400'
 }
 
+/** Check if task is incomplete in backlog (failed from closed sprint or planning mistake) */
+function isIncompleteInBacklog(task: Task): boolean {
+  // Task must be in backlog (no sprint)
+  if (task.sprint_id) return false
+  // Task is completed - not incomplete
+  if (task.status === 'COMPLETED') return false
+  // Task has previous_sprint_id - came from closed sprint
+  if (task.previous_sprint_id) return true
+  // All other statuses in backlog = incomplete task (need attention)
+  return true
+}
+
+/** Get sprint name for incomplete task */
+function getIncompleteTaskSprintName(task: Task): string | null {
+  if (!task.previous_sprint_id) return null
+  const sprint = sprints.value.find((s) => s.id === task.previous_sprint_id)
+  return sprint?.name || null
+}
+
 function priorityBadge(p: string) {
   if (p === 'CRITICAL') return 'bg-red-500/20 text-red-400'
   if (p === 'HIGH') return 'bg-orange-500/20 text-orange-400'
   if (p === 'MEDIUM') return 'bg-yellow-500/20 text-yellow-400'
   return 'bg-green-500/20 text-green-400'
+}
+
+// Backlog tasks for Sprints tab
+const backlogTasksForSprints = computed(() => {
+  return allTasks.value
+    .filter((t) => !t.sprint_id && !t.parent_id)
+    .sort((a, b) => {
+      // Sort by priority (CRITICAL > HIGH > MEDIUM > LOW)
+      const priorityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+      const pa = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 4
+      const pb = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 4
+      if (pa !== pb) return pa - pb
+      // Then by story points (higher first)
+      return (b.story_points || 0) - (a.story_points || 0)
+    })
+})
+
+const backlogTotalStoryPoints = computed(() => {
+  return backlogTasksForSprints.value.reduce((sum, t) => sum + (t.story_points || 0), 0)
+})
+
+function getEpicTitle(epicId: string | null | undefined): string {
+  if (!epicId) return ''
+  const epic = epics.value.find((e) => e.id === epicId)
+  return epic?.title || ''
+}
+
+function formatEstimatedHours(minutes: number | null | undefined): string {
+  if (!minutes) return ''
+  const hours = minutes / 60
+  return hours >= 1 ? `${hours.toFixed(1)}h` : `${minutes}m`
+}
+
+async function addTaskToActiveSprint(taskId: string) {
+  if (!activeSprint.value) return
+  try {
+    await projectsApi.addTasksToSprint(activeSprint.value.id, [taskId])
+    const task = allTasks.value.find((t) => t.id === taskId)
+    if (task) {
+      task.sprint_id = activeSprint.value.id
+      // Update task dates to sprint range
+      const dates = taskDatesInSprintRange(task, activeSprint.value)
+      if (dates) {
+        try {
+          await tasksApi.updateTask(taskId, { start_date: dates.start_date, end_date: dates.end_date })
+          task.start_date = dates.start_date
+          task.end_date = dates.end_date
+        } catch {
+          // timeline dates optional
+        }
+      }
+    }
+    showSuccess('Added task to sprint', 'Done')
+  } catch (e: any) {
+    showError(e?.message ?? 'Failed to add task to sprint')
+  }
 }
 
 function priorityTextClass(p: string) {
@@ -4710,7 +4889,7 @@ function isoToDateOnly(iso: string | null | undefined): string {
 
 const BACKLOG_EXPANDED_STORAGE_KEY = 'sentinel-backlog-expanded'
 const BACKLOG_EXPECT_RETURN_KEY = 'sentinel-backlog-expect-return'
-const PROJECT_DETAILS_CACHE_KEY = 'sentinel-project-details-cache-v1'
+const PROJECT_DETAILS_CACHE_KEY = 'sentinel-project-details-cache-v2'
 const PROJECT_DETAILS_CACHE_TTL_MS = 2 * 60 * 1000
 
 const INITIAL_TASK_LIMIT_LIGHT = 80

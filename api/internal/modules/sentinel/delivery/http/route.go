@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
 	attendanceDomain "github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
+	pulseDomain "github.com/portnd/the-sentinel-core/internal/modules/pulse/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 )
 
@@ -17,12 +18,13 @@ func RegisterRoutes(
 	attendanceRepo attendanceDomain.AttendanceRepository,
 	sentinelRepo domain.SentinelRepository,
 	discordSvc domain.DiscordNotifier,
+	pulseRepo pulseDomain.PulseRepository,
 ) {
 	handler := NewSentinelHandler(usecase, googleAPIKey, canvaAccessToken)
 	financeHandler := NewProjectFinanceHandler(projectFinanceUsecase)
 	b2bHandler := NewB2BHandler(usecase)
 	backupHandler := NewProjectBackupHandler(usecase)
-	discordTestHandler := NewDiscordTestHandler(usecase, authRepo, attendanceRepo, sentinelRepo, discordSvc)
+	discordTestHandler := NewDiscordTestHandler(usecase, authRepo, attendanceRepo, sentinelRepo, discordSvc, pulseRepo)
 
 	sentinelGroup := router.Group("/sentinel")
 	// sentinelGroup.Use(middleware.Auth()) // Uncomment if you have auth middleware
@@ -60,6 +62,7 @@ func RegisterRoutes(
 		sentinelGroup.PATCH("/tasks/:id", handler.UpdateTask)                               // Update task (Creator or CEO only, triggers AI re-estimation)
 		sentinelGroup.PATCH("/tasks/:id/slide-resources", handler.UpdateTaskSlideResources) // Update task resource_urls (slide images/annotations)
 		sentinelGroup.POST("/tasks/:id/estimate", handler.EstimateTask)                     // AI estimate time (Creator / CEO / Product Owner)
+		sentinelGroup.POST("/tasks/:id/estimate-sp", handler.EstimateStoryPoints)          // AI suggest story points (Creator / CEO / Product Owner) — returns suggestion only
 		sentinelGroup.DELETE("/tasks/:id", handler.DeleteTask)                              // Delete task (Creator or CEO only)
 		sentinelGroup.POST("/tasks/:id/split", handler.SplitTask)                           // Split task into N sub-tasks (Product Owner/CEO/Creator)
 		sentinelGroup.POST("/tasks/:id/assign", handler.AssignTask)                         // Assign task (Product Owner/CEO/Manager; parent assignee for subtasks)
@@ -184,7 +187,8 @@ func RegisterRoutes(
 		adminGroup.GET("/ai-usage", handler.GetAIUsage)       // Approximate AI quota usage
 
 		// Discord Notification Testing (CEO only)
-		adminGroup.POST("/discord/test-missing-log", discordTestHandler.TestMissingLogNotification) // Test missing log notification
-		adminGroup.POST("/discord/test-leave", discordTestHandler.TestLeaveNotification)             // Test leave notification
+		adminGroup.POST("/discord/test-missing-log", discordTestHandler.TestMissingLogNotification)     // Test missing log notification
+		adminGroup.POST("/discord/test-leave", discordTestHandler.TestLeaveNotification)               // Test leave notification
+		adminGroup.POST("/discord/test-missing-standup", discordTestHandler.TestMissingStandupNotification) // Test missing standup notification
 	}
 }

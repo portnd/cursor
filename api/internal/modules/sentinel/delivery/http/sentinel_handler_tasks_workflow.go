@@ -4,6 +4,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -263,10 +264,11 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 	hasPriority := req.Priority != ""
 	hasSP := req.StoryPoints != nil
 	hasSprint := req.SprintID != nil
+	hasPreviousSprint := req.PreviousSprintID != nil
 	hasMilestone := req.MilestoneID != nil
 	hasSortOrder := req.SortOrder != nil
 	hasEstMins := req.EstimatedMinutes != nil
-	if !hasTitle && !hasDesc && !hasTaskType && !hasParent && !hasEpicKey && !hasDueAt && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasMilestone && !hasSortOrder && !hasEstMins {
+	if !hasTitle && !hasDesc && !hasTaskType && !hasParent && !hasEpicKey && !hasDueAt && !hasStart && !hasEnd && !hasProgress && !hasPriority && !hasSP && !hasSprint && !hasPreviousSprint && !hasMilestone && !hasSortOrder && !hasEstMins {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Bad Request",
 			"message": "At least one field must be provided",
@@ -342,6 +344,18 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 		}
 		// empty string = unassign from sprint (sprintIDUpd stays nil)
 	}
+	var previousSprintIDUpd *uuid.UUID
+	if hasPreviousSprint {
+		if *req.PreviousSprintID != "" {
+			psid, err := uuid.Parse(*req.PreviousSprintID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "message": "previous_sprint_id must be a valid UUID"})
+				return
+			}
+			previousSprintIDUpd = &psid
+		}
+		// empty string = clear previous sprint (previousSprintIDUpd stays nil)
+	}
 	var milestoneIDUpd *uuid.UUID
 	if hasMilestone {
 		if *req.MilestoneID != "" {
@@ -359,7 +373,7 @@ func (h *SentinelHandler) UpdateTask(c *gin.Context) {
 		sortOrderUpd = req.SortOrder
 	}
 
-	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, dueAt, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, hasSprint, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
+	task, err := h.usecase.UpdateTask(taskResolved.ID, userID, userRole, req.Title, req.Description, req.TaskType, parentID, dueAt, startDate, endDate, progress, req.Priority, req.StoryPoints, sprintIDUpd, hasSprint, previousSprintIDUpd, milestoneIDUpd, epicIDUpd, hasEpicKey, sortOrderUpd, req.EstimatedMinutes)
 	if err != nil {
 		// Check for authorization error
 		if contains(err.Error(), "unauthorized") {
@@ -460,6 +474,55 @@ func (h *SentinelHandler) EstimateTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "AI estimate updated", "data": updated})
+}
+
+// EstimateStoryPoints handles POST /api/v1/sentinel/tasks/:id/estimate-sp — AI suggests story points (does NOT auto-save).
+func (h *SentinelHandler) EstimateStoryPoints(c *gin.Context) {
+	taskResolved, err := h.resolveTaskIDOrCode(c)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+		return
+	}
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user not authenticated"})
+		return
+	}
+	userRole := getUserRoleFromContext(c)
+	if userRole == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized", "message": "user role not found"})
+		return
+	}
+	sp, confidence, factors, estimatedMinutes, reasoning, err := h.usecase.EstimateStoryPoints(taskResolved.ID, userID, userRole)
+	if err != nil {
+		fmt.Printf("❌ EstimateStoryPoints handler error: %v\n", err)
+		if contains(err.Error(), "unauthorized") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden", "message": err.Error()})
+			return
+		}
+		if contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not Found", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "SP estimate failed", "message": err.Error()})
+		return
+	}
+	// Check if effort came from AI or fallback (fallback means effort call failed)
+	effortSource := "ai"
+	if strings.Contains(reasoning, "(fallback)") {
+		effortSource = "fallback"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "AI story point suggestion",
+		"data": gin.H{
+			"story_points":      sp,
+			"confidence":        confidence,
+			"factors":           factors,
+			"estimated_minutes": estimatedMinutes,
+			"effort_source":     effortSource,
+			"reasoning":         reasoning,
+		},
+	})
 }
 
 // DeleteTask handles DELETE /api/v1/sentinel/tasks/:id

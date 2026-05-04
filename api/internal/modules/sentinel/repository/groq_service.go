@@ -103,14 +103,19 @@ type groqChatResponse struct {
 
 // chatCompletion sends a single user message and returns the assistant content.
 func (s *groqService) chatCompletion(model string, userPrompt string, temperature float64) (string, error) {
+	return s.chatCompletionMessages(model, []groqMessage{{Role: "user", Content: userPrompt}}, temperature)
+}
+
+// chatCompletionMessages sends a multi-turn conversation and returns the assistant content.
+func (s *groqService) chatCompletionMessages(model string, messages []groqMessage, temperature float64) (string, error) {
 	if model == "" || strings.HasPrefix(model, "gemini-") {
 		model = defaultGroqModel
 	}
 	reqBody := groqChatRequest{
 		Model:       model,
-		Messages:    []groqMessage{{Role: "user", Content: userPrompt}},
+		Messages:    messages,
 		Temperature: temperature,
-		MaxTokens:   4096,
+		MaxTokens:   8192,
 	}
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
@@ -486,4 +491,160 @@ Output JSON ONLY:
 		}
 	}
 	return result.Recommendation, result.Confidence, result.Reasoning, nil
+}
+
+func (s *groqService) EstimateStoryPoints(ctx domain.StoryPointTaskContext, fewShotExamples []domain.StoryPointExample) (float64, int, domain.StoryPointFactors, string, error) {
+	config := s.getConfig()
+
+	// Build multi-turn conversation to avoid "Prompt exceeds max length"
+	messages := []groqMessage{
+		{
+			Role: "system",
+			Content: fmt.Sprintf(`You are a Senior Agile Coach estimating Story Points.
+Scale: Fibonacci (0, 0.5, 1, 2, 3, 5, 8, 13, 21).
+3-Factor Model: Work(1-10), Complexity(1-10), Risk(1-10).
+Stack: Go/Nuxt3/PostgreSQL. AI Assistance: %d%% - %s.
+Story Points = relative effort (work + complexity + risk), NOT hours.
+Key context signals:
+- TaskType: FEATURE (client-facing, usually larger), TASK (dev work, medium), BUG (fixes, usually smaller but risk varies)
+- Priority: CRITICAL/HIGH = more urgency & scrutiny → may increase risk factor
+- SubTaskCount: more subtasks = more work & coordination
+- HasParent: sub-tasks are usually smaller scope than parent
+- EstimatedMin: existing time estimate (if >0) helps calibrate scale
+Output JSON ONLY: {"story_points":<float>,"confidence":<int 0-100>,"factors":{"work_amount":<int>,"complexity":<int>,"risk":<int>},"reasoning":"<ภาษาไทย สั้นๆ>"}`, config.CursorAssistance, cursorContextFromAssistance(config.CursorAssistance)),
+		},
+	}
+
+	if len(fewShotExamples) > 0 {
+		exJSON, _ := json.Marshal(fewShotExamples)
+		messages = append(messages, groqMessage{
+			Role:    "user",
+			Content: fmt.Sprintf("REFERENCE TASKS from the same project (calibrate your scale):\n%s", string(exJSON)),
+		})
+		messages = append(messages, groqMessage{
+			Role:    "assistant",
+			Content: "Understood. I'll use these reference tasks to calibrate my estimation scale. Please provide the task to estimate.",
+		})
+	}
+
+	taskMsg := fmt.Sprintf(`Task Title: %s
+Task Type: %s
+Priority: %s
+Sub-tasks: %d
+Is Sub-task: %v
+Existing Time Estimate: %d minutes
+Project: %s
+Description: %s`, ctx.Title, ctx.TaskType, ctx.Priority, ctx.SubTaskCount, ctx.HasParent, ctx.EstimatedMin, ctx.ProjectName, stripDescriptionForAI(ctx.Description, 8000))
+	messages = append(messages, groqMessage{
+		Role:    "user",
+		Content: taskMsg,
+	})
+
+	content, err := s.chatCompletionMessages(config.ActiveModel, messages, float64(config.Temperature))
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", err
+	}
+	content = cleanJSON(content)
+
+	var result struct {
+		StoryPoints float64                 `json:"story_points"`
+		Confidence  int                     `json:"confidence"`
+		Factors     domain.StoryPointFactors `json:"factors"`
+		Reasoning   string                  `json:"reasoning"`
+	}
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("groq returned invalid JSON: %w (response: %s)", err, content)
+	}
+
+	if result.StoryPoints < 0 {
+		result.StoryPoints = 0
+	}
+	if result.Confidence < 0 {
+		result.Confidence = 0
+	}
+	if result.Confidence > 100 {
+		result.Confidence = 100
+	}
+	clamp := func(v int) int {
+		if v < 1 { return 1 }
+		if v > 10 { return 10 }
+		return v
+	}
+	result.Factors.WorkAmount = clamp(result.Factors.WorkAmount)
+	result.Factors.Complexity = clamp(result.Factors.Complexity)
+	result.Factors.Risk = clamp(result.Factors.Risk)
+
+	return result.StoryPoints, result.Confidence, result.Factors, result.Reasoning, nil
+}
+
+// EstimateEffortFromContext estimates implementation time (minutes) using SP + factors as calibration context.
+func (s *groqService) EstimateEffortFromContext(ctx domain.StoryPointTaskContext, storyPoints float64, factors domain.StoryPointFactors) (int, string, error) {
+	config := s.getConfig()
+	cursorContext := cursorContextFromAssistance(config.CursorAssistance)
+
+	messages := []groqMessage{
+		{
+			Role: "system",
+			Content: fmt.Sprintf(`You are a Senior Software Architect estimating implementation time.
+Stack: Go (Fiber/Gin), Nuxt 3, PostgreSQL, Hexagonal Architecture.
+AI Assistance Level: %d%% - %s
+
+CRITICAL — AI Assistance Adjustment:
+- 80%%+ AI assistance: developer is ~2-3x faster. Multiply base time by 0.4-0.5
+- 50%% AI assistance: moderate speedup. Multiply base time by 0.7-0.8
+- 20%% or less: nearly manual coding. Use base time as-is (1.0x)
+
+Story Points to Hours Reference (BASE time BEFORE AI adjustment, senior developer):
+- 1 SP ≈ 4h | 2 SP ≈ 8h | 3 SP ≈ 12h (1.5 days)
+- 5 SP ≈ 20h (2.5 days) | 8 SP ≈ 32h (4 days) | 13 SP ≈ 52h (6.5 days)
+- 21 SP ≈ 84h (10.5 days)
+
+Rules:
+- Start from SP-to-hours reference, then adjust based on factors and AI assistance level.
+- Include: coding, testing, code review, documentation. NOT meetings or waiting.
+- If task has sub-tasks, this estimate covers the PARENT task coordination + integration.
+Output JSON ONLY: {"minutes":<int>,"reasoning":"<คำอธิบายสั้นๆ เป็นภาษาไทย>"}`, config.CursorAssistance, cursorContext),
+		},
+		{
+			Role: "user",
+			Content: fmt.Sprintf(`Estimate implementation time for this task.
+
+Task Title: %s
+Task Type: %s
+Priority: %s
+Sub-tasks: %d
+Is Sub-task: %v
+Project: %s
+
+AI already estimated:
+- Story Points: %.1f (Fibonacci scale)
+- Work Amount: %d/10
+- Complexity: %d/10
+- Risk: %d/10
+
+Description (summary): %s`, ctx.Title, ctx.TaskType, ctx.Priority, ctx.SubTaskCount, ctx.HasParent, ctx.ProjectName,
+				storyPoints, factors.WorkAmount, factors.Complexity, factors.Risk,
+				stripDescriptionForAI(ctx.Description, 2000)),
+		},
+	}
+
+	content, err := s.chatCompletionMessages(config.ActiveModel, messages, float64(config.Temperature))
+	if err != nil {
+		return 0, "", err
+	}
+	content = cleanJSON(content)
+
+	var result struct {
+		Minutes   int    `json:"minutes"`
+		Reasoning string `json:"reasoning"`
+	}
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return 0, "", fmt.Errorf("groq effort returned invalid JSON: %w (response: %s)", err, content)
+	}
+	if result.Minutes <= 0 {
+		return 0, "", fmt.Errorf("groq effort returned invalid estimation: %d minutes", result.Minutes)
+	}
+
+	fmt.Printf("⏱️ Groq Effort Estimate: %d min for %.1f SP task\n", result.Minutes, storyPoints)
+	return result.Minutes, result.Reasoning, nil
 }

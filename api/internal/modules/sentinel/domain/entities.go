@@ -20,6 +20,33 @@ func IsBadRequest(err error) bool {
 	return errors.As(err, &e)
 }
 
+// ErrSprintStoryPointsMissing is returned when trying to start/reopen a sprint
+// where one or more tasks have zero story points.
+type ErrSprintStoryPointsMissing struct {
+	MissingTasks []StoryPointMissingTask
+}
+
+// StoryPointMissingTask identifies a task that lacks story points.
+type StoryPointMissingTask struct {
+	ID    uuid.UUID `json:"id"`
+	Code  string    `json:"code"`
+	Title string    `json:"title"`
+}
+
+func (e *ErrSprintStoryPointsMissing) Error() string {
+	names := make([]string, 0, len(e.MissingTasks))
+	for _, t := range e.MissingTasks {
+		names = append(names, t.Code+" "+t.Title)
+	}
+	return "cannot start sprint: tasks missing story points: " + strings.Join(names, ", ")
+}
+
+// IsSprintStoryPointsMissing returns true when err is an ErrSprintStoryPointsMissing.
+func IsSprintStoryPointsMissing(err error) bool {
+	var e *ErrSprintStoryPointsMissing
+	return errors.As(err, &e)
+}
+
 // Epic represents a large feature or goal within a project (Hierarchy Dimension 1)
 type Epic struct {
 	ID          uuid.UUID  `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
@@ -400,6 +427,7 @@ type ProjectDetailsTask struct {
 	ProjectID             *uuid.UUID `json:"project_id"`
 	EpicID                *uuid.UUID `json:"epic_id,omitempty"`
 	SprintID              *uuid.UUID `json:"sprint_id,omitempty"`
+	PreviousSprintID      *uuid.UUID `json:"previous_sprint_id,omitempty"`
 	MilestoneID           *uuid.UUID `json:"milestone_id,omitempty"`
 	TaskType              string     `json:"task_type"`
 	Priority              string     `json:"priority"`
@@ -427,6 +455,7 @@ type TaskSummary struct {
 	ProjectID             *uuid.UUID `json:"project_id"`
 	EpicID                *uuid.UUID `json:"epic_id,omitempty"`
 	SprintID              *uuid.UUID `json:"sprint_id,omitempty"`
+	PreviousSprintID      *uuid.UUID `json:"previous_sprint_id,omitempty"`
 	MilestoneID           *uuid.UUID `json:"milestone_id,omitempty"`
 	TaskType              string     `json:"task_type"`
 	Priority              string     `json:"priority"`
@@ -469,8 +498,9 @@ type Task struct {
 	Epic   *Epic      `json:"epic,omitempty" gorm:"foreignKey:EpicID"`
 
 	// Sprint & Milestone linking
-	SprintID    *uuid.UUID `json:"sprint_id,omitempty" gorm:"type:uuid;index"`
-	MilestoneID *uuid.UUID `json:"milestone_id,omitempty" gorm:"type:uuid;index"`
+	SprintID        *uuid.UUID `json:"sprint_id,omitempty" gorm:"type:uuid;index"`
+	PreviousSprintID *uuid.UUID `json:"previous_sprint_id,omitempty" gorm:"type:uuid;index"` // Sprint the task was in before being moved to backlog
+	MilestoneID     *uuid.UUID `json:"milestone_id,omitempty" gorm:"type:uuid;index"`
 
 	// Task Typology: distinguishes client-facing Features from dev Tasks and Bugs
 	TaskType string `json:"task_type" gorm:"type:varchar(20);default:'TASK'"` // FEATURE, TASK, BUG
@@ -715,6 +745,7 @@ type SentinelRepository interface {
 	GetSprintByID(id uuid.UUID) (*Sprint, error)
 	GetSprintsByProjectID(projectID uuid.UUID) ([]Sprint, error)
 	GetActiveSprintByProjectID(projectID uuid.UUID) (*Sprint, error)
+	GetTasksBySprintID(sprintID uuid.UUID) ([]Task, error)
 	UpdateSprint(sprint *Sprint) error
 	DeleteSprint(id uuid.UUID) error
 
@@ -835,9 +866,10 @@ type SentinelUsecase interface {
 	RemoveDependency(id uuid.UUID) error
 
 	// Task Management with Access Control
-	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *float64, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*Task, error)
+	UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *float64, sprintID *uuid.UUID, applySprint bool, previousSprintID *uuid.UUID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*Task, error)
 	UpdateTaskResourceURLs(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, resourceURLs datatypes.JSON) (*Task, error)
 	EstimateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (*Task, error)                            // Kept for AI scheduling (ScheduleProjectWithAI)
+	EstimateStoryPoints(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (float64, int, StoryPointFactors, int, string, error) // AI suggests SP + effort — does NOT auto-save
 	GenerateProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (*AIGeneratedPlan, error)       // AI generates epics, milestones, sprints, tasks
 	ClearProjectPlan(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) error                              // Remove all tasks, sprints, milestones, epics (CEO / Product Owner)
 	ScheduleProjectWithAI(projectID uuid.UUID, requestingUserID uint, requestingUserRole string) (updatedCount int, err error) // Estimate + schedule existing tasks (CEO / Product Owner)
@@ -1251,6 +1283,32 @@ type UsageTracker interface {
 	GetUsage(limitRPM, limitRPD int) AIUsage
 }
 
+// StoryPointExample is a few-shot example for AI story point estimation calibration.
+type StoryPointExample struct {
+	Title       string  `json:"title"`
+	StoryPoints float64 `json:"story_points"`
+}
+
+// StoryPointFactors represents the 3-factor breakdown (Work/Complexity/Risk) from Mike Cohn's model.
+type StoryPointFactors struct {
+	WorkAmount   int `json:"work_amount"`   // 1-10: amount of work
+	Complexity   int `json:"complexity"`    // 1-10: technical complexity
+	Risk         int `json:"risk"`          // 1-10: risk and uncertainty
+}
+
+// StoryPointTaskContext carries all relevant task info for AI story point estimation.
+// This ensures the AI has complete context — not just title/description.
+type StoryPointTaskContext struct {
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`    // Raw HTML (AI service will strip/clean)
+	TaskType      string  `json:"task_type"`      // FEATURE, TASK, BUG
+	Priority      string  `json:"priority"`       // CRITICAL, HIGH, MEDIUM, LOW
+	SubTaskCount  int     `json:"subtask_count"`  // Number of sub-tasks (more = more work)
+	HasParent     bool    `json:"has_parent"`     // Is this a sub-task? (sub-tasks are usually smaller)
+	EstimatedMin  int     `json:"estimated_min"`  // Existing time estimate (if any)
+	ProjectName   string  `json:"project_name"`   // Project context helps AI understand domain
+}
+
 // AIService defines the interface for AI operations (Port)
 type AIService interface {
 	// ListModels returns model IDs from Gemini API (e.g. gemini-2.5-flash-lite). Empty or error = use fallback list.
@@ -1275,6 +1333,17 @@ type AIService interface {
 	// AnalyzeTimeNegotiation วิเคราะห์คำขอเจรจาเวลาจากนักพัฒนา
 	// Returns: recommendation (APPROVE/REJECT), confidence (0-100), reasoning, error
 	AnalyzeTimeNegotiation(taskTitle, taskDescription string, aiEstimate, devProposal int, devReason string) (recommendation string, confidence int, reasoning string, err error)
+
+	// EstimateStoryPoints แนะนำ Story Points โดยพิจารณา 3 ปัจจัย (Work/Complexity/Risk)
+	// ctx: complete task context (title, description, type, priority, subtasks, etc.)
+	// fewShotExamples: ตัวอย่าง task ที่ผ่านมาในโปรเจกต์เดียวกัน (title, story_points) เพื่อ calibration
+	// Returns: story_points, confidence (0-100), factor breakdown, reasoning (ภาษาไทย), error
+	EstimateStoryPoints(ctx StoryPointTaskContext, fewShotExamples []StoryPointExample) (storyPoints float64, confidence int, factors StoryPointFactors, reasoning string, err error)
+
+	// EstimateEffortFromContext ประเมินเวลาทำ (minutes) โดยใช้ SP + factors เป็น context
+	// แยกจาก EstimateStoryPoints เพื่อให้แต่ละ prompt โฟกัสเฉพาะ ทำให้ประเมินแม่นยำขึ้น
+	// Returns: estimated_minutes, effort_reasoning (ภาษาไทย), error
+	EstimateEffortFromContext(ctx StoryPointTaskContext, storyPoints float64, factors StoryPointFactors) (estimatedMinutes int, reasoning string, err error)
 }
 
 // B2BRequest represents an internal cross-team outsource request.
@@ -1357,12 +1426,18 @@ type UserWithoutLogForDiscord struct {
 	TotalHours  float64
 }
 
+// UserWithoutStandupForDiscord represents a user who hasn't submitted daily standup
+type UserWithoutStandupForDiscord struct {
+	DisplayName string
+}
+
 // DiscordNotifier interface for Discord notifications (decoupled from concrete implementation)
 type DiscordNotifier interface {
 	IsEnabled() bool
 	SendTimeLogNotification(entries []TimeLogEntryForDiscord, date string) error
 	SendMissingLogNotification(users []UserWithoutLogForDiscord, date string) error
 	SendLeaveNotification(leaves []LeaveEntryForDiscord, date string) error
+	SendMissingStandupNotification(users []UserWithoutStandupForDiscord, date string) error
 }
 
 // LeaveEntryForDiscord represents a leave entry for Discord notification

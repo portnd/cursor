@@ -238,6 +238,7 @@ func (u *sentinelUsecase) GetProjectDetailsPage(idOrCode string, taskLimit int, 
 			ProjectID:             t.ProjectID,
 			EpicID:                t.EpicID,
 			SprintID:              t.SprintID,
+			PreviousSprintID:      t.PreviousSprintID,
 			MilestoneID:           t.MilestoneID,
 			TaskType:              t.TaskType,
 			Priority:              t.Priority,
@@ -335,6 +336,7 @@ func (u *sentinelUsecase) GetProjectTasksPage(idOrCode string, limit int, cursor
 			ProjectID:             t.ProjectID,
 			EpicID:                t.EpicID,
 			SprintID:              t.SprintID,
+			PreviousSprintID:      t.PreviousSprintID,
 			MilestoneID:           t.MilestoneID,
 			TaskType:              t.TaskType,
 			Priority:              t.Priority,
@@ -1146,7 +1148,7 @@ func (u *sentinelUsecase) NegotiateTime(taskID uuid.UUID, devID uint, minutes in
 // UpdateTask updates a task with access control (no AI).
 // Creator, CEO, MANAGER, or Product Owner can update all fields.
 // Assigned user can update description only.
-func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *float64, sprintID *uuid.UUID, applySprint bool, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
+func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, requestingUserRole string, title, description, taskType string, parentID *uuid.UUID, dueAt, startDate, endDate *time.Time, progress *int, priority string, storyPoints *float64, sprintID *uuid.UUID, applySprint bool, previousSprintID *uuid.UUID, milestoneID *uuid.UUID, epicID *uuid.UUID, applyEpic bool, sortOrder *int, estimatedMinutes *int) (*domain.Task, error) {
 	task, err := u.repo.GetTaskByID(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -1169,6 +1171,7 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 		priority == "" &&
 		storyPoints == nil &&
 		!applySprint &&
+		previousSprintID == nil &&
 		milestoneID == nil &&
 		!applyEpic &&
 		sortOrder == nil &&
@@ -1231,6 +1234,14 @@ func (u *sentinelUsecase) UpdateTask(taskID uuid.UUID, requestingUserID uint, re
 	}
 	if applySprint {
 		task.SprintID = sprintID
+	}
+	// Only set previous_sprint_id if not already set (keep the first sprint where task failed)
+	if previousSprintID != nil && task.PreviousSprintID == nil {
+		task.PreviousSprintID = previousSprintID
+	}
+	// Clear previous_sprint_id when task is completed
+	if task.Status == "COMPLETED" && task.PreviousSprintID != nil {
+		task.PreviousSprintID = nil
 	}
 	if milestoneID != nil {
 		task.MilestoneID = milestoneID
@@ -1298,6 +1309,166 @@ func (u *sentinelUsecase) EstimateTask(taskID uuid.UUID, requestingUserID uint, 
 	}
 	fmt.Printf("✅ AI Estimate: Task %s → %d minutes by %s (User ID: %d)\n", taskID, minutes, requestingUserRole, requestingUserID)
 	return task, nil
+}
+
+// EstimateStoryPoints uses AI to suggest story points + estimated effort for a task (does NOT auto-save — returns suggestion only).
+// Two sequential AI calls: 1) SP estimation 2) Effort estimation using SP+factors as context
+// Returns: story_points, confidence (0-100), factor breakdown, estimated_minutes, reasoning, error.
+func (u *sentinelUsecase) EstimateStoryPoints(taskID uuid.UUID, requestingUserID uint, requestingUserRole string) (float64, int, domain.StoryPointFactors, int, string, error) {
+	task, err := u.repo.GetTaskByID(taskID)
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, 0, "", fmt.Errorf("task not found: %w", err)
+	}
+	isCreator := task.CreatedBy != nil && *task.CreatedBy == requestingUserID
+	isCEO := requestingUserRole == "CEO"
+	isManager := requestingUserRole == authDomain.RoleManager
+	isSelectedProjectPO := u.isSelectedProjectProductOwner(task.ProjectID, requestingUserID, requestingUserRole)
+	if !isCreator && !isCEO && !isManager && !isSelectedProjectPO {
+		return 0, 0, domain.StoryPointFactors{}, 0, "", fmt.Errorf("unauthorized: only the task creator, CEO, MANAGER, or selected Product Owner can run AI story point estimate")
+	}
+
+	// Gather few-shot examples from same project (up to 10 tasks with story_points > 0)
+	var fewShotExamples []domain.StoryPointExample
+	if task.ProjectID != nil {
+		projectTasks, err := u.repo.GetTasksByProjectID(*task.ProjectID)
+		if err == nil {
+			seen := map[string]bool{}
+			for _, pt := range projectTasks {
+				if pt.ID == task.ID {
+					continue
+				}
+				if pt.StoryPoints <= 0 {
+					continue
+				}
+				if seen[pt.Title] {
+					continue
+				}
+				seen[pt.Title] = true
+				fewShotExamples = append(fewShotExamples, domain.StoryPointExample{
+					Title:       pt.Title,
+					StoryPoints: pt.StoryPoints,
+				})
+				if len(fewShotExamples) >= 10 {
+					break
+				}
+			}
+		}
+	}
+
+	sp, confidence, factors, reasoning, err := u.aiService.EstimateStoryPoints(domain.StoryPointTaskContext{
+		Title:        task.Title,
+		Description:  task.Description,
+		TaskType:     task.TaskType,
+		Priority:     task.Priority,
+		SubTaskCount: len(task.SubTasks),
+		HasParent:    task.ParentID != nil,
+		EstimatedMin: task.EstimatedMinutes,
+		ProjectName:  task.ProjectName,
+	}, fewShotExamples)
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, 0, "", fmt.Errorf("AI story point estimate failed: %w", err)
+	}
+
+	// Second AI call: Estimate effort (minutes) using SP + factors as context
+	effortMinutes, effortReasoning, effortErr := u.aiService.EstimateEffortFromContext(
+		domain.StoryPointTaskContext{
+			Title:        task.Title,
+			Description:  task.Description,
+			TaskType:     task.TaskType,
+			Priority:     task.Priority,
+			SubTaskCount: len(task.SubTasks),
+			HasParent:    task.ParentID != nil,
+			EstimatedMin: task.EstimatedMinutes,
+			ProjectName:  task.ProjectName,
+		}, sp, factors,
+	)
+
+	// Combine reasoning from both calls
+	combinedReasoning := reasoning
+	estimatedMinutes := 0
+	if effortErr != nil {
+		fmt.Printf("⚠️ AI Effort estimation failed (using SP-based fallback): %v\n", effortErr)
+		// Fallback: calculate from SP using reference table + AI assistance adjustment
+		cursorAssistance := 80 // default
+		if sysConf, cErr := u.repo.GetSystemConfig(); cErr == nil && sysConf != nil {
+			cursorAssistance = sysConf.CursorAssistance
+		}
+		estimatedMinutes = effortFallbackFromSP(sp, cursorAssistance)
+		combinedReasoning = fmt.Sprintf("%s\n⏱ ประเมินเวลา (fallback): %.1f SP × AI-assist %d%% → %d min", reasoning, sp, cursorAssistance, estimatedMinutes)
+	} else {
+		estimatedMinutes = effortMinutes
+		if effortReasoning != "" {
+			combinedReasoning = fmt.Sprintf("%s\n⏱ ประเมินเวลา: %s", reasoning, effortReasoning)
+		}
+	}
+
+	fmt.Printf("✅ AI SP Estimate: Task %s → %.1f SP, %d min (confidence: %d%%) by %s (User ID: %d)\n", taskID, sp, estimatedMinutes, confidence, requestingUserRole, requestingUserID)
+	return sp, confidence, factors, estimatedMinutes, combinedReasoning, nil
+}
+
+// effortFallbackFromSP calculates estimated minutes from SP using a reference table
+// adjusted by AI assistance level. Used when the AI effort call fails.
+func effortFallbackFromSP(sp float64, cursorAssistance int) int {
+	// SP → base hours (industry low-end: 1 SP ≈ 4h for senior developer, no AI)
+	// Sources: Atlassian, Intellisoft, StarAgile — 1 SP = 4-6h range, using low = 4h
+	baseHours := map[float64]float64{
+		0.5: 2, 1: 4, 2: 8, 3: 12, 5: 20, 8: 32, 13: 52, 21: 84,
+	}
+	// Find closest SP key
+	closestSP := 1.0
+	minDiff := 999.0
+	for k := range baseHours {
+		if diff := abs(sp - k); diff < minDiff {
+			minDiff = diff
+			closestSP = k
+		}
+	}
+	hours := baseHours[closestSP]
+	// Interpolate if SP is between reference points
+	if sp != closestSP && minDiff > 0 {
+		// Find next closest for interpolation
+		nextSP := closestSP
+		nextDiff := 999.0
+		for k := range baseHours {
+			if k == closestSP {
+				continue
+			}
+			if (sp > closestSP && k > closestSP) || (sp < closestSP && k < closestSP) {
+				if diff := abs(sp - k); diff < nextDiff {
+					nextDiff = diff
+					nextSP = k
+				}
+			}
+		}
+		if nextSP != closestSP {
+			ratio := (sp - closestSP) / (nextSP - closestSP)
+			hours = baseHours[closestSP] + ratio*(baseHours[nextSP]-baseHours[closestSP])
+		}
+	}
+
+	// AI assistance multiplier
+	var multiplier float64
+	switch {
+	case cursorAssistance >= 80:
+		multiplier = 0.45 // ~2.2x faster
+	case cursorAssistance >= 50:
+		multiplier = 0.75 // ~1.3x faster
+	default:
+		multiplier = 1.0 // manual speed
+	}
+
+	minutes := int(hours * multiplier * 60)
+	if minutes < 30 {
+		minutes = 30
+	}
+	return minutes
+}
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // GenerateProjectPlan uses AI to generate a full work plan (epics, milestones, sprints, tasks) and creates them in the project.
@@ -1507,7 +1678,24 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 		return fmt.Errorf("unauthorized: only the task creator, CEO, MANAGER, or Product Owner can delete this task")
 	}
 
-	// 3️⃣ Cannot delete if task has sub-tasks (FK constraint)
+	// 3️⃣ Cannot delete if task has "from sprint" (previous_sprint_id)
+	// This means the task was carried over from a previous sprint and should not be deleted
+	if task.PreviousSprintID != nil {
+		return fmt.Errorf("task_has_previous_sprint: cannot delete task that was carried over from a previous sprint")
+	}
+
+	// 4️⃣ Cannot delete if task is in an active sprint
+	if task.SprintID != nil {
+		sprint, err := u.repo.GetSprintByID(*task.SprintID)
+		if err != nil {
+			return fmt.Errorf("failed to check sprint status: %w", err)
+		}
+		if sprint.Status == "ACTIVE" {
+			return fmt.Errorf("task_in_active_sprint: cannot delete task that is in an active sprint")
+		}
+	}
+
+	// 5️⃣ Cannot delete if task has sub-tasks (FK constraint)
 	childCount, err := u.repo.CountChildTasks(taskID)
 	if err != nil {
 		return fmt.Errorf("failed to check sub-tasks: %w", err)
@@ -1516,7 +1704,7 @@ func (u *sentinelUsecase) DeleteTask(taskID uuid.UUID, requestingUserID uint, re
 		return fmt.Errorf("task_has_sub_tasks: cannot delete task with sub-tasks, delete sub-tasks first")
 	}
 
-	// 4️⃣ Delete from database
+	// 6️⃣ Delete from database
 	if err := u.repo.DeleteTask(taskID); err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
 	}
@@ -1992,6 +2180,26 @@ func (u *sentinelUsecase) StartSprint(sprintID uuid.UUID) (*domain.Sprint, error
 	if active != nil {
 		return nil, fmt.Errorf("project already has an active sprint: %s", active.Name)
 	}
+
+	// Validate: all top-level tasks in the sprint must have story points > 0
+	tasks, err := u.repo.GetTasksBySprintID(sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check sprint tasks: %w", err)
+	}
+	var missing []domain.StoryPointMissingTask
+	for i := range tasks {
+		if tasks[i].StoryPoints == 0 {
+			missing = append(missing, domain.StoryPointMissingTask{
+				ID:    tasks[i].ID,
+				Code:  tasks[i].Code,
+				Title: tasks[i].Title,
+			})
+		}
+	}
+	if len(missing) > 0 {
+		return nil, &domain.ErrSprintStoryPointsMissing{MissingTasks: missing}
+	}
+
 	sprint.Status = "ACTIVE"
 	now := time.Now()
 	if sprint.StartDate == nil {
@@ -2037,6 +2245,26 @@ func (u *sentinelUsecase) ReopenSprint(sprintID uuid.UUID) (*domain.Sprint, erro
 	if active != nil {
 		return nil, fmt.Errorf("project already has an active sprint: %s (complete or reopen it first)", active.Name)
 	}
+
+	// Validate: all top-level tasks in the sprint must have story points > 0
+	tasks, err := u.repo.GetTasksBySprintID(sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check sprint tasks: %w", err)
+	}
+	var missing []domain.StoryPointMissingTask
+	for i := range tasks {
+		if tasks[i].StoryPoints == 0 {
+			missing = append(missing, domain.StoryPointMissingTask{
+				ID:    tasks[i].ID,
+				Code:  tasks[i].Code,
+				Title: tasks[i].Title,
+			})
+		}
+	}
+	if len(missing) > 0 {
+		return nil, &domain.ErrSprintStoryPointsMissing{MissingTasks: missing}
+	}
+
 	sprint.Status = "ACTIVE"
 	if err := u.repo.UpdateSprint(sprint); err != nil {
 		return nil, fmt.Errorf("failed to reopen sprint: %w", err)
@@ -2326,6 +2554,10 @@ func (u *sentinelUsecase) LogTime(taskID uuid.UUID, userID uint, minutes int, de
 	if err == nil && user != nil {
 		t.UserEmail = user.Email
 	}
+
+	// Send Discord notification asynchronously
+	go u.sendDiscordNotificationForTimeLog([]domain.TimeLog{*t}, userID)
+
 	return t, nil
 }
 
@@ -2493,7 +2725,7 @@ func (u *sentinelUsecase) BulkLogTime(entries []domain.BulkLogEntry, userID uint
 			return nil, fmt.Errorf("failed to save bulk time logs: %w", err)
 		}
 		// Send Discord notification asynchronously
-		go u.sendDiscordNotificationForBulkLog(logsToCreate, userID)
+		go u.sendDiscordNotificationForTimeLog(logsToCreate, userID)
 	}
 	return results, nil
 }
@@ -3000,8 +3232,8 @@ func (u *sentinelUsecase) UpdateKomgripTaskStatus(taskID uuid.UUID, status strin
 	return task, nil
 }
 
-// sendDiscordNotificationForBulkLog sends Discord notification after bulk time log creation
-func (u *sentinelUsecase) sendDiscordNotificationForBulkLog(logs []domain.TimeLog, userID uint) {
+// sendDiscordNotificationForTimeLog sends Discord notification after time log creation (single or bulk)
+func (u *sentinelUsecase) sendDiscordNotificationForTimeLog(logs []domain.TimeLog, userID uint) {
 	if u.discordSvc == nil || !u.discordSvc.IsEnabled() {
 		return
 	}

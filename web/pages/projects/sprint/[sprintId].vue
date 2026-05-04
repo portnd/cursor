@@ -101,6 +101,7 @@
         <div class="metric-card">
           <div class="text-2xl font-bold text-purple-400">{{ totalSp }}</div>
           <div class="metric-label">Story points</div>
+          <div v-if="missingSPCount > 0 && sprint?.status === 'PLANNING'" class="text-[10px] text-red-400/90 mt-0.5 font-medium">⚠️ {{ missingSPCount }} งานยังไม่มี SP</div>
         </div>
         <button
           type="button"
@@ -143,9 +144,12 @@
             @click="navigateToTask(t.id)"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(t.code) }}</span>
+              <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskDisplayCode(t) }}</span>
               <span class="text-sm text-gray-200 truncate max-w-xs">{{ t.title }}</span>
               <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
+              <span v-if="t.previous_sprint_id && t.status !== 'COMPLETED'" class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0 bg-amber-500/20 text-amber-300">
+                From: {{ sprintNameById(t.previous_sprint_id) }}
+              </span>
             </div>
             <div class="flex items-center gap-3 shrink-0">
               <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
@@ -170,8 +174,10 @@
               <button
                 type="button"
                 @click="bulkMoveSelectedTasks"
-                :disabled="isBulkMovingSprintTasks || !bulkMoveTargetSprintId"
-                class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                :disabled="isBulkMovingSprintTasks || !bulkMoveTargetSprintId || !canMoveTasksFromActiveSprint"
+                class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors"
+                :class="canMoveTasksFromActiveSprint ? 'bg-violet-600 hover:bg-violet-500' : 'bg-gray-600 cursor-not-allowed opacity-50'"
+                :title="!canMoveTasksFromActiveSprint ? 'Only CEO can move tasks from active sprint' : 'Move selected tasks'"
               >
                 <span v-if="isBulkMovingSprintTasks" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 Move selected
@@ -214,12 +220,16 @@
               @click="navigateToTask(t.id)"
             >
               <div class="flex items-center gap-3 min-w-0">
-                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskCodeSuffix(t.code) }}</span>
+                <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskDisplayCode(t) }}</span>
                 <span class="text-sm text-gray-200 truncate">{{ t.title }}</span>
                 <span class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0" :class="priorityBadge(t.priority)">{{ t.priority }}</span>
+                <span v-if="t.previous_sprint_id && t.status !== 'COMPLETED'" class="px-1.5 py-0.5 text-[10px] rounded font-medium shrink-0 bg-amber-500/20 text-amber-300">
+                  From: {{ sprintNameById(t.previous_sprint_id) }}
+                </span>
               </div>
               <div class="flex items-center gap-3 shrink-0">
                 <span v-if="t.story_points" class="text-xs text-purple-400">{{ t.story_points }} SP</span>
+                <span v-else class="text-xs text-red-400/80 font-medium flex items-center gap-0.5" title="ยังไม่ได้ใส่ Story Points — ต้องใส่ก่อนเริ่ม Sprint">⚠️ 0 SP</span>
                 <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
               </div>
             </div>
@@ -347,8 +357,12 @@
               :value="t.id"
               class="rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500 shrink-0"
             />
-            <span class="text-xs font-mono text-gray-500 shrink-0 w-14 truncate" :title="t.code ?? ''">{{ taskCodeSuffix(t.code) }}</span>
+            <span class="text-xs font-mono text-gray-500 shrink-0 w-14 truncate" :title="t.code ?? ''">{{ taskDisplayCode(t) }}</span>
             <span class="text-sm text-gray-200 truncate flex-1 min-w-0">{{ t.title }}</span>
+            <span
+              v-if="t.previous_sprint_id && t.status !== 'COMPLETED'"
+              class="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-amber-500/20 text-amber-300"
+            >From: {{ sprintNameById(t.previous_sprint_id) }}</span>
             <span
               v-if="!t.sprint_id"
               class="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-gray-600/80 text-gray-300"
@@ -475,6 +489,8 @@ import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import type { Project, Sprint, Task } from '~/core/modules/projects/infrastructure/projects-api'
 import { effortHoursToMinutes } from '~/utils/effortHours'
 import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
+import { buildTaskDisplayCodeMap, taskCodeSuffix } from '~/utils/backlog-task-utils'
+import { useAuth } from '~/composables/useAuth'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -483,6 +499,14 @@ const router = useRouter()
 const projectsApi = useProjectsApi()
 const tasksApi = useTasksApi()
 const { showSuccess } = useNotification()
+const { currentUser } = useAuth()
+
+const isProjectCeo = computed(() => currentUser.value?.role?.toUpperCase() === 'CEO')
+const canMoveTasksFromActiveSprint = computed(() => {
+  if (!sprint.value) return true
+  if (sprint.value.status !== 'ACTIVE') return true
+  return isProjectCeo.value
+})
 
 // Route: /projects/sprint/:sprintId?project=:projectIdOrCode (project required for loading)
 const projectId = computed(() => (route.query.project as string) || '')
@@ -551,9 +575,10 @@ const nextSprint = computed(() => {
   return i >= 0 && i < sprintsOrdered.value.length - 1 ? sprintsOrdered.value[i + 1] ?? null : null
 })
 
-const sprintTasks = computed(() => allTasks.value.filter((t) => t.sprint_id === sprintId.value))
+const sprintTasks = computed(() => allTasks.value.filter((t) => !t.parent_id && t.sprint_id === sprintId.value))
 const doneCount = computed(() => sprintTasks.value.filter((t) => t.status === 'COMPLETED').length)
 const totalSp = computed(() => sprintTasks.value.reduce((s, t) => s + (t.story_points || 0), 0))
+const missingSPCount = computed(() => sprintTasks.value.filter((t) => !t.story_points || t.story_points === 0).length)
 const inProgressCount = computed(() => sprintTasks.value.filter((t) => t.status === 'IN_PROGRESS').length)
 const overdueCount = computed(() => sprintTasks.value.filter((t) => isTaskOverdueForMetrics(t)).length)
 
@@ -578,11 +603,11 @@ function toggleSprintMetricFilter(filter: SprintMetricFilter) {
   selectedSprintFilter.value = selectedSprintFilter.value === filter ? null : filter
 }
 
-const backlogTaskCount = computed(() => allTasks.value.filter((t) => !t.sprint_id).length)
+const backlogTaskCount = computed(() => allTasks.value.filter((t) => !t.parent_id && !t.sprint_id).length)
 const otherSprintTaskCount = computed(() =>
-  allTasks.value.filter((t) => !!t.sprint_id && t.sprint_id !== sprintId.value).length
+  allTasks.value.filter((t) => !t.parent_id && !!t.sprint_id && t.sprint_id !== sprintId.value).length
 )
-const tasksNotInThisSprintCount = computed(() => allTasks.value.filter((t) => t.sprint_id !== sprintId.value).length)
+const tasksNotInThisSprintCount = computed(() => allTasks.value.filter((t) => !t.parent_id && t.sprint_id !== sprintId.value).length)
 const selectedSprintTaskIds = ref<string[]>([])
 const bulkMoveTargetSprintId = ref<'backlog' | string>('backlog')
 const isBulkMovingSprintTasks = ref(false)
@@ -654,6 +679,7 @@ const backlogImportCandidates = computed(() => {
   const sid = sprintId.value
   return allTasks.value
     .filter((t) => {
+      if (t.parent_id) return false // แสดงเฉพาะ task แม่
       if (t.sprint_id === sid) return false
       if (backlogImportScope.value === 'backlog') return !t.sprint_id
       return true
@@ -765,10 +791,13 @@ function priorityBadge(p: string) {
   return 'bg-green-500/20 text-green-400'
 }
 
-function taskCodeSuffix(code: string | undefined): string {
-  if (!code) return '–'
-  const suffix = code.split('-').pop()
-  return /^\d+$/.test(suffix || '') ? String(Number(suffix)).padStart(4, '0') : code
+/** Top-level: A001. Sub-tasks: B001. Sub-tasks of B: C001. Uses task.code suffix so backlog and task page match. */
+const taskDisplayCodeMap = computed(() =>
+  buildTaskDisplayCodeMap(allTasks.value, allTasks.value)
+)
+
+function taskDisplayCode(task: { id: string; code?: string }) {
+  return taskDisplayCodeMap.value[task.id] ?? taskCodeSuffix(task.code)
 }
 
 function taskStatusBadge(status: string) {

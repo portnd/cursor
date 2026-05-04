@@ -177,6 +177,7 @@ export interface TaskSummary {
   parent_id: string | null
   epic_id: string | null
   sprint_id: string | null
+  previous_sprint_id?: string | null
   milestone_id: string | null
   sort_order: number
   assigned_to: number | null
@@ -210,6 +211,7 @@ export interface Task {
   parent_id: string | null
   epic_id: string | null
   sprint_id: string | null
+  previous_sprint_id?: string | null
   milestone_id: string | null
   sort_order: number
   assigned_to: number | null
@@ -252,6 +254,7 @@ export interface ProjectDetailsTask {
   project_id: string | null
   epic_id: string | null
   sprint_id: string | null
+  previous_sprint_id?: string | null
   milestone_id: string | null
   task_type: 'FEATURE' | 'TASK' | 'BUG'
   priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'

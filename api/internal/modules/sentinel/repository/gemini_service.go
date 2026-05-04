@@ -100,6 +100,7 @@ type generationConfig struct {
 }
 
 type geminiContent struct {
+	Role  string      `json:"role,omitempty"` // "user" or "model" for multi-turn
 	Parts []geminiPart `json:"parts"`
 }
 
@@ -128,6 +129,279 @@ type aiCodeReviewResponse struct {
 	Verdict  string          `json:"verdict"`  // "PASS" or "FAIL"
 	Score    int             `json:"score"`    // 0-100
 	Feedback json.RawMessage `json:"feedback"` // Can be string or array
+}
+
+// โครงสร้างสำหรับรับ Story Point Estimation Response จาก AI
+type aiSPResponse struct {
+	StoryPoints float64             `json:"story_points"`
+	Confidence  int                 `json:"confidence"` // 0-100
+	Factors     domain.StoryPointFactors `json:"factors"`
+	Reasoning   string              `json:"reasoning"`
+}
+
+func (s *geminiService) EstimateStoryPoints(ctx domain.StoryPointTaskContext, fewShotExamples []domain.StoryPointExample) (float64, int, domain.StoryPointFactors, string, error) {
+	fmt.Printf("⭐ AI Story Point Estimation: %s\n", ctx.Title)
+
+	config, err := s.repo.GetSystemConfig()
+	if err != nil || config == nil {
+		config = &domain.SystemConfig{
+			ActiveModel:      "gemini-2.5-flash-lite",
+			Temperature:      0.3,
+			CursorAssistance: 80,
+		}
+	}
+
+	// Build multi-turn conversation to avoid "Prompt exceeds max length"
+	// Gemini uses "user" and "model" roles
+	contents := []geminiContent{
+		{
+			Role: "user",
+			Parts: []geminiPart{{Text: fmt.Sprintf(`You are a Senior Agile Coach estimating Story Points.
+Scale: Fibonacci (0, 0.5, 1, 2, 3, 5, 8, 13, 21).
+3-Factor Model: Work(1-10), Complexity(1-10), Risk(1-10).
+Stack: Go/Nuxt3/PostgreSQL. AI Assistance: %d%% - %s.
+Story Points = relative effort (work + complexity + risk), NOT hours.
+Key context signals:
+- TaskType: FEATURE (client-facing, usually larger), TASK (dev work, medium), BUG (fixes, usually smaller but risk varies)
+- Priority: CRITICAL/HIGH = more urgency & scrutiny → may increase risk factor
+- SubTaskCount: more subtasks = more work & coordination
+- HasParent: sub-tasks are usually smaller scope than parent
+- EstimatedMin: existing time estimate (if >0) helps calibrate scale
+Output JSON ONLY: {"story_points":<float>,"confidence":<int 0-100>,"factors":{"work_amount":<int>,"complexity":<int>,"risk":<int>},"reasoning":"<ภาษาไทย สั้นๆ>"}`, config.CursorAssistance, cursorContextFromAssistance(config.CursorAssistance))}},
+		},
+		{
+			Role:  "model",
+			Parts: []geminiPart{{Text: "Understood. I will estimate Story Points using the 3-factor model and output JSON only. Please provide reference tasks and the task to estimate."}},
+		},
+	}
+
+	// Few-shot examples as separate turn (up to 10 — no truncation needed)
+	if len(fewShotExamples) > 0 {
+		exJSON, _ := json.Marshal(fewShotExamples)
+		contents = append(contents, geminiContent{
+			Role:  "user",
+			Parts: []geminiPart{{Text: fmt.Sprintf("REFERENCE TASKS from the same project (calibrate your scale):\n%s", string(exJSON))}},
+		})
+		contents = append(contents, geminiContent{
+			Role:  "model",
+			Parts: []geminiPart{{Text: "Understood. I'll use these reference tasks to calibrate my estimation scale. Please provide the task to estimate."}},
+		})
+	}
+
+	// The actual task — clean description (strip base64 images, HTML)
+	taskMsg := fmt.Sprintf(`Task Title: %s
+Task Type: %s
+Priority: %s
+Sub-tasks: %d
+Is Sub-task: %v
+Existing Time Estimate: %d minutes
+Project: %s
+Description: %s`, ctx.Title, ctx.TaskType, ctx.Priority, ctx.SubTaskCount, ctx.HasParent, ctx.EstimatedMin, ctx.ProjectName, stripDescriptionForAI(ctx.Description, 8000))
+	contents = append(contents, geminiContent{
+		Role:  "user",
+		Parts: []geminiPart{{Text: taskMsg}},
+	})
+
+	reqBody := geminiRequest{
+		Contents: contents,
+		GenerationConfig: &generationConfig{
+			Temperature: float64(config.Temperature),
+			TopK:        1,
+			TopP:        0.95,
+		},
+	}
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("marshal error: %w", err)
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		config.ActiveModel, s.apiKey)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("gemini API network error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("gemini API status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	s.recordRequest()
+
+	var geminiResp geminiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("decode response: %w", err)
+	}
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("empty gemini response")
+	}
+
+	responseText := geminiResp.Candidates[0].Content.Parts[0].Text
+	responseText = strings.ReplaceAll(responseText, "```json", "")
+	responseText = strings.ReplaceAll(responseText, "```", "")
+	responseText = strings.TrimSpace(responseText)
+
+	var result aiSPResponse
+	if err := json.Unmarshal([]byte(responseText), &result); err != nil {
+		fmt.Printf("❌ AI SP JSON parse error: %v (text: %s)\n", err, responseText)
+		return 0, 0, domain.StoryPointFactors{}, "", fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// Validate
+	if result.StoryPoints < 0 {
+		result.StoryPoints = 0
+	}
+	if result.Confidence < 0 {
+		result.Confidence = 0
+	}
+	if result.Confidence > 100 {
+		result.Confidence = 100
+	}
+	// Clamp factors 1-10
+	clamp := func(v int) int {
+		if v < 1 { return 1 }
+		if v > 10 { return 10 }
+		return v
+	}
+	result.Factors.WorkAmount = clamp(result.Factors.WorkAmount)
+	result.Factors.Complexity = clamp(result.Factors.Complexity)
+	result.Factors.Risk = clamp(result.Factors.Risk)
+
+	fmt.Printf("✅ AI SP Estimate: %.1f SP (confidence: %d%%, factors: W=%d C=%d R=%d)\n",
+		result.StoryPoints, result.Confidence, result.Factors.WorkAmount, result.Factors.Complexity, result.Factors.Risk)
+
+	return result.StoryPoints, result.Confidence, result.Factors, result.Reasoning, nil
+}
+
+// EstimateEffortFromContext estimates implementation time (minutes) using SP + factors as calibration context.
+func (s *geminiService) EstimateEffortFromContext(ctx domain.StoryPointTaskContext, storyPoints float64, factors domain.StoryPointFactors) (int, string, error) {
+	fmt.Printf("⏱️ AI Effort Estimation: %s (%.1f SP)\n", ctx.Title, storyPoints)
+
+	config, err := s.repo.GetSystemConfig()
+	if err != nil || config == nil {
+		config = &domain.SystemConfig{
+			ActiveModel:      "gemini-2.5-flash-lite",
+			Temperature:      0.3,
+			CursorAssistance: 80,
+		}
+	}
+
+	contents := []geminiContent{
+		{
+			Role: "user",
+			Parts: []geminiPart{{Text: fmt.Sprintf(`You are a Senior Software Architect estimating implementation time.
+Stack: Go (Fiber/Gin), Nuxt 3, PostgreSQL, Hexagonal Architecture.
+AI Assistance Level: %d%% - %s
+
+CRITICAL — AI Assistance Adjustment:
+- 80%%+ AI assistance: developer is ~2-3x faster. Multiply base time by 0.4-0.5
+- 50%% AI assistance: moderate speedup. Multiply base time by 0.7-0.8
+- 20%% or less: nearly manual coding. Use base time as-is (1.0x)
+
+Story Points to Hours Reference (BASE time BEFORE AI adjustment, senior developer):
+- 1 SP ≈ 4h | 2 SP ≈ 8h | 3 SP ≈ 12h (1.5 days)
+- 5 SP ≈ 20h (2.5 days) | 8 SP ≈ 32h (4 days) | 13 SP ≈ 52h (6.5 days)
+- 21 SP ≈ 84h (10.5 days)
+
+Rules:
+- Start from SP-to-hours reference, then adjust based on factors and AI assistance level.
+- Include: coding, testing, code review, documentation. NOT meetings or waiting.
+- If task has sub-tasks, this estimate covers the PARENT task coordination + integration.
+Output JSON ONLY: {"minutes":<int>,"reasoning":"<คำอธิบายสั้นๆ เป็นภาษาไทย>"}`, config.CursorAssistance, cursorContextFromAssistance(config.CursorAssistance))}},
+		},
+		{
+			Role:  "model",
+			Parts: []geminiPart{{Text: "Understood. I will start from the SP-to-hours reference table, apply AI assistance multiplier, and output JSON only."}},
+		},
+		{
+			Role: "user",
+			Parts: []geminiPart{{Text: fmt.Sprintf(`Estimate implementation time for this task.
+
+Task Title: %s
+Task Type: %s
+Priority: %s
+Sub-tasks: %d
+Is Sub-task: %v
+Project: %s
+
+AI already estimated:
+- Story Points: %.1f (Fibonacci scale)
+- Work Amount: %d/10
+- Complexity: %d/10
+- Risk: %d/10
+
+Description (summary): %s`, ctx.Title, ctx.TaskType, ctx.Priority, ctx.SubTaskCount, ctx.HasParent, ctx.ProjectName,
+				storyPoints, factors.WorkAmount, factors.Complexity, factors.Risk,
+				stripDescriptionForAI(ctx.Description, 2000))}},
+		},
+	}
+
+	reqBody := geminiRequest{
+		Contents: contents,
+		GenerationConfig: &generationConfig{
+			Temperature: float64(config.Temperature),
+			TopK:        1,
+			TopP:        0.95,
+		},
+	}
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return 0, "", fmt.Errorf("marshal error: %w", err)
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		config.ActiveModel, s.apiKey)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return 0, "", fmt.Errorf("gemini API network error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return 0, "", fmt.Errorf("gemini API status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	s.recordRequest()
+
+	var geminiResp geminiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return 0, "", fmt.Errorf("decode response: %w", err)
+	}
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return 0, "", fmt.Errorf("empty gemini response")
+	}
+
+	responseText := geminiResp.Candidates[0].Content.Parts[0].Text
+	responseText = strings.ReplaceAll(responseText, "```json", "")
+	responseText = strings.ReplaceAll(responseText, "```", "")
+	responseText = strings.TrimSpace(responseText)
+
+	var result struct {
+		Minutes   int    `json:"minutes"`
+		Reasoning string `json:"reasoning"`
+	}
+	if err := json.Unmarshal([]byte(responseText), &result); err != nil {
+		return 0, "", fmt.Errorf("invalid JSON: %w", err)
+	}
+	if result.Minutes <= 0 {
+		return 0, "", fmt.Errorf("gemini effort returned invalid estimation: %d minutes", result.Minutes)
+	}
+
+	fmt.Printf("⏱️ Gemini Effort Estimate: %d min for %.1f SP task\n", result.Minutes, storyPoints)
+	return result.Minutes, result.Reasoning, nil
 }
 
 func (s *geminiService) EstimateEffort(title, description string) (int, string, error) {

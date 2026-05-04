@@ -36,7 +36,7 @@
               <span class="text-xs text-gray-400">วันนี้ log แล้ว</span>
               <span class="text-xs font-bold" :class="dailyTotalH >= 8 ? 'text-green-400' : 'text-blue-400'">
                 {{ dailyTotalH.toFixed(1) }}h / 8h
-                <span class="ml-1 font-normal text-gray-500">(+ {{ pendingMinutes }}m จาก entries นี้)</span>
+                <span class="ml-1 font-normal text-gray-500">(+ {{ formatMinutes(pendingMinutes) }} จาก entries นี้)</span>
               </span>
             </div>
             <div class="h-1.5 bg-gray-700 rounded-full overflow-hidden">
@@ -89,69 +89,105 @@
                       <span class="text-gray-500 shrink-0">✕</span>
                     </button>
                     <template v-if="!entry.task_id">
-                      <input
-                        v-model="entry.search"
-                        type="text"
-                        placeholder="🔍 ค้นหา task..."
-                        class="w-full bg-gray-700/60 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                      />
-                      <div class="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden max-h-36 overflow-y-auto">
-                        <div v-if="tasksLoading" class="flex items-center gap-2 px-3 py-2.5 text-xs text-gray-500">
-                          <svg class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div class="relative">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          v-model="entry.search"
+                          type="text"
+                          placeholder="Search by task ID or title..."
+                          class="w-full pl-8 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                          @focus="entry.showDropdown = true"
+                          @input="entry.showDropdown = true"
+                          @blur="entry.showDropdown = false"
+                        />
+                      </div>
+                      <div v-if="entry.showDropdown" class="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-xl max-h-44 overflow-y-auto">
+                        <div v-if="tasksLoading" class="flex items-center justify-center py-4 text-gray-500 text-xs gap-2">
+                          <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
-                          กำลังโหลด tasks...
+                          Loading tasks...
                         </div>
                         <template v-else-if="filteredTasks(entry.search).length > 0">
                           <button
                             v-for="task in filteredTasks(entry.search)"
                             :key="task.id"
                             type="button"
-                            class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-700/60 text-left transition-colors border-b border-gray-700/40 last:border-0"
-                            @click="selectTask(entry, task)"
+                            class="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-gray-700/60 text-left transition-colors border-b border-gray-700/40 last:border-0"
+                            @mousedown.prevent="selectTask(entry, task)"
                           >
-                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: task.project_color || '#6366f1' }" />
-                            <span class="text-[10px] text-gray-500 font-mono shrink-0">{{ task.code }}</span>
-                            <span class="text-sm text-white truncate flex-1">{{ task.title }}</span>
-                            <span v-if="task.assigned_to_display_name || task.assigned_to_email" class="text-[10px] text-indigo-400/80 shrink-0 hidden sm:block">
-                              {{ task.assigned_to_display_name || task.assigned_to_email }}
-                            </span>
-                            <span class="text-[10px] text-gray-500 shrink-0">{{ task.project_name }}</span>
+                            <span class="mt-0.5 shrink-0 text-sm">{{ taskTypeIcon(task.task_type) }}</span>
+                            <div class="flex-1 min-w-0">
+                              <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-mono text-purple-400 shrink-0">{{ task.code }}</span>
+                                <span class="text-sm text-gray-200 truncate">{{ task.title }}</span>
+                              </div>
+                              <div class="flex items-center gap-2 mt-1">
+                                <span v-if="task.project_name" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-300 bg-gray-700/80">
+                                  <span v-if="task.project_color" class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ backgroundColor: task.project_color }" />
+                                  {{ task.project_name }}
+                                </span>
+                                <span v-if="assigneeLabel(task)" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-900/60 text-indigo-300 border border-indigo-700/40">
+                                  {{ assigneeLabel(task) }}
+                                </span>
+                                <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700/60 text-gray-500">Unassigned</span>
+                              </div>
+                            </div>
                           </button>
+                          <div
+                            v-if="!entry.search && tasks.length > TASK_DROPDOWN_LIMIT"
+                            class="px-3 py-2 text-[11px] text-gray-500 border-t border-gray-700/40 bg-gray-800/60"
+                          >
+                            Showing first {{ TASK_DROPDOWN_LIMIT }} of {{ tasks.length }} tasks. Use search to narrow down.
+                          </div>
                         </template>
-                        <div v-else class="px-3 py-2.5 text-xs text-gray-500 text-center">
-                          {{ entry.search ? `ไม่พบ "${entry.search}"` : 'ไม่มี task ใน sprint' }}
+                        <div v-else class="py-4 text-center text-gray-500 text-xs">
+                          <p v-if="entry.search">No tasks match "{{ entry.search }}"</p>
+                          <p v-else>No active tasks found</p>
                         </div>
                       </div>
                     </template>
                   </div>
 
-                  <!-- Time Spent row: input + quick presets -->
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <div class="flex items-center gap-1.5">
-                      <input
-                        v-model.number="entry.minutes"
-                        type="number"
-                        min="1"
-                        max="960"
-                        placeholder="0"
-                        class="w-16 bg-gray-800 border border-gray-600 rounded-xl px-2 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-center transition-colors"
-                      />
-                      <span class="text-xs text-gray-500 shrink-0">
-                        {{ entry.minutes >= 60 ? (entry.minutes / 60).toFixed(1) + 'h' : 'min' }}
-                      </span>
+                  <!-- Time Spent row: h/m inputs + additive presets -->
+                  <div>
+                    <div class="flex items-center gap-3 mb-2">
+                      <div class="flex items-center gap-2">
+                        <input
+                          v-model.number="entry.hours"
+                          type="number"
+                          min="0"
+                          max="16"
+                          placeholder="0"
+                          class="w-16 text-center bg-gray-800 border border-gray-600 rounded-xl px-2 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                        />
+                        <span class="text-xs text-gray-500">h</span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <input
+                          v-model.number="entry.mins"
+                          type="number"
+                          min="0"
+                          max="59"
+                          placeholder="0"
+                          class="w-16 text-center bg-gray-800 border border-gray-600 rounded-xl px-2 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                        />
+                        <span class="text-xs text-gray-500">m</span>
+                      </div>
+                      <div v-if="entryTotalMinutes(entry) > 0" class="ml-auto text-xs text-indigo-400 font-medium">
+                        {{ formatMinutes(entryTotalMinutes(entry)) }}
+                      </div>
                     </div>
-                    <div class="flex gap-1">
+                    <div class="flex gap-1.5 flex-wrap">
                       <button
-                        v-for="preset in [15, 30, 60, 120]"
-                        :key="preset"
+                        v-for="p in [{ label: '+15m', min: 15 }, { label: '+30m', min: 30 }, { label: '+1h', min: 60 }, { label: '+2h', min: 120 }]"
+                        :key="p.min"
                         type="button"
-                        @click="entry.minutes = preset"
-                        class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors"
-                        :class="entry.minutes === preset
-                          ? 'bg-indigo-600 border-indigo-500 text-white'
-                          : 'bg-gray-800 border-gray-600/40 text-purple-400 hover:bg-purple-900/20 hover:border-purple-500/40'"
-                      >+{{ preset >= 60 ? (preset / 60) + 'h' : preset + 'm' }}</button>
+                        @click="applyPreset(entry, p.min)"
+                        class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors bg-gray-800 border-gray-600/40 text-purple-400 hover:bg-purple-900/20 hover:border-purple-500/40"
+                      >{{ p.label }}</button>
                     </div>
                   </div>
 
@@ -248,24 +284,26 @@ import type { GlobalActiveTask, BulkLogEntry } from '~/core/modules/tasks/infras
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [], done: [] }>()
 
-const { bulkLogTime, getTeamActiveTasks, getMyDailyTimeLogs } = useTasksApi()
+const { bulkLogTime, getTeamActiveTasks, getKomgripTasks, getMyDailyTimeLogs } = useTasksApi()
 
 interface EntryRow {
   task_id: string
   task_title: string
   task_code: string
   project_color: string
-  minutes: number
+  hours: number
+  mins: number
   description: string
   work_type: string
   search: string
+  showDropdown: boolean
 }
 
 function freshEntry(): EntryRow {
   return {
     task_id: '', task_title: '', task_code: '', project_color: '',
-    minutes: 30, description: '', work_type: 'DEV',
-    search: '',
+    hours: 0, mins: 30, description: '', work_type: 'DEV',
+    search: '', showDropdown: false,
   }
 }
 
@@ -280,8 +318,18 @@ const tasksLoading = ref(false)
 async function loadData() {
   tasksLoading.value = true
   try {
-    const [taskRes, dailyRes] = await Promise.all([getTeamActiveTasks(), getMyDailyTimeLogs()])
-    tasks.value = taskRes
+    const [taskRes, komgripRes, dailyRes] = await Promise.all([
+      getTeamActiveTasks().catch(() => [] as GlobalActiveTask[]),
+      getKomgripTasks().catch(() => [] as GlobalActiveTask[]),
+      getMyDailyTimeLogs(),
+    ])
+    const activeKomgrip = komgripRes.filter((t: any) => t?.status !== 'COMPLETED')
+    const komgripAsGlobal = activeKomgrip.map((t: any) => ({
+      ...t,
+      project_name: 'Komgrip',
+      project_color: '#8b5cf6',
+    })) as GlobalActiveTask[]
+    tasks.value = [...taskRes, ...komgripAsGlobal]
     dailyMinutes.value = dailyRes.total_minutes
   } catch { /* non-critical */ }
   finally { tasksLoading.value = false }
@@ -297,29 +345,44 @@ watch(() => props.show, (v) => {
 }, { immediate: true })
 
 const dailyTotalH = computed(() => dailyMinutes.value / 60)
-const pendingMinutes = computed(() => entries.value.reduce((s, e) => s + (e.minutes || 0), 0))
+function entryTotalMinutes(e: EntryRow) { return (e.hours || 0) * 60 + (e.mins || 0) }
+
+const pendingMinutes = computed(() => entries.value.reduce((s, e) => s + entryTotalMinutes(e), 0))
 const combinedPercent = computed(() => ((dailyMinutes.value + pendingMinutes.value) / 480) * 100)
 
 const validEntries = computed(() =>
-  entries.value.filter(e => e.task_id && e.minutes > 0).length
+  entries.value.filter(e => e.task_id && entryTotalMinutes(e) > 0).length
 )
 
 const successCount = computed(() =>
   Object.values(results.value).filter(r => r.success).length
 )
 
+const TASK_DROPDOWN_LIMIT = 100
+
 function filteredTasks(search: string): GlobalActiveTask[] {
-  if (!search) return tasks.value.slice(0, 10)
-  const q = search.toLowerCase()
+  const q = search.trim().toLowerCase()
+  if (!q) return tasks.value.slice(0, TASK_DROPDOWN_LIMIT)
   return tasks.value
     .filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      t.code?.toLowerCase().includes(q) ||
-      t.project_name?.toLowerCase().includes(q) ||
-      t.assigned_to_display_name?.toLowerCase().includes(q) ||
-      t.assigned_to_email?.toLowerCase().includes(q)
+      t.code?.toLowerCase().includes(q)
+      || t.title.toLowerCase().includes(q)
+      || t.assigned_to_display_name?.toLowerCase().includes(q)
+      || t.assigned_to_email?.toLowerCase().includes(q)
+      || t.project_name?.toLowerCase().includes(q)
     )
-    .slice(0, 10)
+    .slice(0, TASK_DROPDOWN_LIMIT)
+}
+
+function assigneeLabel(task: GlobalActiveTask): string {
+  if (task.assigned_to_display_name) return task.assigned_to_display_name
+  if (task.assigned_to_email) return task.assigned_to_email.split('@')[0]
+  return ''
+}
+
+function taskTypeIcon(type: string): string {
+  const icons: Record<string, string> = { FEATURE: '⚡', TASK: '✅', BUG: '🐛' }
+  return icons[type] || '📋'
 }
 
 function selectTask(entry: EntryRow, task: GlobalActiveTask) {
@@ -328,6 +391,21 @@ function selectTask(entry: EntryRow, task: GlobalActiveTask) {
   entry.task_code = task.code || ''
   entry.project_color = task.project_color || ''
   entry.search = ''
+  entry.showDropdown = false
+}
+
+function applyPreset(entry: EntryRow, min: number) {
+  const total = entryTotalMinutes(entry) + min
+  entry.hours = Math.floor(total / 60)
+  entry.mins = total % 60
+}
+
+function formatMinutes(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m}m`
 }
 
 function addEntry() { entries.value.push(freshEntry()) }
@@ -338,10 +416,10 @@ function removeEntry(idx: number) {
 
 async function submitAll() {
   const payload: BulkLogEntry[] = entries.value
-    .filter(e => e.task_id && e.minutes > 0)
+    .filter(e => e.task_id && entryTotalMinutes(e) > 0)
     .map(e => ({
       task_id: e.task_id,
-      minutes: e.minutes,
+      minutes: entryTotalMinutes(e),
       description: e.description || undefined,
       work_type: e.work_type || 'DEV',
     }))
@@ -354,7 +432,7 @@ async function submitAll() {
     let payloadIdx = 0
     for (let i = 0; i < entries.value.length; i++) {
       const e = entries.value[i]
-      if (e.task_id && e.minutes > 0) {
+      if (e.task_id && entryTotalMinutes(e) > 0) {
         const r = res.results[payloadIdx++]
         if (r) results.value[i] = { success: r.success, error: r.error }
       }
