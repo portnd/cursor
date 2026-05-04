@@ -1336,3 +1336,40 @@ type ImportProjectFromBackupRequest struct {
 	Name    string               `json:"name" binding:"required"`
 	Payload ProjectBackupPayload `json:"payload" binding:"required"`
 }
+
+// --- Discord Notification Types ---
+
+// TimeLogEntryForDiscord represents a time log entry for Discord notification
+type TimeLogEntryForDiscord struct {
+	DisplayName string
+	TaskCode    string
+	TaskTitle   string
+	Description string
+	WorkType    string
+	Minutes     int
+	Progress    int
+	LoggedDate  string
+}
+
+// UserWithoutLogForDiscord represents a user who hasn't logged time
+type UserWithoutLogForDiscord struct {
+	DisplayName string
+	TotalHours  float64
+}
+
+// DiscordNotifier interface for Discord notifications (decoupled from concrete implementation)
+type DiscordNotifier interface {
+	IsEnabled() bool
+	SendTimeLogNotification(entries []TimeLogEntryForDiscord, date string) error
+	SendMissingLogNotification(users []UserWithoutLogForDiscord, date string) error
+	SendLeaveNotification(leaves []LeaveEntryForDiscord, date string) error
+}
+
+// LeaveEntryForDiscord represents a leave entry for Discord notification
+type LeaveEntryForDiscord struct {
+	DisplayName string
+	LeaveType   string
+	StartDate   string
+	EndDate     string
+	IsHalfDay   bool
+}

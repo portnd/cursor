@@ -266,6 +266,7 @@ type AttendanceRepository interface {
 	ListLeaveRequestsByUser(userID uint) ([]LeaveRequest, error)
 	ListPendingLeaveRequests() ([]LeaveRequest, error)
 	ListAllLeaveRequests() ([]LeaveRequest, error)
+	ListApprovedLeaveRequestsByDate(date time.Time) ([]LeaveRequest, error) // Get approved leaves for a specific date
 	UpdateLeaveRequest(req *LeaveRequest) error
 	DeleteLeaveRequestByID(id int64) error
 
@@ -281,6 +282,7 @@ type AttendanceRepository interface {
 	GetLeaveTrendByMonth(role string, fromDate, toDate time.Time) ([]LeaveTrendPoint, error)
 	ListAdminApproverUserIDs() ([]uint, error)
 	FindUserIDByEmail(email string) (uint, error)
+	IsUserRemote(userID uint) (bool, error)
 }
 
 // CreateLeaveRequest is employee payload to request leave.

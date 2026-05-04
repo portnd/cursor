@@ -105,6 +105,9 @@ type User struct {
 
 	// ThemePreference: "dark" or "light" — persisted per user account
 	ThemePreference string `json:"theme_preference" gorm:"type:varchar(10);not null;default:'dark'"`
+
+	// IsRemote: 100% remote worker — bypasses office GPS check for attendance
+	IsRemote bool `json:"is_remote" gorm:"not null;default:false"`
 }
 
 // UserRole constants for type safety
@@ -295,6 +298,8 @@ type Usecase interface {
 	DeleteUser(requestingUserID uint, targetUserID uint) error
 	// Reset user password (CEO only). Returns the new temporary password.
 	ResetUserPassword(requestingUserID uint, targetUserID uint) (tempPassword string, err error)
+	// Set user remote status (CEO only)
+	SetUserRemote(requestingUserID uint, targetUserID uint, isRemote bool) error
 	// Squad / Team management (CEO only)
 	GetAllTeams() ([]Team, error)
 	GetTeamsFeatureEnabled() (bool, error)
@@ -322,6 +327,7 @@ type Repository interface {
 	DeleteUser(userID uint) error
 	UpdatePassword(userID uint, hashedPassword string) error
 	ResetReworkRate(userID uint) error // CEO: set rework_reset_at = NOW() to clear rework history
+	SetUserRemote(userID uint, isRemote bool) error
 	// Team / Squad management
 	CreateTeam(team *Team) error
 	GetAllTeams() ([]Team, error)

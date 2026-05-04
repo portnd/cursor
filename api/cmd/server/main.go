@@ -125,6 +125,15 @@ func main() {
 
 	sentinelRepository := sentinelRepo.NewPostgresRepository(db)
 	aiUsageTracker := sentinelRepo.NewMemoryUsageTracker()
+	
+	// Initialize Discord notification service
+	discordService := sentinelRepo.NewDiscordService(cfg.DiscordWebhookURL)
+	if discordService.IsEnabled() {
+		log.Println("✅ Discord notification service enabled")
+	} else {
+		log.Println("⚠️  Discord webhook not configured (DISCORD_WEBHOOK_URL not set)")
+	}
+	
 	var aiService sentinelDomain.AIService
 	switch {
 	case cfg.UseNoopAI:
@@ -170,7 +179,7 @@ func main() {
 		aiService = sentinelRepo.NewNoopAIService()
 		log.Println("⚠️  GLM_API_KEY / GROQ_API_KEY / GEMINI_API_KEY not set; AI estimate/code review disabled")
 	}
-	sentinelUsecaseInstance := sentinelUsecase.NewSentinelUsecase(sentinelRepository, aiService, authRepository, aiUsageTracker, cfg.AILimitRPM, cfg.AILimitRPD)
+	sentinelUsecaseInstance := sentinelUsecase.NewSentinelUsecase(sentinelRepository, aiService, authRepository, aiUsageTracker, cfg.AILimitRPM, cfg.AILimitRPD, discordService)
 
 	log.Println("✅ Sentinel Module initialized")
 
@@ -255,7 +264,7 @@ func main() {
 	// Sentinel routes (protected by auth middleware)
 	sentinelGroup := apiGroup.Group("")
 	sentinelGroup.Use(authMiddleware)
-	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey, cfg.CanvaAccessToken)
+	sentinelHttp.RegisterRoutes(sentinelGroup, sentinelUsecaseInstance, projectFinanceUsecaseInstance, cfg.GoogleAPIKey, cfg.CanvaAccessToken, authRepository, attendanceRepository, sentinelRepository, discordService)
 
 	// Performance routes (protected by auth middleware)
 	perfGroup := apiGroup.Group("")
@@ -290,6 +299,14 @@ func main() {
 	deploymentGroup.Use(authMiddleware)
 	deploymentHttp.RegisterRoutes(deploymentGroup, deploymentUsecaseInstance)
 	log.Println("✅ Deployment Module initialized")
+
+	// Initialize and start Discord notification scheduler
+	discordScheduler := sentinelRepo.NewDiscordScheduler(discordService, authRepository, sentinelRepository)
+	discordScheduler.Start()
+
+	// Initialize and start Discord leave notification scheduler (08:30 AM)
+	discordLeaveScheduler := sentinelRepo.NewDiscordLeaveScheduler(discordService, attendanceRepository)
+	discordLeaveScheduler.Start()
 
 	log.Printf("🚀 Server starting on port %s", cfg.AppPort)
 	log.Printf("🔗 Listening on http://0.0.0.0:%s (all interfaces)", cfg.AppPort)

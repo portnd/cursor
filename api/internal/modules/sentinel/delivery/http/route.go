@@ -2,15 +2,27 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	authDomain "github.com/portnd/the-sentinel-core/internal/modules/auth/domain"
+	attendanceDomain "github.com/portnd/the-sentinel-core/internal/modules/attendance/domain"
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 )
 
 // RegisterRoutes registers all Sentinel module routes (handlers are split across sentinel_handler*.go in this package).
-func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, projectFinanceUsecase domain.ProjectFinanceUsecase, googleAPIKey, canvaAccessToken string) {
+func RegisterRoutes(
+	router *gin.RouterGroup,
+	usecase domain.SentinelUsecase,
+	projectFinanceUsecase domain.ProjectFinanceUsecase,
+	googleAPIKey, canvaAccessToken string,
+	authRepo authDomain.Repository,
+	attendanceRepo attendanceDomain.AttendanceRepository,
+	sentinelRepo domain.SentinelRepository,
+	discordSvc domain.DiscordNotifier,
+) {
 	handler := NewSentinelHandler(usecase, googleAPIKey, canvaAccessToken)
 	financeHandler := NewProjectFinanceHandler(projectFinanceUsecase)
 	b2bHandler := NewB2BHandler(usecase)
 	backupHandler := NewProjectBackupHandler(usecase)
+	discordTestHandler := NewDiscordTestHandler(usecase, authRepo, attendanceRepo, sentinelRepo, discordSvc)
 
 	sentinelGroup := router.Group("/sentinel")
 	// sentinelGroup.Use(middleware.Auth()) // Uncomment if you have auth middleware
@@ -170,5 +182,9 @@ func RegisterRoutes(router *gin.RouterGroup, usecase domain.SentinelUsecase, pro
 		adminGroup.PUT("/config", handler.UpdateSystemConfig) // Update AI config (CEO only)
 		adminGroup.GET("/models", handler.GetAvailableModels) // Get available GLM models
 		adminGroup.GET("/ai-usage", handler.GetAIUsage)       // Approximate AI quota usage
+
+		// Discord Notification Testing (CEO only)
+		adminGroup.POST("/discord/test-missing-log", discordTestHandler.TestMissingLogNotification) // Test missing log notification
+		adminGroup.POST("/discord/test-leave", discordTestHandler.TestLeaveNotification)             // Test leave notification
 	}
 }

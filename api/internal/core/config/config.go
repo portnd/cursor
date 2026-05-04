@@ -39,6 +39,8 @@ type Config struct {
 	AILimitRPM int // e.g. 15 free, 1000 paid
 	AILimitRPD int // e.g. 250 free, 10000 paid
 
+	// Discord Notification
+	DiscordWebhookURL string // DISCORD_WEBHOOK_URL - Discord webhook for work log notifications
 }
 
 func Load() (*Config, error) {
@@ -71,6 +73,8 @@ func Load() (*Config, error) {
 
 		AILimitRPM: getEnvInt("AI_LIMIT_RPM", 0), // 0 = use default in usage tracker
 		AILimitRPD: getEnvInt("AI_LIMIT_RPD", 0),
+
+		DiscordWebhookURL: getEnv("DISCORD_WEBHOOK_URL", ""),
 	}
 
 	cfg.PostgresDSN = fmt.Sprintf(

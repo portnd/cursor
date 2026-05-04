@@ -199,6 +199,17 @@ func (r *postgresRepository) ResetReworkRate(userID uint) error {
 	return nil
 }
 
+func (r *postgresRepository) SetUserRemote(userID uint, isRemote bool) error {
+	result := r.db.Model(&domain.User{}).Where("id = ?", userID).Update("is_remote", isRemote)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update remote status: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // --- Team / Squad Management ---
 
 // CreateTeam inserts a new team

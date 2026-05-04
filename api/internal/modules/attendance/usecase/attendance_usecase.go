@@ -58,8 +58,14 @@ func (u *attendanceUsecase) CheckIn(userID uint, lat, lng float64, clientIP stri
 	}
 
 	wfhToday := u.isWFHDay(cfg, now)
+	isRemote, err := u.repo.IsUserRemote(userID)
+	if err != nil {
+		return nil, err
+	}
 	var method string
-	if wfhToday {
+	if isRemote {
+		method = "remote"
+	} else if wfhToday {
 		method = "wfh"
 	} else {
 		gpsOK := u.gpsWithinOffice(lat, lng, cfg)
@@ -233,6 +239,13 @@ func (u *attendanceUsecase) RequestOffsiteCheckIn(userID uint, lat, lng float64,
 	}
 	if u.isWFHDay(cfg, now) {
 		return nil, domain.ErrOffsiteWFHNotAllowed
+	}
+	isRemote, err := u.repo.IsUserRemote(userID)
+	if err != nil {
+		return nil, err
+	}
+	if isRemote {
+		return nil, domain.ErrOffsiteApprovalNotRequired
 	}
 	if u.gpsWithinOffice(lat, lng, cfg) {
 		return nil, domain.ErrOffsiteApprovalNotRequired

@@ -1,7 +1,10 @@
 <template>
   <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/80 p-6 space-y-4">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Check-in / check-out</h2>
-    <p v-if="isWfhToday" class="text-sm text-sky-300/90">
+    <p v-if="isRemoteWorker" class="text-sm text-emerald-400/90">
+      <strong>Remote Worker</strong>: check in from any location (GPS is still recorded for the log only).
+    </p>
+    <p v-else-if="isWfhToday" class="text-sm text-sky-300/90">
       Today is a <strong>WFH</strong> day: check in from any location (GPS is still recorded for the log only).
     </p>
     <p v-else class="text-sm text-gray-400">
@@ -93,7 +96,7 @@
       </button>
     </div>
 
-    <div class="rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+    <div v-if="!isRemoteWorker" class="rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
       <p class="text-sm text-amber-800 dark:text-amber-200">อยู่นอกสถานที่?</p>
       <p class="text-xs text-gray-700 dark:text-gray-400">
         ส่งคำขอ check-in นอกสถานที่พร้อมเหตุผล แล้วรอ CEO อนุมัติ เมื่ออนุมัติแล้วจะบันทึก check-in ให้อัตโนมัติ
@@ -118,7 +121,7 @@
       </p>
     </div>
 
-    <div v-if="store.todayRecord?.check_in_at" class="rounded-lg border border-amber-800/60 bg-amber-950/20 p-3 space-y-2">
+    <div v-if="!isRemoteWorker && store.todayRecord?.check_in_at" class="rounded-lg border border-amber-800/60 bg-amber-950/20 p-3 space-y-2">
       <p class="text-sm text-amber-200">ต้อง check-out นอกสถานที่?</p>
       <p class="text-xs text-gray-400">
         ส่งคำขอ check-out นอกสถานที่พร้อมเหตุผล แล้วรอ CEO อนุมัติ เมื่ออนุมัติแล้วจะบันทึก check-out ให้อัตโนมัติ
@@ -151,6 +154,9 @@
 import { useAttendanceStore } from '../store/attendance-store'
 
 const store = useAttendanceStore()
+const auth = useAuth()
+
+const isRemoteWorker = computed(() => auth.currentUser.value?.is_remote ?? false)
 
 type LatLng = {
   lat: number

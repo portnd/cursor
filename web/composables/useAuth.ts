@@ -15,6 +15,16 @@ interface LoginResponse {
   message: string
 }
 
+interface CurrentUser {
+  user_id: number
+  email: string
+  role: string
+  team_id?: number
+  is_remote?: boolean
+  iat: number
+  exp: number
+}
+
 export const useAuth = () => {
   const config = useRuntimeConfig()
   const token = useCookie('token', {
@@ -92,7 +102,7 @@ export const useAuth = () => {
   /**
    * Decode JWT token to get user info
    */
-  const decodeToken = () => {
+  const decodeToken = (): CurrentUser | null => {
     if (!token.value) return null
 
     try {
@@ -114,7 +124,7 @@ export const useAuth = () => {
   /**
    * Get current user info from token
    */
-  const currentUser = computed(() => decodeToken())
+  const currentUser = computed<CurrentUser | null>(() => decodeToken())
 
   const API_TIMEOUT_MS = 30000 // 30s so colder project details requests have more time to respond
   /** Timeout for long-running requests (e.g. Google Slides import: download + 62 slide images). */

@@ -167,6 +167,57 @@
           Changes take effect immediately for all AI operations. GLM models are served via ZhipuAI (OpenAI-compatible API).
         </p>
       </div>
+
+      <!-- Discord Notification Testing -->
+      <div class="mt-8 border-t border-gray-700 pt-6">
+        <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <span>🔔</span>
+          Discord Notification Testing
+        </h2>
+        <p class="text-sm text-gray-400 mb-4">Test Discord notifications manually (CEO only)</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Test Missing Log -->
+          <div class="bg-gray-800 border border-gray-700 rounded p-4">
+            <h3 class="text-sm font-bold text-gray-300 mb-2">Missing Time Log Notification</h3>
+            <p class="text-xs text-gray-500 mb-3">Send notification for users who didn't log time yesterday</p>
+            <button
+              @click="testMissingLogNotification"
+              :disabled="isTestingMissingLog"
+              class="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded transition-colors flex items-center justify-center gap-2"
+            >
+              <span v-if="isTestingMissingLog" class="animate-spin">⏳</span>
+              <span v-else>📤</span>
+              <span>{{ isTestingMissingLog ? 'Sending...' : 'Test Missing Log' }}</span>
+            </button>
+            <div v-if="missingLogResult" class="mt-3 p-2 bg-gray-900 rounded text-xs">
+              <p class="text-green-400">✅ {{ missingLogResult.message }}</p>
+              <p class="text-gray-400">Date: {{ missingLogResult.date }}</p>
+              <p class="text-gray-400">Users without logs: {{ missingLogResult.users_without_logs }}</p>
+            </div>
+          </div>
+
+          <!-- Test Leave Notification -->
+          <div class="bg-gray-800 border border-gray-700 rounded p-4">
+            <h3 class="text-sm font-bold text-gray-300 mb-2">Leave Notification</h3>
+            <p class="text-xs text-gray-500 mb-3">Send notification for users on leave today</p>
+            <button
+              @click="testLeaveNotification"
+              :disabled="isTestingLeave"
+              class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded transition-colors flex items-center justify-center gap-2"
+            >
+              <span v-if="isTestingLeave" class="animate-spin">⏳</span>
+              <span v-else>📤</span>
+              <span>{{ isTestingLeave ? 'Sending...' : 'Test Leave' }}</span>
+            </button>
+            <div v-if="leaveResult" class="mt-3 p-2 bg-gray-900 rounded text-xs">
+              <p class="text-green-400">✅ {{ leaveResult.message }}</p>
+              <p class="text-gray-400">Date: {{ leaveResult.date }}</p>
+              <p class="text-gray-400">Leaves: {{ leaveResult.leaves_count }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Success Toast -->
@@ -264,6 +315,12 @@ const isSaving = ref(false)
 const error = ref('')
 const showSuccessToast = ref(false)
 
+// Discord testing state
+const isTestingMissingLog = ref(false)
+const isTestingLeave = ref(false)
+const missingLogResult = ref<{ message: string; date: string; users_without_logs: number } | null>(null)
+const leaveResult = ref<{ message: string; date: string; leaves_count: number } | null>(null)
+
 // Fetch current configuration
 const fetchConfig = async () => {
   try {
@@ -318,6 +375,38 @@ const resetToDefaults = async () => {
       temperature: 0.4,
       cursor_assistance: 80
     }
+  }
+}
+
+// Test missing log notification
+const testMissingLogNotification = async () => {
+  try {
+    isTestingMissingLog.value = true
+    missingLogResult.value = null
+    const response = await fetchWithAuth<{ message: string; date: string; users_without_logs: number }>('/admin/discord/test-missing-log', {
+      method: 'POST'
+    })
+    missingLogResult.value = response
+  } catch (err: any) {
+    showError(err.data?.message || err.message || 'Failed to send notification', 'Discord Error')
+  } finally {
+    isTestingMissingLog.value = false
+  }
+}
+
+// Test leave notification
+const testLeaveNotification = async () => {
+  try {
+    isTestingLeave.value = true
+    leaveResult.value = null
+    const response = await fetchWithAuth<{ message: string; date: string; leaves_count: number }>('/admin/discord/test-leave', {
+      method: 'POST'
+    })
+    leaveResult.value = response
+  } catch (err: any) {
+    showError(err.data?.message || err.message || 'Failed to send notification', 'Discord Error')
+  } finally {
+    isTestingLeave.value = false
   }
 }
 

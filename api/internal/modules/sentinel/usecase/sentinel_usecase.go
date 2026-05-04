@@ -26,10 +26,11 @@ type sentinelUsecase struct {
 	aiLimitRPM   int
 	aiLimitRPD   int
 	timeout      time.Duration
+	discordSvc   domain.DiscordNotifier // Discord notification service
 }
 
 // NewSentinelUsecase creates the usecase. usageTracker may be nil (GetAIUsage will return zeros). aiLimitRPM/aiLimitRPD 0 = use tracker defaults.
-func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIService, authRepo authDomain.Repository, usageTracker domain.UsageTracker, aiLimitRPM, aiLimitRPD int) domain.SentinelUsecase {
+func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIService, authRepo authDomain.Repository, usageTracker domain.UsageTracker, aiLimitRPM, aiLimitRPD int, discordSvc domain.DiscordNotifier) domain.SentinelUsecase {
 	return &sentinelUsecase{
 		repo:         repo,
 		aiService:    aiService,
@@ -38,6 +39,7 @@ func NewSentinelUsecase(repo domain.SentinelRepository, aiService domain.AIServi
 		aiLimitRPM:   aiLimitRPM,
 		aiLimitRPD:   aiLimitRPD,
 		timeout:      time.Second * 10,
+		discordSvc:   discordSvc,
 	}
 }
 
@@ -2452,6 +2454,8 @@ func (u *sentinelUsecase) BulkLogTime(entries []domain.BulkLogEntry, userID uint
 		if err := u.repo.BulkCreateTimeLogs(logsToCreate); err != nil {
 			return nil, fmt.Errorf("failed to save bulk time logs: %w", err)
 		}
+		// Send Discord notification asynchronously
+		go u.sendDiscordNotificationForBulkLog(logsToCreate, userID)
 	}
 	return results, nil
 }
@@ -2956,4 +2960,62 @@ func (u *sentinelUsecase) UpdateKomgripTaskStatus(taskID uuid.UUID, status strin
 		"is_komgrip": true,
 	})
 	return task, nil
+}
+
+// sendDiscordNotificationForBulkLog sends Discord notification after bulk time log creation
+func (u *sentinelUsecase) sendDiscordNotificationForBulkLog(logs []domain.TimeLog, userID uint) {
+	if u.discordSvc == nil || !u.discordSvc.IsEnabled() {
+		return
+	}
+
+	// Get user info
+	user, err := u.authRepo.FindByID(userID)
+	if err != nil || user == nil {
+		log.Printf("discord notification: failed to get user %d: %v", userID, err)
+		return
+	}
+
+	// Build display name - prioritize real name
+	displayName := strings.TrimSpace(user.FirstName + " " + user.LastName)
+	if displayName == "" {
+		displayName = user.DisplayName
+	}
+	if displayName == "" {
+		displayName = strings.Split(user.Email, "@")[0]
+	}
+
+	// Build notification entries
+	var entries []domain.TimeLogEntryForDiscord
+	for _, log := range logs {
+		// Get task info
+		task, err := u.repo.GetTaskByID(log.TaskID)
+		if err != nil {
+			continue
+		}
+
+		entries = append(entries, domain.TimeLogEntryForDiscord{
+			DisplayName: displayName,
+			TaskCode:    task.Code,
+			TaskTitle:   task.Title,
+			Description: log.Description,
+			WorkType:    log.WorkType,
+			Minutes:     log.Minutes,
+			Progress:    task.Progress,
+			LoggedDate:  log.LoggedDate.Format("2006-01-02"),
+		})
+	}
+
+	if len(entries) == 0 {
+		return
+	}
+
+	// Use the logged date from the first entry (all entries should have the same date for bulk log)
+	date := entries[0].LoggedDate
+	if date == "" {
+		date = time.Now().UTC().Format("2006-01-02")
+	}
+
+	if err := u.discordSvc.SendTimeLogNotification(entries, date); err != nil {
+		log.Printf("discord notification: failed to send for user %d: %v", userID, err)
+	}
 }

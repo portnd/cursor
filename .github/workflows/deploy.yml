@@ -98,6 +98,9 @@ jobs:
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+            # Inject secrets from GitHub Actions
+            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}" >> .env
+
             docker compose pull backend frontend
             docker compose up -d postgres redis
             docker compose run --rm migrate

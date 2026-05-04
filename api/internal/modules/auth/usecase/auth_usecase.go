@@ -76,7 +76,7 @@ func (u *authUsecase) Register(req *domain.RegisterRequest) (*domain.AuthRespons
 	}
 
 	// Generate JWT token with role
-	token, err := u.generateJWT(user.ID, user.Email, user.Role, user.TeamID)
+	token, err := u.generateJWT(user.ID, user.Email, user.Role, user.TeamID, user.IsRemote)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -106,7 +106,7 @@ func (u *authUsecase) Login(req *domain.LoginRequest) (*domain.AuthResponse, err
 	}
 
 	// Generate JWT token with role
-	token, err := u.generateJWT(user.ID, user.Email, user.Role, user.TeamID)
+	token, err := u.generateJWT(user.ID, user.Email, user.Role, user.TeamID, user.IsRemote)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -119,16 +119,17 @@ func (u *authUsecase) Login(req *domain.LoginRequest) (*domain.AuthResponse, err
 }
 
 // generateJWT creates a JWT token with user claims
-// Token includes: user_id, email, role, team_id, issued_at, expires_at (24 hours)
+// Token includes: user_id, email, role, team_id, is_remote, issued_at, expires_at (24 hours)
 // Algorithm: HS256 (HMAC with SHA-256)
-func (u *authUsecase) generateJWT(userID uint, email, role string, teamID *uint) (string, error) {
+func (u *authUsecase) generateJWT(userID uint, email, role string, teamID *uint, isRemote bool) (string, error) {
 	// Define JWT claims
 	claims := jwt.MapClaims{
-		"user_id": userID,
-		"email":   email,
-		"role":    role,
-		"iat":     time.Now().Unix(),                     // Issued At
-		"exp":     time.Now().Add(24 * time.Hour).Unix(), // Expires in 24 hours
+		"user_id":   userID,
+		"email":     email,
+		"role":      role,
+		"is_remote": isRemote,
+		"iat":       time.Now().Unix(),                     // Issued At
+		"exp":       time.Now().Add(24 * time.Hour).Unix(), // Expires in 24 hours
 	}
 	if teamID != nil {
 		claims["team_id"] = *teamID
@@ -490,6 +491,21 @@ func (u *authUsecase) UpdateUserAdmin(requestingUserID uint, targetUserID uint, 
 	}
 
 	return u.repo.FindByID(targetUserID)
+}
+
+// SetUserRemote toggles the remote worker flag for a user (CEO only).
+func (u *authUsecase) SetUserRemote(requestingUserID uint, targetUserID uint, isRemote bool) error {
+	requestingUser, err := u.repo.FindByID(requestingUserID)
+	if err != nil {
+		return fmt.Errorf("unauthorized: user not found")
+	}
+	if requestingUser.Role != domain.RoleCEO {
+		return fmt.Errorf("unauthorized: only CEO can change remote status")
+	}
+	if _, err := u.repo.FindByID(targetUserID); err != nil {
+		return fmt.Errorf("user not found")
+	}
+	return u.repo.SetUserRemote(targetUserID, isRemote)
 }
 
 // DeleteUser removes a user (CEO only). Cannot delete yourself.

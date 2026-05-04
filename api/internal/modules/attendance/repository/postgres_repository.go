@@ -520,6 +520,45 @@ func (r *postgresRepository) ListAllLeaveRequests() ([]domain.LeaveRequest, erro
 	return out, nil
 }
 
+func (r *postgresRepository) ListApprovedLeaveRequestsByDate(date time.Time) ([]domain.LeaveRequest, error) {
+	type row struct {
+		domain.LeaveRequest
+		UserEmail       string `gorm:"column:user_email"`
+		UserDisplayName string `gorm:"column:user_display_name"`
+		ApproverEmail   string `gorm:"column:approver_email"`
+		ApproverName    string `gorm:"column:approver_name"`
+	}
+	var raw []row
+	dateStr := date.Format("2006-01-02")
+	err := r.db.Raw(`
+		SELECT lr.*,
+		       u.email AS user_email,
+		       COALESCE(NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), NULLIF(TRIM(u.display_name), ''), u.email) AS user_display_name,
+		       au.email AS approver_email,
+		       COALESCE(NULLIF(TRIM(au.display_name), ''), au.email) AS approver_name
+		FROM leave_requests lr
+		JOIN users u ON u.id = lr.user_id
+		LEFT JOIN users au ON au.id = lr.approver_id
+		WHERE lr.status = ?
+		  AND lr.start_date <= ?
+		  AND lr.end_date >= ?
+		ORDER BY lr.start_date ASC, lr.id ASC
+	`, domain.LeaveStatusApproved, dateStr, dateStr).Scan(&raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.LeaveRequest, 0, len(raw))
+	for _, rw := range raw {
+		item := rw.LeaveRequest
+		item.UserEmail = rw.UserEmail
+		item.UserDisplayName = rw.UserDisplayName
+		item.ApproverEmail = rw.ApproverEmail
+		item.ApproverName = rw.ApproverName
+		out = append(out, item)
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) UpdateLeaveRequest(req *domain.LeaveRequest) error {
 	return r.db.Save(req).Error
 }
@@ -700,4 +739,16 @@ func (r *postgresRepository) FindUserIDByEmail(email string) (uint, error) {
 		return 0, err
 	}
 	return u.ID, nil
+}
+
+func (r *postgresRepository) IsUserRemote(userID uint) (bool, error) {
+	var u authDomain.User
+	err := r.db.Select("is_remote").First(&u, userID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return u.IsRemote, nil
 }
