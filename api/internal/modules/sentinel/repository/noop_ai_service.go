@@ -6,9 +6,9 @@ import (
 	"github.com/portnd/the-sentinel-core/internal/modules/sentinel/domain"
 )
 
-const errMsgNoAPIKey = "GEMINI_API_KEY is not set. Set it in .env to use AI features."
+const errMsgNoAPIKey = "AI_API_KEY not set. Set GLM_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY in .env to use AI features."
 
-// noopAIService implements domain.AIService for development when GEMINI_API_KEY is not set.
+// noopAIService implements domain.AIService for when no AI provider key is configured.
 // All methods return a clear error so the API can start and other endpoints work.
 type noopAIService struct{}
 
