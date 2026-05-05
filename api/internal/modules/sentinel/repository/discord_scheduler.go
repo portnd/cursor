@@ -12,7 +12,7 @@ import (
 
 // DiscordScheduler handles scheduled Discord notifications
 type DiscordScheduler struct {
-	discordSvc   *DiscordService
+	discordSvc   domain.DiscordNotifier
 	authRepo     authDomain.Repository
 	sentinelRepo domain.SentinelRepository
 	stopChan     chan struct{}
@@ -20,7 +20,7 @@ type DiscordScheduler struct {
 }
 
 // NewDiscordScheduler creates a new scheduler for Discord notifications
-func NewDiscordScheduler(discordSvc *DiscordService, authRepo authDomain.Repository, sentinelRepo domain.SentinelRepository) *DiscordScheduler {
+func NewDiscordScheduler(discordSvc domain.DiscordNotifier, authRepo authDomain.Repository, sentinelRepo domain.SentinelRepository) *DiscordScheduler {
 	return &DiscordScheduler{
 		discordSvc:   discordSvc,
 		authRepo:     authRepo,

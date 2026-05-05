@@ -408,6 +408,7 @@ type AttendanceUsecase interface {
 	ListMyNotifications(userID uint, unreadOnly bool) ([]LeaveNotification, error)
 	MarkMyNotificationRead(userID uint, notificationID int64) error
 	GetLeaveTrend(role string, fromDate, toDate time.Time) ([]LeaveTrendPoint, error)
+	IsUserRemote(userID uint) (bool, error)
 	BackfillLeave(role string, actorID uint, req *LeaveBackfillRequest) (*LeaveRequest, error)
 	BackfillLeaveBulk(role string, actorID uint, req *LeaveBackfillBulkRequest) (*LeaveBackfillBulkResponse, error)
 }

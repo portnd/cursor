@@ -39,6 +39,7 @@ export interface TodayResponse {
   office_config: OfficeConfig | null
   offsite_checkin_request: OffsiteCheckInRequest | null
   offsite_checkout_request: OffsiteCheckOutRequest | null
+  is_remote?: boolean
 }
 
 export interface AttendanceHistoryResponse {

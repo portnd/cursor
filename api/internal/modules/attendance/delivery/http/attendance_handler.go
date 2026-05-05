@@ -111,8 +111,8 @@ func (h *attendanceHandler) checkIn(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Lat float64 `json:"lat" binding:"required"`
-		Lng float64 `json:"lng" binding:"required"`
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -163,11 +163,16 @@ func (h *attendanceHandler) today(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	isRemote, err := h.uc.IsUserRemote(userID)
+	if err != nil {
+		isRemote = false
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"record":                   rec,
 		"office_config":            cfg,
 		"offsite_checkin_request":  offsiteReq,
 		"offsite_checkout_request": offsiteOutReq,
+		"is_remote":                isRemote,
 	})
 }
 

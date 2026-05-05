@@ -13,6 +13,7 @@ interface AttendanceState {
   officeConfig: OfficeConfig | null
   todayOffsiteRequest: OffsiteCheckInRequest | null
   todayOffsiteCheckOutRequest: OffsiteCheckOutRequest | null
+  isRemote: boolean
   history: AttendanceRecord[]
   historyCursor: string | null
   historyHasMore: boolean
@@ -27,6 +28,7 @@ export const useAttendanceStore = defineStore('attendance', {
     officeConfig: null,
     todayOffsiteRequest: null,
     todayOffsiteCheckOutRequest: null,
+    isRemote: false,
     history: [],
     historyCursor: null,
     historyHasMore: false,
@@ -55,6 +57,7 @@ export const useAttendanceStore = defineStore('attendance', {
         this.officeConfig = res.office_config
         this.todayOffsiteRequest = res.offsite_checkin_request
         this.todayOffsiteCheckOutRequest = res.offsite_checkout_request
+        this.isRemote = res.is_remote ?? false
       } catch (e: any) {
         this.error = e?.data?.error ?? e?.message ?? 'Failed to load attendance'
       } finally {

@@ -11,14 +11,14 @@ import (
 
 // DiscordLeaveScheduler handles scheduled Discord notifications for leave
 type DiscordLeaveScheduler struct {
-	discordSvc     *DiscordService
+	discordSvc     domain.DiscordNotifier
 	attendanceRepo attendanceDomain.AttendanceRepository
 	stopChan       chan struct{}
 	wg             sync.WaitGroup
 }
 
 // NewDiscordLeaveScheduler creates a new scheduler for leave notifications
-func NewDiscordLeaveScheduler(discordSvc *DiscordService, attendanceRepo attendanceDomain.AttendanceRepository) *DiscordLeaveScheduler {
+func NewDiscordLeaveScheduler(discordSvc domain.DiscordNotifier, attendanceRepo attendanceDomain.AttendanceRepository) *DiscordLeaveScheduler {
 	return &DiscordLeaveScheduler{
 		discordSvc:     discordSvc,
 		attendanceRepo: attendanceRepo,

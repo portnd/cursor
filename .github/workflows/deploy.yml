@@ -98,13 +98,22 @@ jobs:
 
             echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Inject secrets from GitHub Actions
-            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}" >> .env
-            echo "GLM_API_KEY=${{ secrets.GLM_API_KEY }}" >> .env
-            echo "GLM_BASE_URL=${{ secrets.GLM_BASE_URL }}" >> .env
-            echo "GLM_MODEL=${{ secrets.GLM_MODEL }}" >> .env
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
-            echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
+            # Inject secrets from GitHub Actions (use sed to update existing lines or append if missing)
+            for kv in \
+              "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}" \
+              "GLM_API_KEY=${{ secrets.GLM_API_KEY }}" \
+              "GLM_BASE_URL=${{ secrets.GLM_BASE_URL }}" \
+              "GLM_MODEL=${{ secrets.GLM_MODEL }}" \
+              "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
+              "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" ; do
+              KEY="${kv%%=*}"
+              VAL="${kv#*=}"
+              if grep -q "^${KEY}=" .env 2>/dev/null; then
+                sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" .env
+              else
+                echo "${KEY}=${VAL}" >> .env
+              fi
+            done
 
             docker compose pull backend frontend
             docker compose up -d postgres redis

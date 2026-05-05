@@ -156,7 +156,7 @@ import { useAttendanceStore } from '../store/attendance-store'
 const store = useAttendanceStore()
 const auth = useAuth()
 
-const isRemoteWorker = computed(() => auth.currentUser.value?.is_remote ?? false)
+const isRemoteWorker = computed(() => store.isRemote || (auth.currentUser.value?.is_remote ?? false))
 
 type LatLng = {
   lat: number
@@ -329,8 +329,16 @@ async function onCheckIn() {
       geoStatus.value = 'Check-in successful.'
     }
   } catch (e: any) {
-    geoError.value = true
-    geoStatus.value = e?.message || 'Could not read GPS. Allow location access and try again.'
+    if (isRemoteWorker.value) {
+      geoStatus.value = 'GPS unavailable — submitting check-in as remote worker (0, 0).'
+      const ok = await store.checkIn(0, 0)
+      if (ok) {
+        geoStatus.value = 'Check-in successful (remote).'
+      }
+    } else {
+      geoError.value = true
+      geoStatus.value = e?.message || 'Could not read GPS. Allow location access and try again.'
+    }
   }
 }
 

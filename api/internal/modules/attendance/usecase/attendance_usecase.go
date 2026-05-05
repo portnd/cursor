@@ -1273,6 +1273,10 @@ func normalizeTimeString(s string) (string, error) {
 	return fmt.Sprintf("%02d:%02d:%02d", h, m, sec), nil
 }
 
+func (u *attendanceUsecase) IsUserRemote(userID uint) (bool, error) {
+	return u.repo.IsUserRemote(userID)
+}
+
 func (u *attendanceUsecase) gpsWithinOffice(lat, lng float64, cfg *domain.OfficeConfig) bool {
 	if cfg.RadiusMeters <= 0 {
 		return false
