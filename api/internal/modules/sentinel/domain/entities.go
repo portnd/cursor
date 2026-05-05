@@ -197,8 +197,10 @@ type ProjectFinanceUsecase interface {
 // can identify which project each task belongs to without an extra round-trip.
 type GlobalActiveTask struct {
 	Task
-	ProjectName  string `json:"project_name" gorm:"column:project_name"`
-	ProjectColor string `json:"project_color" gorm:"column:project_color"`
+	ProjectName     string `json:"project_name" gorm:"column:project_name"`
+	ProjectColor    string `json:"project_color" gorm:"column:project_color"`
+	ParentTaskCode  string `json:"parent_task_code" gorm:"column:parent_task_code"`
+	ParentTaskTitle string `json:"parent_task_title" gorm:"column:parent_task_title"`
 }
 
 // Sprint represents a time-boxed iteration within a project
@@ -323,8 +325,8 @@ type ProjectAnalytics struct {
 	ProjectID          uuid.UUID         `json:"project_id"`
 	TotalTasks         int               `json:"total_tasks"`
 	CompletedTasks     int               `json:"completed_tasks"`
-	TotalStoryPoints   int               `json:"total_story_points"`
-	CompletedSP        int               `json:"completed_story_points"`
+	TotalStoryPoints   float64           `json:"total_story_points"`
+	CompletedSP        float64           `json:"completed_story_points"`
 	TotalLoggedMinutes int               `json:"total_logged_minutes"`
 	AvgCycleTimeDays   float64           `json:"avg_cycle_time_days"`
 	Burndown           []BurndownPoint   `json:"burndown"`
@@ -339,9 +341,9 @@ type BurndownPoint struct {
 }
 
 type VelocityPoint struct {
-	SprintName  string `json:"sprint_name"`
-	CompletedSP int    `json:"completed_sp"`
-	PlannedSP   int    `json:"planned_sp"`
+	SprintName  string  `json:"sprint_name"`
+	CompletedSP float64 `json:"completed_sp"`
+	PlannedSP   float64 `json:"planned_sp"`
 }
 
 type TeamCapacityRow struct {

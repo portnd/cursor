@@ -749,7 +749,7 @@
                     <!-- Popover: Factor breakdown + Reasoning -->
                     <div
                       v-if="showAiSpPopover"
-                      class="absolute z-50 left-0 right-0 mt-1 p-3 bg-gray-800 border border-violet-400/30 rounded-xl shadow-xl shadow-violet-500/10 space-y-2"
+                      class="relative z-50 mt-1 p-3 bg-gray-800 border border-violet-400/30 rounded-xl shadow-xl shadow-violet-500/10 space-y-2"
                     >
                       <p class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold mb-1">3-Factor Breakdown</p>
                       <div class="space-y-1.5">

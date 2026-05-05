@@ -97,10 +97,12 @@
                     type="button"
                     @click="startTimerFor(task)"
                     class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700/60 text-left border-b border-gray-200 dark:border-gray-700/30 last:border-0 transition-colors"
+                    :class="{ 'pl-7': task.parent_id }"
                   >
-                    <span class="text-sm shrink-0">{{ taskIcon(task.task_type) }}</span>
+                    <span class="text-sm shrink-0">{{ task.parent_id ? '↳' : taskIcon(task.task_type) }}</span>
                     <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
                     <span class="text-xs text-gray-700 dark:text-gray-200 truncate flex-1">{{ task.title }}</span>
+                    <span v-if="task.parent_task_code" class="font-mono text-[9px] text-indigo-400/60 shrink-0 hidden sm:block">↑{{ task.parent_task_code }}</span>
                     <span v-if="task.assigned_to_display_name || task.assigned_to_email" class="text-[10px] text-indigo-400/70 shrink-0 hidden sm:block">
                       {{ task.assigned_to_display_name || task.assigned_to_email }}
                     </span>
@@ -307,9 +309,12 @@
                       v-for="task in filteredEditTasks" :key="task.id" type="button"
                       @mousedown.prevent="selectEditTask(task)"
                       class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700/60 text-left border-b border-gray-700/30 last:border-0 transition-colors"
+                      :class="{ 'pl-6': task.parent_id }"
                     >
+                      <span class="text-xs shrink-0">{{ task.parent_id ? '↳' : taskIcon(task.task_type) }}</span>
                       <span class="font-mono text-[10px] text-purple-400 shrink-0">{{ task.code }}</span>
                       <span class="text-xs text-gray-200 truncate flex-1">{{ task.title }}</span>
+                      <span v-if="task.parent_task_code" class="font-mono text-[9px] text-indigo-400/60 shrink-0">↑{{ task.parent_task_code }}</span>
                       <span v-if="task.project_name" class="text-[10px] text-gray-500 shrink-0 hidden sm:block">{{ task.project_name }}</span>
                     </button>
                   </template>
@@ -435,7 +440,9 @@ const filteredTimerTasks = computed(() => {
         t.title?.toLowerCase().includes(q) ||
         t.assigned_to_display_name?.toLowerCase().includes(q) ||
         t.assigned_to_email?.toLowerCase().includes(q) ||
-        t.project_name?.toLowerCase().includes(q),
+        t.project_name?.toLowerCase().includes(q) ||
+        t.parent_task_code?.toLowerCase().includes(q) ||
+        t.parent_task_title?.toLowerCase().includes(q),
       )
     : timerTasks.value
   return list.slice(0, TIMER_TASK_LIMIT)
@@ -519,7 +526,9 @@ const filteredEditTasks = computed(() => {
     ? timerTasks.value.filter(t =>
         t.code?.toLowerCase().includes(q) ||
         t.title?.toLowerCase().includes(q) ||
-        t.project_name?.toLowerCase().includes(q),
+        t.project_name?.toLowerCase().includes(q) ||
+        t.parent_task_code?.toLowerCase().includes(q) ||
+        t.parent_task_title?.toLowerCase().includes(q),
       )
     : timerTasks.value
   return list.slice(0, 50)

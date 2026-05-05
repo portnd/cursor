@@ -691,8 +691,9 @@ func (r *postgresRepository) GetActiveSprintsForUser(userID uint) ([]domain.Spri
 func (r *postgresRepository) GetGlobalActiveTasks(ctx domain.CallerContext) ([]domain.GlobalActiveTask, error) {
 	var results []domain.GlobalActiveTask
 	q := r.db.Table("tasks").
-		Select("tasks.id, tasks.code, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.task_type, tasks.story_points, tasks.estimated_minutes, tasks.assigned_to, tasks.project_id, tasks.sprint_id, tasks.epic_id, tasks.parent_id, tasks.due_at, tasks.started_at, tasks.created_at, tasks.updated_at, projects.name AS project_name, projects.color AS project_color").
+		Select("tasks.id, tasks.code, tasks.title, tasks.description, tasks.status, tasks.priority, tasks.task_type, tasks.story_points, tasks.estimated_minutes, tasks.assigned_to, tasks.project_id, tasks.sprint_id, tasks.epic_id, tasks.parent_id, tasks.due_at, tasks.started_at, tasks.created_at, tasks.updated_at, projects.name AS project_name, projects.color AS project_color, COALESCE(pt.code, '') AS parent_task_code, COALESCE(pt.title, '') AS parent_task_title").
 		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Joins("LEFT JOIN tasks pt ON pt.id = tasks.parent_id").
 		Where("tasks.task_type IN ? AND tasks.status NOT IN ?",
 			[]string{"TASK", "BUG"},
 			[]string{"COMPLETED", "CANCELLED"},
@@ -742,14 +743,19 @@ func (r *postgresRepository) GetTeamActiveTasks(ctx domain.CallerContext) ([]dom
 		ProjectColor          string `gorm:"column:project_color"`
 		AssignedToDisplayName string `gorm:"column:assigned_to_display_name"`
 		AssignedToEmail       string `gorm:"column:assigned_to_email"`
+		ParentTaskCode        string `gorm:"column:parent_task_code"`
+		ParentTaskTitle       string `gorm:"column:parent_task_title"`
 	}
 	var rows []row
 	q := r.db.Table("tasks").
 		Select(`tasks.*, projects.name AS project_name, projects.color AS project_color,
 			COALESCE(NULLIF(u.display_name, ''), SPLIT_PART(u.email, '@', 1), '') AS assigned_to_display_name,
-			COALESCE(u.email, '')               AS assigned_to_email`).
+			COALESCE(u.email, '')               AS assigned_to_email,
+			COALESCE(parent.code, '')  AS parent_task_code,
+			COALESCE(parent.title, '') AS parent_task_title`).
 		Joins("JOIN projects ON projects.id = tasks.project_id").
 		Joins("LEFT JOIN users u ON u.id = tasks.assigned_to").
+		Joins("LEFT JOIN tasks parent ON parent.id = tasks.parent_id").
 		Where("tasks.task_type IN ? AND tasks.status NOT IN ?",
 			[]string{"TASK", "BUG"},
 			[]string{"COMPLETED", "CANCELLED"},
@@ -786,9 +792,11 @@ func (r *postgresRepository) GetTeamActiveTasks(ctx domain.CallerContext) ([]dom
 	results := make([]domain.GlobalActiveTask, len(rows))
 	for i, r := range rows {
 		results[i] = domain.GlobalActiveTask{
-			Task:         r.Task,
-			ProjectName:  r.ProjectName,
-			ProjectColor: r.ProjectColor,
+			Task:            r.Task,
+			ProjectName:     r.ProjectName,
+			ProjectColor:    r.ProjectColor,
+			ParentTaskCode:  r.ParentTaskCode,
+			ParentTaskTitle: r.ParentTaskTitle,
 		}
 		results[i].AssignedToDisplayName = r.AssignedToDisplayName
 		results[i].AssignedToEmail = r.AssignedToEmail
@@ -1443,8 +1451,8 @@ func (r *postgresRepository) GetProjectAnalytics(projectID uuid.UUID) (*domain.P
 
 	// Story points
 	type spStats struct {
-		Total     int
-		Completed int
+		Total     float64
+		Completed float64
 	}
 	var sp spStats
 	r.db.Raw(`
@@ -1493,10 +1501,21 @@ func (r *postgresRepository) GetProjectAnalytics(projectID uuid.UUID) (*domain.P
 			ORDER BY gs.day
 		`, activeSprint.StartDate, activeSprint.EndDate, activeSprint.ID, projectID).Scan(&burnRows)
 
-		totalSP := float64(sp.Total)
+		// Use sprint-scoped story points (not project-wide) for ideal line
+		var sprintSP struct{ Total float64 }
+		r.db.Raw(`
+			SELECT COALESCE(SUM(story_points), 0) as total
+			FROM tasks WHERE sprint_id = ? AND project_id = ?
+		`, activeSprint.ID, projectID).Scan(&sprintSP)
+		totalSP := float64(sprintSP.Total)
 		sprintDays := activeSprint.EndDate.Sub(*activeSprint.StartDate).Hours() / 24
 		for i, row := range burnRows {
-			ideal := totalSP - (totalSP * float64(i) / sprintDays)
+			var ideal float64
+			if sprintDays > 0 {
+				ideal = totalSP - (totalSP * float64(i) / sprintDays)
+			} else {
+				ideal = totalSP // single-day sprint: ideal stays at totalSP
+			}
 			if ideal < 0 {
 				ideal = 0
 			}
@@ -1511,8 +1530,8 @@ func (r *postgresRepository) GetProjectAnalytics(projectID uuid.UUID) (*domain.P
 	// Velocity: completed story points per sprint (last 6)
 	type velocityRow struct {
 		SprintName  string
-		CompletedSP int
-		PlannedSP   int
+		CompletedSP float64
+		PlannedSP   float64
 	}
 	var vRows []velocityRow
 	r.db.Raw(`

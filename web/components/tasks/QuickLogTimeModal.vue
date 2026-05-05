@@ -71,15 +71,17 @@
                     <button
                       v-for="task in filteredTasks" :key="task.id" type="button"
                       class="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-700/60 transition-colors text-left border-b border-gray-700/40 last:border-0"
+                      :class="{ 'pl-8': task.parent_id }"
                       @click="selectTask(task)"
                     >
-                      <span class="mt-0.5 shrink-0 text-sm">{{ taskTypeIcon(task.task_type) }}</span>
+                      <span class="mt-0.5 shrink-0 text-sm">{{ task.parent_id ? '↳' : taskTypeIcon(task.task_type) }}</span>
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
                           <span class="text-xs font-mono text-purple-400 shrink-0">{{ task.code }}</span>
                           <span class="text-sm text-gray-200 truncate">{{ task.title }}</span>
                         </div>
                         <div class="flex items-center gap-2 mt-1">
+                          <span v-if="task.parent_task_code" class="font-mono text-[9px] text-indigo-400/60 shrink-0">↑{{ task.parent_task_code }}</span>
                           <span v-if="task.project_name" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-300 bg-gray-700/80">
                             <span v-if="task.project_color" class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ backgroundColor: task.project_color }" />
                             {{ task.project_name }}
@@ -301,7 +303,9 @@ const filteredTasks = computed(() => {
     || t.title?.toLowerCase().includes(q)
     || t.assigned_to_display_name?.toLowerCase().includes(q)
     || t.assigned_to_email?.toLowerCase().includes(q)
-    || t.project_name?.toLowerCase().includes(q),
+    || t.project_name?.toLowerCase().includes(q)
+    || t.parent_task_code?.toLowerCase().includes(q)
+    || t.parent_task_title?.toLowerCase().includes(q),
   ).slice(0, TASK_DROPDOWN_LIMIT)
 })
 
