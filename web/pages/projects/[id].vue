@@ -843,6 +843,7 @@
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, ep.id, taskIdx)"
                       >
+                        <a :href="taskHref(task.id)" class="backlog-row-link" @click.prevent="navigateToTask(task.id)"></a>
                         <div class="flex items-center justify-center shrink-0">
                           <input
                             type="checkbox"
@@ -873,7 +874,7 @@
                           :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                           :title="task.task_type"
                         >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                        <span class="text-xs font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                        <a :href="taskHref(task.id)" class="text-xs font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click.prevent="navigateToTask(task.id)">{{ task.title }}</a>
                         <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                           <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
                           <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
@@ -956,10 +957,10 @@
                         <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(task.status)">{{ formatStatus(task.status) }}</span>
                       </div>
                     </div>
-                    <!-- Sub-tasks B (inherit Epic from parent); C = sub-tasks of B -->
                     <template v-if="expandedEpics[task.id]">
                       <template v-for="sub in getBacklogSubTasks(task.id)" :key="sub.id">
                         <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
+                          <a :href="taskHref(sub.id)" class="backlog-row-link" @click.prevent="navigateToTask(sub.id)"></a>
                           <div class="flex items-center justify-center shrink-0">
                             <input
                               type="checkbox"
@@ -982,7 +983,7 @@
                               :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                               :title="sub.task_type"
                             >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                            <span class="text-xs text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                            <a :href="taskHref(sub.id)" class="text-xs text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click.prevent="navigateToTask(sub.id)">{{ sub.title }}</a>
                           </div>
                           <div class="flex items-center justify-center shrink-0">
                             <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
@@ -1055,9 +1056,9 @@
                             <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ formatStatus(sub.status) }}</span>
                           </div>
                         </div>
-                        <!-- Level C: sub-tasks of B -->
                         <template v-if="expandedEpics[sub.id]">
                           <div v-for="subsub in getBacklogSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                            <a :href="taskHref(subsub.id)" class="backlog-row-link" @click.prevent="navigateToTask(subsub.id)"></a>
                             <div class="flex items-center justify-center shrink-0">
                               <input
                                 type="checkbox"
@@ -1078,7 +1079,7 @@
                                 :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                 :title="subsub.task_type"
                               >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                              <span class="text-xs text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="navigateToTask(subsub.id)">{{ subsub.title }}</span>
+                              <a :href="taskHref(subsub.id)" class="text-xs text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click.prevent="navigateToTask(subsub.id)">{{ subsub.title }}</a>
                             </div>
                             <div class="flex items-center justify-center shrink-0">
                               <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
@@ -1201,6 +1202,7 @@
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, null, taskIdx)"
                       >
+                        <a :href="taskHref(task.id)" class="backlog-row-link" @click.prevent="navigateToTask(task.id)"></a>
                         <div class="flex items-center justify-center shrink-0">
                           <input
                             type="checkbox"
@@ -1231,7 +1233,7 @@
                             :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                             :title="task.task_type"
                           >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                          <span class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="navigateToTask(task.id)">{{ task.title }}</span>
+                          <a :href="taskHref(task.id)" class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click.prevent="navigateToTask(task.id)">{{ task.title }}</a>
                           <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                             <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
                             <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
@@ -1317,6 +1319,7 @@
                       <template v-if="expandedEpics[task.id]">
                         <template v-for="sub in getBacklogSubTasks(task.id)" :key="sub.id">
                           <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
+                            <a :href="taskHref(sub.id)" class="backlog-row-link" @click.prevent="navigateToTask(sub.id)"></a>
                             <div class="flex items-center justify-center shrink-0">
                               <input
                                 type="checkbox"
@@ -1339,7 +1342,7 @@
                                 :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                 :title="sub.task_type"
                               >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                              <span class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="navigateToTask(sub.id)">{{ sub.title }}</span>
+                              <a :href="taskHref(sub.id)" class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click.prevent="navigateToTask(sub.id)">{{ sub.title }}</a>
                             </div>
                             <div class="flex items-center justify-center shrink-0">
                               <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
@@ -1408,9 +1411,9 @@
                               <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap" :class="taskStatusBadge(sub.status)">{{ formatStatus(sub.status) }}</span>
                             </div>
                           </div>
-                          <!-- Level C: sub-tasks of B (Unassigned) -->
                           <template v-if="expandedEpics[sub.id]">
                             <div v-for="subsub in getBacklogSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
+                              <a :href="taskHref(subsub.id)" class="backlog-row-link" @click.prevent="navigateToTask(subsub.id)"></a>
                               <div class="flex items-center justify-center shrink-0">
                                 <input
                                   type="checkbox"
@@ -1431,7 +1434,7 @@
                                   :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                   :title="subsub.task_type"
                                 >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                                <span class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="navigateToTask(subsub.id)">{{ subsub.title }}</span>
+                                <a :href="taskHref(subsub.id)" class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click.prevent="navigateToTask(subsub.id)">{{ subsub.title }}</a>
                               </div>
                               <div class="flex items-center justify-center shrink-0">
                                 <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
@@ -4933,6 +4936,10 @@ function taskUrl(taskId: string) {
   return { path: `/task/${taskId}`, query: { from_project: projectId, from_tab: tab } }
 }
 
+function taskHref(taskId: string): string {
+  return router.resolve(taskUrl(taskId)).href
+}
+
 /** Scroll container is <main> in default layout (overflow-auto), not window. */
 function getMainScrollEl(): HTMLElement | null {
   if (typeof document === 'undefined') return null
@@ -6713,6 +6720,7 @@ function onBacklogStatusFilterDocumentClick(event: MouseEvent) {
 
 /* แถวข้อมูล: padding แนวตั้งพอดี อ่านง่าย */
 .backlog-row {
+  position: relative;
   padding: 0.375rem 0;
   border-bottom: 1px solid rgba(55, 65, 81, 0.55);
   min-width: 0;
@@ -6723,8 +6731,30 @@ function onBacklogStatusFilterDocumentClick(event: MouseEvent) {
 }
 /* Sub-task rows: ระยะห่างสมดุลกับแถวหลัก */
 .backlog-sub-row {
+  position: relative;
   padding-top: 0.3rem;
   padding-bottom: 0.3rem;
+}
+
+/* Invisible overlay link: covers entire row so right-click → "Open in new tab" works anywhere */
+.backlog-row-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  color: inherit;
+  text-decoration: none;
+}
+/* Interactive elements must be above the overlay link */
+.backlog-row input,
+.backlog-row select,
+.backlog-row button,
+.backlog-row a:not(.backlog-row-link),
+.backlog-sub-row input,
+.backlog-sub-row select,
+.backlog-sub-row button,
+.backlog-sub-row a:not(.backlog-row-link) {
+  position: relative;
+  z-index: 2;
 }
 
 .card {
