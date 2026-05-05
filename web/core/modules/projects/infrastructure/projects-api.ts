@@ -35,12 +35,21 @@ export interface Project {
   task_board_completed?: number
   /** When teams/squads are off — CEO-assigned Product Owner users for this project (API field: pm_owners) */
   pm_owners?: ProjectPmOwner[]
+  /** Users who can see this project (CEO/MANAGER only; API field: visible_users) */
+  visible_users?: ProjectVisibleUser[]
 }
 
 export interface ProjectPmOwner {
   user_id: number
   email: string
   display_name?: string
+}
+
+export interface ProjectVisibleUser {
+  user_id: number
+  email: string
+  display_name?: string
+  role: string
 }
 
 export interface ProjectTransaction {

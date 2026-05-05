@@ -107,6 +107,8 @@ type Project struct {
 	TaskBoardCompleted     int `json:"task_board_completed" gorm:"-"`
 	// When teams feature is off, CEO assigns Product Owners here (multiple allowed); populated by repo only (JSON field pm_owners kept for compatibility)
 	PmOwners []ProjectPmOwner `json:"pm_owners,omitempty" gorm:"-"`
+	// Users who can see this project (populated for CEO/MANAGER only; not stored)
+	VisibleUsers []ProjectVisibleUser `json:"visible_users,omitempty" gorm:"-"`
 }
 
 // ProjectPmAssignment links a project to Product Owner users (used when squads/teams feature is disabled; table name kept for compatibility).
@@ -122,6 +124,14 @@ type ProjectPmOwner struct {
 	UserID      uint   `json:"user_id"`
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name,omitempty"`
+}
+
+// ProjectVisibleUser represents a user who can see the project (populated for CEO/MANAGER only; not stored).
+type ProjectVisibleUser struct {
+	UserID      uint   `json:"user_id"`
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name,omitempty"`
+	Role        string `json:"role"`
 }
 
 // ProjectTransactionType defines the type of a project capital transaction

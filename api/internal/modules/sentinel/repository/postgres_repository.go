@@ -107,6 +107,67 @@ func (r *postgresRepository) fillProjectPmOwners(projects []domain.Project) erro
 	return nil
 }
 
+// fillProjectVisibleUsers populates the VisibleUsers slice for each project.
+// Only meaningful for CEO/MANAGER callers. Teams disabled: PM owners + engineers with assigned tasks.
+// Teams enabled: all members of the project's team.
+func (r *postgresRepository) fillProjectVisibleUsers(projects []domain.Project, teamsFeatureDisabled bool) error {
+	if len(projects) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(projects))
+	for i := range projects {
+		ids[i] = projects[i].ID
+	}
+	type row struct {
+		ProjectID   uuid.UUID `gorm:"column:project_id"`
+		UserID      uint      `gorm:"column:user_id"`
+		Email       string
+		DisplayName string `gorm:"column:display_name"`
+		Role        string
+	}
+	var rows []row
+	var err error
+	if teamsFeatureDisabled {
+		// PM owners + engineers with assigned tasks
+		err = r.db.Raw(`
+			SELECT sub.project_id, u.id AS user_id, u.email, u.display_name, u.role
+			FROM (
+				SELECT project_id, user_id FROM project_pm_assignments WHERE project_id IN ?
+				UNION
+				SELECT DISTINCT project_id, assigned_to AS user_id FROM tasks WHERE project_id IN ? AND assigned_to IS NOT NULL AND assigned_to != 0
+			) sub
+			JOIN users u ON u.id = sub.user_id
+			ORDER BY sub.project_id, u.role, u.email
+		`, ids, ids).Scan(&rows).Error
+	} else {
+		// Team members of the project's team
+		err = r.db.Raw(`
+			SELECT p.id AS project_id, u.id AS user_id, u.email, u.display_name, u.role
+			FROM projects p
+			JOIN users u ON u.team_id = p.team_id
+			WHERE p.id IN ? AND p.team_id IS NOT NULL
+			ORDER BY p.id, u.role, u.email
+		`, ids).Scan(&rows).Error
+	}
+	if err != nil {
+		return err
+	}
+	byProj := make(map[uuid.UUID][]domain.ProjectVisibleUser)
+	for _, row := range rows {
+		byProj[row.ProjectID] = append(byProj[row.ProjectID], domain.ProjectVisibleUser{
+			UserID: row.UserID, Email: row.Email, DisplayName: row.DisplayName, Role: row.Role,
+		})
+	}
+	for i := range projects {
+		if users, ok := byProj[projects[i].ID]; ok {
+			projects[i].VisibleUsers = users
+		} else {
+			projects[i].VisibleUsers = nil
+		}
+	}
+	return nil
+}
+
 type projectTaskCountRow struct {
 	ProjectID           uuid.UUID
 	Total               int
@@ -198,6 +259,9 @@ func (r *postgresRepository) GetAllProjects(ctx domain.CallerContext) ([]domain.
 	if err := r.fillProjectPmOwners(projects); err != nil {
 		return projects, err
 	}
+	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager {
+		_ = r.fillProjectVisibleUsers(projects, ctx.TeamsFeatureDisabled)
+	}
 	if len(projects) == 0 {
 		return projects, nil
 	}
@@ -217,6 +281,9 @@ func (r *postgresRepository) GetProjectByID(id uuid.UUID, ctx domain.CallerConte
 	if err := r.fillProjectPmOwners(slice); err != nil {
 		return nil, err
 	}
+	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager {
+		_ = r.fillProjectVisibleUsers(slice, ctx.TeamsFeatureDisabled)
+	}
 	if err := r.fillProjectTaskCounts(slice); err != nil {
 		return nil, err
 	}
@@ -233,6 +300,9 @@ func (r *postgresRepository) GetProjectByCode(code string, ctx domain.CallerCont
 	slice := []domain.Project{project}
 	if err := r.fillProjectPmOwners(slice); err != nil {
 		return nil, err
+	}
+	if ctx.Role == domain.RoleCEO || ctx.Role == domain.RoleManager {
+		_ = r.fillProjectVisibleUsers(slice, ctx.TeamsFeatureDisabled)
 	}
 	if err := r.fillProjectTaskCounts(slice); err != nil {
 		return nil, err

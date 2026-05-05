@@ -175,6 +175,24 @@
           </div>
         </div>
 
+        <!-- Who can see this project (CEO/MANAGER only) -->
+        <div v-if="isCEO && project.visible_users?.length" class="mb-4 rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-3 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-[11px] font-semibold text-cyan-200">สิทธิ์การมองเห็นโครงการ</div>
+              <p class="text-[10px] text-cyan-500/80">พนักงานที่มองเห็นโครงการนี้ได้</p>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <template v-for="group in visibleUsersByRole(project)" :key="group.role">
+              <div class="flex items-baseline gap-2">
+                <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide w-28" :class="roleLabelClass(group.role)">{{ roleLabel(group.role) }}</span>
+                <span class="text-xs text-slate-100 truncate">{{ group.names }}</span>
+              </div>
+            </template>
+          </div>
+        </div>
+
         <!-- Team Badge + CEO Assign Dropdown (hidden when teams feature disabled) -->
         <div v-if="teamsStore.teamsFeatureEnabled" class="mb-4">
           <!-- Current Team Badge (all roles) -->
@@ -593,6 +611,52 @@ function projectRoleRowsForCard(project: Project) {
     { key: 'project_lead_name', label: 'หัวหน้าโครงการ', value: (project as any).project_lead_name?.trim?.() || '' },
     { key: 'project_owner_name', label: 'เจ้าของโครงการ', value: (project as any).project_owner_name?.trim?.() || '' },
   ]
+}
+
+function visibleUsersByRole(project: Project) {
+  const users = project.visible_users ?? []
+  const roleOrder = ['CEO', 'MANAGER', 'PRODUCT_OWNER', 'PM', 'CHIEF_ENGINEER', 'ENGINEER', 'SUPPORT']
+  const grouped = new Map<string, { role: string; names: string }>()
+  for (const u of users) {
+    const key = u.role
+    const name = u.display_name?.trim() || u.email
+    if (!grouped.has(key)) grouped.set(key, { role: key, names: name })
+    else grouped.get(key)!.names += ', ' + name
+  }
+  return roleOrder
+    .filter((r) => grouped.has(r))
+    .map((r) => grouped.get(r)!)
+    .concat(
+      [...grouped.entries()]
+        .filter(([k]) => !roleOrder.includes(k))
+        .map(([, v]) => v),
+    )
+}
+
+function roleLabel(role: string): string {
+  const map: Record<string, string> = {
+    CEO: 'CEO',
+    MANAGER: 'Manager',
+    PRODUCT_OWNER: 'Product Owner',
+    PM: 'PM',
+    CHIEF_ENGINEER: 'Chief Eng.',
+    ENGINEER: 'Engineer',
+    SUPPORT: 'Support',
+  }
+  return map[role] ?? role
+}
+
+function roleLabelClass(role: string): string {
+  const map: Record<string, string> = {
+    CEO: 'text-amber-400',
+    MANAGER: 'text-amber-300',
+    PRODUCT_OWNER: 'text-violet-400',
+    PM: 'text-violet-300',
+    CHIEF_ENGINEER: 'text-cyan-400',
+    ENGINEER: 'text-cyan-300',
+    SUPPORT: 'text-slate-400',
+  }
+  return map[role] ?? 'text-slate-400'
 }
 
 function bucketForListTask(t: Task): KanbanBucket {
