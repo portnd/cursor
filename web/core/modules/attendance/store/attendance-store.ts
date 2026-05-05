@@ -77,6 +77,7 @@ export const useAttendanceStore = defineStore('attendance', {
         } else {
           this.history = res.items
         }
+        this.history.sort((a, b) => b.attendance_date.localeCompare(a.attendance_date))
         this.historyCursor = res.next_cursor ?? null
         this.historyHasMore = !!res.next_cursor
       } catch (e: any) {
