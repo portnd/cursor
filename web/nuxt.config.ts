@@ -87,7 +87,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'The Sentinel - AI-Powered Task Management',
+      title: 'Komgrip Task Management',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },

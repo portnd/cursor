@@ -10,5 +10,5 @@
 import GlobalKanbanBoard from '~/components/tasks/GlobalKanbanBoard.vue'
 
 definePageMeta({ middleware: 'auth' })
-useHead({ title: 'Global Active Board — The Sentinel' })
+useHead({ title: 'Global Active Board — Komgrip Task Management' })
 </script>

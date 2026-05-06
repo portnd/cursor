@@ -43,7 +43,7 @@ onMounted(() => {
 
 definePageMeta({ layout: false })
 
-useHead({ title: 'Register - The Sentinel' })
+useHead({ title: 'Register - Komgrip Task Management' })
 </script>
 
 <style scoped>
