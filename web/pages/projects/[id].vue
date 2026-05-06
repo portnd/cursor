@@ -843,7 +843,7 @@
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, ep.id, taskIdx)"
                       >
-                        <a :href="taskHref(task.id)" class="backlog-row-link" @click.prevent="navigateToTask(task.id)"></a>
+                        <a :href="taskHref(task.id)" class="backlog-row-link" @click="onTaskLinkClick(task.id, $event)"></a>
                         <div class="flex items-center justify-center shrink-0">
                           <input
                             type="checkbox"
@@ -874,14 +874,32 @@
                           :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                           :title="task.task_type"
                         >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                        <a :href="taskHref(task.id)" class="text-xs font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click.prevent="navigateToTask(task.id)">{{ task.title }}</a>
+                        <a :href="taskHref(task.id)" class="text-xs font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="onTaskLinkClick(task.id, $event)">{{ task.title }}</a>
                         <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                           <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
                           <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
                         </span>
                       </div>
-                      <div class="flex items-center justify-center shrink-0">
-                        <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
+                      <div class="flex items-center justify-center shrink-0 relative" @click.stop>
+                        <button
+                          type="button"
+                          class="sp-popover-trigger text-sm font-mono text-purple-400 hover:text-purple-300 px-1 rounded hover:bg-gray-700/50 transition-colors"
+                          @click.stop="toggleSpPopover(task.id)"
+                        >{{ task.story_points ?? '–' }}</button>
+                        <div
+                          v-if="spPopoverTaskId === task.id"
+                          class="sp-popover-panel absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-gray-800 border border-gray-600 rounded-lg p-1.5 shadow-xl flex flex-wrap gap-1 min-w-[9rem]"
+                          @click.stop
+                        >
+                          <button
+                            v-for="pt in SP_OPTIONS"
+                            :key="pt"
+                            type="button"
+                            class="text-xs font-mono px-2 py-1 rounded transition-colors"
+                            :class="task.story_points === pt ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-purple-600/50 hover:text-purple-200'"
+                            @click.stop="selectSpValue(task, pt)"
+                          >{{ pt }}</button>
+                        </div>
                       </div>
                       <div class="flex items-center min-w-0">
                         <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[5.25rem] pr-1" :class="priorityTextClass(task.priority)">
@@ -916,7 +934,7 @@
                         </select>
                       </div>
                       <div class="flex items-center min-w-0">
-                        <div v-if="dueDateEditingTaskId !== task.id" class="flex items-center gap-1 w-full min-w-0">
+                        <div v-if="dueDateEditingTaskId !== task.id" class="flex items-center justify-center gap-1 w-full min-w-0">
                           <span
                             class="text-xs truncate font-medium"
                             :class="dueDateTextClass(task)"
@@ -933,22 +951,12 @@
                             ✎
                           </button>
                         </div>
-                        <div v-else class="flex items-center gap-2 w-full min-w-0">
-                          <UiDatePicker
-                            :modelValue="dueDateEditingValue"
-                            @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
-                            :disabled="isSavingDueDate"
-                          />
-                          <button
-                            type="button"
-                            @click.stop="cancelEditDueDate"
-                            class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:opacity-50"
-                            :disabled="isSavingDueDate"
-                            title="Cancel"
-                          >
-                            ✕
-                          </button>
-                        </div>
+                        <UiDatePicker
+                          :modelValue="dueDateEditingValue"
+                          @update:modelValue="(v) => { dueDateEditingValue = v; saveDueDateForEditingTask() }"
+                          @close="cancelEditDueDate"
+                          :disabled="isSavingDueDate"
+                        />
                       </div>
                       <div class="flex items-center gap-1 shrink-0">
                         <span v-if="task.previous_sprint_id && task.status !== 'COMPLETED'" class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap bg-amber-500/20 text-amber-400 border border-amber-500/30">
@@ -960,7 +968,7 @@
                     <template v-if="expandedEpics[task.id]">
                       <template v-for="sub in getBacklogSubTasks(task.id)" :key="sub.id">
                         <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
-                          <a :href="taskHref(sub.id)" class="backlog-row-link" @click.prevent="navigateToTask(sub.id)"></a>
+                          <a :href="taskHref(sub.id)" class="backlog-row-link" @click="onTaskLinkClick(sub.id, $event)"></a>
                           <div class="flex items-center justify-center shrink-0">
                             <input
                               type="checkbox"
@@ -983,7 +991,7 @@
                               :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                               :title="sub.task_type"
                             >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                            <a :href="taskHref(sub.id)" class="text-xs text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click.prevent="navigateToTask(sub.id)">{{ sub.title }}</a>
+                            <a :href="taskHref(sub.id)" class="text-xs text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="onTaskLinkClick(sub.id, $event)">{{ sub.title }}</a>
                           </div>
                           <div class="flex items-center justify-center shrink-0">
                             <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
@@ -1015,7 +1023,7 @@
                             </select>
                           </div>
                           <div class="flex items-center min-w-0">
-                            <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center gap-1 w-full min-w-0">
+                            <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center justify-center gap-1 w-full min-w-0">
                               <span
                                 class="text-xs truncate font-medium"
                                 :class="dueDateTextClass(sub)"
@@ -1058,7 +1066,7 @@
                         </div>
                         <template v-if="expandedEpics[sub.id]">
                           <div v-for="subsub in getBacklogSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
-                            <a :href="taskHref(subsub.id)" class="backlog-row-link" @click.prevent="navigateToTask(subsub.id)"></a>
+                            <a :href="taskHref(subsub.id)" class="backlog-row-link" @click="onTaskLinkClick(subsub.id, $event)"></a>
                             <div class="flex items-center justify-center shrink-0">
                               <input
                                 type="checkbox"
@@ -1079,7 +1087,7 @@
                                 :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                 :title="subsub.task_type"
                               >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                              <a :href="taskHref(subsub.id)" class="text-xs text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click.prevent="navigateToTask(subsub.id)">{{ subsub.title }}</a>
+                              <a :href="taskHref(subsub.id)" class="text-xs text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="onTaskLinkClick(subsub.id, $event)">{{ subsub.title }}</a>
                             </div>
                             <div class="flex items-center justify-center shrink-0">
                               <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
@@ -1107,7 +1115,7 @@
                               </select>
                             </div>
                           <div class="flex items-center min-w-0">
-                            <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center gap-1 w-full min-w-0">
+                            <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center justify-center gap-1 w-full min-w-0">
                               <span
                                 class="text-xs truncate font-medium"
                                 :class="dueDateTextClass(subsub)"
@@ -1202,7 +1210,7 @@
                         @dragover="onTaskDragOver"
                         @drop.stop="onTaskDrop($event, null, taskIdx)"
                       >
-                        <a :href="taskHref(task.id)" class="backlog-row-link" @click.prevent="navigateToTask(task.id)"></a>
+                        <a :href="taskHref(task.id)" class="backlog-row-link" @click="onTaskLinkClick(task.id, $event)"></a>
                         <div class="flex items-center justify-center shrink-0">
                           <input
                             type="checkbox"
@@ -1233,14 +1241,32 @@
                             :class="task.task_type === 'FEATURE' ? 'text-purple-400' : task.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                             :title="task.task_type"
                           >{{ task.task_type === 'FEATURE' ? '★' : task.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                          <a :href="taskHref(task.id)" class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click.prevent="navigateToTask(task.id)">{{ task.title }}</a>
+                          <a :href="taskHref(task.id)" class="text-sm font-medium text-gray-200 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0 flex-1" :title="task.title" @click="onTaskLinkClick(task.id, $event)">{{ task.title }}</a>
                           <span class="shrink-0 flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                             <button type="button" @click.stop="openEditTaskTitle(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="แก้ไขชื่อ task">✎</button>
                             <button type="button" @click.stop="duplicateTask(task)" class="p-0.5 rounded text-gray-500 hover:text-purple-400 hover:bg-gray-700/50" title="Duplicate task">⎘</button>
                           </span>
                         </div>
-                        <div class="flex items-center justify-center shrink-0">
-                          <span class="text-sm font-mono text-purple-400 cursor-pointer hover:text-purple-300" @click="openEditSpField(task)">{{ task.story_points || '–' }}</span>
+                        <div class="flex items-center justify-center shrink-0 relative" @click.stop>
+                          <button
+                            type="button"
+                            class="sp-popover-trigger text-sm font-mono text-purple-400 hover:text-purple-300 px-1 rounded hover:bg-gray-700/50 transition-colors"
+                            @click.stop="toggleSpPopover(task.id)"
+                          >{{ task.story_points ?? '–' }}</button>
+                          <div
+                            v-if="spPopoverTaskId === task.id"
+                            class="sp-popover-panel absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-gray-800 border border-gray-600 rounded-lg p-1.5 shadow-xl flex flex-wrap gap-1 min-w-[9rem]"
+                            @click.stop
+                          >
+                            <button
+                              v-for="pt in SP_OPTIONS"
+                              :key="pt"
+                              type="button"
+                              class="text-xs font-mono px-2 py-1 rounded transition-colors"
+                              :class="task.story_points === pt ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-purple-600/50 hover:text-purple-200'"
+                              @click.stop="selectSpValue(task, pt)"
+                            >{{ pt }}</button>
+                          </div>
                         </div>
                         <div class="flex items-center min-w-0">
                           <select :value="task.priority" @change="updateTaskField(task.id, 'priority', ($event.target as HTMLSelectElement).value)" class="text-xs bg-transparent border-0 focus:outline-none cursor-pointer w-full min-w-[5.25rem] pr-1" :class="priorityTextClass(task.priority)">
@@ -1275,7 +1301,7 @@
                           </select>
                         </div>
                         <div class="flex items-center min-w-0">
-                          <div v-if="dueDateEditingTaskId !== task.id" class="flex items-center gap-1 w-full min-w-0">
+                          <div v-if="dueDateEditingTaskId !== task.id" class="flex items-center justify-center gap-1 w-full min-w-0">
                             <span
                               class="text-xs truncate font-medium"
                               :class="dueDateTextClass(task)"
@@ -1319,7 +1345,7 @@
                       <template v-if="expandedEpics[task.id]">
                         <template v-for="sub in getBacklogSubTasks(task.id)" :key="sub.id">
                           <div class="backlog-subgrid backlog-sub-row border-b border-gray-700/40 bg-gray-900/55 hover:bg-gray-700/35 transition-colors group">
-                            <a :href="taskHref(sub.id)" class="backlog-row-link" @click.prevent="navigateToTask(sub.id)"></a>
+                            <a :href="taskHref(sub.id)" class="backlog-row-link" @click="onTaskLinkClick(sub.id, $event)"></a>
                             <div class="flex items-center justify-center shrink-0">
                               <input
                                 type="checkbox"
@@ -1342,7 +1368,7 @@
                                 :class="sub.task_type === 'FEATURE' ? 'text-purple-400' : sub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                 :title="sub.task_type"
                               >{{ sub.task_type === 'FEATURE' ? '★' : sub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                              <a :href="taskHref(sub.id)" class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click.prevent="navigateToTask(sub.id)">{{ sub.title }}</a>
+                              <a :href="taskHref(sub.id)" class="text-sm text-gray-300 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="sub.title" @click="onTaskLinkClick(sub.id, $event)">{{ sub.title }}</a>
                             </div>
                             <div class="flex items-center justify-center shrink-0">
                               <span class="text-xs font-mono text-purple-400">{{ sub.story_points || '–' }}</span>
@@ -1370,7 +1396,7 @@
                               </select>
                             </div>
                           <div class="flex items-center min-w-0">
-                            <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center gap-1 w-full min-w-0">
+                            <div v-if="dueDateEditingTaskId !== sub.id" class="flex items-center justify-center gap-1 w-full min-w-0">
                               <span
                                 class="text-xs truncate font-medium"
                                 :class="dueDateTextClass(sub)"
@@ -1413,7 +1439,7 @@
                           </div>
                           <template v-if="expandedEpics[sub.id]">
                             <div v-for="subsub in getBacklogSubTasks(sub.id)" :key="subsub.id" class="backlog-subgrid backlog-sub-row border-b border-gray-700/20 bg-gray-950/50 hover:bg-gray-700/10 transition-colors">
-                              <a :href="taskHref(subsub.id)" class="backlog-row-link" @click.prevent="navigateToTask(subsub.id)"></a>
+                              <a :href="taskHref(subsub.id)" class="backlog-row-link" @click="onTaskLinkClick(subsub.id, $event)"></a>
                               <div class="flex items-center justify-center shrink-0">
                                 <input
                                   type="checkbox"
@@ -1434,7 +1460,7 @@
                                   :class="subsub.task_type === 'FEATURE' ? 'text-purple-400' : subsub.task_type === 'BUG' ? 'text-red-400' : 'text-blue-400'"
                                   :title="subsub.task_type"
                                 >{{ subsub.task_type === 'FEATURE' ? '★' : subsub.task_type === 'BUG' ? '⚠' : '📋' }}</span>
-                                <a :href="taskHref(subsub.id)" class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click.prevent="navigateToTask(subsub.id)">{{ subsub.title }}</a>
+                                <a :href="taskHref(subsub.id)" class="text-sm text-gray-400 cursor-pointer hover:text-purple-300 line-clamp-2 break-words block min-w-0" :title="subsub.title" @click="onTaskLinkClick(subsub.id, $event)">{{ subsub.title }}</a>
                               </div>
                               <div class="flex items-center justify-center shrink-0">
                                 <span class="text-xs font-mono text-purple-400">{{ subsub.story_points || '–' }}</span>
@@ -1462,7 +1488,7 @@
                                 </select>
                               </div>
                             <div class="flex items-center min-w-0">
-                              <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center gap-1 w-full min-w-0">
+                              <div v-if="dueDateEditingTaskId !== subsub.id" class="flex items-center justify-center gap-1 w-full min-w-0">
                                 <span
                                   class="text-xs truncate font-medium"
                                   :class="dueDateTextClass(subsub)"
@@ -2759,7 +2785,22 @@
           </div>
           <div>
             <label class="label">Description</label>
-            <textarea v-model="createTaskForm.description" rows="6" class="input-field w-full resize-y min-h-[10rem]" placeholder="Describe the task..."></textarea>
+            <RichTextEditor v-model="createTaskForm.description" placeholder="Describe the task… (paste images with ⌘V)" />
+          </div>
+          <div>
+            <label class="label" :class="createTaskForm.task_type === 'FEATURE' ? 'text-gray-500' : ''">
+              Assignee
+              <span v-if="createTaskForm.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
+            </label>
+            <select
+              v-model="createTaskForm.assigned_to"
+              class="input-field w-full transition-opacity"
+              :class="createTaskForm.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''"
+              :disabled="createTaskForm.task_type === 'FEATURE' || backlogAssigneeLoading"
+            >
+              <option value="">— Unassigned —</option>
+              <option v-for="u in visibleBacklogAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+            </select>
           </div>
           <div>
             <label class="label" :class="createTaskForm.task_type === 'FEATURE' ? 'text-gray-500' : ''">
@@ -3384,6 +3425,7 @@ import { useDeploymentApi } from '~/core/modules/deployment/infrastructure/deplo
 import { useProjectSprints } from '~/composables/useProjectSprints'
 import { useProjectImports } from '~/composables/useProjectImports'
 import { isTaskAssigneeRole } from '~/utils/roles'
+import RichTextEditor from '~/components/editor/RichTextEditor.vue'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -3544,6 +3586,7 @@ watch(activeTab, async (tab) => {
     loadProjectScopedFeatureRoadmap()
   }
   if (tab === 'backlog') {
+    void loadBacklogAssignees()
     nextTick(() => setupBacklogInfiniteScroll())
   } else if (backlogAutoLoadObserver) {
     backlogAutoLoadObserver.disconnect()
@@ -4538,6 +4581,17 @@ const backlogFiltersActive = computed(
 
 const backlogTotalRootTasks = computed(() => allTasks.value.filter((t) => !t.parent_id).length)
 
+// Auto-persist filter selections so they survive a page re-mount (e.g. after navigating back).
+// Guards: skip during initial load and when no project is loaded yet.
+watch(
+  [backlogFilterStatuses, backlogFilterPriority, backlogFilterSprintId, backlogFilterTaskType],
+  () => {
+    if (isLoading.value || !project.value || activeTab.value !== 'backlog') return
+    persistBacklogState()
+  },
+  { deep: true },
+)
+
 function clearBacklogFilters() {
   backlogSearchQuery.value = ''
   backlogFilterStatuses.value = []
@@ -4946,7 +5000,8 @@ function getMainScrollEl(): HTMLElement | null {
   return document.querySelector('main')
 }
 
-function saveBacklogExpandedState() {
+/** Persists current backlog state (expansion + filters + scroll) to sessionStorage without marking a return intent. */
+function persistBacklogState() {
   if (typeof sessionStorage === 'undefined' || !project.value) return
   const key = `${BACKLOG_EXPANDED_STORAGE_KEY}-${project.value.id}`
   try {
@@ -4958,14 +5013,24 @@ function saveBacklogExpandedState() {
       expandedEpicGroups: { ...expandedEpicGroups.value },
       scrollTop,
       scrollLeft,
+      filterStatuses: [...backlogFilterStatuses.value],
+      filterPriority: backlogFilterPriority.value,
+      filterSprintId: backlogFilterSprintId.value,
+      filterTaskType: backlogFilterTaskType.value,
     }))
-    sessionStorage.setItem(BACKLOG_EXPECT_RETURN_KEY, project.value.id)
   } catch {
     // ignore quota or parse errors
   }
 }
 
-/** Restores expanded state from sessionStorage. Returns saved scroll position if any (for caller to apply after paint). */
+function saveBacklogExpandedState() {
+  persistBacklogState()
+  if (typeof sessionStorage !== 'undefined' && project.value) {
+    sessionStorage.setItem(BACKLOG_EXPECT_RETURN_KEY, project.value.id)
+  }
+}
+
+/** Restores expanded state + filter state from sessionStorage. Returns saved scroll position if any (for caller to apply after paint). */
 function restoreBacklogExpandedState(projectId: string): { scrollTop: number; scrollLeft: number } | null {
   if (typeof sessionStorage === 'undefined') return null
   const key = `${BACKLOG_EXPANDED_STORAGE_KEY}-${projectId}`
@@ -4977,12 +5042,28 @@ function restoreBacklogExpandedState(projectId: string): { scrollTop: number; sc
       expandedEpicGroups?: Record<string, boolean>
       scrollTop?: number
       scrollLeft?: number
+      filterStatuses?: string[]
+      filterPriority?: string
+      filterSprintId?: string
+      filterTaskType?: string
     }
     if (data.expandedEpics && typeof data.expandedEpics === 'object') {
       expandedEpics.value = { ...data.expandedEpics }
     }
     if (data.expandedEpicGroups && typeof data.expandedEpicGroups === 'object') {
       expandedEpicGroups.value = { ...data.expandedEpicGroups }
+    }
+    if (Array.isArray(data.filterStatuses)) {
+      backlogFilterStatuses.value = [...data.filterStatuses] as Task['status'][]
+    }
+    if (data.filterPriority !== undefined) {
+      backlogFilterPriority.value = data.filterPriority as Task['priority'] | ''
+    }
+    if (data.filterSprintId !== undefined) {
+      backlogFilterSprintId.value = data.filterSprintId
+    }
+    if (data.filterTaskType !== undefined) {
+      backlogFilterTaskType.value = data.filterTaskType as Task['task_type'] | ''
     }
     const scrollTop = typeof data.scrollTop === 'number' ? data.scrollTop : 0
     const scrollLeft = typeof data.scrollLeft === 'number' ? data.scrollLeft : 0
@@ -4999,6 +5080,17 @@ function restoreBacklogExpandedState(projectId: string): { scrollTop: number; sc
 function navigateToTask(id: string) {
   if (activeTab.value === 'backlog') saveBacklogExpandedState()
   router.push(taskUrl(id))
+}
+
+/**
+ * Click handler for <a> task links in the backlog.
+ * Allows Ctrl/Cmd/Shift clicks to open the link in a new tab natively (browser default).
+ * Only intercepts plain left-clicks to use Vue Router for in-app navigation.
+ */
+function onTaskLinkClick(id: string, event: MouseEvent) {
+  if (event.ctrlKey || event.metaKey || event.shiftKey) return
+  event.preventDefault()
+  navigateToTask(id)
 }
 
 function navigateToSprint(sprintId: string) {
@@ -5185,44 +5277,19 @@ async function loadAll() {
     sprints.value = details.sprints
     milestones.value = details.milestones
     epics.value = details.epics
-    // Default: collapse all epic groups and tasks (user expands to see). On refresh we keep collapsed; only restore when returning from task page.
+    // Default: collapse all epic groups and tasks. Saved state (expansion + filters) is restored below.
     details.epics.forEach((ep) => { expandedEpicGroups.value[ep.id] = false })
     expandedEpicGroups.value['__unassigned__'] = false
     expandedEpics.value = {}
+
+    // Determine if the user navigated here from a task detail (for scroll restoration).
     const expectReturn = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(BACKLOG_EXPECT_RETURN_KEY) : null
     const shouldRestore = expectReturn === details.project.id
     if (shouldRestore && typeof sessionStorage !== 'undefined') sessionStorage.removeItem(BACKLOG_EXPECT_RETURN_KEY)
-    const savedScroll = shouldRestore ? restoreBacklogExpandedState(details.project.id) : null
-    if (savedScroll && activeTab.value === 'backlog') {
-      nextTick(() => {
-        const apply = () => {
-          const main = getMainScrollEl()
-          if (main) {
-            main.scrollTop = savedScroll!.scrollTop
-            main.scrollLeft = savedScroll!.scrollLeft
-          }
-        }
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            apply()
-            setTimeout(apply, 80)
-          })
-        })
-      })
-    }
 
-    isLoading.value = false
-
-    // For heavy tabs, start a background warm-up of next tasks page on good networks
-    void ensureHeavyTabTasksWarmup()
-
-    // When returning from task detail to board/backlog, restore scroll position after the current frame.
-    // NOTE: `shouldRestore` is the gate — it is only true when BACKLOG_EXPECT_RETURN_KEY was set by
-    // `saveBacklogExpandedState` (i.e., user navigated TO a task detail from this project page).
-    // Without this guard, navigating fresh from /projects would scroll to a stale saved position.
-    if (!cached && activeTab.value === 'backlog') {
-      // Always restore epic/group expansion state (it's a layout preference), but only apply
-      // the saved scroll coordinates when we are genuinely returning from a task detail page.
+    // Always restore saved backlog state (expansion + filters) when on the backlog tab.
+    // Scroll position is only re-applied when genuinely returning from a task detail page.
+    if (activeTab.value === 'backlog') {
       const savedScroll = restoreBacklogExpandedState(details.project.id)
       if (savedScroll && shouldRestore) {
         nextTick(() => {
@@ -5243,21 +5310,27 @@ async function loadAll() {
       }
     }
 
-    // Fetch deployment requests for WAIT_FOR_DEPLOY tasks (non-blocking)
+    isLoading.value = false
+
+    // For heavy tabs, start a background warm-up of next tasks page on good networks
+    void ensureHeavyTabTasksWarmup()
+
+    // Fetch deployment requests for WAIT_FOR_DEPLOY tasks — true background, never blocks spinner.
+    // deployedTaskIds defaults to [] so WAIT_FOR_DEPLOY cards render immediately; badge updates after.
+    deployedTaskIds.value = []
     const waitForDeployTaskIds = details.tasks
       .filter((t) => t.status === 'WAIT_FOR_DEPLOY')
       .map((t) => t.id)
     if (waitForDeployTaskIds.length > 0) {
       const depApi = useDeploymentApi()
-      const results = await Promise.allSettled(
+      Promise.allSettled(
         waitForDeployTaskIds.map((id) => depApi.getByTaskId(id))
-      )
-      deployedTaskIds.value = waitForDeployTaskIds.filter((_, i) => {
-        const r = results[i]
-        return r.status === 'fulfilled' && r.value !== null
-      })
-    } else {
-      deployedTaskIds.value = []
+      ).then((results) => {
+        deployedTaskIds.value = waitForDeployTaskIds.filter((_, i) => {
+          const r = results[i]
+          return r.status === 'fulfilled' && r.value !== null
+        })
+      }).catch(() => {})
     }
 
     // Apply timeline data if we fetched in parallel (do not block project shell on this)
@@ -5440,6 +5513,27 @@ async function updateTaskField(taskId: string, field: string, value: any) {
   }
 }
 
+// Inline SP popover (Backlog table)
+const SP_OPTIONS = [0, 0.5, 1, 2, 3, 5, 8, 13, 21]
+const spPopoverTaskId = ref<string | null>(null)
+
+function toggleSpPopover(taskId: string) {
+  spPopoverTaskId.value = spPopoverTaskId.value === taskId ? null : taskId
+}
+
+function selectSpValue(task: Task, points: number) {
+  updateTaskField(task.id, 'story_points', points)
+  spPopoverTaskId.value = null
+}
+
+function onSpPopoverDocumentClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+  if (target.closest('.sp-popover-panel')) return
+  if (target.closest('.sp-popover-trigger')) return
+  spPopoverTaskId.value = null
+}
+
 // Inline due_at editor (Backlog table)
 const dueDateEditingTaskId = ref<string | null>(null)
 const dueDateEditingValue = ref<string>('')
@@ -5481,13 +5575,6 @@ async function saveDueDateForEditingTask() {
   } finally {
     isSavingDueDate.value = false
     cancelEditDueDate()
-  }
-}
-
-function openEditSpField(task: Task) {
-  const sp = prompt(`Story points for "${task.title}":`, String(task.story_points || 0))
-  if (sp !== null && !isNaN(Number(sp))) {
-    updateTaskField(task.id, 'story_points', Number(sp))
   }
 }
 
@@ -5898,14 +5985,15 @@ const showCreateTaskModal = ref(false)
 const createTaskForm = ref({
   title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0,
   sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: '', epic_id: '',
-  estimated_hours: 0
+  estimated_hours: 0, assigned_to: '' as string | number
 })
 const isCreatingTask = ref(false)
 const createTaskError = ref('')
 
 function openCreateTaskModal(parentId?: string, epicId?: string) {
-  createTaskForm.value = { title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0, sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: parentId || '', epic_id: epicId || '', estimated_hours: 0 }
+  createTaskForm.value = { title: '', description: '', task_type: 'TASK', priority: 'MEDIUM', story_points: 0, sprint_id: '', due_date: '', start_date: '', end_date: '', parent_id: parentId || '', epic_id: epicId || '', estimated_hours: 0, assigned_to: '' }
   createTaskError.value = ''
+  void loadBacklogAssignees()
   showCreateTaskModal.value = true
 }
 
@@ -6018,6 +6106,7 @@ async function submitCreateTask() {
     if (createTaskForm.value.epic_id) payload.epic_id = createTaskForm.value.epic_id
     if (createTaskForm.value.sprint_id) payload.sprint_id = createTaskForm.value.sprint_id
     if (createTaskForm.value.due_date) payload.due_date = dateOnlyToISO(createTaskForm.value.due_date)
+    if (createTaskForm.value.assigned_to) payload.assigned_to = Number(createTaskForm.value.assigned_to)
     // Sub-tasks may override due date, but start/end still follow the parent.
     if (!createTaskForm.value.parent_id) {
       if (createTaskForm.value.start_date) payload.start_date = dateOnlyToISO(createTaskForm.value.start_date)
@@ -6441,12 +6530,17 @@ watch(
 )
 
 onMounted(async () => {
-  await loadBacklogAssignees()
+  // Backlog assignees are only needed for the backlog tab — defer to background so
+  // it never blocks the main project data load on other tabs (board, overview, etc.)
+  if (activeTab.value === 'backlog') {
+    void loadBacklogAssignees()
+  }
   await loadAll()
 })
 onBeforeUnmount(() => {
   if (typeof document !== 'undefined') {
     document.removeEventListener('click', onBacklogStatusFilterDocumentClick)
+    document.removeEventListener('click', onSpPopoverDocumentClick)
   }
   stopBacklogAutoScroll()
   if (typeof window !== 'undefined') {
@@ -6462,6 +6556,7 @@ onBeforeUnmount(() => {
 onMounted(() => {
   if (typeof document !== 'undefined') {
     document.addEventListener('click', onBacklogStatusFilterDocumentClick)
+    document.addEventListener('click', onSpPopoverDocumentClick)
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('dragend', stopBacklogAutoScroll)
@@ -6753,6 +6848,20 @@ function onBacklogStatusFilterDocumentClick(event: MouseEvent) {
 .backlog-sub-row select,
 .backlog-sub-row button,
 .backlog-sub-row a:not(.backlog-row-link) {
+  position: relative;
+  z-index: 2;
+}
+/* Elevate ALL column cells above the row overlay (z-index 1).
+   This covers native buttons/inputs AND child-component roots (e.g. dp-root)
+   without needing per-element rules. */
+.backlog-row > div,
+.backlog-sub-row > div {
+  position: relative;
+  z-index: 2;
+}
+/* Keep :deep rule as a belt-and-suspenders fallback for dp-root */
+.backlog-row :deep(.dp-root),
+.backlog-sub-row :deep(.dp-root) {
   position: relative;
   z-index: 2;
 }

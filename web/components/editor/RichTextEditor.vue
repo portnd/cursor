@@ -423,7 +423,7 @@ const editor = useEditor({
     Underline,
     Link.configure({
       openOnClick: false,
-      HTMLAttributes: { class: 'editor-link' },
+      HTMLAttributes: { class: 'editor-link', target: '_blank', rel: 'noopener noreferrer' },
     }),
     TextAlign.configure({
       types: ['heading', 'paragraph'],
@@ -531,10 +531,17 @@ onMounted(() => {
     })
 
     // Image click → fullscreen (readonly: view only; edit mode: fullscreen + option to annotate)
+    // Link click → open in new tab when readonly (edit mode preserves ProseMirror cursor positioning)
     editorEl.addEventListener('click', (e: Event) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'IMG') {
         openFullscreen(target as HTMLImageElement)
+        return
+      }
+      const anchor = (target.tagName === 'A' ? target : target.closest('a')) as HTMLAnchorElement | null
+      if (anchor?.href && props.readonly) {
+        e.preventDefault()
+        window.open(anchor.href, '_blank', 'noopener,noreferrer')
       }
     })
   })

@@ -13,15 +13,13 @@
 
       <!-- Logo & Title -->
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl login-icon-bg mb-4 shadow-lg">
-          <span class="text-3xl">🛡️</span>
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl login-icon-bg mb-4 shadow-lg">
+          <img src="/komgrip-icon.svg" alt="Komgrip" class="w-14 h-14 object-contain" />
         </div>
-        <h1 class="text-4xl font-bold mb-2 tracking-tight">
-          <span class="bg-gradient-to-r from-purple-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
-            The Sentinel
-          </span>
-        </h1>
-        <p class="login-subtitle text-sm font-medium tracking-wide">AI-Powered Development OS</p>
+        <div class="mb-2">
+          <img src="/komgrip-wordmark.svg" alt="KOMGRIP" class="h-9 w-auto object-contain mx-auto brightness-150" />
+        </div>
+        <p class="login-subtitle text-sm font-medium tracking-wide">TEAM-Powered Development OS</p>
       </div>
 
       <!-- Card -->

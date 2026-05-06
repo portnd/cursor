@@ -66,7 +66,24 @@
           <!-- Description -->
           <div>
             <label class="label">Description</label>
-            <textarea v-model="form.description" rows="6" class="input-field w-full resize-y min-h-[10rem]" placeholder="Describe the task objectives and requirements..."></textarea>
+            <RichTextEditor v-model="form.description" placeholder="Describe the task objectives and requirements… (paste images with ⌘V)" />
+          </div>
+
+          <!-- Assignee -->
+          <div>
+            <label class="label" :class="form.task_type === 'FEATURE' ? 'text-gray-500' : ''">
+              Assignee
+              <span v-if="form.task_type === 'FEATURE'" class="text-gray-600 font-normal">(disabled for Features)</span>
+            </label>
+            <select
+              v-model="form.assigned_to"
+              class="input-field w-full transition-opacity"
+              :class="form.task_type === 'FEATURE' ? 'opacity-40 cursor-not-allowed' : ''"
+              :disabled="form.task_type === 'FEATURE' || assigneeLoading"
+            >
+              <option value="">— Unassigned —</option>
+              <option v-for="u in visibleAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+            </select>
           </div>
 
           <!-- Project -->
@@ -182,6 +199,10 @@
 import { useProjectsApi } from '~/core/modules/projects/infrastructure/projects-api'
 import { useTasksApi } from '~/core/modules/tasks/infrastructure/tasks-api'
 import { effortHoursToMinutes } from '~/utils/effortHours'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
+import { isTaskAssigneeRole } from '~/utils/roles'
+import { useAuth } from '~/composables/useAuth'
+import RichTextEditor from '~/components/editor/RichTextEditor.vue'
 
 const KOMGRIP_VALUE = '__komgrip__'
 
@@ -194,6 +215,48 @@ const router = useRouter()
 const projectsApi = useProjectsApi()
 const tasksApi = useTasksApi()
 const { showSuccess, showError } = useNotification()
+const { currentUser, fetchWithAuth } = useAuth()
+const teamsStore = useTeamsStore()
+
+type AssigneeUser = { id: number; email: string; display_name: string; first_name?: string; last_name?: string; role: string }
+const assigneeUsers = ref<AssigneeUser[]>([])
+const assigneeLoading = ref(false)
+
+const visibleAssigneeUsers = computed(() => {
+  const isCeo = currentUser.value?.role?.toUpperCase() === 'CEO'
+  return assigneeUsers.value.filter((u) => isCeo || u.role?.toUpperCase() !== 'CEO')
+})
+
+async function loadAssignees() {
+  if (assigneeUsers.value.length > 0 || assigneeLoading.value) return
+  assigneeLoading.value = true
+  try {
+    await teamsStore.fetchTeamsFeatureEnabled()
+    if (teamsStore.teamsFeatureEnabled) {
+      await teamsStore.fetchTeams()
+      const allUsers = teamsStore.teams.flatMap((t: any) => t.users ?? [])
+      const seen = new Set<number>()
+      assigneeUsers.value = allUsers.filter((u: AssigneeUser) => {
+        if (seen.has(u.id)) return false
+        seen.add(u.id)
+        return isTaskAssigneeRole(u.role)
+      })
+    } else {
+      const res = await fetchWithAuth<{ data: AssigneeUser[] }>('/auth/users')
+      assigneeUsers.value = (res.data ?? []).filter((u: AssigneeUser) => isTaskAssigneeRole(u.role))
+    }
+  } catch {
+    // non-critical
+  } finally {
+    assigneeLoading.value = false
+  }
+}
+
+function assigneeLabel(u: AssigneeUser) {
+  const parts = [u.first_name, u.last_name].map((p) => (p || '').trim()).filter(Boolean)
+  const name = parts.length > 0 ? parts.join(' ') : (u.display_name?.trim() || u.email)
+  return `${name} (${u.role})`
+}
 
 interface ProjectItem { id: string; name: string }
 interface SprintItem  { id: string; name: string }
@@ -225,6 +288,7 @@ const form = ref({
   due_date:          '',
   start_date:        '',
   end_date:          '',
+  assigned_to:       '' as string | number,
 })
 
 onMounted(async () => {
@@ -234,6 +298,7 @@ onMounted(async () => {
   } catch {
     // non-critical
   }
+  void loadAssignees()
 })
 
 async function onProjectChange() {
@@ -294,6 +359,7 @@ async function handleSubmit() {
     if (form.value.due_date)    payload.due_date    = dateOnlyToISO(form.value.due_date)
     if (form.value.start_date)  payload.start_date  = dateOnlyToISO(form.value.start_date)
     if (form.value.end_date)    payload.end_date    = dateOnlyToISO(form.value.end_date)
+    if (form.value.assigned_to) payload.assigned_to = Number(form.value.assigned_to)
 
     await tasksApi.createTask(payload)
     showSuccessMsg.value = true

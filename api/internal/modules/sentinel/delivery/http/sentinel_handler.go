@@ -37,6 +37,7 @@ type createTaskReq struct {
 	SprintID         *string `json:"sprint_id"`
 	MilestoneID      *string `json:"milestone_id"`
 	EstimatedMinutes *int    `json:"estimated_minutes"` // Manual estimate; stored for Costing Engine (mandatory from frontend)
+	AssignedTo       *uint   `json:"assigned_to"`       // Optional: assign immediately at creation time
 }
 
 type assignTaskReq struct {

@@ -141,6 +141,7 @@
               :aria-label="`${taskDisplayCode(task)}: ${task.title}. Column: ${kanbanColumnLabelForTask(task)}.`"
               @dragstart="onDragStart($event, task)"
               @click="$emit('task-click', task)"
+              @contextmenu="onContextMenu($event, task)"
             >
               <div class="flex items-start justify-between gap-1 mb-2">
                 <div class="flex items-center gap-1.5 min-w-0">
@@ -193,6 +194,7 @@
                 :aria-label="`${taskDisplayCode(task)}: ${task.title}. Column: ${kanbanColumnLabelForTask(task)}.`"
                 @dragstart="onDragStart($event, task)"
                 @click="$emit('task-click', task)"
+                @contextmenu="onContextMenu($event, task)"
               >
                 <div class="flex items-start justify-between gap-1 mb-2">
                   <div class="flex items-center gap-1.5 min-w-0">
@@ -247,6 +249,32 @@
         </div>
       </div>
     </div>
+
+    <!-- Context Menu -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu"
+        class="fixed inset-0 z-[9999]"
+        @click.stop="closeContextMenu"
+        @contextmenu.prevent="closeContextMenu"
+      >
+        <div
+          class="context-menu fixed z-[10000] w-52 rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/50 py-1.5"
+          :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+          @click.stop
+        >
+          <button
+            class="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-gray-200 hover:bg-violet-600/20 hover:text-white transition-colors"
+            @click="openTaskInNewTab(contextMenu.task)"
+          >
+            <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+            Open in New Tab
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -293,6 +321,47 @@ const swimLane = ref<'none' | 'priority' | 'assignee'>('none')
 const searchQuery = ref('')
 const dragTask = ref<Task | null>(null)
 const dragOverCol = ref('')
+
+const router = useRouter()
+const contextMenu = ref<{ x: number; y: number; task: Task } | null>(null)
+
+function onContextMenu(e: MouseEvent, task: Task) {
+  e.preventDefault()
+  e.stopPropagation()
+  const menuWidth = 208
+  const menuHeight = 44
+  const x = e.clientX + menuWidth > window.innerWidth ? e.clientX - menuWidth : e.clientX
+  const y = e.clientY + menuHeight > window.innerHeight ? e.clientY - menuHeight : e.clientY
+  contextMenu.value = { x, y, task }
+}
+
+function closeContextMenu() {
+  contextMenu.value = null
+}
+
+function openTaskInNewTab(task: Task) {
+  const resolved = router.resolve({ path: `/task/${task.id}` })
+  window.open(resolved.href, '_blank')
+  closeContextMenu()
+}
+
+function onDocumentClick() {
+  closeContextMenu()
+}
+
+function onDocumentKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') closeContextMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
 
 const BOARD_FILTER_STORAGE_PREFIX = 'sentinel-project-board-filters'
 
@@ -607,5 +676,14 @@ function isColumnDroppable(colStatus: string): boolean {
 
 .input-select {
   @apply bg-slate-800/90 border border-slate-600/70 rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/35 transition-all;
+}
+
+.context-menu {
+  animation: contextMenuIn 0.12s ease-out;
+}
+
+@keyframes contextMenuIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>

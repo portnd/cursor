@@ -160,6 +160,14 @@ func (h *SentinelHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
+	if req.AssignedTo != nil && *req.AssignedTo != 0 {
+		if assignErr := h.usecase.AssignTask(task.ID, *req.AssignedTo, userID, getUserRoleFromContext(c)); assignErr != nil {
+			log.Printf("[CreateTask] auto-assign warning: %v", assignErr)
+		} else {
+			task.AssignedTo = req.AssignedTo
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Task created successfully",
 		"data":    task,

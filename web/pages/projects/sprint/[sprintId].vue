@@ -137,11 +137,12 @@
           </button>
         </div>
         <div v-if="filteredMetricTasks.length" class="space-y-2">
-          <div
+          <a
             v-for="t in filteredMetricTasks"
             :key="`metric-${t.id}`"
-            class="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-700/40 transition-colors cursor-pointer"
-            @click="navigateToTask(t.id)"
+            :href="taskUrl(t.id)"
+            class="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-gray-700/40 transition-colors"
+            @click.prevent="navigateToTask(t.id)"
           >
             <div class="flex items-center gap-3 min-w-0">
               <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskDisplayCode(t) }}</span>
@@ -155,7 +156,7 @@
               <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
               <span v-if="t.due_at" class="text-[10px] text-gray-500">Due {{ formatDate(t.due_at) }}</span>
             </div>
-          </div>
+          </a>
         </div>
         <div v-else class="text-center py-8 text-gray-500 text-sm">No tasks in this group.</div>
       </div>
@@ -215,9 +216,10 @@
               @click.stop
               class="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500 shrink-0"
             />
-            <div
-              class="flex flex-1 items-center justify-between min-w-0 cursor-pointer"
-              @click="navigateToTask(t.id)"
+            <a
+              class="flex flex-1 items-center justify-between min-w-0"
+              :href="taskUrl(t.id)"
+              @click.prevent="navigateToTask(t.id)"
             >
               <div class="flex items-center gap-3 min-w-0">
                 <span class="text-xs font-mono text-gray-500 shrink-0">{{ taskDisplayCode(t) }}</span>
@@ -232,7 +234,7 @@
                 <span v-else class="text-xs text-red-400/80 font-medium flex items-center gap-0.5" title="ยังไม่ได้ใส่ Story Points — ต้องใส่ก่อนเริ่ม Sprint">⚠️ 0 SP</span>
                 <span class="text-xs px-2 py-0.5 rounded-full" :class="taskStatusBadge(t.status)">{{ t.status.replace('_', ' ') }}</span>
               </div>
-            </div>
+            </a>
           </div>
         </div>
         <div v-else class="text-center py-12 px-4 text-gray-500 text-sm">
@@ -416,7 +418,18 @@
           </div>
           <div>
             <label class="label">Description</label>
-            <textarea v-model="createTaskForm.description" rows="6" class="input-field w-full resize-y min-h-[10rem]" placeholder="Describe the task..."></textarea>
+            <RichTextEditor v-model="createTaskForm.description" placeholder="Describe the task… (paste images with ⌘V)" />
+          </div>
+          <div>
+            <label class="label">Assignee</label>
+            <select
+              v-model="createTaskForm.assigned_to"
+              class="input-field w-full"
+              :disabled="assigneeLoading"
+            >
+              <option value="">— Unassigned —</option>
+              <option v-for="u in visibleAssigneeUsers" :key="u.id" :value="u.id">{{ assigneeLabel(u) }}</option>
+            </select>
           </div>
           <div>
             <label class="label">Estimated Effort (hours) *</label>
@@ -491,6 +504,9 @@ import { effortHoursToMinutes } from '~/utils/effortHours'
 import { isTaskOverdueForMetrics } from '~/utils/task-overdue-metrics'
 import { buildTaskDisplayCodeMap, taskCodeSuffix } from '~/utils/backlog-task-utils'
 import { useAuth } from '~/composables/useAuth'
+import { useTeamsStore } from '~/core/modules/teams/store/teams-store'
+import { isTaskAssigneeRole } from '~/utils/roles'
+import RichTextEditor from '~/components/editor/RichTextEditor.vue'
 
 definePageMeta({ layout: 'default', middleware: 'auth' })
 
@@ -499,7 +515,44 @@ const router = useRouter()
 const projectsApi = useProjectsApi()
 const tasksApi = useTasksApi()
 const { showSuccess } = useNotification()
-const { currentUser } = useAuth()
+const { currentUser, fetchWithAuth } = useAuth()
+const teamsStore = useTeamsStore()
+
+type AssigneeUser = { id: number; email: string; display_name: string; first_name?: string; last_name?: string; role: string }
+const assigneeUsers = ref<AssigneeUser[]>([])
+const assigneeLoading = ref(false)
+
+const visibleAssigneeUsers = computed(() => {
+  const isCeo = currentUser.value?.role?.toUpperCase() === 'CEO'
+  return assigneeUsers.value.filter((u) => isCeo || u.role?.toUpperCase() !== 'CEO')
+})
+
+async function loadAssignees() {
+  if (assigneeUsers.value.length > 0 || assigneeLoading.value) return
+  assigneeLoading.value = true
+  try {
+    await teamsStore.fetchTeamsFeatureEnabled()
+    if (teamsStore.teamsFeatureEnabled) {
+      await teamsStore.fetchTeams()
+      const teamId = project.value?.team_id ?? null
+      const team = teamId ? teamsStore.teamById(teamId) : null
+      assigneeUsers.value = team?.users?.filter((u: AssigneeUser) => isTaskAssigneeRole(u.role)) ?? []
+    } else {
+      const res = await fetchWithAuth<{ data: AssigneeUser[] }>('/auth/users')
+      assigneeUsers.value = (res.data ?? []).filter((u: AssigneeUser) => isTaskAssigneeRole(u.role))
+    }
+  } catch {
+    // non-critical: assignee list unavailable
+  } finally {
+    assigneeLoading.value = false
+  }
+}
+
+function assigneeLabel(u: AssigneeUser) {
+  const parts = [u.first_name, u.last_name].map((p) => (p || '').trim()).filter(Boolean)
+  const name = parts.length > 0 ? parts.join(' ') : (u.display_name?.trim() || u.email)
+  return `${name} (${u.role})`
+}
 
 const isProjectCeo = computed(() => currentUser.value?.role?.toUpperCase() === 'CEO')
 const canMoveTasksFromActiveSprint = computed(() => {
@@ -816,6 +869,10 @@ function navigateToTask(id: string) {
   })
 }
 
+function taskUrl(id: string) {
+  return `/task/${id}?from_sprint=${sprintId.value}&from_project=${projectId.value}`
+}
+
 
 async function loadAll() {
   if (!projectId.value) {
@@ -885,6 +942,7 @@ const createTaskForm = ref({
   start_date: '',
   end_date: '',
   estimated_hours: 0,
+  assigned_to: '' as string | number,
 })
 const isCreatingTask = ref(false)
 const createTaskError = ref('')
@@ -900,8 +958,10 @@ function openCreateTaskModal() {
     start_date: '',
     end_date: '',
     estimated_hours: 0,
+    assigned_to: '',
   }
   createTaskError.value = ''
+  void loadAssignees()
   showCreateTaskModal.value = true
 }
 
@@ -927,6 +987,7 @@ async function submitCreateTask() {
     if (createTaskForm.value.due_date) payload.due_date = dateOnlyToISO(createTaskForm.value.due_date)
     if (createTaskForm.value.start_date) payload.start_date = dateOnlyToISO(createTaskForm.value.start_date)
     if (createTaskForm.value.end_date) payload.end_date = dateOnlyToISO(createTaskForm.value.end_date)
+    if (createTaskForm.value.assigned_to) payload.assigned_to = Number(createTaskForm.value.assigned_to)
     const task = await tasksApi.createTask(payload)
     allTasks.value.unshift(task)
     closeCreateTaskModal()

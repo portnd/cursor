@@ -30,10 +30,10 @@
           </svg>
         </button>
         <div class="flex items-center gap-3 min-w-0 overflow-hidden">
-          <span class="text-xl shrink-0">🛡️</span>
+          <img src="/komgrip-icon.svg" alt="Komgrip" class="shrink-0 w-8 h-8 object-contain -mt-1" />
           <div v-show="!sidebarCollapsed" class="min-w-0">
-            <h1 class="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent truncate">The Sentinel</h1>
-            <p class="text-[10px] text-gray-400 truncate">AI Task Manager</p>
+            <img src="/komgrip-wordmark.svg" alt="KOMGRIP" class="h-5 w-auto object-contain brightness-150" />
+            <p class="text-[10px] text-gray-400 truncate pl-0.5">DELIVERING ON TIME</p>
           </div>
         </div>
         <button
@@ -336,7 +336,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <p class="truncate text-sm font-semibold text-slate-800 dark:text-gray-200">The Sentinel</p>
+        <img src="/komgrip-wordmark.svg" alt="KOMGRIP" class="h-4 w-auto object-contain brightness-0 dark:brightness-150 invert dark:invert-0" />
       </div>
       <slot />
     </main>
@@ -381,18 +381,19 @@ onMounted(async () => {
   refreshDeploymentBadge()
   const interval = setInterval(refreshDeploymentBadge, 60_000)
   onUnmounted(() => clearInterval(interval))
-  refreshSidebarAvatar()
 
   // Apply stored theme immediately to reduce hydration flicker,
-  // then reconcile with account-level preference.
+  // then reconcile with account-level preference in a single getMe call
+  // (merges the former refreshSidebarAvatar + theme-hydration round-trips into one).
   initTheme()
   try {
     const me = await authApi.getMe()
+    sidebarAvatarURL.value = me.avatar_url || ''
     if (me.theme_preference) {
       initTheme(me.theme_preference as 'dark' | 'light')
     }
   } catch {
-    /* keep current theme */
+    /* keep current theme / avatar just won't show */
   }
 })
 
@@ -445,13 +446,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 // Shared avatar state — readable by any page via useState('sidebarAvatarURL')
 const sidebarAvatarURL = useState<string>('sidebarAvatarURL', () => '')
-
-async function refreshSidebarAvatar() {
-  try {
-    const me = await authApi.getMe()
-    sidebarAvatarURL.value = me.avatar_url || ''
-  } catch { /* silent — avatar just won't show */ }
-}
 
 const userEmail = computed(() => currentUser.value?.email || 'user@sentinel.com')
 const userRole = computed(() => {
